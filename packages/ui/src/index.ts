@@ -3,3 +3,4 @@ export * from './Badge';
 export * from './Card';
 export * from './Spinner';
 export * from './StatusBadge';
+export * from './Input';

@@ -1,40 +1,63 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { AuthLayout } from '../layouts/AuthLayout';
-import { AppLayout } from '../layouts/AppLayout';
-import { ProtectedRoute } from '../components/ProtectedRoute';
+import React from "react";
+import { createBrowserRouter, Navigate } from "react-router-dom";
+import { AppLayout } from "../layouts/AppLayout";
+import { ProtectedRoute } from "../components/ProtectedRoute";
+import { useAuthStore } from "../store/auth.store";
 
-import { LoginPage } from '../pages/LoginPage';
-import { DashboardPage } from '../pages/DashboardPage';
-import { OrdersPage } from '../pages/OrdersPage';
-import { CreateOrderPage } from '../pages/CreateOrderPage';
-import { OrderDetailPage } from '../pages/OrderDetailPage';
-import { StaffPage } from '../pages/StaffPage';
-import { ReportsPage } from '../pages/ReportsPage';
+import { LoginPage } from "../pages/LoginPage";
+import { DashboardPage } from "../pages/DashboardPage";
+import { OrdersPage } from "../pages/OrdersPage";
+import { CreateOrderPage } from "../pages/CreateOrderPage";
+import { OrderDetailPage } from "../pages/OrderDetailPage";
+import { StaffPage } from "../pages/StaffPage";
+import { ReportsPage } from "../pages/ReportsPage";
+
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <>{children}</>;
+};
 
 const router = createBrowserRouter([
   {
-    path: '/',
-    element: <Navigate to="/dashboard" replace />
+    path: "/login",
+    element: (
+      <PublicRoute>
+        <LoginPage />
+      </PublicRoute>
+    ),
   },
   {
-    path: '/login',
-    element: <AuthLayout />,
+    path: "/",
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
-      { path: '', element: <LoginPage /> }
-    ]
+      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { path: "dashboard", element: <DashboardPage /> },
+      { path: "orders", element: <OrdersPage /> },
+      { path: "orders/new", element: <CreateOrderPage /> },
+      { path: "orders/:id", element: <OrderDetailPage /> },
+      { path: "staff", element: <StaffPage /> },
+      { path: "reports", element: <ReportsPage /> },
+    ],
   },
   {
-    path: '/',
-    element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
-    children: [
-      { path: 'dashboard', element: <DashboardPage /> },
-      { path: 'orders', element: <OrdersPage /> },
-      { path: 'orders/new', element: <CreateOrderPage /> },
-      { path: 'orders/:id', element: <OrderDetailPage /> },
-      { path: 'staff', element: <StaffPage /> },
-      { path: 'reports', element: <ReportsPage /> },
-    ]
+    path: "*",
+    element: <Navigate to="/dashboard" replace />,
+  },
+], {
+  future: {
+    v7_normalizeFormMethod: true,
+    v7_fetcherPersist: true,
+    v7_partialHydration: true,
+    v7_relativeSplatPath: true,
+    v7_skipActionErrorRevalidation: true,
   }
-]);
+});
 
 export default router;
