@@ -53,14 +53,28 @@ export const CreateOrderPage = () => {
     e.preventDefault();
     setFormError('');
 
-    if (!form.customerName.trim()) return setFormError('El nombre del cliente es requerido.');
-    if (!form.customerPhone.trim()) return setFormError('El WhatsApp del cliente es requerido.');
-    if (!form.destinationAddress.trim()) return setFormError('La dirección de entrega es requerida.');
+    const nameStr = form.customerName.trim();
+    if (!nameStr) {
+      toast.error('El nombre del cliente es requerido.');
+      return setFormError('El nombre del cliente es requerido.');
+    }
+
+    const phoneDigits = form.customerPhone.trim().replace(/\D/g, '');
+    if (phoneDigits.length !== 8) {
+      toast.error('Número de WhatsApp inválido. Debe tener exactamente 8 dígitos.');
+      return setFormError('Número de WhatsApp inválido. Debe tener exactamente 8 dígitos.');
+    }
+
+    const addressStr = form.destinationAddress.trim();
+    if (!addressStr) {
+      toast.error('La dirección de entrega es requerida.');
+      return setFormError('La dirección de entrega es requerida.');
+    }
 
     const payload: CreateOrderDto = {
-      customerName: form.customerName.trim(),
-      customerPhone: form.customerPhone.trim(),
-      destinationAddress: form.destinationAddress.trim(),
+      customerName: nameStr,
+      customerPhone: phoneDigits,
+      destinationAddress: addressStr,
       description: form.description.trim() || undefined,
       deliveryPaymentStatus: form.deliveryPaymentStatus,
       deliveryFee: form.deliveryPaymentStatus !== 'GRATIS' && form.deliveryFee ? Number(form.deliveryFee) : 0,
