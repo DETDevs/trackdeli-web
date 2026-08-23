@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getOrder, getOrderPhotos, type OrderStatus } from 'api-client';
-import { ArrowLeft, Copy, Image } from '@phosphor-icons/react';
+import { getOrder, type OrderStatus, apiClient } from 'api-client';
+import { ArrowLeft, Copy } from '@phosphor-icons/react';
 import { toast } from 'react-hot-toast';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDateTime } from '../utils/formatDate';
@@ -40,11 +40,24 @@ export const OrderDetailPage = () => {
     enabled: !!id,
   });
 
+  // Agregar query para fotos
   const { data: photos = [] } = useQuery({
     queryKey: ['order-photos', id],
-    queryFn: () => getOrderPhotos(id!),
+    queryFn: async () => {
+      const response = await apiClient.get(`/orders/${id}/photos`);
+      return response.data as Array<{
+        id: string;
+        photoUrl: string;
+        type: 'ARMADO' | 'ENTREGA';
+        createdAt: string;
+      }>;
+    },
     enabled: !!id,
   });
+
+  // Separar fotos por tipo
+  const fotosArmado = photos.filter(p => p.type === 'ARMADO');
+  const fotosEntrega = photos.filter(p => p.type === 'ENTREGA');
 
   const copyTrackingLink = () => {
     if (!order?.trackingToken) return;
@@ -73,20 +86,54 @@ export const OrderDetailPage = () => {
     );
   }
 
-  // Build timeline — merge status history with the canonical sequence
-  const history = order.statusHistory ?? [];
-  const completedStatuses = history.map(h => h.status);
+  // Build timeline dynamically based on current status index
+  const currentStatusIndex = STATUS_SEQUENCE.indexOf(order.status as OrderStatus);
+  
+  let timeline = STATUS_SEQUENCE.map((s, idx) => {
+    let completedAt: string | null = null;
+    
+    if (s === 'PENDIENTE') completedAt = order.createdAt;
+    if (s === 'TOMADO') completedAt = order.takenAt ?? null;
+    if (s === 'ENTREGADO') completedAt = order.deliveredAt ?? null;
 
-  const timeline = STATUS_SEQUENCE.map(s => {
-    const historyEntry = history.find(h => h.status === s);
-    const isCompleted = !!historyEntry || completedStatuses.indexOf(s) <= completedStatuses.indexOf(order.status as OrderStatus);
-    return { status: s, completedAt: historyEntry?.createdAt ?? null, isCompleted };
+    const isCompleted = currentStatusIndex > idx;
+    const isCurrent = currentStatusIndex === idx;
+    const isFuture = currentStatusIndex !== -1 && currentStatusIndex < idx;
+    
+    let label = 'Pendiente';
+    if (isCompleted || isCurrent) {
+        label = completedAt ? formatDateTime(completedAt) : 'Completado';
+    }
+
+    return { 
+      status: s, 
+      label,
+      isCompleted,
+      isCurrent,
+      isFuture,
+      isErrorState: false
+    };
   });
 
-  // If cancelled or incidence, add it at the end
+  // Handle cut-off for CANCELADO / INCIDENCIA
   if (order.status === 'CANCELADO' || order.status === 'INCIDENCIA') {
-    const entry = history.find(h => h.status === order.status);
-    timeline.push({ status: order.status, completedAt: entry?.createdAt ?? null, isCompleted: true });
+    const cutoffIndex = order.takenAt ? 1 : 0;
+    
+    timeline = timeline.slice(0, cutoffIndex + 1).map(t => ({
+        ...t, 
+        isCompleted: true, 
+        isCurrent: false, 
+        isFuture: false
+    }));
+    
+    timeline.push({
+        status: order.status,
+        label: order.updatedAt ? formatDateTime(order.updatedAt) : 'Completado',
+        isCompleted: false,
+        isCurrent: true,
+        isFuture: false,
+        isErrorState: true
+    });
   }
 
   const initials = (name: string) =>
@@ -158,22 +205,50 @@ export const OrderDetailPage = () => {
 
           {/* Photos */}
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
-            <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Fotos del pedido</div>
-            {photos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-2">
-                <Image size={24} className="text-gray-300" />
-                <p className="text-sm text-gray-400">Sin fotos aún</p>
+            {fotosArmado.length > 0 ? (
+              <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                  Fotos del pedido armado
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  {fotosArmado.map((foto) => (
+                    <a
+                      key={foto.id}
+                      href={foto.photoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block"
+                    >
+                      <img
+                        src={foto.photoUrl}
+                        alt="Foto del pedido"
+                        className="w-24 h-24 object-cover rounded-lg border border-gray-100 hover:opacity-90 transition-opacity cursor-pointer"
+                      />
+                    </a>
+                  ))}
+                </div>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-3">
-                {photos.map(photo => (
-                  <img
-                    key={photo.id}
-                    src={photo.url}
-                    alt="Foto del pedido"
-                    className="w-24 h-24 object-cover rounded-lg border border-gray-100"
-                  />
-                ))}
+              <p className="text-sm text-gray-400">Sin fotos de armado</p>
+            )}
+
+            {/* Renderizar fotos de entrega: */}
+            {fotosEntrega.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                  Fotos de entrega
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  {fotosEntrega.map((foto) => (
+                    <a key={foto.id} href={foto.photoUrl} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={foto.photoUrl}
+                        alt="Foto de entrega"
+                        className="w-24 h-24 object-cover rounded-lg border border-gray-100 hover:opacity-90 transition-opacity cursor-pointer"
+                      />
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -188,20 +263,28 @@ export const OrderDetailPage = () => {
               {timeline.map((item, idx) => (
                 <div key={item.status} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <div className={`w-3 h-3 rounded-full mt-0.5 shrink-0 ${item.isCompleted ? 'bg-brand-600' : 'bg-gray-200'}`} />
+                    <div 
+                      className={`rounded-full mt-0.5 shrink-0 transition-all duration-300
+                        ${item.isCompleted ? 'w-3 h-3 bg-[#22C55E]' : ''}
+                        ${item.isCurrent && !item.isErrorState ? 'w-3.5 h-3.5 bg-white border-[3px] border-[#22C55E] ring-4 ring-[#22C55E]/10' : ''}
+                        ${item.isCurrent && item.isErrorState ? 'w-3.5 h-3.5 bg-white border-[3px] border-red-500 ring-4 ring-red-500/10' : ''}
+                        ${item.isFuture ? 'w-3 h-3 bg-gray-200' : ''}
+                      `} 
+                    />
                     {idx < timeline.length - 1 && (
-                      <div className={`w-0.5 flex-1 my-1 ${item.isCompleted ? 'bg-brand-200' : 'bg-gray-100'}`} style={{ minHeight: '24px' }} />
+                      <div 
+                        className={`w-0.5 flex-1 my-1 transition-colors duration-300 ${item.isCompleted ? 'bg-[#22C55E]/30' : 'bg-gray-100'}`} 
+                        style={{ minHeight: '24px' }} 
+                      />
                     )}
                   </div>
-                  <div className="pb-4">
-                    <p className={`text-sm font-medium ${item.isCompleted ? 'text-gray-900' : 'text-gray-400'}`}>
+                  <div className="pb-4 pt-0.5">
+                    <p className={`text-sm font-medium ${item.isCompleted || item.isCurrent ? 'text-gray-900' : 'text-gray-400'} ${item.isErrorState ? '!text-red-600' : ''}`}>
                       {statusLabel[item.status] ?? item.status}
                     </p>
-                    {item.completedAt ? (
-                      <p className="text-xs text-gray-400">{formatDateTime(item.completedAt)}</p>
-                    ) : (
-                      <p className="text-xs text-gray-300">Pendiente</p>
-                    )}
+                    <p className={`text-xs ${item.isFuture ? 'text-gray-300' : 'text-gray-400'} ${item.isErrorState ? '!text-red-400' : ''}`}>
+                      {item.label}
+                    </p>
                   </div>
                 </div>
               ))}

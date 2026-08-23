@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getOrders, type OrderStatus } from 'api-client';
-import { Package, Plus, MagnifyingGlass } from '@phosphor-icons/react';
+import { Package, Plus, MagnifyingGlass, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatRelative } from '../utils/formatDate';
 
@@ -15,11 +15,14 @@ export const OrdersPage = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const { data: orders = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['orders'],
     queryFn: () => getOrders(),
-    refetchInterval: 20_000,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: false,
   });
 
   const filtered = useMemo(() => {
@@ -42,13 +45,19 @@ export const OrdersPage = () => {
             type="text"
             placeholder="Buscar cliente..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:border-gray-400 outline-none"
           />
         </div>
         <select
           value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as OrderStatus | '')}
+          onChange={e => {
+            setStatusFilter(e.target.value as OrderStatus | '');
+            setCurrentPage(1);
+          }}
           className="bg-white border border-gray-200 rounded-md px-3 py-2 text-sm focus:border-gray-400 outline-none text-gray-700"
         >
           <option value="">Todos los estados</option>
@@ -112,7 +121,7 @@ export const OrdersPage = () => {
                 </td>
               </tr>
             ) : (
-              filtered.map(order => (
+              filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(order => (
                 <tr
                   key={order.id}
                   onClick={() => navigate(`/orders/${order.id}`)}
@@ -143,6 +152,34 @@ export const OrdersPage = () => {
             )}
           </tbody>
         </table>
+        
+        {/* Pagination controls */}
+        {Math.ceil(filtered.length / itemsPerPage) > 1 && (
+          <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between bg-white">
+            <div className="text-sm text-gray-500">
+              Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filtered.length)} de {filtered.length} pedidos
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded border border-gray-200 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+              >
+                <CaretLeft size={16} />
+              </button>
+              <span className="text-sm font-medium text-gray-700 px-2">
+                Página {currentPage} de {Math.ceil(filtered.length / itemsPerPage)}
+              </span>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(Math.ceil(filtered.length / itemsPerPage), p + 1))}
+                disabled={currentPage === Math.ceil(filtered.length / itemsPerPage)}
+                className="p-1.5 rounded border border-gray-200 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+              >
+                <CaretRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

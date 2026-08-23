@@ -13,13 +13,15 @@ export const DashboardPage = () => {
   const { data: orders = [], isLoading: ordersLoading } = useQuery({
     queryKey: ['orders'],
     queryFn: () => getOrders(),
-    refetchInterval: 30_000,
+    refetchInterval: 20000,
+    refetchIntervalInBackground: false,
   });
 
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => getUsers(),
-    refetchInterval: 30_000,
+    refetchInterval: 20000,
+    refetchIntervalInBackground: false,
   });
 
   const pendientes = orders.filter(o => o.status === 'PENDIENTE').length;
