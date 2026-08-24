@@ -37,7 +37,7 @@ export const DeliveredPage = () => {
     if (stars === 0) return;
     setIsLoading(true);
     try {
-      await axios.post(`${API_BASE}/track/${token}/rating`, {
+      await axios.post(`${API_BASE}/tracking/${token}/rating`, {
         stars,
         comment: comment.trim() || undefined,
       });

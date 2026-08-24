@@ -1,10 +1,14 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getOrder, type OrderStatus, apiClient } from 'api-client';
+import { getOrder, type OrderStatus, apiClient, getMyBusiness } from 'api-client';
 import { ArrowLeft, Copy } from '@phosphor-icons/react';
 import { toast } from 'react-hot-toast';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDateTime } from '../utils/formatDate';
+import LiveMap from '../components/LiveMap';
+import { useMapStore } from '../store/map.store';
+import { useSocketStore } from '../store/socket.store';
+import { useEffect } from 'react';
 
 const STATUS_SEQUENCE: OrderStatus[] = [
   'PENDIENTE', 'TOMADO', 'EN_CAMINO', 'CERCA_DEL_DESTINO',
@@ -40,6 +44,11 @@ export const OrderDetailPage = () => {
     enabled: !!id,
   });
 
+  const { data: business } = useQuery({
+    queryKey: ['business'],
+    queryFn: () => getMyBusiness(),
+  });
+
   // Agregar query para fotos
   const { data: photos = [] } = useQuery({
     queryKey: ['order-photos', id],
@@ -61,10 +70,28 @@ export const OrderDetailPage = () => {
 
   const copyTrackingLink = () => {
     if (!order?.trackingToken) return;
-    const link = `${window.location.origin.replace('5173', '5174')}/track/${order.trackingToken}`;
+    const link = `${window.location.origin.replace('5173', '5174')}/${order.trackingToken}`;
     navigator.clipboard.writeText(link);
     toast.success('Link copiado al portapapeles');
   };
+
+  const { socket } = useSocketStore();
+
+  useEffect(() => {
+    if (socket && order?.id) {
+      if (order.status === 'EN_CAMINO' || order.status === 'CERCA_DEL_DESTINO' || order.status === 'VERIFICANDO_ENTREGA') {
+        socket.emit('join_order', { orderId: order.id });
+      }
+    }
+  }, [socket, order?.id, order?.status]);
+
+  const { repartidoresActivos } = useMapStore();
+  const orderRepartidor = repartidoresActivos.find(r => r.orderId === order?.id);
+  const repList = orderRepartidor ? [{
+    ...orderRepartidor,
+    name: order?.deliveryUser?.name || orderRepartidor.name,
+    customerName: order?.customerName || orderRepartidor.customerName,
+  }] : [];
 
   if (isLoading) {
     return (
@@ -304,6 +331,28 @@ export const OrderDetailPage = () => {
                   <p className="text-xs text-gray-400">Repartidor</p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Mapa de Tracking */}
+          {(order.status === 'EN_CAMINO' || order.status === 'CERCA_DEL_DESTINO') && (
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">Ubicación en tiempo real</div>
+              </div>
+              <LiveMap 
+                repartidores={repList}
+                activeOrders={order.destinationLat && order.destinationLng ? [{
+                  id: order.id,
+                  status: order.status,
+                  destinationLat: Number(order.destinationLat),
+                  destinationLng: Number(order.destinationLng),
+                }] : []}
+                businessLocation={business?.latitude && business?.longitude ? { lat: business.latitude, lng: business.longitude } : undefined}
+                centerLat={order.destinationLat || 12.1364}
+                centerLng={order.destinationLng || -86.2504}
+                focusedOrderId={order.id}
+              />
             </div>
           )}
 

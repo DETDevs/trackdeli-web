@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Package, ListChecks, Plus, Users, ChartBar, SignOut } from '@phosphor-icons/react';
+import { Package, ListChecks, Plus, Users, ChartBar, SignOut, Gear } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrderNotifications } from '../hooks/useOrderNotifications';
@@ -33,6 +33,7 @@ export const AppLayout = () => {
     if (pathname.startsWith('/orders')) return 'Pedidos';
     if (pathname.startsWith('/staff')) return 'Repartidores';
     if (pathname.startsWith('/reports')) return 'Reportes';
+    if (pathname.startsWith('/settings')) return 'Configuración';
     return '';
   };
 
@@ -95,6 +96,10 @@ export const AppLayout = () => {
               <NavLink to="/reports" className={navLinkClass}>
                 <ChartBar size={18} weight="regular" />
                 Reportes
+              </NavLink>
+              <NavLink to="/settings" className={navLinkClass}>
+                <Gear size={18} weight="regular" />
+                Configuración
               </NavLink>
             </div>
           </div>

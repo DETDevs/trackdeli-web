@@ -4,3 +4,4 @@ export * from './endpoints/orders';
 export * from './endpoints/users';
 export * from './endpoints/tracking';
 export * from './endpoints/ratings';
+export * from './endpoints/businesses';

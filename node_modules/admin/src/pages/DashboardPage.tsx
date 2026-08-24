@@ -1,14 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Package, Motorcycle, CheckCircle, Users, MapPin } from '@phosphor-icons/react';
-import { getOrders, getUsers } from 'api-client';
+import { Package, Motorcycle, CheckCircle, Users } from '@phosphor-icons/react';
+import { getOrders, getUsers, getMyBusiness } from 'api-client';
 import { isToday } from 'date-fns';
 import { StatCard } from '../components/StatCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatRelative } from '../utils/formatDate';
+import LiveMap from '../components/LiveMap';
+import { useMapStore } from '../store/map.store';
+import { useSocketStore } from '../store/socket.store';
+import { useEffect, useState, useRef, useMemo } from 'react';
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
+  const [focusedOrderId, setFocusedOrderId] = useState<string | null>(null);
 
   const { data: orders = [], isLoading: ordersLoading } = useQuery({
     queryKey: ['orders'],
@@ -24,13 +29,103 @@ export const DashboardPage = () => {
     refetchIntervalInBackground: false,
   });
 
+  const { data: business } = useQuery({
+    queryKey: ['business'],
+    queryFn: () => getMyBusiness(),
+  });
+
   const pendientes = orders.filter(o => o.status === 'PENDIENTE').length;
   const enCamino = orders.filter(o => o.status === 'EN_CAMINO').length;
   const entregadosHoy = orders.filter(o => o.deliveredAt && isToday(new Date(o.deliveredAt))).length;
-  const repartidoresActivos = users.filter(u => u.isActive).length;
+  const repartidoresActivosCount = users.filter(u => u.isActive).length;
   const recientes = [...orders]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
+
+  const { socket } = useSocketStore();
+
+  const joinedRooms = useRef<Set<string>>(new Set());
+
+  const activeOrderIds = useMemo(() => {
+    return orders
+      .filter(o => o.status === 'EN_CAMINO' || o.status === 'CERCA_DEL_DESTINO' || o.status === 'VERIFICANDO_ENTREGA')
+      .map(o => o.id)
+      .sort()
+      .join(',');
+  }, [orders]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const syncOrders = () => {
+      const newIds = activeOrderIds ? activeOrderIds.split(',') : [];
+      const newIdSet = new Set(newIds);
+
+      // 1. Join nuevos que no estamos
+      newIds.forEach(id => {
+        if (!joinedRooms.current.has(id)) {
+          socket.emit('join_order', { orderId: id });
+          joinedRooms.current.add(id);
+        }
+      });
+
+      // 2. Leave de rooms que ya no están activos
+      joinedRooms.current.forEach(id => {
+        if (!newIdSet.has(id)) {
+          socket.emit('leave_order', { orderId: id });
+          joinedRooms.current.delete(id);
+        }
+      });
+    };
+
+    if (socket.connected) {
+      syncOrders();
+    }
+
+    // Al reconectar, volver a unirse a todos los rooms guardados
+    const onConnect = () => {
+      joinedRooms.current.forEach(id => {
+        socket.emit('join_order', { orderId: id });
+      });
+    };
+
+    socket.on('connect', onConnect);
+
+    return () => {
+      socket.off('connect', onConnect);
+    };
+  }, [socket, activeOrderIds]);
+
+  const { repartidoresActivos } = useMapStore();
+  
+  const now = Date.now();
+  const enrichedRepartidores = repartidoresActivos
+    .filter(rep => (now - rep.lastUpdated) < 60000)
+    .map(rep => {
+      const order = orders.find(o => o.id === rep.orderId);
+      if (order) {
+        return {
+          ...rep,
+          name: order.deliveryUser?.name || rep.name,
+          customerName: order.customerName || rep.customerName,
+        };
+      }
+      return rep;
+    });
+
+  const activeOrdersForMap = useMemo(() => {
+    return orders
+      .filter(o => 
+        (o.status === 'TOMADO' || o.status === 'EN_CAMINO' || o.status === 'CERCA_DEL_DESTINO') && 
+        o.destinationLat && o.destinationLng
+      )
+      .map(o => ({
+        id: o.id,
+        status: o.status,
+        destinationLat: Number(o.destinationLat),
+        destinationLng: Number(o.destinationLng),
+      }));
+  }, [orders]);
 
   return (
     <div className="space-y-6">
@@ -62,7 +157,7 @@ export const DashboardPage = () => {
             />
             <StatCard
               title="Repartidores"
-              value={usersLoading ? '—' : repartidoresActivos}
+              value={usersLoading ? '—' : repartidoresActivosCount}
               subtitle="Activos ahora"
               icon={<Users size={16} />}
             />
@@ -70,15 +165,21 @@ export const DashboardPage = () => {
         )}
       </div>
 
-      {/* Map Placeholder */}
-      <div className="bg-gray-50 border border-gray-100 rounded-xl h-80 flex flex-col items-center justify-center gap-3 text-center">
-        <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
-          <MapPin size={24} className="text-gray-400" weight="regular" />
+      {/* Map Live */}
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-medium text-gray-900">Repartidores activos</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {enrichedRepartidores.length} en tiempo real
+          </p>
         </div>
-        <div>
-          <p className="text-sm font-medium text-gray-900">Mapa en vivo</p>
-          <p className="text-xs text-gray-400 mt-0.5">Se integrará Mapbox en la próxima actualización</p>
-        </div>
+        <LiveMap 
+          repartidores={enrichedRepartidores} 
+          activeOrders={activeOrdersForMap}
+          businessLocation={business?.latitude && business?.longitude ? { lat: business.latitude, lng: business.longitude } : undefined}
+          focusedOrderId={focusedOrderId}
+          onMarkerClick={setFocusedOrderId}
+        />
       </div>
 
       {/* Recent Orders */}
@@ -107,8 +208,8 @@ export const DashboardPage = () => {
             recientes.map(order => (
               <div
                 key={order.id}
-                onClick={() => navigate(`/orders/${order.id}`)}
-                className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                onClick={() => setFocusedOrderId(order.id)}
+                className={`px-5 py-3 flex items-center gap-4 cursor-pointer transition-colors ${focusedOrderId === order.id ? 'bg-gray-50 border-l-2 border-brand-500' : 'hover:bg-gray-50 border-l-2 border-transparent'}`}
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{order.customerName}</p>
@@ -121,6 +222,12 @@ export const DashboardPage = () => {
                 <div className="text-xs text-gray-400 whitespace-nowrap w-20 text-right">
                   {formatRelative(order.createdAt)}
                 </div>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); navigate(`/orders/${order.id}`); }}
+                  className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                >
+                  Ver
+                </button>
               </div>
             ))
           )}

@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/auth.store';
+import { useMapStore } from '../store/map.store';
+import { useSocketStore } from '../store/socket.store';
 
 export function useOrderNotifications() {
   const queryClient = useQueryClient();
@@ -23,6 +25,7 @@ export function useOrderNotifications() {
     });
 
     socketRef.current = socket;
+    useSocketStore.getState().setSocket(socket);
 
     socket.on('connect', () => {
       console.log('[WS Admin] Conectado');
@@ -32,6 +35,7 @@ export function useOrderNotifications() {
 
     // Nuevo pedido creado → actualizar lista
     socket.on('orders_updated', () => {
+      console.log('[WS Admin] orders_updated');
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     });
@@ -67,6 +71,11 @@ export function useOrderNotifications() {
       }
     });
 
+    socket.on('location_updated', (data: { orderId: string; userId: string; lat: number; lng: number }) => {
+      console.log('[WS Admin] location_updated received!', data);
+      useMapStore.getState().updateRepartidorLocation(data);
+    });
+
     socket.on('disconnect', () => {
       console.log('[WS Admin] Desconectado');
     });
@@ -78,6 +87,7 @@ export function useOrderNotifications() {
     return () => {
       socket.disconnect();
       socketRef.current = null;
+      useSocketStore.getState().setSocket(null);
     };
   }, [accessToken, user?.businessId, queryClient]);
 }

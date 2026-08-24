@@ -11,6 +11,7 @@ import { CreateOrderPage } from "../pages/CreateOrderPage";
 import { OrderDetailPage } from "../pages/OrderDetailPage";
 import { StaffPage } from "../pages/StaffPage";
 import { ReportsPage } from "../pages/ReportsPage";
+import { SettingsPage } from "../pages/SettingsPage";
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -44,6 +45,7 @@ const router = createBrowserRouter([
       { path: "orders/:id", element: <OrderDetailPage /> },
       { path: "staff", element: <StaffPage /> },
       { path: "reports", element: <ReportsPage /> },
+      { path: "settings", element: <SettingsPage /> },
     ],
   },
   {

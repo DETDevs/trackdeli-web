@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { io } from 'socket.io-client';
-import { Phone, CheckCircle, Warning, Package, Motorcycle, MapPin, MapTrifold, XCircle } from '@phosphor-icons/react';
+import { Phone, CheckCircle, Warning, Package, Motorcycle, MapPin, XCircle } from '@phosphor-icons/react';
+import TrackingMap from '../components/TrackingMap';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 const WS_URL = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:3000';
@@ -86,11 +87,12 @@ export const TrackingPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [repartidorPosition, setRepartidorPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [isNear, setIsNear] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['tracking', token],
     queryFn: async () => {
-      const res = await axios.get(`${API_BASE}/track/${token}`);
+      const res = await axios.get(`${API_BASE}/tracking/${token}`);
       return res.data;
     },
     refetchInterval: 15000,
@@ -113,7 +115,7 @@ export const TrackingPage = () => {
   }, [data?.status, data?.lastPosition, navigate, token, repartidorPosition]);
 
   useEffect(() => {
-    if (!data?.orderId) return;
+    if (!data?.orderId || data?.status === 'ENTREGADO' || data?.status === 'CERRADO') return;
 
     const socket = io(`${WS_URL}/tracking`, {
       path: '/socket.io',
@@ -133,6 +135,10 @@ export const TrackingPage = () => {
 
     socket.on('location_updated', (position: { lat: number; lng: number }) => {
       setRepartidorPosition(position);
+    });
+
+    socket.on('geofence_triggered', () => {
+      setIsNear(true);
     });
 
     return () => {
@@ -200,21 +206,22 @@ export const TrackingPage = () => {
           </div>
         </div>
 
-        {/* MAPA PLACEHOLDER */}
+        {/* MAPA */}
         <div className="px-4 mt-4">
-          <div className="h-[220px] bg-gray-100 rounded-2xl border border-gray-200 flex flex-col items-center justify-center text-center p-4">
-            <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-3">
-              <MapTrifold size={24} className="text-gray-400" />
+          {data?.destinationLat && data?.destinationLng ? (
+            <TrackingMap
+              destinationLat={data.destinationLat}
+              destinationLng={data.destinationLng}
+              repartidorLat={repartidorPosition?.lat}
+              repartidorLng={repartidorPosition?.lng}
+              businessLat={data.business?.latitude}
+              businessLng={data.business?.longitude}
+            />
+          ) : (
+            <div className="h-[240px] bg-gray-100 rounded-xl flex items-center justify-center border border-gray-200">
+              <p className="text-sm text-gray-400">Sin ubicación disponible</p>
             </div>
-            <p className="text-sm font-medium text-gray-900">Mapa en vivo</p>
-            {repartidorPosition ? (
-              <p className="text-xs text-gray-500 mt-1 font-mono bg-white px-2 py-1 rounded border border-gray-200">
-                {repartidorPosition.lat.toFixed(4)}, {repartidorPosition.lng.toFixed(4)}
-              </p>
-            ) : (
-              <p className="text-xs text-gray-400 mt-1">Esperando ubicación...</p>
-            )}
-          </div>
+          )}
         </div>
 
         {/* TIMELINE */}
@@ -222,6 +229,17 @@ export const TrackingPage = () => {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-6">
             Estado del pedido
           </p>
+
+          {isNear && currentStatus !== 'ENTREGADO' && (
+            <div className="mb-6 p-4 bg-purple-50 rounded-xl border border-purple-100 flex items-start gap-3">
+              <MapPin size={20} className="text-purple-600 shrink-0 mt-0.5" weight="fill" />
+              <div>
+                <p className="text-sm font-semibold text-purple-900">¡El repartidor está cerca!</p>
+                <p className="text-xs text-purple-700 mt-0.5">Por favor, prepárate para recibir tu pedido.</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col gap-0">
             {TIMELINE_STEPS.map((step, index) => {
               let completed = false;

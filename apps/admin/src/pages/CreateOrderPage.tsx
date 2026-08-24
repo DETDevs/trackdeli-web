@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { createOrder, type CreateOrderDto, type DeliveryPaymentStatus } from 'api-client';
 import { toast } from 'react-hot-toast';
-import { ArrowRight, CircleNotch } from '@phosphor-icons/react';
+import { ArrowRight, CircleNotch, MapTrifold, Keyboard } from '@phosphor-icons/react';
+import { PinPicker } from 'map';
 
 const SECTION = ({ title }: { title: string }) => (
   <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100">
@@ -33,6 +34,18 @@ export const CreateOrderPage = () => {
     deliveryFee: '',
   });
   const [formError, setFormError] = useState('');
+  const [locationMode, setLocationMode] = useState<'text' | 'map'>('text');
+
+  const handleMapConfirm = (lat: number, lng: number, address: string) => {
+    setForm(prev => ({
+      ...prev,
+      destinationLat: lat.toString(),
+      destinationLng: lng.toString(),
+      destinationAddress: address,
+    }));
+    setLocationMode('text');
+    toast.success('Ubicación capturada. Puedes agregar detalles si deseas.');
+  };
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data: CreateOrderDto) => createOrder(data),
@@ -123,43 +136,79 @@ export const CreateOrderPage = () => {
 
         {/* Entrega */}
         <div>
-          <SECTION title="Entrega" />
-          <div className="space-y-4">
-            <Field label="Dirección de entrega">
-              <input
-                className={inputClass}
-                type="text"
-                placeholder="Ej. Del semáforo 2 cuadras al norte"
-                value={form.destinationAddress}
-                onChange={e => set('destinationAddress', e.target.value)}
-              />
-            </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Latitud (opcional)">
-                <input
-                  className={inputClass}
-                  type="number"
-                  step="any"
-                  placeholder="12.1328"
-                  value={form.destinationLat}
-                  onChange={e => set('destinationLat', e.target.value)}
-                />
-              </Field>
-              <Field label="Longitud (opcional)">
-                <input
-                  className={inputClass}
-                  type="number"
-                  step="any"
-                  placeholder="-86.2504"
-                  value={form.destinationLng}
-                  onChange={e => set('destinationLng', e.target.value)}
-                />
-              </Field>
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
+            <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+              Entrega
             </div>
-            <p className="text-xs text-gray-400 mt-1">
-              Coordenadas por defecto: Managua. Ajustar si la entrega es fuera de la ciudad.
-            </p>
+            {/* Toggle Modo */}
+            <div className="flex bg-gray-100 p-1 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setLocationMode('text')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${locationMode === 'text' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Keyboard size={14} />
+                Manual
+              </button>
+              <button
+                type="button"
+                onClick={() => setLocationMode('map')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${locationMode === 'map' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <MapTrifold size={14} />
+                Mapa
+              </button>
+            </div>
           </div>
+
+          {locationMode === 'map' ? (
+            <div>
+              <p className="text-sm text-gray-500 mb-2">Busca o arrastra el mapa para ubicar el destino exacto.</p>
+              <PinPicker
+                mapboxToken={(import.meta as any).env.VITE_MAPBOX_TOKEN}
+                initialLat={Number(form.destinationLat) || 12.1328}
+                initialLng={Number(form.destinationLng) || -86.2504}
+                onConfirm={handleMapConfirm}
+              />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Field label="Dirección de entrega">
+                <input
+                  className={inputClass}
+                  type="text"
+                  placeholder="Ej. Del semáforo 2 cuadras al norte"
+                  value={form.destinationAddress}
+                  onChange={e => set('destinationAddress', e.target.value)}
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Latitud (opcional)">
+                  <input
+                    className={inputClass}
+                    type="number"
+                    step="any"
+                    placeholder="12.1328"
+                    value={form.destinationLat}
+                    onChange={e => set('destinationLat', e.target.value)}
+                  />
+                </Field>
+                <Field label="Longitud (opcional)">
+                  <input
+                    className={inputClass}
+                    type="number"
+                    step="any"
+                    placeholder="-86.2504"
+                    value={form.destinationLng}
+                    onChange={e => set('destinationLng', e.target.value)}
+                  />
+                </Field>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Coordenadas por defecto: Managua. Ajustar si la entrega es fuera de la ciudad.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Pedido */}
@@ -238,6 +287,9 @@ export const CreateOrderPage = () => {
           </button>
         </div>
       </form>
+      
+      {/* Tailwind JIT force generation for PinPicker classes */}
+      <div className="hidden absolute top-3 left-3 right-3 z-10 relative w-full h-[450px] rounded-xl overflow-hidden border border-gray-200 flex flex-col bg-gray-50 mt-4 shadow-sm bg-white border-gray-100 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 transition-shadow text-[#EF4444] pointer-events-none drop-shadow-md -translate-y-full hover:bg-gray-50 max-h-48 overflow-y-auto top-1/2 left-1/2 -translate-x-1/2 border-t shrink-0 flex-1 border-b last:border-0 truncate px-4 py-3" />
     </div>
   );
 };
