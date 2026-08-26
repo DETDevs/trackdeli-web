@@ -30,6 +30,8 @@ export default function TrackingMap({
   const destinoMarker = useRef<mapboxgl.Marker | null>(null);
   const businessMarker = useRef<mapboxgl.Marker | null>(null);
 
+  const [mapLoaded, setMapLoaded] = useState(false);
+
   // Inicializar mapa
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -40,6 +42,25 @@ export default function TrackingMap({
       center: [destinationLng, destinationLat],
       zoom: 14,
     });
+    
+    map.current.on('load', () => {
+      setMapLoaded(true);
+    });
+
+    return () => {
+      map.current?.remove();
+      map.current = null;
+      setMapLoaded(false);
+      destinoMarker.current = null;
+      repartidorMarker.current = null;
+      businessMarker.current = null;
+    };
+  }, []); // Solo inicializar una vez
+
+  // Render initial static markers and fetch route
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    const m = map.current;
 
     // Marcador de destino (pin fijo rojo)
     const destinoEl = document.createElement('div');
@@ -54,31 +75,34 @@ export default function TrackingMap({
       "></div>
     `;
 
-    destinoMarker.current = new mapboxgl.Marker({ element: destinoEl })
-      .setLngLat([destinationLng, destinationLat])
-      .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Tu dirección'))
-      .addTo(map.current);
+    if (!destinoMarker.current) {
+      destinoMarker.current = new mapboxgl.Marker({ element: destinoEl })
+        .setLngLat([destinationLng, destinationLat])
+        .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Tu dirección'))
+        .addTo(m);
+    }
 
     // Marcador del repartidor (ícono de moto verde)
     if (repartidorLat && repartidorLng) {
       const repartidorEl = document.createElement('div');
       repartidorEl.innerHTML = `
-        <div style="
-          width: 40px; height: 40px;
-          background: #22C55E;
-          border-radius: 50%;
-          border: 3px solid white;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
-        ">🛵</div>
+        <div style="position: relative; width: 40px; height: 40px; border-radius: 50%; background: #22C55E; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 18px; z-index: 2;">
+          🛵
+          <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: #22C55E; animation: mapbox-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; z-index: -1;"></div>
+        </div>
+        <style>
+          @keyframes mapbox-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: .5; transform: scale(1.3); }
+          }
+        </style>
       `;
 
-      repartidorMarker.current = new mapboxgl.Marker({ element: repartidorEl })
-        .setLngLat([repartidorLng, repartidorLat])
-        .addTo(map.current);
+      if (!repartidorMarker.current) {
+        repartidorMarker.current = new mapboxgl.Marker({ element: repartidorEl })
+          .setLngLat([repartidorLng, repartidorLat])
+          .addTo(m);
+      }
     }
 
     if (repartidorLat && repartidorLng) {
@@ -90,7 +114,7 @@ export default function TrackingMap({
         bounds.extend([businessLng, businessLat]);
       }
 
-      map.current.fitBounds(bounds, {
+      m.fitBounds(bounds, {
         padding: { top: 60, bottom: 60, left: 40, right: 40 },
       });
     }
@@ -112,9 +136,11 @@ export default function TrackingMap({
       const root = createRoot(bizEl);
       root.render(<Storefront size={16} weight="fill" />);
 
-      businessMarker.current = new mapboxgl.Marker({ element: bizEl })
-        .setLngLat([businessLng, businessLat])
-        .addTo(map.current);
+      if (!businessMarker.current) {
+        businessMarker.current = new mapboxgl.Marker({ element: bizEl })
+          .setLngLat([businessLng, businessLat])
+          .addTo(m);
+      }
 
       // Obtener ruta
       fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${businessLng},${businessLat};${destinationLng},${destinationLat}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`)
@@ -126,38 +152,37 @@ export default function TrackingMap({
             const distance = (route.distance / 1000).toFixed(1);
             setRouteInfo({ duration, distance: Number(distance) });
 
-            map.current?.on('load', () => {
-              if (!map.current) return;
-              map.current.addSource('route', {
-                type: 'geojson',
-                data: {
-                  type: 'Feature',
-                  properties: {},
-                  geometry: route.geometry
-                }
-              });
-              
-              map.current.addLayer({
-                id: 'route',
-                type: 'line',
-                source: 'route',
-                layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: {
-                  'line-color': '#22C55E',
-                  'line-width': 5,
-                  'line-opacity': 0.8
-                }
-              }, 'waterway-label'); // Insertar antes de labels si es posible, o dejar sin segundo param
-            });
+            if (!m.getSource('route') && m.isStyleLoaded()) {
+              try {
+                m.addSource('route', {
+                  type: 'geojson',
+                  data: {
+                    type: 'Feature',
+                    properties: {},
+                    geometry: route.geometry
+                  }
+                });
+                
+                m.addLayer({
+                  id: 'route',
+                  type: 'line',
+                  source: 'route',
+                  layout: { 'line-join': 'round', 'line-cap': 'round' },
+                  paint: {
+                    'line-color': '#22C55E',
+                    'line-width': 5,
+                    'line-opacity': 0.8
+                  }
+                }, 'waterway-label');
+              } catch (e) {
+                console.warn('[TrackingMap] Route render skipped:', e);
+              }
+            }
           }
         })
         .catch(err => console.error("Error fetching directions:", err));
     }
-
-    return () => {
-      map.current?.remove();
-    };
-  }, []); // Solo inicializar una vez
+  }, [mapLoaded, destinationLat, destinationLng, businessLat, businessLng]);
 
   // Actualizar posición del repartidor cuando cambia (WebSocket)
   useEffect(() => {
@@ -208,16 +233,18 @@ export default function TrackingMap({
   }, [repartidorLat, repartidorLng]);
 
   return (
-    <div className="relative w-full h-[240px]">
+    <div className="relative w-full h-full min-h-[300px]">
       {routeInfo && (
-        <div className="absolute top-3 left-3 bg-white border border-gray-100 rounded-lg shadow-md px-3 py-2 z-10 text-sm font-medium text-[#0F0F0F]">
-          {routeInfo.duration} min · {routeInfo.distance} km
+        <div className="absolute top-20 left-4 bg-white/95 backdrop-blur-sm border border-gray-100 rounded-xl shadow-lg px-4 py-2.5 z-10 text-sm font-semibold text-gray-900 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse" />
+          {routeInfo.duration} min
+          <span className="text-gray-400 font-medium ml-1">· {(routeInfo.distance).toFixed(1)} km</span>
         </div>
       )}
       <div
         ref={mapContainer}
-        style={{ width: '100%', height: '100%', borderRadius: '12px' }}
-        className="border border-gray-100"
+        style={{ width: '100%', height: '100%' }}
+        className=""
       />
     </div>
   );

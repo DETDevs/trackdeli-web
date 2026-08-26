@@ -16,7 +16,7 @@ export function useOrderNotifications() {
 
     // Conectar al WebSocket
     // @ts-ignore: Vite injects import.meta.env during build
-    const baseUrl = import.meta.env?.VITE_WS_URL || import.meta.env?.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:3000';
+    const baseUrl = import.meta.env?.VITE_WS_URL || import.meta.env?.VITE_API_BASE_URL?.replace('/api/v1', '') || 'https://trackdeli-api-production.up.railway.app';
     const socket = io(`${baseUrl}/tracking`, {
       path: '/socket.io',
       transports: ['websocket'],
@@ -71,9 +71,21 @@ export function useOrderNotifications() {
       }
     });
 
-    socket.on('location_updated', (data: { orderId: string; userId: string; lat: number; lng: number }) => {
+    socket.on('location_updated', (data: any) => {
       console.log('[WS Admin] location_updated received!', data);
-      useMapStore.getState().updateRepartidorLocation(data);
+
+      const lat = parseFloat(data.latitude ?? data.lat);
+      const lng = parseFloat(data.longitude ?? data.lng);
+      const userId = data.repartidorId ?? data.userId ?? data.orderId;
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        useMapStore.getState().updateRepartidorLocation({
+          orderId: data.orderId,
+          userId,
+          lat,
+          lng
+        });
+      }
     });
 
     socket.on('disconnect', () => {

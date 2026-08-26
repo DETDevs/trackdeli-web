@@ -66,36 +66,45 @@ export default function LiveMap({
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
     if (businessLocation) {
-      const el = document.createElement('div');
-      el.style.backgroundColor = '#0F0F0F';
-      el.style.color = '#FFFFFF';
-      el.style.borderRadius = '10px';
-      el.style.padding = '8px';
-      el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-      el.style.display = 'flex';
-      el.style.alignItems = 'center';
-      el.style.justifyContent = 'center';
-      el.style.border = '2px solid white';
-      
-      const root = createRoot(el);
-      root.render(<Storefront size={20} weight="fill" />);
+      map.current.on('load', () => {
+        if (!map.current) return;
+        const el = document.createElement('div');
+        el.style.backgroundColor = '#0F0F0F';
+        el.style.color = '#FFFFFF';
+        el.style.borderRadius = '10px';
+        el.style.padding = '8px';
+        el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.style.border = '2px solid white';
+        
+        const root = createRoot(el);
+        root.render(<Storefront size={20} weight="fill" />);
 
-      new mapboxgl.Marker({ element: el })
-        .setLngLat([businessLocation.lng, businessLocation.lat])
-        .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Tu negocio'))
-        .addTo(map.current);
+        new mapboxgl.Marker({ element: el })
+          .setLngLat([businessLocation.lng, businessLocation.lat])
+          .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Tu negocio'))
+          .addTo(map.current);
+      });
     }
 
     return () => {
       map.current?.remove();
+      map.current = null;
+      setMapLoaded(false);
+      driverMarkers.current.clear();
+      destMarkers.current.clear();
+      routesCache.current.clear();
     };
   }, []);
 
   // Drivers Markers
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !mapLoaded) return;
 
     repartidores.forEach((rep) => {
+      if (isNaN(rep.lat) || isNaN(rep.lng)) return;
       if (driverMarkers.current.has(rep.userId)) {
         const marker = driverMarkers.current.get(rep.userId)!;
         const startPos = marker.getLngLat();
@@ -168,13 +177,14 @@ export default function LiveMap({
         driverMarkers.current.delete(userId);
       }
     });
-  }, [repartidores, onMarkerClick]);
+  }, [repartidores, onMarkerClick, mapLoaded]);
 
   // Destination Markers
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !mapLoaded) return;
 
     activeOrders.forEach(order => {
+      if (isNaN(order.destinationLat) || isNaN(order.destinationLng)) return;
       if (!destMarkers.current.has(order.id)) {
         const el = document.createElement('div');
         el.innerHTML = `
@@ -206,7 +216,7 @@ export default function LiveMap({
         destMarkers.current.delete(orderId);
       }
     });
-  }, [activeOrders, onMarkerClick]);
+  }, [activeOrders, onMarkerClick, mapLoaded]);
 
   // Fetch routes
   useEffect(() => {
@@ -245,53 +255,68 @@ export default function LiveMap({
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const m = map.current;
+    if (!m.isStyleLoaded()) return;
 
-    routesCache.current.forEach((feature, routeId) => {
-      const sourceId = `route-source-${routeId}`;
-      const layerId = `route-layer-${routeId}`;
-      
-      let opacity = 0.8;
-      let width = 4;
-      if (focusedOrderId) {
-        if (focusedOrderId === routeId) {
-          opacity = 1.0;
-          width = 5;
-        } else {
-          opacity = 0.2;
-          width = 3;
-        }
-      }
-
-      if (!m.getSource(sourceId)) {
-        m.addSource(sourceId, { type: 'geojson', data: feature });
-        m.addLayer({
-          id: layerId,
-          type: 'line',
-          source: sourceId,
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-          },
-          paint: {
-            'line-color': '#22C55E',
-            'line-width': width,
-            'line-opacity': opacity
+    try {
+      routesCache.current.forEach((feature, routeId) => {
+        const sourceId = `route-source-${routeId}`;
+        const layerId = `route-layer-${routeId}`;
+        
+        let opacity = 0.8;
+        let width = 4;
+        let color = '#22C55E';
+        
+        if (focusedOrderId) {
+          if (focusedOrderId === routeId) {
+            opacity = 1.0;
+            width = 6;
+            color = '#16A34A'; // Darker green for focus
+          } else {
+            opacity = 0.3;
+            width = 2;
+            color = '#9CA3AF'; // Gray for unfocused
           }
-        });
-      } else {
-        m.setPaintProperty(layerId, 'line-opacity', opacity);
-        m.setPaintProperty(layerId, 'line-width', width);
-      }
-    });
+        }
 
-    const activeRouteIds = new Set(activeOrders.map(o => o.id));
-    routesCache.current.forEach((_, routeId) => {
-      if (!activeRouteIds.has(routeId)) {
-        if (m.getLayer(`route-layer-${routeId}`)) m.removeLayer(`route-layer-${routeId}`);
-        if (m.getSource(`route-source-${routeId}`)) m.removeSource(`route-source-${routeId}`);
-        routesCache.current.delete(routeId);
-      }
-    });
+        if (!m.getSource(sourceId)) {
+          m.addSource(sourceId, { type: 'geojson', data: feature });
+          m.addLayer({
+            id: layerId,
+            type: 'line',
+            source: sourceId,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: {
+              'line-color': color,
+              'line-width': width,
+              'line-opacity': opacity
+            }
+          });
+        } else {
+          m.setPaintProperty(layerId, 'line-color', color);
+          m.setPaintProperty(layerId, 'line-opacity', opacity);
+          m.setPaintProperty(layerId, 'line-width', width);
+        }
+        
+        // Move focused route to top
+        if (focusedOrderId === routeId && m.getLayer(layerId)) {
+          m.moveLayer(layerId); // Moving without a second parameter puts it at the top
+        }
+      });
+
+      const activeRouteIds = new Set(activeOrders.map(o => o.id));
+      routesCache.current.forEach((_, routeId) => {
+        if (!activeRouteIds.has(routeId)) {
+          if (m.getLayer(`route-layer-${routeId}`)) m.removeLayer(`route-layer-${routeId}`);
+          if (m.getSource(`route-source-${routeId}`)) m.removeSource(`route-source-${routeId}`);
+          routesCache.current.delete(routeId);
+        }
+      });
+    } catch (e) {
+      console.warn('[LiveMap] Route render skipped (style not ready):', e);
+    }
 
   }, [activeOrders, focusedOrderId, mapLoaded, routesVersion]);
 

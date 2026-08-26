@@ -10,15 +10,17 @@ import { useMapStore } from '../store/map.store';
 import { useSocketStore } from '../store/socket.store';
 import { useEffect } from 'react';
 
-const STATUS_SEQUENCE: OrderStatus[] = [
-  'PENDIENTE', 'TOMADO', 'EN_CAMINO', 'CERCA_DEL_DESTINO',
+const STATUS_SEQUENCE: string[] = [
+  'PENDIENTE', 'ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'EN_CAMINO', 'CERCA_DEL_DESTINO',
   'VERIFICANDO_ENTREGA', 'ENTREGADO',
 ];
 
 const statusLabel: Record<string, string> = {
   PENDIENTE: 'Pendiente',
-  TOMADO: 'Tomado',
-  EN_CAMINO: 'En camino',
+  ACEPTADO: 'Aceptado',
+  EN_CAMINO_AL_NEGOCIO: 'Hacia el negocio',
+  EN_EL_NEGOCIO: 'En el negocio',
+  EN_CAMINO: 'En camino al cliente',
   CERCA_DEL_DESTINO: 'Cerca del destino',
   VERIFICANDO_ENTREGA: 'Verificando entrega',
   ENTREGADO: 'Entregado',
@@ -79,7 +81,7 @@ export const OrderDetailPage = () => {
 
   useEffect(() => {
     if (socket && order?.id) {
-      if (order.status === 'EN_CAMINO' || order.status === 'CERCA_DEL_DESTINO' || order.status === 'VERIFICANDO_ENTREGA') {
+      if (['ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'EN_CAMINO', 'CERCA_DEL_DESTINO', 'VERIFICANDO_ENTREGA'].includes(order.status)) {
         socket.emit('join_order', { orderId: order.id });
       }
     }
@@ -120,7 +122,9 @@ export const OrderDetailPage = () => {
     let completedAt: string | null = null;
     
     if (s === 'PENDIENTE') completedAt = order.createdAt;
-    if (s === 'TOMADO') completedAt = order.takenAt ?? null;
+    if (s === 'ACEPTADO') completedAt = order.takenAt ?? null;
+    if (s === 'EN_EL_NEGOCIO') completedAt = (order as any).arrivedAtBusinessAt ?? null;
+    if (s === 'EN_CAMINO') completedAt = (order as any).pickedUpAt ?? null;
     if (s === 'ENTREGADO') completedAt = order.deliveredAt ?? null;
 
     const isCompleted = currentStatusIndex > idx;
@@ -323,19 +327,38 @@ export const OrderDetailPage = () => {
             <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
               <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Repartidor asignado</div>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-600">
-                  {initials(order.deliveryUser.name)}
-                </div>
-                <div>
+                {(order.deliveryUser as any).profilePhotoUrl ? (
+                  <img src={(order.deliveryUser as any).profilePhotoUrl} className="w-12 h-12 rounded-full object-cover shrink-0 border border-gray-100" alt="Foto perfil" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-base font-medium text-gray-600 shrink-0">
+                    {initials(order.deliveryUser.name)}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900">{order.deliveryUser.name}</p>
                   <p className="text-xs text-gray-400">Repartidor</p>
+                  {((order.deliveryUser as any).vehicleType) && (
+                    <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+                      {((order.deliveryUser as any).vehicleType === 'MOTO' ? '🏍️' : 
+                        (order.deliveryUser as any).vehicleType === 'BICICLETA' ? '🚲' : 
+                        (order.deliveryUser as any).vehicleType === 'CARRO' ? '🚗' : '🚶')}{' '}
+                      <span className="truncate">
+                        {((order.deliveryUser as any).vehicleType.charAt(0).toUpperCase() + (order.deliveryUser as any).vehicleType.slice(1).toLowerCase())}
+                        {((order.deliveryUser as any).vehicleColor ? ' · ' + (order.deliveryUser as any).vehicleColor : '')}
+                        {((order.deliveryUser as any).vehiclePlate ? ' · ' + (order.deliveryUser as any).vehiclePlate : '')}
+                      </span>
+                    </p>
+                  )}
+                  {((order.deliveryUser as any).phone) && (
+                    <p className="text-xs text-gray-500 mt-0.5">📞 {((order.deliveryUser as any).phone)}</p>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
           {/* Mapa de Tracking */}
-          {(order.status === 'EN_CAMINO' || order.status === 'CERCA_DEL_DESTINO') && (
+          {['EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'EN_CAMINO', 'CERCA_DEL_DESTINO'].includes(order.status) && (
             <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100">
                 <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">Ubicación en tiempo real</div>
@@ -345,10 +368,16 @@ export const OrderDetailPage = () => {
                 activeOrders={order.destinationLat && order.destinationLng ? [{
                   id: order.id,
                   status: order.status,
-                  destinationLat: Number(order.destinationLat),
-                  destinationLng: Number(order.destinationLng),
+                  destinationLat: (order.status as string) === 'EN_CAMINO_AL_NEGOCIO' || (order.status as string) === 'EN_EL_NEGOCIO' 
+                    ? Number(business?.latitude ?? order.destinationLat) : Number(order.destinationLat),
+                  destinationLng: (order.status as string) === 'EN_CAMINO_AL_NEGOCIO' || (order.status as string) === 'EN_EL_NEGOCIO'
+                    ? Number(business?.longitude ?? order.destinationLng) : Number(order.destinationLng),
                 }] : []}
-                businessLocation={business?.latitude && business?.longitude ? { lat: business.latitude, lng: business.longitude } : undefined}
+                businessLocation={
+                  ((order.status as string) === 'EN_CAMINO_AL_NEGOCIO' || (order.status as string) === 'EN_EL_NEGOCIO') && repList.length > 0
+                    ? { lat: repList[0].lat, lng: repList[0].lng }
+                    : (business?.latitude && business?.longitude ? { lat: business.latitude, lng: business.longitude } : undefined)
+                }
                 centerLat={order.destinationLat || 12.1364}
                 centerLng={order.destinationLng || -86.2504}
                 focusedOrderId={order.id}
