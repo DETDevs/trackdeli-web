@@ -10,7 +10,9 @@
     "dev": "turbo run dev",
     "dev:admin": "turbo run dev --filter=admin",
     "dev:tracking": "turbo run dev --filter=tracking",
+    "dev:superadmin": "turbo run dev --filter=superadmin",
     "build": "turbo run build",
+    "build:superadmin": "turbo run build --filter=superadmin",
     "lint": "turbo run lint"
   },
   "devDependencies": {

@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-page:     #FAFAFA;
+    --bg-surface:  #FFFFFF;
+    --bg-subtle:   #F5F5F5;
+    --border:      #EBEBEB;
+    --border-strong: #D6D6D6;
+    --text-primary:   #0F0F0F;
+    --text-secondary: #5C5C5C;
+    --text-tertiary:  #ADADAD;
+    --brand:       #22C55E;
+    --brand-dark:  #16A34A;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Minimalist scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #D6D6D6; border-radius: 4px; }
+}
+
+/* Mapbox Marker Styles */
+.rider-map-marker {
+  cursor: pointer;
+}
+
+.rider-map-dot {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  background: #22C55E;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.6);
+}
+
+.rider-map-pulse {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 50%;
+  border: 2px solid #22C55E;
+  animation: rider-pulse 2s ease-out infinite;
+  opacity: 0;
+}
+
+@keyframes rider-pulse {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(2); opacity: 0; }
+}
