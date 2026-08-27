@@ -8,7 +8,6 @@ import {
   CheckCircle,
   Warning,
   Package,
-  Motorcycle,
   MapPin,
   XCircle,
   Star,
@@ -22,11 +21,10 @@ import { toast } from "react-hot-toast";
 import TrackingMap from "../components/TrackingMap";
 
 const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://trackdeli-api-production.up.railway.app";
+  import.meta.env.VITE_API_URL ||
+  "/api/v1";
 const WS_URL =
   import.meta.env.VITE_WS_URL ||
-  import.meta.env.VITE_API_BASE_URL?.replace("/api/v1", "") ||
   "https://trackdeli-api-production.up.railway.app";
 
 const statusConfig: Record<
@@ -144,6 +142,16 @@ export const TrackingPage = () => {
     lat: number;
     lng: number;
   } | null>(null);
+  const [lastLocationTime, setLastLocationTime] = useState<number | null>(null);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  // Timer para verificar si el tracking sigue activo (últimos 60s)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 3000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Rating state
   const [rating, setRating] = useState(0);
@@ -191,7 +199,12 @@ export const TrackingPage = () => {
 
   useEffect(() => {
     if (data?.lastPosition && !repartidorPosition) {
-      setRepartidorPosition(data.lastPosition);
+      const lat = data.lastPosition.lat ?? (data.lastPosition as any).latitude;
+      const lng = data.lastPosition.lng ?? (data.lastPosition as any).longitude;
+      if (lat && lng) {
+        setRepartidorPosition({ lat, lng });
+        setLastLocationTime(Date.now());
+      }
     }
   }, [data?.lastPosition, repartidorPosition]);
 
@@ -212,12 +225,20 @@ export const TrackingPage = () => {
       socket.emit("join_order", { orderId: data.orderId });
     });
 
-    socket.on("order_status_changed", () => {
+    socket.on("order_status_changed", (statusData?: { status?: string }) => {
       queryClient.invalidateQueries({ queryKey: ["tracking", token] });
+      if (statusData?.status === "ENTREGADO" || statusData?.status === "CERRADO") {
+        setRepartidorPosition(null);
+      }
     });
 
-    socket.on("location_updated", (position: { lat: number; lng: number }) => {
-      setRepartidorPosition(position);
+    socket.on("location_updated", (position: any) => {
+      const lat = position?.lat ?? position?.latitude;
+      const lng = position?.lng ?? position?.longitude;
+      if (lat && lng) {
+        setRepartidorPosition({ lat, lng });
+        setLastLocationTime(Date.now());
+      }
     });
 
     return () => {
@@ -256,6 +277,19 @@ export const TrackingPage = () => {
     STATUS_ORDER.indexOf(stepStatus) < currentIndex;
   const isCurrent = (stepStatus: string) => stepStatus === currentStatus;
 
+  const isTrackingEligible = [
+    "EN_CAMINO_AL_NEGOCIO",
+    "EN_EL_NEGOCIO",
+    "EN_CAMINO",
+    "CERCA_DEL_DESTINO",
+    "VERIFICANDO_ENTREGA",
+  ].includes(currentStatus);
+
+  const isTrackingActive =
+    isTrackingEligible &&
+    !!lastLocationTime &&
+    currentTime - lastLocationTime <= 60000;
+
   const fotosEntrega =
     data.photos?.filter((p: any) => p.type === "ENTREGA") || [];
   const fotosArmado =
@@ -266,18 +300,36 @@ export const TrackingPage = () => {
       <div className="w-full max-w-[430px] bg-white min-h-screen shadow-lg relative flex flex-col font-sans">
         {/* HEADER FLOTANTE */}
         <div className="absolute top-0 left-0 w-full z-20 px-4 pt-6 pb-4 bg-gradient-to-b from-black/20 to-transparent pointer-events-none">
-          <div className="flex items-center gap-3 bg-white/95 backdrop-blur-md px-3 py-2.5 rounded-xl shadow-sm border border-white/20 w-fit pointer-events-auto">
-            <div className="w-7 h-7 bg-gray-900 text-white rounded-md flex items-center justify-center font-bold text-[10px] shrink-0">
-              TD
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-3 bg-white/95 backdrop-blur-md px-3 py-2.5 rounded-xl shadow-sm border border-white/20 w-fit pointer-events-auto">
+              <div className="w-7 h-7 bg-gray-900 text-white rounded-md flex items-center justify-center font-bold text-[10px] shrink-0">
+                TD
+              </div>
+              <div className="pr-2">
+                <h1 className="font-semibold text-sm text-gray-900 leading-none">
+                  TrackDeli
+                </h1>
+                <p className="text-[11px] font-medium text-gray-500 mt-0.5">
+                  Hola, {data.customerName.split(" ")[0]}
+                </p>
+              </div>
             </div>
-            <div className="pr-2">
-              <h1 className="font-semibold text-sm text-gray-900 leading-none">
-                TrackDeli
-              </h1>
-              <p className="text-[11px] font-medium text-gray-500 mt-0.5">
-                Hola, {data.customerName.split(" ")[0]}
-              </p>
-            </div>
+
+            {isTrackingEligible && (
+              <div className="pointer-events-auto bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-sm border border-white/20">
+                {isTrackingActive ? (
+                  <div className="live-badge">
+                    <span className="live-dot" />
+                    En vivo
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-gray-400 font-medium flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                    Sin señal
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -288,41 +340,19 @@ export const TrackingPage = () => {
               destinationLat={data.destinationLat}
               destinationLng={data.destinationLng}
               repartidorLat={
-                [
-                  "EN_CAMINO",
-                  "CERCA_DEL_DESTINO",
-                  "VERIFICANDO_ENTREGA",
-                ].includes(currentStatus)
+                isTrackingEligible
                   ? repartidorPosition?.lat
                   : undefined
               }
               repartidorLng={
-                [
-                  "EN_CAMINO",
-                  "CERCA_DEL_DESTINO",
-                  "VERIFICANDO_ENTREGA",
-                ].includes(currentStatus)
+                isTrackingEligible
                   ? repartidorPosition?.lng
                   : undefined
               }
-              businessLat={
-                [
-                  "EN_CAMINO",
-                  "CERCA_DEL_DESTINO",
-                  "VERIFICANDO_ENTREGA",
-                ].includes(currentStatus)
-                  ? data.business?.latitude
-                  : undefined
-              }
-              businessLng={
-                [
-                  "EN_CAMINO",
-                  "CERCA_DEL_DESTINO",
-                  "VERIFICANDO_ENTREGA",
-                ].includes(currentStatus)
-                  ? data.business?.longitude
-                  : undefined
-              }
+              vehicleType={data.deliveryUser?.vehicleType}
+              orderStatus={currentStatus}
+              businessLat={data.business?.latitude}
+              businessLng={data.business?.longitude}
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
@@ -454,9 +484,17 @@ export const TrackingPage = () => {
                         </div>
                       )}
                       <div>
-                        <p className="text-[13px] font-medium text-gray-900">
-                          {data.deliveryUser.name}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-[13px] font-medium text-gray-900">
+                            {data.deliveryUser.name}
+                          </p>
+                          {isTrackingActive && (
+                            <div className="live-badge">
+                              <span className="live-dot" />
+                              En vivo
+                            </div>
+                          )}
+                        </div>
                         {data.deliveryUser.vehicleType ? (
                           <p className="text-[11px] text-gray-500 mt-0.5 truncate">
                             {data.deliveryUser.vehicleType === "MOTO"

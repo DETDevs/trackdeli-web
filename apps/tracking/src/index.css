@@ -13,3 +13,74 @@
     --brand: #22C55E;
   }
 }
+
+/* Rider Marker */
+.rider-marker {
+  cursor: pointer;
+  z-index: 10;
+}
+
+.rider-marker-inner {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  background: #22C55E;
+  border: 3px solid white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.rider-icon {
+  font-size: 20px;
+  line-height: 1;
+  user-select: none;
+}
+
+.rider-pulse {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 50%;
+  border: 3px solid #22C55E;
+  animation: rider-pulse 2s ease-out infinite;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes rider-pulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+/* Live Badge */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  background: #22C55E;
+  border-radius: 50%;
+  animation: live-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes live-blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.8); }
+}
+

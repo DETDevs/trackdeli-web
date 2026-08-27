@@ -89,13 +89,7 @@ apiClient.interceptors.response.use(
       // Intentar refrescar — usar axios directo, NO apiClient (evitar interceptors)
       const response = await axios.post(
         `${API_BASE_URL}/auth/refresh`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${refreshToken}`,
-            'Content-Type': 'application/json',
-          },
-        }
+        { refreshToken }
       );
 
       const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data;
@@ -109,6 +103,14 @@ apiClient.interceptors.response.use(
       try {
         const { useAuthStore } = await import('../../../apps/admin/src/store/auth.store');
         useAuthStore.getState().setTokens(newAccessToken, newRefreshToken);
+        
+        // Reconectar el WebSocket si estaba conectado
+        const { useSocketStore } = await import('../../../apps/admin/src/store/socket.store');
+        const socket = useSocketStore.getState().socket;
+        if (socket) {
+          socket.auth = { token: newAccessToken };
+          socket.disconnect().connect();
+        }
       } catch {
         // Si no se puede importar el store, continuar igual
       }

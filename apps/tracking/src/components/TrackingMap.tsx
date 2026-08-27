@@ -11,17 +11,54 @@ interface TrackingMapProps {
   destinationLng: number;
   repartidorLat?: number;
   repartidorLng?: number;
+  vehicleType?: string;
   businessLat?: number;
   businessLng?: number;
+  orderStatus?: string;
 }
+
+const shouldShowRiderMarker = (status?: string) => {
+  if (!status) return false;
+  return [
+    'EN_CAMINO_AL_NEGOCIO',
+    'EN_EL_NEGOCIO',
+    'EN_CAMINO',
+    'CERCA_DEL_DESTINO',
+    'VERIFICANDO_ENTREGA',
+  ].includes(status);
+};
+
+const createRiderMarkerElement = (vehicleType?: string) => {
+  const el = document.createElement('div');
+  el.className = 'rider-marker';
+
+  const icons: Record<string, string> = {
+    MOTO: '🛵',
+    BICICLETA: '🚲',
+    CARRO: '🚗',
+    A_PIE: '🚶',
+  };
+  const icon = (vehicleType && icons[vehicleType.toUpperCase()]) || '🛵';
+
+  el.innerHTML = `
+    <div class="rider-marker-inner">
+      <span class="rider-icon">${icon}</span>
+      <div class="rider-pulse"></div>
+    </div>
+  `;
+
+  return el;
+};
 
 export default function TrackingMap({
   destinationLat,
   destinationLng,
   repartidorLat,
   repartidorLng,
+  vehicleType,
   businessLat,
   businessLng,
+  orderStatus,
 }: TrackingMapProps) {
   const [routeInfo, setRouteInfo] = useState<{ duration: number; distance: number } | null>(null);
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -29,6 +66,7 @@ export default function TrackingMap({
   const repartidorMarker = useRef<mapboxgl.Marker | null>(null);
   const destinoMarker = useRef<mapboxgl.Marker | null>(null);
   const businessMarker = useRef<mapboxgl.Marker | null>(null);
+  const animationFrameId = useRef<number | null>(null);
 
   const [mapLoaded, setMapLoaded] = useState(false);
 
@@ -38,16 +76,19 @@ export default function TrackingMap({
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/light-v11', // estilo limpio y profesional
+      style: 'mapbox://styles/mapbox/light-v11',
       center: [destinationLng, destinationLat],
       zoom: 14,
     });
-    
+
     map.current.on('load', () => {
       setMapLoaded(true);
     });
 
     return () => {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
       map.current?.remove();
       map.current = null;
       setMapLoaded(false);
@@ -55,97 +96,61 @@ export default function TrackingMap({
       repartidorMarker.current = null;
       businessMarker.current = null;
     };
-  }, []); // Solo inicializar una vez
+  }, []);
 
-  // Render initial static markers and fetch route
+  // Render static markers and route
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const m = map.current;
 
     // Marcador de destino (pin fijo rojo)
-    const destinoEl = document.createElement('div');
-    destinoEl.innerHTML = `
-      <div style="
-        width: 32px; height: 32px;
-        background: #EF4444;
-        border-radius: 50% 50% 50% 0;
-        transform: rotate(-45deg);
-        border: 2px solid white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      "></div>
-    `;
-
     if (!destinoMarker.current) {
+      const destinoEl = document.createElement('div');
+      destinoEl.innerHTML = `
+        <div style="
+          width: 32px; height: 32px;
+          background: #EF4444;
+          border-radius: 50% 50% 50% 0;
+          transform: rotate(-45deg);
+          border: 2px solid white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        "></div>
+      `;
+
       destinoMarker.current = new mapboxgl.Marker({ element: destinoEl })
         .setLngLat([destinationLng, destinationLat])
         .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Tu dirección'))
         .addTo(m);
     }
 
-    // Marcador del repartidor (ícono de moto verde)
-    if (repartidorLat && repartidorLng) {
-      const repartidorEl = document.createElement('div');
-      repartidorEl.innerHTML = `
-        <div style="position: relative; width: 40px; height: 40px; border-radius: 50%; background: #22C55E; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 18px; z-index: 2;">
-          🛵
-          <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: #22C55E; animation: mapbox-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; z-index: -1;"></div>
-        </div>
-        <style>
-          @keyframes mapbox-pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: .5; transform: scale(1.3); }
-          }
-        </style>
-      `;
-
-      if (!repartidorMarker.current) {
-        repartidorMarker.current = new mapboxgl.Marker({ element: repartidorEl })
-          .setLngLat([repartidorLng, repartidorLat])
-          .addTo(m);
-      }
-    }
-
-    if (repartidorLat && repartidorLng) {
-      const bounds = new mapboxgl.LngLatBounds()
-        .extend([destinationLng, destinationLat])
-        .extend([repartidorLng, repartidorLat]);
-        
-      if (businessLat && businessLng) {
-        bounds.extend([businessLng, businessLat]);
-      }
-
-      m.fitBounds(bounds, {
-        padding: { top: 60, bottom: 60, left: 40, right: 40 },
-      });
-    }
-
     // Dibujar ruta si hay negocio
     if (businessLat && businessLng) {
-      // Marcador del negocio
-      const bizEl = document.createElement('div');
-      bizEl.style.backgroundColor = '#0F0F0F';
-      bizEl.style.color = '#FFFFFF';
-      bizEl.style.borderRadius = '10px';
-      bizEl.style.padding = '8px';
-      bizEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-      bizEl.style.display = 'flex';
-      bizEl.style.alignItems = 'center';
-      bizEl.style.justifyContent = 'center';
-      bizEl.style.border = '2px solid white';
-      
-      const root = createRoot(bizEl);
-      root.render(<Storefront size={16} weight="fill" />);
-
       if (!businessMarker.current) {
+        const bizEl = document.createElement('div');
+        bizEl.style.backgroundColor = '#0F0F0F';
+        bizEl.style.color = '#FFFFFF';
+        bizEl.style.borderRadius = '10px';
+        bizEl.style.padding = '8px';
+        bizEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        bizEl.style.display = 'flex';
+        bizEl.style.alignItems = 'center';
+        bizEl.style.justifyContent = 'center';
+        bizEl.style.border = '2px solid white';
+
+        const root = createRoot(bizEl);
+        root.render(<Storefront size={16} weight="fill" />);
+
         businessMarker.current = new mapboxgl.Marker({ element: bizEl })
           .setLngLat([businessLng, businessLat])
           .addTo(m);
       }
 
-      // Obtener ruta
-      fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${businessLng},${businessLat};${destinationLng},${destinationLat}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`)
-        .then(res => res.json())
-        .then(data => {
+      // Obtener ruta estática negocio -> destino
+      fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${businessLng},${businessLat};${destinationLng},${destinationLat}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`
+      )
+        .then((res) => res.json())
+        .then((data) => {
           if (data.routes && data.routes[0]) {
             const route = data.routes[0];
             const duration = Math.round(route.duration / 60);
@@ -159,78 +164,121 @@ export default function TrackingMap({
                   data: {
                     type: 'Feature',
                     properties: {},
-                    geometry: route.geometry
-                  }
+                    geometry: route.geometry,
+                  },
                 });
-                
-                m.addLayer({
-                  id: 'route',
-                  type: 'line',
-                  source: 'route',
-                  layout: { 'line-join': 'round', 'line-cap': 'round' },
-                  paint: {
-                    'line-color': '#22C55E',
-                    'line-width': 5,
-                    'line-opacity': 0.8
-                  }
-                }, 'waterway-label');
+
+                m.addLayer(
+                  {
+                    id: 'route',
+                    type: 'line',
+                    source: 'route',
+                    layout: { 'line-join': 'round', 'line-cap': 'round' },
+                    paint: {
+                      'line-color': '#22C55E',
+                      'line-width': 5,
+                      'line-opacity': 0.8,
+                    },
+                  },
+                  'waterway-label'
+                );
               } catch (e) {
                 console.warn('[TrackingMap] Route render skipped:', e);
               }
             }
           }
         })
-        .catch(err => console.error("Error fetching directions:", err));
+        .catch((err) => console.error('Error fetching directions:', err));
     }
   }, [mapLoaded, destinationLat, destinationLng, businessLat, businessLng]);
 
-  // Actualizar posición del repartidor cuando cambia (WebSocket)
+  // Manejar el marcador del repartidor en tiempo real
   useEffect(() => {
-    if (!repartidorMarker.current || !repartidorLat || !repartidorLng) return;
+    if (!map.current || !mapLoaded) return;
+    const m = map.current;
 
-    const endPos = new mapboxgl.LngLat(repartidorLng, repartidorLat);
+    const shouldShow = shouldShowRiderMarker(orderStatus);
+
+    // Si el estado no permite mostrar el repartidor o no hay coordenadas, remover el marcador si existía
+    if (!shouldShow || !repartidorLat || !repartidorLng) {
+      if (repartidorMarker.current) {
+        repartidorMarker.current.remove();
+        repartidorMarker.current = null;
+      }
+      return;
+    }
+
+    const targetPos = new mapboxgl.LngLat(repartidorLng, repartidorLat);
+
+    // Si aún no existe el marcador, crearlo con el ícono correspondiente al vehículo
+    if (!repartidorMarker.current) {
+      const el = createRiderMarkerElement(vehicleType);
+      repartidorMarker.current = new mapboxgl.Marker({ element: el })
+        .setLngLat(targetPos)
+        .addTo(m);
+
+      // Ajustar bounds iniciales para abarcar repartidor y destino
+      const bounds = new mapboxgl.LngLatBounds()
+        .extend([destinationLng, destinationLat])
+        .extend([repartidorLng, repartidorLat]);
+
+      if (businessLat && businessLng) {
+        bounds.extend([businessLng, businessLat]);
+      }
+
+      m.fitBounds(bounds, {
+        padding: { top: 60, bottom: 60, left: 40, right: 40 },
+        maxZoom: 16,
+      });
+      return;
+    }
+
+    // Si ya existe, animar suavemente la posición
     const startPos = repartidorMarker.current.getLngLat();
-    
-    // Si la distancia es muy grande (ej. primera carga), saltar directo
-    if (Math.abs(endPos.lng - startPos.lng) > 0.05 || Math.abs(endPos.lat - startPos.lat) > 0.05) {
-      repartidorMarker.current.setLngLat(endPos);
+
+    // Si la distancia es muy grande (ej. primera ubicación o salto), mover directo
+    if (Math.abs(targetPos.lng - startPos.lng) > 0.05 || Math.abs(targetPos.lat - startPos.lat) > 0.05) {
+      repartidorMarker.current.setLngLat(targetPos);
     } else {
-      // Animar el marcador suavemente a la nueva posición
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+
       let startTimestamp: number | null = null;
-      const duration = 1000; // 1 segundo de transición
+      const duration = 1200; // Transición suave de 1.2 segundos
 
       const animateMarker = (timestamp: number) => {
         if (!startTimestamp) startTimestamp = timestamp;
         const progress = Math.min((timestamp - startTimestamp) / duration, 1);
 
-        // Ease out quad
-        const easeProgress = progress * (2 - progress);
+        // Ease out cubic
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
 
-        const currentLng = startPos.lng + (endPos.lng - startPos.lng) * easeProgress;
-        const currentLat = startPos.lat + (endPos.lat - startPos.lat) * easeProgress;
+        const currentLng = startPos.lng + (targetPos.lng - startPos.lng) * easeProgress;
+        const currentLat = startPos.lat + (targetPos.lat - startPos.lat) * easeProgress;
 
-        repartidorMarker.current!.setLngLat([currentLng, currentLat]);
+        if (repartidorMarker.current) {
+          repartidorMarker.current.setLngLat([currentLng, currentLat]);
+        }
 
         if (progress < 1) {
-          requestAnimationFrame(animateMarker);
+          animationFrameId.current = requestAnimationFrame(animateMarker);
         }
       };
-      
-      requestAnimationFrame(animateMarker);
+
+      animationFrameId.current = requestAnimationFrame(animateMarker);
     }
 
-    // Si el mapa existe, ajustar la vista para incluir ambos puntos
-    if (map.current) {
-      const bounds = new mapboxgl.LngLatBounds()
-        .extend([destinationLng, destinationLat])
-        .extend([repartidorLng, repartidorLat]);
+    // Ajustar la vista si es necesario para mantener ambos puntos visibles
+    const bounds = new mapboxgl.LngLatBounds()
+      .extend([destinationLng, destinationLat])
+      .extend([repartidorLng, repartidorLat]);
 
-      map.current.fitBounds(bounds, {
-        padding: { top: 60, bottom: 60, left: 40, right: 40 },
-        maxZoom: 16,
-      });
-    }
-  }, [repartidorLat, repartidorLng]);
+    m.fitBounds(bounds, {
+      padding: { top: 60, bottom: 60, left: 40, right: 40 },
+      maxZoom: 16,
+    });
+  }, [mapLoaded, repartidorLat, repartidorLng, orderStatus, vehicleType, destinationLat, destinationLng, businessLat, businessLng]);
 
   return (
     <div className="relative w-full h-full min-h-[300px]">
@@ -238,13 +286,13 @@ export default function TrackingMap({
         <div className="absolute top-20 left-4 bg-white/95 backdrop-blur-sm border border-gray-100 rounded-xl shadow-lg px-4 py-2.5 z-10 text-sm font-semibold text-gray-900 flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse" />
           {routeInfo.duration} min
-          <span className="text-gray-400 font-medium ml-1">· {(routeInfo.distance).toFixed(1)} km</span>
+          <span className="text-gray-400 font-medium ml-1">· {routeInfo.distance} km</span>
         </div>
       )}
       <div
         ref={mapContainer}
         style={{ width: '100%', height: '100%' }}
-        className=""
+        className="w-full h-full"
       />
     </div>
   );

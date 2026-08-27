@@ -1,4 +1,3 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getOrders } from 'api-client';
 import { formatRelativeCompact } from '../utils/formatDate';
