@@ -1,5 +1,13 @@
 import { apiClient } from '../client';
 
+export type PricingModel = 'FREE' | 'FIXED' | 'PER_KM';
+
+export interface PricingZone {
+  id: string;
+  name: string;
+  price: number;
+}
+
 export interface Business {
   id: string;
   name: string;
@@ -8,7 +16,31 @@ export interface Business {
   defaultGeofenceRadiusM: number;
   latitude?: number;
   longitude?: number;
+  isActive?: boolean;
+  pricingModel?: PricingModel;
+  baseRate?: number;
+  ratePerKm?: number;
+  freeZoneKm?: number;
+  minRate?: number;
+  maxRate?: number;
+  pricingZones?: PricingZone[];
   createdAt: string;
+}
+
+export interface UpdateBusinessInput {
+  name?: string;
+  type?: string;
+  logoUrl?: string;
+  defaultGeofenceRadiusM?: number;
+  latitude?: number;
+  longitude?: number;
+  pricingModel?: PricingModel;
+  baseRate?: number;
+  ratePerKm?: number;
+  freeZoneKm?: number;
+  minRate?: number;
+  maxRate?: number;
+  pricingZones?: PricingZone[];
 }
 
 export const getMyBusiness = async () => {
@@ -16,7 +48,7 @@ export const getMyBusiness = async () => {
   return res.data as Business;
 };
 
-export const updateMyBusiness = async (data: { latitude: number; longitude: number }) => {
+export const updateMyBusiness = async (data: UpdateBusinessInput) => {
   const res = await apiClient.patch('/businesses/me', data);
   return res.data as Business;
 };

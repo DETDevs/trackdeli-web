@@ -7,6 +7,8 @@ import {
   UserPlus,
   Storefront,
   Package,
+  Motorcycle,
+  Buildings,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { Badge } from '../components/ui/Badge';
@@ -147,8 +149,8 @@ export const LogsPage = () => {
           <div className="space-y-6">
             {Object.entries(groupedLogs).map(([groupTitle, groupItems]) => (
               <div key={groupTitle} className="space-y-2">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
-                  [{groupTitle}]
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
+                  {groupTitle}
                 </span>
 
                 <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden shadow-xs">
@@ -171,13 +173,15 @@ export const LogsPage = () => {
                               {log.type.replace('_', ' ')}
                             </Badge>
                             {log.businessName && (
-                              <span className="text-[11px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                                🏢 {log.businessName}
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
+                                <Buildings size={12} className="text-gray-400" />
+                                <span>{log.businessName}</span>
                               </span>
                             )}
                             {log.riderName && (
-                              <span className="text-[11px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                                🛵 {log.riderName}
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
+                                <Motorcycle size={12} className="text-gray-400" />
+                                <span>{log.riderName}</span>
                               </span>
                             )}
                             {log.orderId && (

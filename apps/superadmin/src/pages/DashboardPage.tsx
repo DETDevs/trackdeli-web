@@ -8,6 +8,7 @@ import {
   Star,
   CheckCircle,
   XCircle,
+  Warning,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { StatCard } from '../components/ui/StatCard';
@@ -15,11 +16,13 @@ import { OrdersChart } from '../components/ui/Chart';
 import { Badge } from '../components/ui/Badge';
 import { useGlobalMetrics } from '../hooks/useMetrics';
 import { useLogs } from '../hooks/useLogs';
-import { formatRelativeTime } from '../utils/format';
+import { useExpiringMemberships } from '../hooks/useMemberships';
+import { formatRelativeTime, formatDateShort } from '../utils/format';
 
 export const DashboardPage = () => {
   const { data: metrics, isLoading: loadingMetrics } = useGlobalMetrics();
   const { data: logs = [], isLoading: loadingLogs } = useLogs();
+  const { data: expiringMemberships = [], isLoading: loadingExpiring } = useExpiringMemberships();
 
   return (
     <div>
@@ -57,7 +60,79 @@ export const DashboardPage = () => {
           />
         </div>
 
-        {/* 2. Gráfico de Órdenes & Resumen Hoy */}
+        {/* 2. Sección de Alertas: Membresías por Vencer */}
+        <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Warning size={18} className="text-amber-500" weight="fill" />
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                Alertas ({expiringMemberships.length})
+              </h3>
+            </div>
+            <Link
+              to="/businesses"
+              className="text-xs font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1"
+            >
+              <span>Gestionar negocios</span>
+              <ArrowUpRight size={14} />
+            </Link>
+          </div>
+
+          {loadingExpiring ? (
+            <p className="text-xs text-gray-400 py-2">Verificando membresías...</p>
+          ) : expiringMemberships.length > 0 ? (
+            <div className="space-y-2 pt-1">
+              {expiringMemberships.map((m) => {
+                const days = m.daysLeft ?? 0;
+                const isUrgent = days <= 2;
+
+                return (
+                  <Link
+                    key={m.id}
+                    to={`/businesses/${m.businessId}`}
+                    className={`flex items-center justify-between p-3.5 rounded-xl border transition-all hover:scale-[1.005] ${
+                      isUrgent
+                        ? 'bg-[#FEF2F2] border-[#FEE2E2] hover:bg-[#FEE2E2]/60'
+                        : 'bg-[#FFFBEB] border-[#FEF3C7] hover:bg-[#FEF3C7]/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                        isUrgent ? 'bg-red-500 ring-4 ring-red-100' : 'bg-amber-500 ring-4 ring-amber-100'
+                      }`} />
+                      <div>
+                        <p className={`text-xs font-semibold ${isUrgent ? 'text-[#991B1B]' : 'text-[#92400E]'}`}>
+                          {m.business?.name || 'Comercio'}
+                          <span className="font-normal text-xs ml-1.5 opacity-90">
+                            — vence en {days === 0 ? 'hoy' : days === 1 ? '1 día' : `${days} días`} ({formatDateShort(m.endDate)})
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${
+                        isUrgent ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        Renovar pago →
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center justify-between text-xs text-emerald-800">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={16} className="text-brand-600" weight="fill" />
+                <span className="font-medium">Todas las membresías están al día</span>
+              </div>
+              <span className="text-[11px] text-emerald-700/80">Ningún negocio vence en los próximos 7 días</span>
+            </div>
+          )}
+        </div>
+
+        {/* 3. Gráfico de Órdenes & Resumen Hoy */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Chart 30 Días */}
           <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
@@ -138,7 +213,7 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* 3. Top Rankings: Negocios y Repartidores */}
+        {/* 4. Top Rankings: Negocios y Repartidores */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Negocios */}
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
@@ -236,7 +311,7 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* 4. Actividad Reciente Rápida */}
+        {/* 5. Actividad Reciente Rápida */}
         <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>

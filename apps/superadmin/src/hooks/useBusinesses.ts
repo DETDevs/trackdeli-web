@@ -18,6 +18,11 @@ export interface BusinessItem {
   ordersToday: number;
   ordersThisMonth: number;
   activeOrders: number;
+  membership?: {
+    status: 'ACTIVE' | 'EXPIRED' | 'NONE';
+    endDate: string | null;
+    daysLeft: number | null;
+  };
 }
 
 export interface BusinessDetail extends BusinessItem {
@@ -67,10 +72,28 @@ export interface BusinessDetail extends BusinessItem {
 export interface CreateBusinessInput {
   name: string;
   type?: string;
-  encargado: {
+  encargado?: {
     name: string;
     email: string;
     password: string;
+  };
+}
+
+export interface CreateBusinessResult {
+  business: {
+    id: string;
+    name: string;
+    type: string | null;
+    isActive: boolean;
+    createdAt: string;
+  };
+  encargado: {
+    id: string;
+    name: string;
+    email: string;
+    temporaryPassword: string;
+    role: string;
+    isActive: boolean;
   };
 }
 

@@ -16,7 +16,10 @@ import {
   useToggleBusiness,
   useCreateBusiness,
   BusinessItem,
+  CreateBusinessResult,
 } from '../hooks/useBusinesses';
+import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
+import { BusinessCredentialsModal } from '../components/modals/BusinessCredentialsModal';
 
 export const BusinessesPage = () => {
   const navigate = useNavigate();
@@ -28,13 +31,26 @@ export const BusinessesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
-  // Modal State
+  // Modal Create Business State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState('');
   const [encargadoName, setEncargadoName] = useState('');
   const [encargadoEmail, setEncargadoEmail] = useState('');
   const [encargadoPassword, setEncargadoPassword] = useState('');
+
+  // Modal Credentials State
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    businessName: string;
+    email: string;
+    password?: string;
+  } | null>(null);
+
+  // Modal Deactivate State
+  const [deactivatingBusiness, setDeactivatingBusiness] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const filteredBusinesses = businesses.filter((b) => {
     const matchesSearch =
@@ -48,9 +64,23 @@ export const BusinessesPage = () => {
     return true;
   });
 
-  const handleToggle = (e: React.MouseEvent, id: string) => {
+  const handleToggleClick = (e: React.MouseEvent, row: BusinessItem) => {
     e.stopPropagation();
-    toggleMutation.mutate(id);
+    if (row.isActive) {
+      // Show confirmation modal to deactivate
+      setDeactivatingBusiness({ id: row.id, name: row.name });
+    } else {
+      // Activate directly
+      toggleMutation.mutate(row.id);
+    }
+  };
+
+  const handleDeactivateConfirm = (id: string) => {
+    toggleMutation.mutate(id, {
+      onSuccess: () => {
+        setDeactivatingBusiness(null);
+      },
+    });
   };
 
   const handleCreateBusiness = async (e: React.FormEvent) => {
@@ -68,13 +98,20 @@ export const BusinessesPage = () => {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (data: CreateBusinessResult) => {
           setIsModalOpen(false);
           setName('');
           setType('');
           setEncargadoName('');
           setEncargadoEmail('');
           setEncargadoPassword('');
+
+          // Open credentials modal
+          setCreatedCredentials({
+            businessName: data.business.name,
+            email: data.encargado.email,
+            password: data.encargado.temporaryPassword,
+          });
         },
       }
     );
@@ -114,10 +151,36 @@ export const BusinessesPage = () => {
       ),
     },
     {
+      header: 'Membresía',
+      accessor: (row) => {
+        const mem = row.membership;
+        if (mem && mem.status === 'ACTIVE') {
+          const days = mem.daysLeft ?? 0;
+          if (days <= 7) {
+            return (
+              <Badge variant="warning" dot size="sm">
+                Vence en {days}d
+              </Badge>
+            );
+          }
+          return (
+            <Badge variant="success" dot size="sm">
+              Activa {days}d
+            </Badge>
+          );
+        }
+        return (
+          <Badge variant="danger" dot size="sm">
+            Vencida
+          </Badge>
+        );
+      },
+    },
+    {
       header: 'Estado',
       accessor: (row) => (
         <button
-          onClick={(e) => handleToggle(e, row.id)}
+          onClick={(e) => handleToggleClick(e, row)}
           disabled={toggleMutation.isPending}
           className="group flex items-center gap-2 text-xs font-medium cursor-pointer"
         >
@@ -331,6 +394,29 @@ export const BusinessesPage = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Modal Mostrar Credenciales Generadas */}
+      {createdCredentials && (
+        <BusinessCredentialsModal
+          isOpen={!!createdCredentials}
+          onClose={() => setCreatedCredentials(null)}
+          businessName={createdCredentials.businessName}
+          email={createdCredentials.email}
+          password={createdCredentials.password}
+        />
+      )}
+
+      {/* Modal Confirmación Desactivar */}
+      {deactivatingBusiness && (
+        <DeactivateBusinessModal
+          isOpen={!!deactivatingBusiness}
+          onClose={() => setDeactivatingBusiness(null)}
+          businessId={deactivatingBusiness.id}
+          businessName={deactivatingBusiness.name}
+          onConfirm={handleDeactivateConfirm}
+          isLoading={toggleMutation.isPending}
+        />
+      )}
     </div>
   );
 };

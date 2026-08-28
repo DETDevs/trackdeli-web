@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getOrder, type OrderStatus, apiClient, getMyBusiness } from 'api-client';
-import { ArrowLeft, Copy } from '@phosphor-icons/react';
+import { ArrowLeft, Copy, Motorcycle, Bicycle, Car, PersonSimpleWalk, Phone } from '@phosphor-icons/react';
 import { toast } from 'react-hot-toast';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDateTime } from '../utils/formatDate';
@@ -215,18 +215,26 @@ export const OrderDetailPage = () => {
                   <dd className="text-sm font-medium text-gray-900 text-right">{order.description}</dd>
                 </div>
               )}
+              {order.distanceKm && order.distanceKm > 0 ? (
+                <div className="flex justify-between">
+                  <dt className="text-sm text-gray-500">Distancia</dt>
+                  <dd className="text-sm font-medium text-gray-900">{order.distanceKm} km</dd>
+                </div>
+              ) : null}
               <div className="flex justify-between">
                 <dt className="text-sm text-gray-500">Pago</dt>
                 <dd className="text-sm font-medium text-gray-900">
                   {paymentLabel[order.deliveryPaymentStatus] ?? order.deliveryPaymentStatus}
                 </dd>
               </div>
-              {order.deliveryPaymentStatus !== 'GRATIS' && (
-                <div className="flex justify-between">
-                  <dt className="text-sm text-gray-500">Monto</dt>
-                  <dd className="text-sm font-medium text-gray-900">C$ {order.deliveryFee.toFixed(2)}</dd>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <dt className="text-sm text-gray-500">Tarifa de envío</dt>
+                <dd className="text-sm font-semibold text-gray-900 font-mono">
+                  {order.deliveryPaymentStatus === 'GRATIS'
+                    ? 'Gratis'
+                    : `C$ ${Number(order.deliveryFee).toFixed(2)}`}
+                </dd>
+              </div>
               <div className="flex justify-between">
                 <dt className="text-sm text-gray-500">Creado</dt>
                 <dd className="text-sm font-medium text-gray-900">{formatDateTime(order.createdAt)}</dd>
@@ -338,10 +346,18 @@ export const OrderDetailPage = () => {
                   <p className="text-sm font-medium text-gray-900">{order.deliveryUser.name}</p>
                   <p className="text-xs text-gray-400">Repartidor</p>
                   {((order.deliveryUser as any).vehicleType) && (
-                    <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
-                      {((order.deliveryUser as any).vehicleType === 'MOTO' ? '🏍️' : 
-                        (order.deliveryUser as any).vehicleType === 'BICICLETA' ? '🚲' : 
-                        (order.deliveryUser as any).vehicleType === 'CARRO' ? '🚗' : '🚶')}{' '}
+                    <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1.5">
+                      <span className="text-gray-600">
+                        {((order.deliveryUser as any).vehicleType === 'MOTO' ? (
+                          <Motorcycle size={14} />
+                        ) : (order.deliveryUser as any).vehicleType === 'BICICLETA' ? (
+                          <Bicycle size={14} />
+                        ) : (order.deliveryUser as any).vehicleType === 'CARRO' ? (
+                          <Car size={14} />
+                        ) : (
+                          <PersonSimpleWalk size={14} />
+                        ))}
+                      </span>
                       <span className="truncate">
                         {((order.deliveryUser as any).vehicleType.charAt(0).toUpperCase() + (order.deliveryUser as any).vehicleType.slice(1).toLowerCase())}
                         {((order.deliveryUser as any).vehicleColor ? ' · ' + (order.deliveryUser as any).vehicleColor : '')}
@@ -350,7 +366,10 @@ export const OrderDetailPage = () => {
                     </p>
                   )}
                   {((order.deliveryUser as any).phone) && (
-                    <p className="text-xs text-gray-500 mt-0.5">📞 {((order.deliveryUser as any).phone)}</p>
+                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
+                      <Phone size={13} className="text-gray-400" />
+                      <span>{((order.deliveryUser as any).phone)}</span>
+                    </p>
                   )}
                 </div>
               </div>

@@ -24,6 +24,7 @@ export interface Order {
   status: OrderStatus;
   deliveryPaymentStatus: DeliveryPaymentStatus;
   deliveryFee: number;
+  distanceKm?: number;
   trackingToken?: string;
   businessId: string;
   deliveryUserId?: string;
@@ -60,6 +61,14 @@ export interface CreateOrderDto {
   deliveryFee?: number;
 }
 
+export interface CalculateFeeResult {
+  fee: number;
+  distanceKm: number;
+  breakdown: string;
+  pricingModel: string;
+  currency: string;
+}
+
 export const getOrders = async (params?: Record<string, string>): Promise<Order[]> => {
   const res = await apiClient.get('/orders', { params });
   return res.data;
@@ -72,6 +81,16 @@ export const getOrder = async (id: string): Promise<Order> => {
 
 export const getOrderPhotos = async (id: string): Promise<OrderPhoto[]> => {
   const res = await apiClient.get(`/orders/${id}/photos`);
+  return res.data;
+};
+
+export const calculateOrderFee = async (
+  destLat: number,
+  destLng: number
+): Promise<CalculateFeeResult> => {
+  const res = await apiClient.get('/orders/calculate-fee', {
+    params: { destLat, destLng },
+  });
   return res.data;
 };
 

@@ -16,6 +16,10 @@ import {
   Storefront,
   Truck,
   Checks,
+  Motorcycle,
+  Bicycle,
+  Car,
+  PersonSimpleWalk,
 } from "@phosphor-icons/react";
 import { toast } from "react-hot-toast";
 import TrackingMap from "../components/TrackingMap";
@@ -496,26 +500,28 @@ export const TrackingPage = () => {
                           )}
                         </div>
                         {data.deliveryUser.vehicleType ? (
-                          <p className="text-[11px] text-gray-500 mt-0.5 truncate">
-                            {data.deliveryUser.vehicleType === "MOTO"
-                              ? "🏍️"
-                              : data.deliveryUser.vehicleType === "BICICLETA"
-                                ? "🚲"
-                                : data.deliveryUser.vehicleType === "CARRO"
-                                  ? "🚗"
-                                  : "🚶"}{" "}
-                            {data.deliveryUser.vehicleType
-                              .charAt(0)
-                              .toUpperCase() +
-                              data.deliveryUser.vehicleType
-                                .slice(1)
-                                .toLowerCase()}
-                            {data.deliveryUser.vehicleColor
-                              ? " · " + data.deliveryUser.vehicleColor
-                              : ""}
-                            {data.deliveryUser.vehiclePlate
-                              ? " · " + data.deliveryUser.vehiclePlate
-                              : ""}
+                          <p className="text-[11px] text-gray-500 mt-0.5 truncate flex items-center gap-1">
+                            <span className="text-gray-500">
+                              {data.deliveryUser.vehicleType === "MOTO" ? (
+                                <Motorcycle size={14} />
+                              ) : data.deliveryUser.vehicleType === "BICICLETA" ? (
+                                <Bicycle size={14} />
+                              ) : data.deliveryUser.vehicleType === "CARRO" ? (
+                                <Car size={14} />
+                              ) : (
+                                <PersonSimpleWalk size={14} />
+                              )}
+                            </span>
+                            <span>
+                              {data.deliveryUser.vehicleType.charAt(0).toUpperCase() +
+                                data.deliveryUser.vehicleType.slice(1).toLowerCase()}
+                              {data.deliveryUser.vehicleColor
+                                ? " · " + data.deliveryUser.vehicleColor
+                                : ""}
+                              {data.deliveryUser.vehiclePlate
+                                ? " · " + data.deliveryUser.vehiclePlate
+                                : ""}
+                            </span>
                           </p>
                         ) : (
                           <p className="text-[11px] text-gray-500 mt-0.5">

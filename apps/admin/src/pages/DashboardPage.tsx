@@ -272,12 +272,22 @@ export const DashboardPage = () => {
                 <div className="flex items-end justify-between">
                   <div className="flex-1 min-w-0 pr-4">
                     <p className="text-[13px] font-medium text-[#0F0F0F] truncate">{order.customerName}</p>
-                    <p className="text-[11px] text-[#6B7280] truncate mt-0.5">{order.destinationAddress}</p>
+                    <p className="text-[11px] text-[#6B7280] truncate mt-0.5">
+                      {order.destinationAddress}
+                      {order.distanceKm && order.distanceKm > 0 ? ` · ${order.distanceKm} km` : ''}
+                    </p>
                   </div>
                   
                   <div className="flex items-center gap-4 shrink-0">
-                    <div className="text-[11px] font-normal text-[#6B7280]">
-                      {order.deliveryUser?.name ?? <span className="text-gray-300">Sin asignar</span>}
+                    <div className="text-right">
+                      <div className="text-[11px] font-semibold text-gray-900 font-mono">
+                        {order.deliveryPaymentStatus === 'GRATIS'
+                          ? 'Gratis'
+                          : `C$ ${Number(order.deliveryFee).toFixed(2)}`}
+                      </div>
+                      <div className="text-[10px] text-[#6B7280]">
+                        {order.deliveryUser?.name ?? <span className="text-gray-300">Sin asignar</span>}
+                      </div>
                     </div>
                     <button 
                       onClick={(e) => { e.stopPropagation(); navigate(`/orders/${order.id}`); }}

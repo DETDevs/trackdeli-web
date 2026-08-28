@@ -88,6 +88,7 @@ export const OrdersPage = () => {
             <tr className="border-b border-gray-100">
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Cliente</th>
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Dirección</th>
+              <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Tarifa / Distancia</th>
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Repartidor</th>
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Estado</th>
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Fecha</th>
@@ -97,7 +98,7 @@ export const OrdersPage = () => {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
+                  {Array.from({ length: 6 }).map((_, j) => (
                     <td key={j} className="px-5 py-3">
                       <div className="h-4 bg-gray-100 rounded animate-pulse" style={{ width: `${60 + j * 10}%` }} />
                     </td>
@@ -106,7 +107,7 @@ export const OrdersPage = () => {
               ))
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={5}>
+                <td colSpan={6}>
                   <div className="flex flex-col items-center justify-center py-16 text-center">
                     <Package size={32} className="text-gray-300" weight="regular" />
                     <p className="mt-3 text-sm font-medium text-gray-900">No hay pedidos aún</p>
@@ -133,6 +134,18 @@ export const OrdersPage = () => {
                   </td>
                   <td className="px-5 py-3 text-sm text-gray-600 max-w-xs truncate">
                     {order.destinationAddress}
+                  </td>
+                  <td className="px-5 py-3 text-sm">
+                    <div className="font-semibold text-gray-900 font-mono">
+                      {order.deliveryPaymentStatus === 'GRATIS'
+                        ? 'Gratis'
+                        : `C$ ${Number(order.deliveryFee).toFixed(2)}`}
+                    </div>
+                    {order.distanceKm && order.distanceKm > 0 ? (
+                      <div className="text-[11px] text-gray-400">
+                        {order.distanceKm} km
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-5 py-3 text-sm">
                     {order.deliveryUser?.name ? (

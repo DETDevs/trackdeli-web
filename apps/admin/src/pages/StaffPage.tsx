@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getOrders } from 'api-client';
+import { Motorcycle, Bicycle, Car, PersonSimpleWalk, Star } from '@phosphor-icons/react';
 import { formatRelativeCompact } from '../utils/formatDate';
 
 const initials = (name: string) =>
@@ -85,12 +86,20 @@ export const StaffPage = () => {
                   </div>
                   
                   {user.vehicleType ? (
-                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                      {(user.vehicleType === 'MOTO' ? '🏍️' : 
-                        user.vehicleType === 'BICICLETA' ? '🚲' : 
-                        user.vehicleType === 'CARRO' ? '🚗' : '🚶')}{' '}
+                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
+                      <span className="text-gray-600">
+                        {user.vehicleType === 'MOTO' ? (
+                          <Motorcycle size={14} />
+                        ) : user.vehicleType === 'BICICLETA' ? (
+                          <Bicycle size={14} />
+                        ) : user.vehicleType === 'CARRO' ? (
+                          <Car size={14} />
+                        ) : (
+                          <PersonSimpleWalk size={14} />
+                        )}
+                      </span>
                       <span className="truncate">
-                        {(user.vehicleType.charAt(0).toUpperCase() + user.vehicleType.slice(1).toLowerCase())}
+                        {user.vehicleType.charAt(0).toUpperCase() + user.vehicleType.slice(1).toLowerCase()}
                         {user.vehicleColor ? ' · ' + user.vehicleColor : ''}
                         {user.vehiclePlate ? ' · ' + user.vehiclePlate : ''}
                       </span>
@@ -101,9 +110,11 @@ export const StaffPage = () => {
                   
                   <div className="flex items-center gap-2 mt-2 text-xs text-gray-600">
                     <span>{user.totalDeliveries} entregas</span>
-                    {/* Placeholder for rating since we don't have it natively on User model yet */}
                     <span>·</span>
-                    <span className="flex items-center gap-0.5">⭐ 4.9</span> 
+                    <span className="inline-flex items-center gap-1 text-amber-600">
+                      <Star size={13} weight="fill" />
+                      <span>4.9</span>
+                    </span> 
                   </div>
                   
                   <p className="text-xs text-gray-400 mt-2">
