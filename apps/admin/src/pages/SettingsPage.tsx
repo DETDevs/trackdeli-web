@@ -17,6 +17,12 @@ import {
   Buildings,
   WhatsappLogo,
   CheckCircle,
+  Gift,
+  Tag,
+  NavigationArrow,
+  Motorcycle,
+  Info,
+  Lightbulb,
 } from '@phosphor-icons/react';
 import { calculateFeeClient, getPricingBreakdownClient } from '../lib/pricing';
 
@@ -47,6 +53,10 @@ const PricingPreview: React.FC<PricingPreviewProps> = ({
   maxRate,
   pricingZones,
 }) => {
+  if (model === 'RIDER_QUOTE') {
+    return null;
+  }
+
   const distances = [1, 2, 3, 5, 8, 10];
 
   return (
@@ -400,8 +410,8 @@ export const SettingsPage = () => {
                 className="w-full h-10 px-3 bg-white text-xs text-gray-900 font-mono font-medium focus:outline-none"
               />
             </div>
-            <p className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1">
-              <span>💡</span>
+            <p className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1.5">
+              <Lightbulb size={14} className="text-amber-500 shrink-0" weight="fill" />
               <span>
                 Ejemplo: Para +505 8806-8133 escribí: <strong>88068133</strong>
               </span>
@@ -459,79 +469,71 @@ export const SettingsPage = () => {
               Modelo de precios
             </label>
             <div className="grid grid-cols-1 gap-2.5">
-              {/* Opción 1: Gratis */}
-              <label
-                className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  pricingModel === 'FREE'
-                    ? 'border-brand-500 bg-brand-50/20 shadow-xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="pricingModel"
-                  value="FREE"
-                  checked={pricingModel === 'FREE'}
-                  onChange={() => setPricingModel('FREE')}
-                  className="mt-0.5 text-brand-600 focus:ring-brand-500 h-4 w-4"
-                />
-                <div>
-                  <p className="text-xs font-semibold text-gray-900">Envío gratis</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Todos tus envíos son gratuitos para el cliente (monto de envío C$0).
-                  </p>
-                </div>
-              </label>
-
-              {/* Opción 2: Fijo / Por Zona */}
-              <label
-                className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  pricingModel === 'FIXED'
-                    ? 'border-brand-500 bg-brand-50/20 shadow-xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="pricingModel"
-                  value="FIXED"
-                  checked={pricingModel === 'FIXED'}
-                  onChange={() => setPricingModel('FIXED')}
-                  className="mt-0.5 text-brand-600 focus:ring-brand-500 h-4 w-4"
-                />
-                <div>
-                  <p className="text-xs font-semibold text-gray-900">Precio fijo / Por zonas</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Configura una tarifa general fija o tarifas específicas por zona / barrio.
-                  </p>
-                </div>
-              </label>
-
-              {/* Opción 3: Por Distancia */}
-              <label
-                className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  pricingModel === 'PER_KM'
-                    ? 'border-brand-500 bg-brand-50/20 shadow-xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="pricingModel"
-                  value="PER_KM"
-                  checked={pricingModel === 'PER_KM'}
-                  onChange={() => setPricingModel('PER_KM')}
-                  className="mt-0.5 text-brand-600 focus:ring-brand-500 h-4 w-4"
-                />
-                <div>
-                  <p className="text-xs font-semibold text-gray-900">Por distancia (km)</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    El precio se calcula automáticamente con una tarifa base más un valor por kilómetro.
-                  </p>
-                </div>
-              </label>
+              {[
+                {
+                  value: 'FREE' as const,
+                  label: 'Envío gratis',
+                  description: 'Todos tus envíos son gratuitos para el cliente',
+                  icon: <Gift size={18} className="text-emerald-600 shrink-0" weight="duotone" />,
+                },
+                {
+                  value: 'FIXED' as const,
+                  label: 'Precio fijo',
+                  description: 'Siempre cobrás el mismo monto sin importar la distancia',
+                  icon: <Tag size={18} className="text-indigo-600 shrink-0" weight="duotone" />,
+                },
+                {
+                  value: 'PER_KM' as const,
+                  label: 'Por distancia',
+                  description: 'El precio varía según los kilómetros al cliente',
+                  icon: <NavigationArrow size={18} className="text-amber-600 shrink-0" weight="duotone" />,
+                },
+                {
+                  value: 'RIDER_QUOTE' as const,
+                  label: 'Rider pone el precio',
+                  description: 'Cada repartidor propone su tarifa y vos elegís la mejor oferta',
+                  icon: <Motorcycle size={18} className="text-blue-600 shrink-0" weight="duotone" />,
+                },
+              ].map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                    pricingModel === opt.value
+                      ? 'border-brand-500 bg-brand-50/20 shadow-xs ring-1 ring-brand-500/20'
+                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="pricingModel"
+                    value={opt.value}
+                    checked={pricingModel === opt.value}
+                    onChange={() => setPricingModel(opt.value)}
+                    className="mt-1 text-brand-600 focus:ring-brand-500 h-4 w-4"
+                  />
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-gray-900 flex items-center gap-2">
+                      {opt.icon}
+                      <span>{opt.label}</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
+                  </div>
+                </label>
+              ))}
             </div>
           </div>
+
+          {/* Info Box para RIDER_QUOTE */}
+          {pricingModel === 'RIDER_QUOTE' && (
+            <div className="pt-4 border-t border-gray-100 animate-in fade-in duration-150">
+              <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-100 flex items-start gap-3">
+                <Info size={20} className="text-blue-600 shrink-0 mt-0.5" weight="fill" />
+                <p className="text-xs text-blue-800 leading-relaxed">
+                  Con esta opción, cuando creés un pedido los repartidores cercanos verán el pedido y podrán enviarte su precio. Vos elegís la mejor oferta antes de confirmar.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Campos para PRECIO FIJO / POR ZONAS */}
           {pricingModel === 'FIXED' && (

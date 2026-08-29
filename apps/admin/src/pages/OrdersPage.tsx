@@ -8,7 +8,7 @@ import { formatRelative } from '../utils/formatDate';
 import { useWhatsAppTracking, TRACKABLE_STATUSES } from '../hooks/useWhatsAppTracking';
 
 const ALL_STATUSES: OrderStatus[] = [
-  'PENDIENTE', 'TOMADO', 'EN_CAMINO', 'CERCA_DEL_DESTINO',
+  'PENDIENTE', 'COTIZANDO', 'ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'TOMADO', 'EN_CAMINO', 'CERCA_DEL_DESTINO',
   'VERIFICANDO_ENTREGA', 'ENTREGADO', 'CANCELADO', 'INCIDENCIA', 'CERRADO',
 ];
 

@@ -8,15 +8,17 @@ import LiveMap from '../components/LiveMap';
 import { useMapStore } from '../store/map.store';
 import { useSocketStore } from '../store/socket.store';
 import { useWhatsAppTracking, TRACKABLE_STATUSES } from '../hooks/useWhatsAppTracking';
+import { OrderQuotesPanel } from '../components/OrderQuotesPanel';
 import { useEffect } from 'react';
 
 const STATUS_SEQUENCE: string[] = [
-  'PENDIENTE', 'ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'EN_CAMINO', 'CERCA_DEL_DESTINO',
+  'PENDIENTE', 'COTIZANDO', 'ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'EN_CAMINO', 'CERCA_DEL_DESTINO',
   'VERIFICANDO_ENTREGA', 'ENTREGADO',
 ];
 
 const statusLabel: Record<string, string> = {
   PENDIENTE: 'Pendiente',
+  COTIZANDO: 'Cotizando',
   ACEPTADO: 'Aceptado',
   EN_CAMINO_AL_NEGOCIO: 'Hacia el negocio',
   EN_EL_NEGOCIO: 'En el negocio',
@@ -188,8 +190,18 @@ export const OrderDetailPage = () => {
 
       {/* Main grid */}
       <div className="grid grid-cols-2 gap-6">
-        {/* Left: Info + Photos */}
+        {/* Left: Info + Quotes + Photos */}
         <div className="space-y-4">
+          {/* Panel de Propuestas de Tarifas */}
+          {(
+            order.status === 'COTIZANDO' ||
+            (((order as any).business?.pricingModel === 'RIDER_QUOTE' || business?.pricingModel === 'RIDER_QUOTE' || order.priceNegotiated) &&
+              ['PENDIENTE', 'COTIZANDO'].includes(order.status)) ||
+            (order.quotes && order.quotes.length > 0 && ['PENDIENTE', 'COTIZANDO', 'ACEPTADO'].includes(order.status))
+          ) && (
+            <OrderQuotesPanel orderId={order.id} orderStatus={order.status} />
+          )}
+
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5 space-y-4">
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">Información</div>
             <dl className="space-y-3">

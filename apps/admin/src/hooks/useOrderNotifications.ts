@@ -49,7 +49,9 @@ export function useOrderNotifications() {
 
       // Toast de notificación
       const statusLabels: Record<string, string> = {
+        COTIZANDO: '🏷️ Pedido en cotización de tarifas',
         TOMADO: '📦 Pedido tomado por un repartidor',
+        ACEPTADO: '🛵 Repartidor asignado',
         EN_CAMINO: '🛵 Pedido en camino',
         CERCA_DEL_DESTINO: '📍 Repartidor cerca del destino',
         ENTREGADO: '✅ Pedido entregado',
@@ -69,6 +71,76 @@ export function useOrderNotifications() {
           },
         });
       }
+    });
+
+    // Nueva propuesta de tarifa recibida
+    socket.on('new_quote', (data: any) => {
+      console.log('[WS Admin] new_quote', data);
+      const orderId = data?.orderId || data?.quote?.orderId;
+      if (orderId) {
+        queryClient.invalidateQueries({ queryKey: ['quotes', orderId] });
+        queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+
+      const riderName = data?.quote?.rider?.name || data?.quote?.riderName || data?.riderName || 'Un repartidor';
+      const fee = data?.quote?.proposedFee ?? data?.proposedFee;
+      toast.success(`${riderName} propuso C$ ${Number(fee || 0).toFixed(2)}`, {
+        duration: 4000,
+        style: {
+          background: '#0F0F0F',
+          color: '#FFFFFF',
+          fontSize: '14px',
+          borderRadius: '8px',
+        },
+      });
+    });
+
+    // Propuesta actualizada por el rider
+    socket.on('quote_updated', (data: any) => {
+      console.log('[WS Admin] quote_updated', data);
+      const orderId = data?.orderId || data?.quote?.orderId;
+      if (orderId) {
+        queryClient.invalidateQueries({ queryKey: ['quotes', orderId] });
+        queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      }
+      const newFee = data?.newFee ?? data?.quote?.proposedFee ?? data?.proposedFee;
+      const riderName = data?.quote?.rider?.name || data?.riderName || 'El repartidor';
+      toast.success(`${riderName} actualizó su precio a C$ ${Number(newFee || 0).toFixed(2)}`, {
+        duration: 4000,
+        style: {
+          background: '#0F0F0F',
+          color: '#FFFFFF',
+          fontSize: '14px',
+          borderRadius: '8px',
+        },
+      });
+    });
+
+    // Nuevo mensaje en la negociación
+    socket.on('new_message', (data: any) => {
+      console.log('[WS Admin] new_message', data);
+      const quoteId = data?.quoteId || data?.message?.quoteId;
+      const orderId = data?.orderId || data?.message?.orderId;
+      if (quoteId) {
+        queryClient.invalidateQueries({ queryKey: ['messages', quoteId] });
+      }
+      if (orderId) {
+        queryClient.invalidateQueries({ queryKey: ['quotes', orderId] });
+      }
+    });
+
+    // Propuesta aceptada
+    socket.on('quote_accepted', (data: any) => {
+      console.log('[WS Admin] quote_accepted', data);
+      const orderId = data?.orderId || data?.quote?.orderId;
+      if (orderId) {
+        queryClient.invalidateQueries({ queryKey: ['quotes', orderId] });
+        queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     });
 
     socket.on('location_updated', (data: any) => {

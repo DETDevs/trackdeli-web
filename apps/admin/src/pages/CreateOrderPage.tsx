@@ -17,6 +17,7 @@ import {
   Keyboard,
   Calculator,
   Buildings,
+  Motorcycle,
 } from '@phosphor-icons/react';
 import { PinPicker } from 'map';
 import { calculateFeeClient, getPricingBreakdownClient } from '../lib/pricing';
@@ -80,6 +81,15 @@ export const CreateOrderPage = () => {
         distanceKm: 0,
         breakdown: 'Envío gratis configurado para el negocio',
       });
+      setForm((prev) => ({
+        ...prev,
+        deliveryFee: '0.00',
+      }));
+      return;
+    }
+
+    if (business.pricingModel === 'RIDER_QUOTE') {
+      setCalculatedInfo(null);
       setForm((prev) => ({
         ...prev,
         deliveryFee: '0.00',
@@ -273,7 +283,9 @@ export const CreateOrderPage = () => {
       description: form.description.trim() || undefined,
       deliveryPaymentStatus: form.deliveryPaymentStatus,
       deliveryFee:
-        form.deliveryPaymentStatus !== 'GRATIS' && form.deliveryFee
+        business?.pricingModel === 'RIDER_QUOTE'
+          ? 0
+          : form.deliveryPaymentStatus !== 'GRATIS' && form.deliveryFee
           ? Number(form.deliveryFee)
           : 0,
       destinationLat: form.destinationLat ? Number(form.destinationLat) : undefined,
@@ -485,7 +497,7 @@ export const CreateOrderPage = () => {
                 onChange={(e) => set('description', e.target.value)}
               />
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
               <Field label="Estado de pago">
                 <select
                   className={inputClass}
@@ -497,26 +509,36 @@ export const CreateOrderPage = () => {
                   <option value="GRATIS">Gratis</option>
                 </select>
               </Field>
-              {form.deliveryPaymentStatus !== 'GRATIS' && (
-                <Field label="Monto de envío (C$)">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                      C$
-                    </span>
-                    <input
-                      className={`${inputClass} pl-8 font-mono font-medium`}
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={form.deliveryFee}
-                      onChange={(e) => set('deliveryFee', e.target.value)}
-                    />
-                  </div>
-                  <p className="text-[11px] text-gray-400 mt-1">
-                    Calculado automáticamente. Puedes modificarlo si es necesario.
+
+              {business?.pricingModel === 'RIDER_QUOTE' ? (
+                <div className="flex items-center gap-2.5 p-3 bg-blue-50 rounded-lg border border-blue-100 mt-0 sm:mt-5">
+                  <Motorcycle size={20} className="text-blue-600 shrink-0" weight="duotone" />
+                  <p className="text-xs text-blue-700 leading-snug">
+                    Los repartidores propondrán su precio al ver este pedido. Podrás elegir la mejor oferta desde el detalle del pedido.
                   </p>
-                </Field>
+                </div>
+              ) : (
+                form.deliveryPaymentStatus !== 'GRATIS' && (
+                  <Field label="Monto de envío (C$)">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
+                        C$
+                      </span>
+                      <input
+                        className={`${inputClass} pl-8 font-mono font-medium`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={form.deliveryFee}
+                        onChange={(e) => set('deliveryFee', e.target.value)}
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Calculado automáticamente. Puedes modificarlo si es necesario.
+                    </p>
+                  </Field>
+                )
               )}
             </div>
           </div>

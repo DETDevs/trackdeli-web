@@ -12,6 +12,16 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 
 const CompactStatusBadge = ({ status }: { status: string }) => {
   switch (status) {
+    case 'COTIZANDO':
+      return (
+        <div className="flex items-center gap-1.5 text-violet-700 font-medium text-xs">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-500 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-600"></span>
+          </span>
+          Cotizando
+        </div>
+      );
     case 'ACEPTADO':
     case 'EN_CAMINO_AL_NEGOCIO':
     case 'EN_EL_NEGOCIO':

@@ -1,6 +1,6 @@
 import { apiClient } from '../client';
 
-export type PricingModel = 'FREE' | 'FIXED' | 'PER_KM';
+export type PricingModel = 'FREE' | 'FIXED' | 'PER_KM' | 'RIDER_QUOTE';
 
 export interface PricingZone {
   id: string;
