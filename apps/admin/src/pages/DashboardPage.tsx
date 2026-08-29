@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Package, Motorcycle, CheckCircle, Users, ArrowRight } from '@phosphor-icons/react';
+import { Package, Motorcycle, CheckCircle, Users, ArrowRight, WarningCircle, WhatsappLogo } from '@phosphor-icons/react';
 import { getOrders, getUsers, getMyBusiness } from 'api-client';
 import { isToday } from 'date-fns';
 import { StatCard } from '../components/StatCard';
@@ -169,6 +169,7 @@ export const DashboardPage = () => {
       .map(o => ({
         id: o.id,
         status: o.status,
+        customerName: o.customerName,
         destinationLat: ((o.status as string) === 'EN_CAMINO_AL_NEGOCIO' || (o.status as string) === 'EN_EL_NEGOCIO' || (o.status as string) === 'ACEPTADO') ? Number(business?.latitude ?? o.destinationLat) : Number(o.destinationLat),
         destinationLng: ((o.status as string) === 'EN_CAMINO_AL_NEGOCIO' || (o.status as string) === 'EN_EL_NEGOCIO' || (o.status as string) === 'ACEPTADO') ? Number(business?.longitude ?? o.destinationLng) : Number(o.destinationLng),
       }));
@@ -176,6 +177,32 @@ export const DashboardPage = () => {
 
   return (
     <div className="space-y-6">
+      {/* Alerta de Membresía Vencida o Inactiva */}
+      {(business?.isActive === false || business?.membership?.status === 'EXPIRED') && (
+        <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <WarningCircle size={22} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                Membresía Vencida o Pendiente de Activación
+              </h4>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Tu negocio no cuenta con una membresía activa en este momento. Las funciones de creación de pedidos y cambios de configuración están deshabilitadas hasta registrar tu pago.
+              </p>
+            </div>
+          </div>
+          <a
+            href={`https://wa.me/50588068133?text=Hola,%20deseo%20renovar%20la%20membres%C3%ADa%20de%20mi%20negocio%20(${encodeURIComponent(business?.name || 'mi negocio')})%20en%20TrackDeli`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs shrink-0"
+          >
+            <WhatsappLogo size={15} weight="fill" />
+            <span>Contactar Soporte</span>
+          </a>
+        </div>
+      )}
+
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {ordersLoading ? (
@@ -224,6 +251,7 @@ export const DashboardPage = () => {
           repartidores={enrichedRepartidores} 
           activeOrders={activeOrdersForMap}
           businessLocation={business?.latitude && business?.longitude ? { lat: business.latitude, lng: business.longitude } : undefined}
+          businessName={business?.name}
           focusedOrderId={focusedOrderId}
           onMarkerClick={setFocusedOrderId}
         />

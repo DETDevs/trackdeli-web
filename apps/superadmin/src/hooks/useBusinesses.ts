@@ -18,6 +18,8 @@ export interface BusinessItem {
   ordersToday: number;
   ordersThisMonth: number;
   activeOrders: number;
+  whatsappNumber?: string | null;
+  whatsappDisplay?: string | null;
   membership?: {
     status: 'ACTIVE' | 'EXPIRED' | 'NONE';
     endDate: string | null;

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { createBusinessMarker } from 'map';
 import {
   ArrowLeft,
   Storefront,
@@ -55,12 +56,7 @@ export const BusinessDetailPage = () => {
       zoom: 14,
     });
 
-    const el = document.createElement('div');
-    el.innerHTML = `
-      <div style="background: #0F0F0F; color: white; border-radius: 8px; padding: 6px; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
-        <svg width="16" height="16" viewBox="0 0 256 256" fill="white"><path d="M240,96h-8V48a16,16,0,0,0-16-16H40A16,16,0,0,0,24,48V96H16a8,8,0,0,0,0,16h8v96a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V112h8a8,8,0,0,0,0-16ZM40,48H216V96H40ZM216,208H40V112H216v96Zm-80-64a8,8,0,0,1-8,8H104a8,8,0,0,1,0-16h24A8,8,0,0,1,136,144Z"/></svg>
-      </div>
-    `;
+    const el = createBusinessMarker({ name: business.name });
 
     new mapboxgl.Marker({ element: el })
       .setLngLat([business.longitude, business.latitude])

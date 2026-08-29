@@ -1,41 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* styles/mapMarkers.css */
 
-@layer base {
-  :root {
-    --bg-page:     #FAFAFA;
-    --bg-surface:  #FFFFFF;
-    --bg-subtle:   #F5F5F5;
-    --border:      #EBEBEB;
-    --border-strong: #D6D6D6;
-    --text-primary:   #0F0F0F;
-    --text-secondary: #5C5C5C;
-    --text-tertiary:  #ADADAD;
-    --brand:       #22C55E;
-    --brand-dark:  #16A34A;
-  }
-
-  * {
-    border-color: var(--border);
-  }
-
-  body {
-    background-color: var(--bg-page);
-    color: var(--text-primary);
-    font-family: 'Inter', system-ui, sans-serif;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-    -webkit-font-smoothing: antialiased;
-  }
-
-  /* Scrollbar minimalista */
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #D6D6D6; border-radius: 2px; }
-}
-
-/* ─── MAPBOX CUSTOM MARKERS ─── */
-/* RIDER (MOTO) */
+/* ─── RIDER (MOTO) ─── */
 .marker-rider {
   cursor: pointer;
   z-index: 10;
@@ -84,7 +49,7 @@
   display: block;
 }
 
-/* NEGOCIO */
+/* ─── NEGOCIO ─── */
 .marker-business {
   cursor: pointer;
 }
@@ -132,7 +97,7 @@
   margin-top: -1px;
 }
 
-/* DESTINO */
+/* ─── DESTINO ─── */
 .marker-destination {
   cursor: pointer;
 }
@@ -183,4 +148,3 @@
   border-top: 7px solid #EF4444;
   margin-top: -1px;
 }
-

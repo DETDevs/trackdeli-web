@@ -230,9 +230,14 @@ export const CreateOrderPage = () => {
       navigate('/orders');
     },
     onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      setFormError(msg ?? 'Ocurrió un error al crear el pedido.');
+      const errorObj = err as { response?: { status?: number; data?: { message?: string } } };
+      const msg = errorObj?.response?.data?.message;
+      if (errorObj?.response?.status === 402) {
+        toast.error(msg || 'Tu membresía está vencida o requiere pago para crear pedidos.', { duration: 5000 });
+        setFormError(msg || 'Tu membresía está vencida o requiere pago para crear pedidos. Contacta al soporte para renovarla.');
+      } else {
+        setFormError(msg ?? 'Ocurrió un error al crear el pedido.');
+      }
     },
   });
 
@@ -354,33 +359,6 @@ export const CreateOrderPage = () => {
             </div>
           </div>
 
-          {/* Selector de Zona para Negocios con Tarifas por Zonas */}
-          {zones.length > 0 && (
-            <div className="mb-4 p-3.5 bg-gray-50 rounded-xl border border-gray-100 space-y-1.5">
-              <label className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
-                <Buildings size={15} className="text-brand-600" />
-                <span>Zona de Entrega</span>
-              </label>
-              <select
-                value={selectedZoneId}
-                onChange={(e) => handleZoneChange(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-900 focus:outline-none focus:border-gray-900"
-              >
-                <option value="">
-                  -- Tarifa general por defecto (C$ {Number(business?.baseRate || 0).toFixed(2)}) --
-                </option>
-                {zones.map((z) => (
-                  <option key={z.id} value={z.id}>
-                    {z.name} — C$ {Number(z.price).toFixed(2)}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-gray-400">
-                Selecciona la zona correspondiente para autocompletar la tarifa de envío.
-              </p>
-            </div>
-          )}
-
           {locationMode === 'map' ? (
             <div>
               <p className="text-sm text-gray-500 mb-2">
@@ -426,6 +404,33 @@ export const CreateOrderPage = () => {
                   />
                 </Field>
               </div>
+            </div>
+          )}
+
+          {/* Selector de Zona para Negocios con Tarifas por Zonas */}
+          {zones.length > 0 && (
+            <div className="mt-4 p-3.5 bg-gray-50 rounded-xl border border-gray-100 space-y-1.5">
+              <label className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
+                <Buildings size={15} className="text-brand-600" />
+                <span>Zona de Entrega</span>
+              </label>
+              <select
+                value={selectedZoneId}
+                onChange={(e) => handleZoneChange(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-900 focus:outline-none focus:border-gray-900"
+              >
+                <option value="">
+                  -- Tarifa general por defecto (C$ {Number(business?.baseRate || 0).toFixed(2)}) --
+                </option>
+                {zones.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.name} — C$ {Number(z.price).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-gray-400">
+                Selecciona la zona correspondiente para autocompletar la tarifa de envío.
+              </p>
             </div>
           )}
 

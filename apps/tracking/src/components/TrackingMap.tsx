@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
-import { createRoot } from 'react-dom/client';
-import { Storefront } from '@phosphor-icons/react';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import {
+  createRiderMarker,
+  createBusinessMarker,
+  createDestinationMarker,
+  calculateHeading,
+  updateRiderMarkerHeading,
+} from '../lib/mapMarkers';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -14,6 +19,7 @@ interface TrackingMapProps {
   vehicleType?: string;
   businessLat?: number;
   businessLng?: number;
+  businessName?: string;
   orderStatus?: string;
 }
 
@@ -28,28 +34,6 @@ const shouldShowRiderMarker = (status?: string) => {
   ].includes(status);
 };
 
-const createRiderMarkerElement = (vehicleType?: string) => {
-  const el = document.createElement('div');
-  el.className = 'rider-marker';
-
-  const icons: Record<string, string> = {
-    MOTO: '🛵',
-    BICICLETA: '🚲',
-    CARRO: '🚗',
-    A_PIE: '🚶',
-  };
-  const icon = (vehicleType && icons[vehicleType.toUpperCase()]) || '🛵';
-
-  el.innerHTML = `
-    <div class="rider-marker-inner">
-      <span class="rider-icon">${icon}</span>
-      <div class="rider-pulse"></div>
-    </div>
-  `;
-
-  return el;
-};
-
 export default function TrackingMap({
   destinationLat,
   destinationLng,
@@ -58,6 +42,7 @@ export default function TrackingMap({
   vehicleType,
   businessLat,
   businessLng,
+  businessName,
   orderStatus,
 }: TrackingMapProps) {
   const [routeInfo, setRouteInfo] = useState<{ duration: number; distance: number } | null>(null);
@@ -103,19 +88,9 @@ export default function TrackingMap({
     if (!map.current || !mapLoaded) return;
     const m = map.current;
 
-    // Marcador de destino (pin fijo rojo)
+    // Marcador de destino (pin fijo rojo con bounce y label)
     if (!destinoMarker.current) {
-      const destinoEl = document.createElement('div');
-      destinoEl.innerHTML = `
-        <div style="
-          width: 32px; height: 32px;
-          background: #EF4444;
-          border-radius: 50% 50% 50% 0;
-          transform: rotate(-45deg);
-          border: 2px solid white;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        "></div>
-      `;
+      const destinoEl = createDestinationMarker({ label: 'Destino' });
 
       destinoMarker.current = new mapboxgl.Marker({ element: destinoEl })
         .setLngLat([destinationLng, destinationLat])
@@ -126,19 +101,7 @@ export default function TrackingMap({
     // Dibujar ruta si hay negocio
     if (businessLat && businessLng) {
       if (!businessMarker.current) {
-        const bizEl = document.createElement('div');
-        bizEl.style.backgroundColor = '#0F0F0F';
-        bizEl.style.color = '#FFFFFF';
-        bizEl.style.borderRadius = '10px';
-        bizEl.style.padding = '8px';
-        bizEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        bizEl.style.display = 'flex';
-        bizEl.style.alignItems = 'center';
-        bizEl.style.justifyContent = 'center';
-        bizEl.style.border = '2px solid white';
-
-        const root = createRoot(bizEl);
-        root.render(<Storefront size={16} weight="fill" />);
+        const bizEl = createBusinessMarker({ name: businessName || 'Negocio' });
 
         businessMarker.current = new mapboxgl.Marker({ element: bizEl })
           .setLngLat([businessLng, businessLat])
@@ -190,7 +153,7 @@ export default function TrackingMap({
         })
         .catch((err) => console.error('Error fetching directions:', err));
     }
-  }, [mapLoaded, destinationLat, destinationLng, businessLat, businessLng]);
+  }, [mapLoaded, destinationLat, destinationLng, businessLat, businessLng, businessName]);
 
   // Manejar el marcador del repartidor en tiempo real
   useEffect(() => {
@@ -212,7 +175,7 @@ export default function TrackingMap({
 
     // Si aún no existe el marcador, crearlo con el ícono correspondiente al vehículo
     if (!repartidorMarker.current) {
-      const el = createRiderMarkerElement(vehicleType);
+      const el = createRiderMarker({ vehicleType, isLive: true });
       repartidorMarker.current = new mapboxgl.Marker({ element: el })
         .setLngLat(targetPos)
         .addTo(m);
@@ -233,8 +196,14 @@ export default function TrackingMap({
       return;
     }
 
-    // Si ya existe, animar suavemente la posición
+    // Si ya existe, animar suavemente la posición y rotar hacia la dirección
     const startPos = repartidorMarker.current.getLngLat();
+
+    // Rotar la moto según dirección de movimiento
+    if (startPos.lng !== targetPos.lng || startPos.lat !== targetPos.lat) {
+      const heading = calculateHeading(startPos.lng, startPos.lat, targetPos.lng, targetPos.lat);
+      updateRiderMarkerHeading(repartidorMarker.current.getElement(), heading);
+    }
 
     // Si la distancia es muy grande (ej. primera ubicación o salto), mover directo
     if (Math.abs(targetPos.lng - startPos.lng) > 0.05 || Math.abs(targetPos.lat - startPos.lat) > 0.05) {

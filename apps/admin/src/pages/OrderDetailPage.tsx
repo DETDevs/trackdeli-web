@@ -1,13 +1,13 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getOrder, type OrderStatus, apiClient, getMyBusiness } from 'api-client';
-import { ArrowLeft, Copy, Motorcycle, Bicycle, Car, PersonSimpleWalk, Phone } from '@phosphor-icons/react';
-import { toast } from 'react-hot-toast';
+import { ArrowLeft, Copy, Motorcycle, Bicycle, Car, PersonSimpleWalk, Phone, WhatsappLogo } from '@phosphor-icons/react';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDateTime } from '../utils/formatDate';
 import LiveMap from '../components/LiveMap';
 import { useMapStore } from '../store/map.store';
 import { useSocketStore } from '../store/socket.store';
+import { useWhatsAppTracking, TRACKABLE_STATUSES } from '../hooks/useWhatsAppTracking';
 import { useEffect } from 'react';
 
 const STATUS_SEQUENCE: string[] = [
@@ -70,12 +70,8 @@ export const OrderDetailPage = () => {
   const fotosArmado = photos.filter(p => p.type === 'ARMADO');
   const fotosEntrega = photos.filter(p => p.type === 'ENTREGA');
 
-  const copyTrackingLink = () => {
-    if (!order?.trackingToken) return;
-    const link = `${window.location.origin.replace('5173', '5174')}/${order.trackingToken}`;
-    navigator.clipboard.writeText(link);
-    toast.success('Link copiado al portapapeles');
-  };
+  const { sendTrackingLink, copyTrackingLink } = useWhatsAppTracking();
+  const canSendTracking = !!order?.trackingToken && TRACKABLE_STATUSES.includes(order?.status || '');
 
   const { socket } = useSocketStore();
 
@@ -240,6 +236,40 @@ export const OrderDetailPage = () => {
                 <dd className="text-sm font-medium text-gray-900">{formatDateTime(order.createdAt)}</dd>
               </div>
             </dl>
+
+            {/* Botón Enviar Tracking por WhatsApp */}
+            {canSendTracking ? (
+              <div className="flex gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => sendTrackingLink(order)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#25D366] hover:bg-[#20BD5A] text-white text-sm font-medium rounded-lg transition-colors duration-150 border-0 cursor-pointer shadow-xs"
+                >
+                  <WhatsappLogo size={18} weight="fill" />
+                  <span>Enviar link de tracking al cliente</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyTrackingLink(order)}
+                  className="px-3 py-3 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors shadow-xs cursor-pointer"
+                  title="Copiar link de tracking"
+                >
+                  <Copy size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  disabled
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-400 text-sm font-medium rounded-lg cursor-not-allowed"
+                  title="El link de tracking se genera automáticamente cuando el repartidor toma el pedido."
+                >
+                  <WhatsappLogo size={18} weight="fill" className="opacity-40" />
+                  <span>Link disponible cuando el repartidor tome el pedido</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Photos */}
@@ -387,6 +417,7 @@ export const OrderDetailPage = () => {
                 activeOrders={order.destinationLat && order.destinationLng ? [{
                   id: order.id,
                   status: order.status,
+                  customerName: order.customerName,
                   destinationLat: (order.status as string) === 'EN_CAMINO_AL_NEGOCIO' || (order.status as string) === 'EN_EL_NEGOCIO' 
                     ? Number(business?.latitude ?? order.destinationLat) : Number(order.destinationLat),
                   destinationLng: (order.status as string) === 'EN_CAMINO_AL_NEGOCIO' || (order.status as string) === 'EN_EL_NEGOCIO'
@@ -397,24 +428,11 @@ export const OrderDetailPage = () => {
                     ? { lat: repList[0].lat, lng: repList[0].lng }
                     : (business?.latitude && business?.longitude ? { lat: business.latitude, lng: business.longitude } : undefined)
                 }
+                businessName={business?.name}
                 centerLat={order.destinationLat || 12.1364}
                 centerLng={order.destinationLng || -86.2504}
                 focusedOrderId={order.id}
               />
-            </div>
-          )}
-
-          {/* Tracking link */}
-          {order.trackingToken && (
-            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
-              <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Link de tracking</div>
-              <button
-                onClick={copyTrackingLink}
-                className="w-full flex items-center justify-center gap-2 bg-gray-50 border border-gray-200 rounded-md px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                <Copy size={16} />
-                Copiar link de tracking
-              </button>
             </div>
           )}
         </div>

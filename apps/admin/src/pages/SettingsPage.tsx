@@ -15,6 +15,8 @@ import {
   Plus,
   Trash,
   Buildings,
+  WhatsappLogo,
+  CheckCircle,
 } from '@phosphor-icons/react';
 import { calculateFeeClient, getPricingBreakdownClient } from '../lib/pricing';
 
@@ -160,6 +162,9 @@ export const SettingsPage = () => {
   // State para lista de zonas de precio fijo
   const [pricingZones, setPricingZones] = useState<PricingZoneFormItem[]>([]);
 
+  // State para WhatsApp
+  const [whatsappDigits, setWhatsappDigits] = useState<string>('');
+
   useEffect(() => {
     if (business) {
       setPricingModel(business.pricingModel || 'FIXED');
@@ -177,6 +182,18 @@ export const SettingsPage = () => {
             }))
           : []
       );
+
+      // Cargar número de WhatsApp existente
+      if (business.whatsappNumber) {
+        const raw = business.whatsappNumber.replace(/\D/g, '');
+        if (raw.startsWith('505') && raw.length > 3) {
+          setWhatsappDigits(raw.slice(3));
+        } else {
+          setWhatsappDigits(raw);
+        }
+      } else {
+        setWhatsappDigits('');
+      }
     }
   }, [business]);
 
@@ -187,8 +204,30 @@ export const SettingsPage = () => {
       toast.success('Ubicación del negocio guardada exitosamente');
       queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
     },
-    onError: () => {
-      toast.error('Error al guardar la ubicación');
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      if (err?.response?.status === 402) {
+        toast.error(msg || 'Tu membresía está inactiva o requiere pago para actualizar la ubicación.', { duration: 5000 });
+      } else {
+        toast.error(msg || 'Error al guardar la ubicación');
+      }
+    },
+  });
+
+  // Mutation para actualizar WhatsApp
+  const whatsappMutation = useMutation({
+    mutationFn: updateMyBusiness,
+    onSuccess: () => {
+      toast.success('Número de WhatsApp guardado exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      if (err?.response?.status === 402) {
+        toast.error(msg || 'Tu membresía está inactiva o requiere pago para guardar WhatsApp.', { duration: 5000 });
+      } else {
+        toast.error(msg || 'Error al guardar el número de WhatsApp');
+      }
     },
   });
 
@@ -199,8 +238,13 @@ export const SettingsPage = () => {
       toast.success('Configuración de precios guardada exitosamente');
       queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
     },
-    onError: () => {
-      toast.error('Error al guardar la configuración de precios');
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      if (err?.response?.status === 402) {
+        toast.error(msg || 'Tu membresía está inactiva o requiere pago para guardar tarifas.', { duration: 5000 });
+      } else {
+        toast.error(msg || 'Error al guardar la configuración de precios');
+      }
     },
   });
 
@@ -237,6 +281,30 @@ export const SettingsPage = () => {
     setPricingZones((prev) => prev.filter((z) => z.id !== id));
   };
 
+  const handleSaveWhatsapp = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = whatsappDigits.trim().replace(/\D/g, '');
+    if (!clean) {
+      whatsappMutation.mutate({
+        whatsappNumber: undefined,
+        whatsappDisplay: undefined,
+      });
+      return;
+    }
+
+    const fullNumber = clean.startsWith('505') ? clean : `505${clean}`;
+    const localDigits = clean.startsWith('505') ? clean.slice(3) : clean;
+    const formatted =
+      localDigits.length >= 4
+        ? `+505 ${localDigits.slice(0, 4)}-${localDigits.slice(4)}`
+        : `+505 ${localDigits}`;
+
+    whatsappMutation.mutate({
+      whatsappNumber: fullNumber,
+      whatsappDisplay: formatted,
+    });
+  };
+
   const handleSavePricing = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -265,7 +333,7 @@ export const SettingsPage = () => {
       <div>
         <h2 className="text-xl font-semibold text-gray-900 mb-1">Configuración del Negocio</h2>
         <p className="text-sm text-gray-500">
-          Personaliza la ubicación geográfica y la política de tarifas de entrega de{' '}
+          Personaliza la ubicación geográfica, contacto y la política de tarifas de entrega de{' '}
           <strong className="font-semibold text-gray-900">{business?.name}</strong>.
         </p>
       </div>
@@ -299,7 +367,80 @@ export const SettingsPage = () => {
         )}
       </div>
 
-      {/* 2. Configuración de Tarifas de Entrega */}
+      {/* 2. Contacto del Negocio */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <WhatsappLogo size={20} className="text-emerald-600" weight="fill" />
+          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            Contacto del Negocio
+          </h3>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-gray-900">WhatsApp de atención al cliente</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Este número recibirá confirmaciones cuando los clientes quieran contactar al negocio.
+          </p>
+        </div>
+
+        <form onSubmit={handleSaveWhatsapp} className="space-y-4 max-w-md pt-1">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              Código de país + número (sin espacios ni símbolos)
+            </label>
+            <div className="flex rounded-xl border border-gray-200 overflow-hidden focus-within:border-gray-900 focus-within:ring-1 focus-within:ring-gray-900 transition-all bg-white">
+              <span className="inline-flex items-center px-3.5 bg-gray-50 text-xs font-semibold text-gray-600 border-r border-gray-200 select-none">
+                +505
+              </span>
+              <input
+                type="tel"
+                value={whatsappDigits}
+                onChange={(e) => setWhatsappDigits(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                placeholder="88068133"
+                className="w-full h-10 px-3 bg-white text-xs text-gray-900 font-mono font-medium focus:outline-none"
+              />
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1">
+              <span>💡</span>
+              <span>
+                Ejemplo: Para +505 8806-8133 escribí: <strong>88068133</strong>
+              </span>
+            </p>
+          </div>
+
+          {/* Mostrar número guardado actualmente */}
+          {business?.whatsappDisplay && (
+            <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-100 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-emerald-800">
+                <CheckCircle size={15} className="text-emerald-600 shrink-0" weight="fill" />
+                <span>
+                  Número guardado:{' '}
+                  <strong className="font-semibold font-mono">{business.whatsappDisplay}</strong>
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-start pt-1">
+            <button
+              type="submit"
+              disabled={whatsappMutation.isPending}
+              className="flex items-center gap-2 h-9 px-4 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors shadow-xs disabled:opacity-50"
+            >
+              {whatsappMutation.isPending ? (
+                <span>Guardando...</span>
+              ) : (
+                <>
+                  <Check size={14} />
+                  <span>Guardar número de WhatsApp</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* 3. Configuración de Tarifas de Entrega */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-2">
           <CurrencyDollar size={20} className="text-brand-600" />

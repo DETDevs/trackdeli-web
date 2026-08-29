@@ -2,9 +2,10 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getOrders, type OrderStatus } from 'api-client';
-import { Package, Plus, MagnifyingGlass, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { Package, Plus, MagnifyingGlass, CaretLeft, CaretRight, WhatsappLogo } from '@phosphor-icons/react';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatRelative } from '../utils/formatDate';
+import { useWhatsAppTracking, TRACKABLE_STATUSES } from '../hooks/useWhatsAppTracking';
 
 const ALL_STATUSES: OrderStatus[] = [
   'PENDIENTE', 'TOMADO', 'EN_CAMINO', 'CERCA_DEL_DESTINO',
@@ -17,6 +18,8 @@ export const OrdersPage = () => {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const { sendTrackingLink } = useWhatsAppTracking();
 
   const { data: orders = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['orders'],
@@ -92,22 +95,23 @@ export const OrdersPage = () => {
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Repartidor</th>
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Estado</th>
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Fecha</th>
+              <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider text-right">WhatsApp</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
+                  {Array.from({ length: 7 }).map((_, j) => (
                     <td key={j} className="px-5 py-3">
-                      <div className="h-4 bg-gray-100 rounded animate-pulse" style={{ width: `${60 + j * 10}%` }} />
+                      <div className="h-4 bg-gray-100 rounded animate-pulse" style={{ width: `${60 + j * 5}%` }} />
                     </td>
                   ))}
                 </tr>
               ))
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   <div className="flex flex-col items-center justify-center py-16 text-center">
                     <Package size={32} className="text-gray-300" weight="regular" />
                     <p className="mt-3 text-sm font-medium text-gray-900">No hay pedidos aún</p>
@@ -159,6 +163,23 @@ export const OrdersPage = () => {
                   </td>
                   <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap">
                     {formatRelative(order.createdAt)}
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    {order.trackingToken && TRACKABLE_STATUSES.includes(order.status) ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          sendTrackingLink(order);
+                        }}
+                        className="p-1.5 text-[#25D366] hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center"
+                        title="Enviar tracking al cliente"
+                      >
+                        <WhatsappLogo size={18} weight="fill" />
+                      </button>
+                    ) : (
+                      <span className="inline-block w-6" />
+                    )}
                   </td>
                 </tr>
               ))

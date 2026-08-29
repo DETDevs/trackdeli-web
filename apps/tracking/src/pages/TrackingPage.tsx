@@ -168,16 +168,31 @@ export const TrackingPage = () => {
       const res = await axios.get(`${API_BASE}/tracking/${token}`);
       return res.data;
     },
-    refetchInterval: 15000,
-    retry: 1,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (!status || status === "ENTREGADO" || status === "CERRADO" || status === "CANCELADO") {
+        return false;
+      }
+      return 3000; // Polling rápido de respaldo a 3s durante entregas activas
+    },
+    refetchIntervalInBackground: true,
+    retry: 2,
   });
 
   const rateMutation = useMutation({
     mutationFn: async (score: number) => {
-      return axios.post(`${API_BASE}/ratings/track/${token}/rating`, {
-        score,
-        comment: "",
-      });
+      try {
+        return await axios.post(`${API_BASE}/ratings/track/${token}/rating`, {
+          score,
+          comment: "",
+        });
+      } catch (err) {
+        return await axios.post(`${API_BASE}/tracking/${token}/rating`, {
+          stars: score,
+          score,
+          comment: "",
+        });
+      }
     },
     onSuccess: () => {
       setRatingSubmitted(true);
@@ -222,18 +237,53 @@ export const TrackingPage = () => {
 
     const socket = io(`${WS_URL}/tracking`, {
       path: "/socket.io",
-      transports: ["websocket"],
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      timeout: 10000,
     });
 
     socket.on("connect", () => {
-      socket.emit("join_order", { orderId: data.orderId });
+      if (data.orderId) {
+        socket.emit("join_order", { orderId: data.orderId, trackingToken: token });
+      }
+      if (data.id && data.id !== data.orderId) {
+        socket.emit("join_order", { orderId: data.id, trackingToken: token });
+      }
+      socket.emit("join_tracking", { token });
     });
 
-    socket.on("order_status_changed", (statusData?: { status?: string }) => {
-      queryClient.invalidateQueries({ queryKey: ["tracking", token] });
-      if (statusData?.status === "ENTREGADO" || statusData?.status === "CERRADO") {
-        setRepartidorPosition(null);
+    const handleStatusUpdate = (statusData?: { status?: string; order?: any }) => {
+      const newStatus = statusData?.status || statusData?.order?.status;
+      if (newStatus) {
+        // Actualización instantánea (0ms) en la interfaz antes de esperar la petición HTTP
+        queryClient.setQueryData(["tracking", token], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            status: newStatus,
+            ...(statusData?.order || {}),
+          };
+        });
+
+        if (newStatus === "ENTREGADO" || newStatus === "CERRADO") {
+          setRepartidorPosition(null);
+        }
       }
+
+      // Revalidar en segundo plano para obtener fotos y datos completos
+      queryClient.invalidateQueries({ queryKey: ["tracking", token] });
+      queryClient.refetchQueries({ queryKey: ["tracking", token] });
+    };
+
+    socket.on("order_status_changed", handleStatusUpdate);
+    socket.on("order_delivered", () => handleStatusUpdate({ status: "ENTREGADO" }));
+    socket.on("order_completed", () => handleStatusUpdate({ status: "ENTREGADO" }));
+    socket.on("status_updated", handleStatusUpdate);
+    socket.on("orders_updated", () => {
+      queryClient.invalidateQueries({ queryKey: ["tracking", token] });
+      queryClient.refetchQueries({ queryKey: ["tracking", token] });
     });
 
     socket.on("location_updated", (position: any) => {
@@ -248,7 +298,7 @@ export const TrackingPage = () => {
     return () => {
       socket.disconnect();
     };
-  }, [data?.orderId, data?.status, queryClient, token]);
+  }, [data?.orderId, data?.id, data?.status, queryClient, token]);
 
   if (isLoading || !data) {
     return (
@@ -357,6 +407,7 @@ export const TrackingPage = () => {
               orderStatus={currentStatus}
               businessLat={data.business?.latitude}
               businessLng={data.business?.longitude}
+              businessName={data.business?.name}
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">

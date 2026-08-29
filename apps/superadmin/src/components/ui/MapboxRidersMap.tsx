@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { createRiderMarker } from 'map';
 import { ActiveRiderItem } from '../../hooks/useRiders';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -61,27 +62,12 @@ export const MapboxRidersMap = ({
       hasValidCoords = true;
       bounds.extend([rider.currentLongitude, rider.currentLatitude]);
 
-      const el = document.createElement('div');
-      el.className = 'rider-map-marker';
-      el.innerHTML = `
-        <div class="rider-map-dot">
-          <div class="rider-map-pulse"></div>
-        </div>
-      `;
-
-      const vehicleEmoji =
-        rider.vehicleType === 'MOTO'
-          ? '🛵'
-          : rider.vehicleType === 'BICICLETA'
-          ? '🚲'
-          : rider.vehicleType === 'CARRO'
-          ? '🚗'
-          : '🚶';
+      const el = createRiderMarker({ vehicleType: rider.vehicleType, isLive: true });
 
       const popupContent = `
         <div style="font-family: Inter, sans-serif; padding: 4px;">
           <p style="font-weight: 600; font-size: 13px; margin: 0 0 2px 0; color: #0F0F0F;">
-            ${vehicleEmoji} ${rider.name}
+            ${rider.name}
           </p>
           <p style="font-size: 11px; margin: 0; color: #5C5C5C;">
             ${

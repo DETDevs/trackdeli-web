@@ -9,7 +9,15 @@ export const router = createBrowserRouter([
     element: <TrackingPage />,
   },
   {
+    path: '/track/:token',
+    element: <TrackingPage />,
+  },
+  {
     path: '/:token/delivered',
+    element: <DeliveredPage />,
+  },
+  {
+    path: '/track/:token/delivered',
     element: <DeliveredPage />,
   },
   {

@@ -48,6 +48,15 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Notificar si es 402 Payment Required
+    if (error.response?.status === 402 && typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('trackdeli:payment_required', {
+          detail: error.response?.data,
+        })
+      );
+    }
+
     // Condiciones para NO intentar refresh:
     // 1. No es un error 401
     // 2. Ya se intentó el retry en este request (_retry flag)

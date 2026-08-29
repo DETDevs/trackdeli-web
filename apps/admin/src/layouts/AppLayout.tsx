@@ -1,14 +1,43 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Package, ListChecks, Plus, Users, ChartBar, SignOut, Gear } from '@phosphor-icons/react';
+import { Package, ListChecks, Plus, Users, ChartBar, SignOut, Gear, WarningCircle, WhatsappLogo } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrderNotifications } from '../hooks/useOrderNotifications';
+import { useQuery } from '@tanstack/react-query';
+import { getMyBusiness } from 'api-client';
+import { useState, useEffect } from 'react';
 
 export const AppLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const logout = useAuthStore(state => state.logout);
   const user = useAuthStore(state => state.user);
+
+  const [paymentRequiredMessage, setPaymentRequiredMessage] = useState<string | null>(null);
+
+  const { data: business } = useQuery({
+    queryKey: ['business', 'me'],
+    queryFn: getMyBusiness,
+    staleTime: 60000,
+  });
+
+  useEffect(() => {
+    const handlePaymentRequired = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const msg = customEvent.detail?.message || 'Tu membresía está vencida o requiere pago.';
+      setPaymentRequiredMessage(msg);
+    };
+
+    window.addEventListener('trackdeli:payment_required', handlePaymentRequired);
+    return () => {
+      window.removeEventListener('trackdeli:payment_required', handlePaymentRequired);
+    };
+  }, []);
+
+  const isMembershipInactive =
+    business?.isActive === false ||
+    business?.membership?.status === 'EXPIRED' ||
+    Boolean(paymentRequiredMessage);
 
   // Initialize real-time order notifications
   useOrderNotifications();
@@ -128,6 +157,30 @@ export const AppLayout = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Banner de Membresía Vencida o Inactiva */}
+        {isMembershipInactive && (
+          <div className="bg-amber-50 border-b border-amber-200/80 px-6 py-2.5 flex items-center justify-between text-xs text-amber-900 z-20 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <WarningCircle size={18} weight="fill" className="text-amber-600 shrink-0" />
+              <div className="truncate">
+                <span className="font-semibold">Membresía inactiva o pago pendiente: </span>
+                <span className="text-amber-800">
+                  {paymentRequiredMessage || 'Tu suscripción ha vencido. Contacta al soporte para renovar y habilitar todas las operaciones.'}
+                </span>
+              </div>
+            </div>
+            <a
+              href={`https://wa.me/50588068133?text=Hola,%20deseo%20activar/renovar%20la%20membres%C3%ADa%20de%20mi%20negocio%20(${encodeURIComponent(business?.name || 'mi negocio')})%20en%20TrackDeli`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors shadow-xs shrink-0 ml-4"
+            >
+              <WhatsappLogo size={14} weight="fill" />
+              <span>Contactar Soporte</span>
+            </a>
+          </div>
+        )}
+
         {/* Header */}
         <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
           <div>

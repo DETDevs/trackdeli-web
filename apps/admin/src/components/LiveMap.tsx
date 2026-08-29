@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
-import { Storefront } from '@phosphor-icons/react';
 import mapboxgl from 'mapbox-gl';
+import {
+  createRiderMarker,
+  createBusinessMarker,
+  createDestinationMarker,
+  calculateHeading,
+  updateRiderMarkerHeading,
+} from '../lib/mapMarkers';
 
 mapboxgl.accessToken = (import.meta as any).env.VITE_MAPBOX_TOKEN;
 
@@ -13,6 +18,7 @@ interface Repartidor {
   orderId: string;
   customerName: string;
   status: string;
+  vehicleType?: string;
 }
 
 interface OrderMapData {
@@ -20,6 +26,7 @@ interface OrderMapData {
   status: string;
   destinationLat: number;
   destinationLng: number;
+  customerName?: string;
 }
 
 interface LiveMapProps {
@@ -28,6 +35,7 @@ interface LiveMapProps {
   centerLat?: number;
   centerLng?: number;
   businessLocation?: { lat: number; lng: number };
+  businessName?: string;
   focusedOrderId?: string | null;
   onMarkerClick?: (orderId: string) => void;
 }
@@ -38,6 +46,7 @@ export default function LiveMap({
   centerLat = 12.1364,
   centerLng = -86.2504,
   businessLocation,
+  businessName = 'Tu Negocio',
   focusedOrderId,
   onMarkerClick,
 }: LiveMapProps) {
@@ -45,6 +54,7 @@ export default function LiveMap({
   const map = useRef<mapboxgl.Map | null>(null);
   const driverMarkers = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const destMarkers = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const businessMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const routesCache = useRef<Map<string, GeoJSON.Feature<GeoJSON.LineString>>>(new Map());
   const [mapLoaded, setMapLoaded] = useState(false);
   const [routesVersion, setRoutesVersion] = useState(0);
@@ -65,30 +75,6 @@ export default function LiveMap({
 
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-    if (businessLocation) {
-      map.current.on('load', () => {
-        if (!map.current) return;
-        const el = document.createElement('div');
-        el.style.backgroundColor = '#0F0F0F';
-        el.style.color = '#FFFFFF';
-        el.style.borderRadius = '10px';
-        el.style.padding = '8px';
-        el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        el.style.display = 'flex';
-        el.style.alignItems = 'center';
-        el.style.justifyContent = 'center';
-        el.style.border = '2px solid white';
-        
-        const root = createRoot(el);
-        root.render(<Storefront size={20} weight="fill" />);
-
-        new mapboxgl.Marker({ element: el })
-          .setLngLat([businessLocation.lng, businessLocation.lat])
-          .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Tu negocio'))
-          .addTo(map.current);
-      });
-    }
-
     return () => {
       map.current?.remove();
       map.current = null;
@@ -96,8 +82,28 @@ export default function LiveMap({
       driverMarkers.current.clear();
       destMarkers.current.clear();
       routesCache.current.clear();
+      businessMarkerRef.current = null;
     };
   }, []);
+
+  // Business Marker
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    if (businessLocation) {
+      if (!businessMarkerRef.current) {
+        const el = createBusinessMarker({ name: businessName });
+        businessMarkerRef.current = new mapboxgl.Marker({ element: el })
+          .setLngLat([businessLocation.lng, businessLocation.lat])
+          .addTo(map.current);
+      } else {
+        businessMarkerRef.current.setLngLat([businessLocation.lng, businessLocation.lat]);
+      }
+    } else if (businessMarkerRef.current) {
+      businessMarkerRef.current.remove();
+      businessMarkerRef.current = null;
+    }
+  }, [businessLocation, businessName, mapLoaded]);
 
   // Drivers Markers
   useEffect(() => {
@@ -109,6 +115,12 @@ export default function LiveMap({
         const marker = driverMarkers.current.get(rep.userId)!;
         const startPos = marker.getLngLat();
         const endPos = new mapboxgl.LngLat(rep.lng, rep.lat);
+
+        // Rotar según dirección de movimiento
+        if (startPos.lng !== endPos.lng || startPos.lat !== endPos.lat) {
+          const heading = calculateHeading(startPos.lng, startPos.lat, endPos.lng, endPos.lat);
+          updateRiderMarkerHeading(marker.getElement(), heading);
+        }
 
         if (Math.abs(endPos.lng - startPos.lng) > 0.05 || Math.abs(endPos.lat - startPos.lat) > 0.05) {
           marker.setLngLat(endPos);
@@ -133,23 +145,7 @@ export default function LiveMap({
           requestAnimationFrame(animateMarker);
         }
       } else {
-        const el = document.createElement('div');
-        el.innerHTML = `
-          <div style="
-            background: #22C55E;
-            color: white;
-            border-radius: 50%;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            border: 2px solid white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            cursor: pointer;
-          ">🛵</div>
-        `;
+        const el = createRiderMarker({ vehicleType: rep.vehicleType || 'MOTO', isLive: true });
 
         el.addEventListener('click', () => {
           onMarkerClick?.(rep.orderId);
@@ -186,18 +182,8 @@ export default function LiveMap({
     activeOrders.forEach(order => {
       if (isNaN(order.destinationLat) || isNaN(order.destinationLng)) return;
       if (!destMarkers.current.has(order.id)) {
-        const el = document.createElement('div');
-        el.innerHTML = `
-          <div style="
-            width: 24px; height: 24px;
-            background: #EF4444;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            border: 2px solid white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            cursor: pointer;
-          "></div>
-        `;
+        const el = createDestinationMarker({ label: order.customerName ? order.customerName.split(' ')[0] : 'Destino' });
+        
         el.addEventListener('click', () => {
           onMarkerClick?.(order.id);
         });

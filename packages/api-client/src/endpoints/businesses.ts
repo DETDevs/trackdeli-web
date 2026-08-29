@@ -24,6 +24,13 @@ export interface Business {
   minRate?: number;
   maxRate?: number;
   pricingZones?: PricingZone[];
+  whatsappNumber?: string;
+  whatsappDisplay?: string;
+  membership?: {
+    status: 'ACTIVE' | 'EXPIRED' | 'NONE';
+    endDate?: string | null;
+    daysLeft?: number | null;
+  };
   createdAt: string;
 }
 
@@ -41,6 +48,8 @@ export interface UpdateBusinessInput {
   minRate?: number;
   maxRate?: number;
   pricingZones?: PricingZone[];
+  whatsappNumber?: string;
+  whatsappDisplay?: string;
 }
 
 export const getMyBusiness = async () => {
