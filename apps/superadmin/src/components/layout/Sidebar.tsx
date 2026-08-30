@@ -1,3 +1,4 @@
+import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   SquaresFour,
@@ -6,6 +7,7 @@ import {
   ClockCounterClockwise,
   SignOut,
   ShieldCheck,
+  X,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../../lib/auth';
 
@@ -16,7 +18,12 @@ const NAV_ITEMS = [
   { to: '/logs', label: 'Logs', icon: ClockCounterClockwise },
 ];
 
-export const Sidebar = () => {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
@@ -26,23 +33,39 @@ export const Sidebar = () => {
   };
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen shrink-0 select-none">
+    <aside
+      className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-100 flex flex-col h-screen shrink-0 select-none transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto ${
+        isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+      }`}
+    >
       {/* Header / Brand */}
-      <div className="h-16 px-6 flex items-center gap-3 border-b border-gray-100">
-        <div className="w-8 h-8 rounded-lg bg-gray-900 text-white flex items-center justify-center font-bold text-xs">
-          TD
+      <div className="h-16 px-6 flex items-center justify-between border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gray-900 text-white flex items-center justify-center font-bold text-xs">
+            TD
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold text-gray-900 leading-tight">TrackDeli</h1>
+            <p className="text-[11px] text-brand-600 font-medium flex items-center gap-1">
+              <ShieldCheck size={12} weight="fill" />
+              SuperAdmin
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-sm font-semibold text-gray-900 leading-tight">TrackDeli</h1>
-          <p className="text-[11px] text-brand-600 font-medium flex items-center gap-1">
-            <ShieldCheck size={12} weight="fill" />
-            SuperAdmin
-          </p>
-        </div>
+
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 lg:hidden transition-colors"
+            aria-label="Cerrar menú"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           return (
@@ -81,7 +104,7 @@ export const Sidebar = () => {
 
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-gray-500 hover:text-danger hover:bg-red-50/50 transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-gray-500 hover:text-danger hover:bg-red-50/50 transition-colors cursor-pointer"
         >
           <SignOut size={16} />
           <span>Cerrar sesión</span>

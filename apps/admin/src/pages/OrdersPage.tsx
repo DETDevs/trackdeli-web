@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getOrders, type OrderStatus } from 'api-client';
 import { Package, Plus, MagnifyingGlass, CaretLeft, CaretRight, WhatsappLogo } from '@phosphor-icons/react';
 import { StatusBadge } from '../components/StatusBadge';
+import { OrderCardMobile } from '../components/OrderCardMobile';
 import { formatRelative } from '../utils/formatDate';
 import { useWhatsAppTracking, TRACKABLE_STATUSES } from '../hooks/useWhatsAppTracking';
 
@@ -38,57 +39,63 @@ export const OrdersPage = () => {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [orders, search, statusFilter]);
 
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginatedOrders = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar cliente..."
-            value={search}
+      {/* Toolbar Responsive */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 max-w-full sm:max-w-md">
+          <div className="relative flex-1">
+            <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar cliente..."
+              value={search}
+              onChange={e => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-gray-900 outline-none transition-colors"
+            />
+          </div>
+          <select
+            value={statusFilter}
             onChange={e => {
-              setSearch(e.target.value);
+              setStatusFilter(e.target.value as OrderStatus | '');
               setCurrentPage(1);
             }}
-            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:border-gray-400 outline-none"
-          />
+            className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-gray-900 outline-none text-gray-700 transition-colors"
+          >
+            <option value="">Todos los estados</option>
+            {ALL_STATUSES.map(s => (
+              <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
         </div>
-        <select
-          value={statusFilter}
-          onChange={e => {
-            setStatusFilter(e.target.value as OrderStatus | '');
-            setCurrentPage(1);
-          }}
-          className="bg-white border border-gray-200 rounded-md px-3 py-2 text-sm focus:border-gray-400 outline-none text-gray-700"
-        >
-          <option value="">Todos los estados</option>
-          {ALL_STATUSES.map(s => (
-            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-          ))}
-        </select>
+
         <button
           onClick={() => navigate('/orders/new')}
-          className="ml-auto bg-gray-900 text-white hover:bg-gray-800 rounded-md px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors"
+          className="bg-gray-900 text-white hover:bg-gray-800 rounded-lg px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors shadow-xs shrink-0 cursor-pointer"
         >
           <Plus size={16} />
           Nuevo pedido
         </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-        {isError && (
-          <div className="m-4 bg-red-50 border border-red-100 rounded-xl p-4 text-sm text-red-700 flex items-center justify-between">
-            No se pudo cargar la información.
-            <button onClick={() => refetch()} className="underline text-red-700">Reintentar</button>
-          </div>
-        )}
+      {isError && (
+        <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-sm text-red-700 flex items-center justify-between">
+          No se pudo cargar la información.
+          <button onClick={() => refetch()} className="underline text-red-700 font-medium">Reintentar</button>
+        </div>
+      )}
 
+      {/* Desktop Table */}
+      <div className="hidden md:block bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b border-gray-100">
+            <tr className="border-b border-gray-100 bg-gray-50/50">
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Cliente</th>
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Dirección</th>
               <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Tarifa / Distancia</th>
@@ -118,7 +125,7 @@ export const OrdersPage = () => {
                     <p className="mt-1 text-sm text-gray-400">Crea el primer pedido para tu negocio</p>
                     <button
                       onClick={() => navigate('/orders/new')}
-                      className="mt-4 bg-gray-900 text-white hover:bg-gray-800 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                      className="mt-4 bg-gray-900 text-white hover:bg-gray-800 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
                     >
                       + Crear pedido
                     </button>
@@ -126,7 +133,7 @@ export const OrdersPage = () => {
                 </td>
               </tr>
             ) : (
-              filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(order => (
+              paginatedOrders.map(order => (
                 <tr
                   key={order.id}
                   onClick={() => navigate(`/orders/${order.id}`)}
@@ -187,8 +194,8 @@ export const OrdersPage = () => {
           </tbody>
         </table>
         
-        {/* Pagination controls */}
-        {Math.ceil(filtered.length / itemsPerPage) > 1 && (
+        {/* Pagination controls desktop */}
+        {totalPages > 1 && (
           <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between bg-white">
             <div className="text-sm text-gray-500">
               Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filtered.length)} de {filtered.length} pedidos
@@ -202,17 +209,61 @@ export const OrdersPage = () => {
                 <CaretLeft size={16} />
               </button>
               <span className="text-sm font-medium text-gray-700 px-2">
-                Página {currentPage} de {Math.ceil(filtered.length / itemsPerPage)}
+                Página {currentPage} de {totalPages}
               </span>
               <button
-                onClick={() => setCurrentPage(p => Math.min(Math.ceil(filtered.length / itemsPerPage), p + 1))}
-                disabled={currentPage === Math.ceil(filtered.length / itemsPerPage)}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
                 className="p-1.5 rounded border border-gray-200 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
               >
                 <CaretRight size={16} />
               </button>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Mobile Cards View */}
+      <div className="md:hidden space-y-2.5">
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 animate-pulse h-28" />
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-100 p-8 text-center">
+            <Package size={32} className="text-gray-300 mx-auto" weight="regular" />
+            <p className="mt-3 text-sm font-medium text-gray-900">No se encontraron pedidos</p>
+            <p className="mt-1 text-xs text-gray-400">Intenta con otros filtros o crea un nuevo pedido</p>
+          </div>
+        ) : (
+          <>
+            {paginatedOrders.map(order => (
+              <OrderCardMobile key={order.id} order={order} />
+            ))}
+
+            {/* Mobile Pagination */}
+            {totalPages > 1 && (
+              <div className="pt-2 flex items-center justify-between text-xs text-gray-500">
+                <span>Página {currentPage} de {totalPages}</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white disabled:opacity-40"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white disabled:opacity-40"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

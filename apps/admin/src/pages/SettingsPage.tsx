@@ -468,7 +468,7 @@ export const SettingsPage = () => {
             <label className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-3">
               Modelo de precios
             </label>
-            <div className="grid grid-cols-1 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {[
                 {
                   value: 'FREE' as const,

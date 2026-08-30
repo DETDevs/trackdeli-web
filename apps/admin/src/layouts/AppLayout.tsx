@@ -1,5 +1,17 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Package, ListChecks, Plus, Users, ChartBar, SignOut, Gear, WarningCircle, WhatsappLogo } from '@phosphor-icons/react';
+import {
+  Package,
+  ListChecks,
+  Plus,
+  Users,
+  ChartBar,
+  SignOut,
+  Gear,
+  WarningCircle,
+  WhatsappLogo,
+  List,
+  X,
+} from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrderNotifications } from '../hooks/useOrderNotifications';
@@ -13,6 +25,7 @@ export const AppLayout = () => {
   const logout = useAuthStore(state => state.logout);
   const user = useAuthStore(state => state.user);
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paymentRequiredMessage, setPaymentRequiredMessage] = useState<string | null>(null);
 
   const { data: business } = useQuery({
@@ -20,6 +33,11 @@ export const AppLayout = () => {
     queryFn: getMyBusiness,
     staleTime: 60000,
   });
+
+  // Cerrar sidebar al navegar a otra ruta en mobile
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     const handlePaymentRequired = (e: Event) => {
@@ -80,15 +98,37 @@ export const AppLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#FAFAFA]">
-      {/* Sidebar */}
-      <aside className="w-60 bg-white border-r border-gray-100 flex flex-col">
-        {/* Logo */}
-        <div className="px-6 py-5 flex items-center gap-3">
-          <div className="w-8 h-8 bg-gray-900 text-white rounded-md flex items-center justify-center font-bold text-sm">
-            TD
+    <div className="flex h-screen bg-[#FAFAFA] overflow-hidden">
+      {/* Overlay oscuro en mobile cuando el sidebar está abierto */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 lg:hidden backdrop-blur-xs transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar Drawer en mobile / Fijo en desktop */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-100 flex flex-col transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto shrink-0 select-none ${
+          sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+        }`}
+      >
+        {/* Logo & Close Button on Mobile */}
+        <div className="px-6 py-5 flex items-center justify-between border-b border-gray-50 lg:border-none">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gray-900 text-white rounded-md flex items-center justify-center font-bold text-sm">
+              TD
+            </div>
+            <div className="font-semibold text-sm text-gray-900">TrackDeli</div>
           </div>
-          <div className="font-semibold text-sm text-gray-900">TrackDeli</div>
+
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 lg:hidden transition-colors"
+            aria-label="Cerrar menú"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Navigation */}
@@ -159,7 +199,7 @@ export const AppLayout = () => {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Banner de Membresía Vencida o Inactiva */}
         {isMembershipInactive && (
-          <div className="bg-amber-50 border-b border-amber-200/80 px-6 py-2.5 flex items-center justify-between text-xs text-amber-900 z-20 shrink-0">
+          <div className="bg-amber-50 border-b border-amber-200/80 px-4 lg:px-6 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-amber-900 z-20 shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
               <WarningCircle size={18} weight="fill" className="text-amber-600 shrink-0" />
               <div className="truncate">
@@ -173,7 +213,7 @@ export const AppLayout = () => {
               href={`https://wa.me/50588068133?text=Hola,%20deseo%20activar/renovar%20la%20membres%C3%ADa%20de%20mi%20negocio%20(${encodeURIComponent(business?.name || 'mi negocio')})%20en%20TrackDeli`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors shadow-xs shrink-0 ml-4"
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors shadow-xs shrink-0 self-end sm:self-auto"
             >
               <WhatsappLogo size={14} weight="fill" />
               <span>Contactar Soporte</span>
@@ -181,11 +221,23 @@ export const AppLayout = () => {
           </div>
         )}
 
-        {/* Header */}
-        <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">{pageTitle}</h1>
-            <div className="text-sm text-gray-400 mt-0.5">TrackDeli / {pageTitle}</div>
+        {/* TopBar / Header con Botón Hamburger */}
+        <header className="bg-white border-b border-gray-100 px-4 lg:px-6 py-3.5 lg:py-4 flex items-center justify-between z-10 shrink-0">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 -ml-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+              aria-label="Abrir menú"
+            >
+              <List size={20} weight="bold" />
+            </button>
+            <div>
+              <h1 className="text-base lg:text-lg font-semibold text-gray-900 leading-tight">{pageTitle}</h1>
+              <div className="text-xs text-gray-400 mt-0.5 hidden sm:block">TrackDeli / {pageTitle}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500 hidden sm:inline">{user?.name || 'Usuario'}</span>
           </div>
         </header>
 
@@ -199,7 +251,7 @@ export const AppLayout = () => {
               exit="exit"
               variants={pageVariants}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="p-6 h-full"
+              className="p-4 lg:p-6 h-full"
             >
               <Outlet />
             </motion.div>

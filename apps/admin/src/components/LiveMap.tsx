@@ -309,7 +309,7 @@ export default function LiveMap({
   const focusedRoute = focusedOrderId ? routesCache.current.get(focusedOrderId) : null;
 
   return (
-    <div className="relative w-full" style={{ height: '400px' }}>
+    <div className="relative w-full h-[250px] sm:h-[350px] lg:h-[420px]">
       <div
         ref={mapContainer}
         style={{ width: '100%', height: '100%', borderRadius: '12px' }}

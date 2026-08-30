@@ -31,9 +31,9 @@ export const DashboardPage = () => {
         subtitle="Métricas en tiempo real y rendimiento de la plataforma"
       />
 
-      <div className="p-8 space-y-8 max-w-7xl mx-auto">
+      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
         {/* 1. StatCards Fila Superior */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           <StatCard
             title="Negocios Activos"
             value={metrics?.totals.businessesActive ?? (loadingMetrics ? '...' : 0)}
@@ -151,7 +151,11 @@ export const DashboardPage = () => {
             </div>
 
             {metrics?.ordersPerDay && metrics.ordersPerDay.length > 0 ? (
-              <OrdersChart data={metrics.ordersPerDay} />
+              <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+                <div className="min-w-[500px]">
+                  <OrdersChart data={metrics.ordersPerDay} />
+                </div>
+              </div>
             ) : (
               <div className="h-72 flex items-center justify-center text-xs text-gray-400">
                 {loadingMetrics ? 'Cargando gráfico...' : 'No hay datos de los últimos 30 días'}

@@ -168,7 +168,7 @@ export const BusinessDetailPage = () => {
         }
       />
 
-      <div className="p-8 space-y-8 max-w-7xl mx-auto">
+      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
         {/* Back Link & Info Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <button
@@ -190,7 +190,7 @@ export const BusinessDetailPage = () => {
         </div>
 
         {/* 1. StatCards Fila Superior */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <StatCard
             title="Pedidos Hoy"
             value={business.ordersToday}
@@ -397,7 +397,7 @@ export const BusinessDetailPage = () => {
         </div>
 
         {/* 4. Grid Encargados y Repartidores */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* Encargados */}
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
             <div className="flex items-center gap-2 mb-4">

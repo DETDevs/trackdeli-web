@@ -11,6 +11,7 @@ import { TopBar } from '../components/layout/TopBar';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { Badge } from '../components/ui/Badge';
 import { MapboxRidersMap } from '../components/ui/MapboxRidersMap';
+import { RiderCardMobile } from '../components/ui/RiderCardMobile';
 import {
   useRiders,
   useActiveRiders,
@@ -173,9 +174,9 @@ export const RidersPage = () => {
         subtitle={`Total de ${riders.length} repartidores independientes registrados`}
       />
 
-      <div className="p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 lg:p-8 space-y-4 lg:space-y-6 max-w-7xl mx-auto">
         {/* 1. Mapa de Repartidores Activos en Vivo */}
-        <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-3">
+        <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
@@ -183,7 +184,7 @@ export const RidersPage = () => {
                 Mapa de Repartidores en Vivo
               </h3>
               <p className="text-xs text-gray-400">
-                {activeRiders.length} repartidores transmitiendo ubicación en los últimos 5 minutos
+                {activeRiders.length} repartidores transmitiendo ubicación
               </p>
             </div>
             <Badge variant="success" size="sm">
@@ -191,12 +192,12 @@ export const RidersPage = () => {
             </Badge>
           </div>
 
-          <MapboxRidersMap riders={activeRiders} height="h-72" />
+          <MapboxRidersMap riders={activeRiders} height="h-[250px] sm:h-[350px] md:h-[400px]" />
         </div>
 
         {/* 2. Filtros y Búsqueda */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
             {/* Input de Búsqueda */}
             <div className="relative w-full sm:w-72">
               <MagnifyingGlass
@@ -227,10 +228,10 @@ export const RidersPage = () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200/80 shadow-2xs self-stretch sm:self-auto">
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200/80 shadow-2xs self-stretch sm:self-auto overflow-x-auto">
             <button
               onClick={() => setTab('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-center shrink-0 ${
                 tab === 'ALL' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'
               }`}
             >
@@ -238,7 +239,7 @@ export const RidersPage = () => {
             </button>
             <button
               onClick={() => setTab('ACTIVE')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-center shrink-0 ${
                 tab === 'ACTIVE'
                   ? 'bg-gray-900 text-white'
                   : 'text-gray-500 hover:text-gray-900'
@@ -248,7 +249,7 @@ export const RidersPage = () => {
             </button>
             <button
               onClick={() => setTab('INACTIVE')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-center shrink-0 ${
                 tab === 'INACTIVE'
                   ? 'bg-gray-900 text-white'
                   : 'text-gray-500 hover:text-gray-900'
@@ -259,15 +260,38 @@ export const RidersPage = () => {
           </div>
         </div>
 
-        {/* 3. Tabla de Repartidores */}
-        <DataTable
-          columns={columns}
-          data={filteredRiders}
-          keyExtractor={(row) => row.id}
-          pageSize={10}
-          isLoading={loadingRiders}
-          emptyMessage="No se encontraron repartidores con los filtros seleccionados"
-        />
+        {/* 3. Tabla Desktop */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={filteredRiders}
+            keyExtractor={(row) => row.id}
+            pageSize={10}
+            isLoading={loadingRiders}
+            emptyMessage="No se encontraron repartidores con los filtros seleccionados"
+          />
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden space-y-2.5">
+          {loadingRiders ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 animate-pulse h-28" />
+            ))
+          ) : filteredRiders.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-xs text-gray-400">
+              No se encontraron repartidores con los filtros seleccionados
+            </div>
+          ) : (
+            filteredRiders.map((rider) => (
+              <RiderCardMobile
+                key={rider.id}
+                rider={rider}
+                onToggle={handleToggle}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

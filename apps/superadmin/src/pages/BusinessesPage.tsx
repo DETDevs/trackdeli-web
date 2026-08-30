@@ -11,6 +11,7 @@ import { TopBar } from '../components/layout/TopBar';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { BusinessCardMobile } from '../components/ui/BusinessCardMobile';
 import {
   useBusinesses,
   useToggleBusiness,
@@ -221,9 +222,9 @@ export const BusinessesPage = () => {
         }
       />
 
-      <div className="p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 lg:p-8 space-y-4 lg:space-y-6 max-w-7xl mx-auto">
         {/* Controles de búsqueda y filtros */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Input de Búsqueda */}
           <div className="relative w-full sm:w-80">
             <MagnifyingGlass
@@ -240,10 +241,10 @@ export const BusinessesPage = () => {
           </div>
 
           {/* Filtros de Estado */}
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200/80 shadow-2xs self-stretch sm:self-auto">
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200/80 shadow-2xs self-stretch sm:self-auto overflow-x-auto">
             <button
               onClick={() => setStatusFilter('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-center shrink-0 ${
                 statusFilter === 'ALL'
                   ? 'bg-gray-900 text-white'
                   : 'text-gray-500 hover:text-gray-900'
@@ -253,7 +254,7 @@ export const BusinessesPage = () => {
             </button>
             <button
               onClick={() => setStatusFilter('ACTIVE')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-center shrink-0 ${
                 statusFilter === 'ACTIVE'
                   ? 'bg-gray-900 text-white'
                   : 'text-gray-500 hover:text-gray-900'
@@ -263,7 +264,7 @@ export const BusinessesPage = () => {
             </button>
             <button
               onClick={() => setStatusFilter('INACTIVE')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-center shrink-0 ${
                 statusFilter === 'INACTIVE'
                   ? 'bg-gray-900 text-white'
                   : 'text-gray-500 hover:text-gray-900'
@@ -274,16 +275,39 @@ export const BusinessesPage = () => {
           </div>
         </div>
 
-        {/* Tabla de Negocios */}
-        <DataTable
-          columns={columns}
-          data={filteredBusinesses}
-          keyExtractor={(row) => row.id}
-          onRowClick={(row) => navigate(`/businesses/${row.id}`)}
-          pageSize={10}
-          isLoading={isLoading}
-          emptyMessage="No se encontraron negocios con los filtros aplicados"
-        />
+        {/* Tabla Desktop */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={filteredBusinesses}
+            keyExtractor={(row) => row.id}
+            onRowClick={(row) => navigate(`/businesses/${row.id}`)}
+            pageSize={10}
+            isLoading={isLoading}
+            emptyMessage="No se encontraron negocios con los filtros aplicados"
+          />
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden space-y-2.5">
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 animate-pulse h-28" />
+            ))
+          ) : filteredBusinesses.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-xs text-gray-400">
+              No se encontraron negocios con los filtros aplicados
+            </div>
+          ) : (
+            filteredBusinesses.map((biz) => (
+              <BusinessCardMobile
+                key={biz.id}
+                business={biz}
+                onToggle={handleToggleClick}
+              />
+            ))
+          )}
+        </div>
       </div>
 
       {/* Modal Crear Negocio */}

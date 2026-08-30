@@ -5,6 +5,7 @@ import { getOrders, getUsers, getMyBusiness } from 'api-client';
 import { isToday } from 'date-fns';
 import { StatCard } from '../components/StatCard';
 import { formatRelativeCompact } from '../utils/formatDate';
+import { OrderCardMobile } from '../components/OrderCardMobile';
 import LiveMap from '../components/LiveMap';
 import { useMapStore } from '../store/map.store';
 import { useSocketStore } from '../store/socket.store';
@@ -214,7 +215,7 @@ export const DashboardPage = () => {
       )}
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         {ordersLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="bg-white border border-gray-100 rounded-xl h-24 animate-pulse" />
@@ -251,7 +252,7 @@ export const DashboardPage = () => {
 
       {/* Map Live */}
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
+        <div className="px-4 lg:px-5 py-3.5 lg:py-4 border-b border-gray-100">
           <h3 className="text-sm font-medium text-gray-900">Repartidores activos</h3>
           <p className="text-xs text-gray-400 mt-0.5">
             {enrichedRepartidores.length} en tiempo real
@@ -269,10 +270,10 @@ export const DashboardPage = () => {
 
       {/* Recent Orders */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3 lg:mb-4">
           <div>
             <h2 className="text-sm font-medium text-[#0F0F0F] uppercase tracking-wider">Pedidos Recientes</h2>
-            <p className="text-xs text-[#6B7280] mt-1">{enCamino} en camino · {entregadosHoy} entregados hoy</p>
+            <p className="text-xs text-[#6B7280] mt-0.5">{enCamino} en camino · {entregadosHoy} entregados hoy</p>
           </div>
           <button
             onClick={() => navigate('/orders')}
@@ -282,7 +283,8 @@ export const DashboardPage = () => {
           </button>
         </div>
         
-        <div className="space-y-3">
+        {/* Desktop View */}
+        <div className="hidden md:block space-y-3">
           {ordersLoading ? (
             Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="bg-white p-3 rounded-lg border border-gray-100 animate-pulse h-20" />
@@ -336,6 +338,27 @@ export const DashboardPage = () => {
                   </div>
                 </div>
               </div>
+            ))
+          )}
+        </div>
+
+        {/* Mobile View: Cards */}
+        <div className="md:hidden space-y-2.5">
+          {ordersLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white p-3.5 rounded-xl border border-gray-100 animate-pulse h-24" />
+            ))
+          ) : recientes.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 px-5 py-8 text-center text-sm text-[#9CA3AF]">
+              No hay pedidos aún.
+            </div>
+          ) : (
+            recientes.map(order => (
+              <OrderCardMobile
+                key={order.id}
+                order={order}
+                onClick={() => navigate(`/orders/${order.id}`)}
+              />
             ))
           )}
         </div>

@@ -309,7 +309,7 @@ export const CreateOrderPage = () => {
         {/* Cliente */}
         <div>
           <SECTION title="Cliente" />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Field label="Nombre del cliente">
               <input
                 className={inputClass}
@@ -394,7 +394,7 @@ export const CreateOrderPage = () => {
                   onChange={(e) => set('destinationAddress', e.target.value)}
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <Field label="Latitud">
                   <input
                     className={inputClass}
@@ -552,18 +552,18 @@ export const CreateOrderPage = () => {
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-2 border-t border-gray-100">
           <button
             type="button"
             onClick={() => navigate('/orders')}
-            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+            className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors text-center cursor-pointer"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={isPending}
-            className="bg-gray-900 text-white hover:bg-gray-800 rounded-md px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-60"
+            className="w-full sm:w-auto bg-gray-900 text-white hover:bg-gray-800 rounded-lg px-5 py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-60 cursor-pointer shadow-xs"
           >
             {isPending ? (
               <>
@@ -572,7 +572,7 @@ export const CreateOrderPage = () => {
               </>
             ) : (
               <>
-                Crear pedido
+                <span>Crear pedido</span>
                 <ArrowRight size={16} />
               </>
             )}
