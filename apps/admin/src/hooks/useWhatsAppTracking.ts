@@ -20,14 +20,12 @@ export interface TrackableOrder {
 }
 
 export function getTrackingUrl(token: string): string {
-  if (
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-  ) {
-    const origin = window.location.origin.replace(':5173', ':5174');
-    return `${origin}/track/${token}`;
-  }
-  return `https://tracking.trackdeli.app/track/${token}`;
+  const base =
+    (import.meta as any).env?.VITE_TRACKING_URL ||
+    'https://trackdeli-web-tracking.vercel.app';
+
+  const cleanBase = base.replace(/\/+$/, '');
+  return `${cleanBase}/track/${token}`;
 }
 
 export function useWhatsAppTracking() {

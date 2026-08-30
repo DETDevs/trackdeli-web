@@ -40,17 +40,33 @@ const StarRating = ({
 
 export const DeliveredPage = () => {
   const { token } = useParams<{ token: string }>();
-  const [stars, setStars] = useState(0);
+  const [stars, setStars] = useState<number>(() => {
+    if (typeof window !== "undefined" && token) {
+      const saved = localStorage.getItem(`trackdeli_rating_${token}`);
+      return saved ? Number(saved) : 0;
+    }
+    return 0;
+  });
   const [comment, setComment] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<boolean>(() => {
+    if (typeof window !== "undefined" && token) {
+      return Boolean(localStorage.getItem(`trackdeli_rating_${token}`));
+    }
+    return false;
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async () => {
     if (stars === 0) return;
     setIsLoading(true);
+    if (token) {
+      localStorage.setItem(`trackdeli_rating_${token}`, stars.toString());
+    }
     try {
       await axios.post(`${API_BASE}/tracking/${token}/rating`, {
         stars,
+        score: stars,
+        rating: stars,
         comment: comment.trim() || undefined,
       });
       setSubmitted(true);
