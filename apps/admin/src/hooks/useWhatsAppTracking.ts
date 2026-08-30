@@ -41,13 +41,13 @@ export function useWhatsAppTracking() {
     }
 
     const trackingUrl = getTrackingUrl(order.trackingToken);
-    const businessName = business?.name || 'El negocio';
+    const businessName = business?.name || 'Tu negocio';
 
     const message =
-      `¡Hola ${order.customerName || 'Cliente'}! 👋\n\n` +
-      `Tu pedido de *${businessName}* ya está en camino.\n\n` +
-      `📍 Seguí a tu repartidor en tiempo real:\n${trackingUrl}\n\n` +
-      `¡Gracias por tu compra! 🛵`;
+      `Tu pedido de *${businessName}* está en camino.\n\n` +
+      `Seguilo en tiempo real:\n` +
+      `${trackingUrl}\n\n` +
+      `— TrackDeli`;
 
     const cleanPhone = (order.customerPhone || '').replace(/[\+\s\-]/g, '');
 
