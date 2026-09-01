@@ -4,7 +4,7 @@ import axios from "axios";
 
 const API_BASE =
   import.meta.env.VITE_API_URL ||
-  "/api/v1";
+  "https://trackdeli-api-production.up.railway.app/api/v1";
 
 const StarRating = ({
   value,

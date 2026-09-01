@@ -12,6 +12,9 @@ import { OrderDetailPage } from "../pages/OrderDetailPage";
 import { StaffPage } from "../pages/StaffPage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { SettingsPage } from "../pages/SettingsPage";
+import { ClientsPage } from "../pages/ClientsPage";
+import { CommissionsPage } from "../pages/CommissionsPage";
+import { InviteCodesPage } from "../pages/InviteCodesPage";
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -43,8 +46,11 @@ const router = createBrowserRouter([
       { path: "orders", element: <OrdersPage /> },
       { path: "orders/new", element: <CreateOrderPage /> },
       { path: "orders/:id", element: <OrderDetailPage /> },
+      { path: "clients", element: <ClientsPage /> },
       { path: "staff", element: <StaffPage /> },
+      { path: "invites", element: <InviteCodesPage /> },
       { path: "reports", element: <ReportsPage /> },
+      { path: "commissions", element: <CommissionsPage /> },
       { path: "settings", element: <SettingsPage /> },
     ],
   },

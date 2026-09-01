@@ -2,8 +2,13 @@ import { createBrowserRouter } from 'react-router-dom';
 import { TrackingPage } from '../pages/TrackingPage';
 import { DeliveredPage } from '../pages/DeliveredPage';
 import { ExpiredPage } from '../pages/ExpiredPage';
+import { JoinInvitePage } from '../pages/JoinInvitePage';
 
 export const router = createBrowserRouter([
+  {
+    path: '/join/:code',
+    element: <JoinInvitePage />,
+  },
   {
     path: '/:token',
     element: <TrackingPage />,

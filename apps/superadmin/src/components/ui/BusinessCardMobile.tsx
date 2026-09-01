@@ -34,8 +34,17 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
             )}
           </div>
           <div className="min-w-0">
-            <h4 className="font-semibold text-sm text-gray-900 truncate">{business.name}</h4>
-            <p className="text-xs text-gray-500 truncate mt-0.5">{business.type || 'Comercio'}</p>
+            <div className="flex items-center gap-2">
+              <h4 className="font-semibold text-sm text-gray-900 truncate">{business.name}</h4>
+              {business.businessType === 'EMPRESA_RIDERS' && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 shrink-0">
+                  Riders
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 truncate mt-0.5">
+              {business.businessType === 'EMPRESA_RIDERS' ? (business.type || 'Empresa de Riders') : (business.type || 'Comercio')}
+            </p>
           </div>
         </div>
 

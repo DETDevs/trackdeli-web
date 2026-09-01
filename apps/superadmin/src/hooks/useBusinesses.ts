@@ -2,10 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../lib/apiClient';
 import toast from 'react-hot-toast';
 
+export type BusinessType = 'NEGOCIO' | 'EMPRESA_RIDERS';
+
 export interface BusinessItem {
   id: string;
   name: string;
   type: string | null;
+  businessType?: BusinessType;
+  commissionRate?: number;
+  altCommissionRate?: number;
+  altCommissionDistanceKm?: number;
+  dispatchTimeoutMin?: number;
   logoUrl: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -74,6 +81,11 @@ export interface BusinessDetail extends BusinessItem {
 export interface CreateBusinessInput {
   name: string;
   type?: string;
+  businessType?: BusinessType;
+  commissionRate?: number;
+  altCommissionRate?: number;
+  altCommissionDistanceKm?: number;
+  dispatchTimeoutMin?: number;
   encargado?: {
     name: string;
     email: string;
@@ -86,6 +98,7 @@ export interface CreateBusinessResult {
     id: string;
     name: string;
     type: string | null;
+    businessType?: BusinessType;
     isActive: boolean;
     createdAt: string;
   };
@@ -162,3 +175,74 @@ export function useCreateBusiness() {
     },
   });
 }
+
+export interface UpdateBusinessInput {
+  name?: string;
+  type?: string;
+  businessType?: BusinessType;
+  commissionRate?: number;
+  altCommissionRate?: number;
+  altCommissionDistanceKm?: number;
+  dispatchTimeoutMin?: number;
+  isActive?: boolean;
+}
+
+export function useUpdateBusiness() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: UpdateBusinessInput }) => {
+      try {
+        const res = await apiClient.patch(`/superadmin/businesses/${id}`, data);
+        return res.data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const res2 = await apiClient.patch(`/businesses/${id}`, data);
+          return res2.data;
+        }
+        throw err;
+      }
+    },
+    onSuccess: (data) => {
+      toast.success('Configuración del negocio actualizada');
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business', data.id] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Error al actualizar el negocio');
+    },
+  });
+}
+
+export function useBusinessCommissions(businessId: string, month?: number, year?: number) {
+  return useQuery({
+    queryKey: ['superadmin-business-commissions', businessId, month, year],
+    queryFn: async () => {
+      try {
+        const { data } = await apiClient.get(`/superadmin/businesses/${businessId}/commissions`, {
+          params: { month, year },
+        });
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!businessId,
+  });
+}
+
+export function useBusinessStatements(businessId: string) {
+  return useQuery({
+    queryKey: ['superadmin-business-statements', businessId],
+    queryFn: async () => {
+      try {
+        const { data } = await apiClient.get(`/superadmin/businesses/${businessId}/statements`);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!businessId,
+  });
+}
+

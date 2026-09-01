@@ -1,7 +1,10 @@
 import { apiClient } from '../client';
+import { BusinessClient } from './businesses';
+import { OrderCommission } from './commissions';
 
 export type OrderStatus =
   | 'PENDIENTE'
+  | 'OFERTADO'
   | 'COTIZANDO'
   | 'ACEPTADO'
   | 'EN_CAMINO_AL_NEGOCIO'
@@ -21,6 +24,29 @@ export type QuoteStatus =
   | 'ACCEPTED'
   | 'REJECTED'
   | 'CANCELLED';
+
+export type DispatchStatus = 'SENT' | 'ACCEPTED' | 'REJECTED' | 'TIMEOUT';
+
+export interface OrderDispatch {
+  id: string;
+  orderId: string;
+  riderId: string;
+  rider?: {
+    id: string;
+    name: string;
+    phone?: string;
+    vehicleType?: string;
+    vehicleColor?: string;
+    vehiclePlate?: string;
+    profilePhotoUrl?: string;
+    rating?: number;
+  };
+  attempt: number;
+  status: DispatchStatus;
+  sentAt: string;
+  respondedAt?: string | null;
+  timeoutAt: string;
+}
 
 export interface OrderMessage {
   id: string;
@@ -70,6 +96,9 @@ export interface Order {
   id: string;
   customerName: string;
   customerPhone: string;
+  originBusinessName?: string | null;
+  originBusinessClientId?: string | null;
+  originBusinessClient?: BusinessClient | null;
   destinationAddress: string;
   destinationLat?: number;
   destinationLng?: number;
@@ -92,6 +121,8 @@ export interface Order {
     profilePhotoUrl?: string;
   };
   quotes?: OrderQuote[];
+  dispatches?: OrderDispatch[];
+  commission?: OrderCommission | null;
   statusHistory?: Array<{
     status: OrderStatus;
     createdAt: string;
@@ -113,6 +144,8 @@ export interface OrderPhoto {
 export interface CreateOrderDto {
   customerName: string;
   customerPhone: string;
+  originBusinessName?: string;
+  originBusinessClientId?: string;
   destinationAddress: string;
   destinationLat?: number;
   destinationLng?: number;
@@ -214,17 +247,27 @@ export const getQuoteMessages = async (orderId: string, quoteId: string): Promis
 export const sendQuoteMessage = async (
   orderId: string,
   quoteId: string,
-  data: { message: string; counterFee?: number }
+  data: string | { message: string; counterFee?: number }
 ): Promise<OrderMessage> => {
+  const payload = typeof data === 'string' ? { message: data } : data;
   try {
-    const res = await apiClient.post(`/orders/${orderId}/quotes/${quoteId}/messages`, data);
+    const res = await apiClient.post(`/orders/${orderId}/quotes/${quoteId}/messages`, payload);
     return res.data;
   } catch (err: any) {
     if (err?.response?.status === 404) {
-      const res2 = await apiClient.post(`/quotes/${quoteId}/messages`, data);
+      const res2 = await apiClient.post(`/quotes/${quoteId}/messages`, payload);
       return res2.data;
     }
     throw err;
   }
 };
 
+// Dispatches
+export const getOrderDispatches = async (orderId: string): Promise<OrderDispatch[]> => {
+  try {
+    const res = await apiClient.get(`/orders/${orderId}/dispatches`);
+    return Array.isArray(res.data) ? res.data : [];
+  } catch {
+    return [];
+  }
+};

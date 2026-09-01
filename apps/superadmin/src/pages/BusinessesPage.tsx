@@ -6,6 +6,8 @@ import {
   Storefront,
   ArrowRight,
   ShieldCheck,
+  Motorcycle,
+  Coins,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { DataTable, Column } from '../components/ui/DataTable';
@@ -18,6 +20,7 @@ import {
   useCreateBusiness,
   BusinessItem,
   CreateBusinessResult,
+  type BusinessType,
 } from '../hooks/useBusinesses';
 import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
 import { BusinessCredentialsModal } from '../components/modals/BusinessCredentialsModal';
@@ -36,6 +39,11 @@ export const BusinessesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState('');
+  const [businessType, setBusinessType] = useState<BusinessType>('NEGOCIO');
+  const [commissionRate, setCommissionRate] = useState('15');
+  const [altCommissionRate, setAltCommissionRate] = useState('12');
+  const [altCommissionDistanceKm, setAltCommissionDistanceKm] = useState('40');
+  const [dispatchTimeoutMin, setDispatchTimeoutMin] = useState('3');
   const [encargadoName, setEncargadoName] = useState('');
   const [encargadoEmail, setEncargadoEmail] = useState('');
   const [encargadoPassword, setEncargadoPassword] = useState('');
@@ -92,6 +100,11 @@ export const BusinessesPage = () => {
       {
         name: name.trim(),
         type: type.trim() || undefined,
+        businessType,
+        commissionRate: businessType === 'EMPRESA_RIDERS' ? (Number(commissionRate) / 100 || 0.15) : undefined,
+        altCommissionRate: businessType === 'EMPRESA_RIDERS' ? (Number(altCommissionRate) / 100 || 0.12) : undefined,
+        altCommissionDistanceKm: businessType === 'EMPRESA_RIDERS' ? (Number(altCommissionDistanceKm) || 40) : undefined,
+        dispatchTimeoutMin: businessType === 'EMPRESA_RIDERS' ? (Number(dispatchTimeoutMin) || 3) : undefined,
         encargado: {
           name: encargadoName.trim(),
           email: encargadoEmail.trim(),
@@ -103,6 +116,11 @@ export const BusinessesPage = () => {
           setIsModalOpen(false);
           setName('');
           setType('');
+          setBusinessType('NEGOCIO');
+          setCommissionRate('15');
+          setAltCommissionRate('12');
+          setAltCommissionDistanceKm('40');
+          setDispatchTimeoutMin('3');
           setEncargadoName('');
           setEncargadoEmail('');
           setEncargadoPassword('');
@@ -124,11 +142,24 @@ export const BusinessesPage = () => {
       accessor: (row) => (
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
-            <Storefront size={18} />
+            {row.businessType === 'EMPRESA_RIDERS' ? (
+              <Motorcycle size={18} className="text-amber-700" />
+            ) : (
+              <Storefront size={18} />
+            )}
           </div>
           <div>
-            <p className="font-medium text-gray-900 leading-tight">{row.name}</p>
-            <p className="text-xs text-gray-400 capitalize">{row.type || 'Comercio'}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-gray-900 leading-tight">{row.name}</p>
+              {row.businessType === 'EMPRESA_RIDERS' && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                  Riders
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 capitalize">
+              {row.businessType === 'EMPRESA_RIDERS' ? (row.type || 'Empresa de Riders') : (row.type || 'Comercio')}
+            </p>
           </div>
         </div>
       ),
@@ -152,8 +183,18 @@ export const BusinessesPage = () => {
       ),
     },
     {
-      header: 'Membresía',
+      header: 'Membresía / Modelo',
       accessor: (row) => {
+        if (row.businessType === 'EMPRESA_RIDERS') {
+          const rate = row.commissionRate ? `${(row.commissionRate * 100).toFixed(0)}%` : '15%';
+          return (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
+              <Coins size={13} className="text-amber-700" />
+              <span>Comisión ({rate})</span>
+            </span>
+          );
+        }
+
         const mem = row.membership;
         if (mem && mem.status === 'ACTIVE') {
           const days = mem.daysLeft ?? 0;
@@ -333,15 +374,143 @@ export const BusinessesPage = () => {
             />
           </div>
 
+          {/* Selector de Modelo de Negocio (2 Tipos) */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+              Modelo de Negocio *
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div
+                onClick={() => setBusinessType('NEGOCIO')}
+                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left ${
+                  businessType === 'NEGOCIO'
+                    ? 'border-gray-900 bg-gray-50/70 shadow-xs'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <div className={`p-2 rounded-lg ${businessType === 'NEGOCIO' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    <Storefront size={18} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-xs text-gray-900">Negocio Común</p>
+                    <p className="text-[10px] text-gray-500">Comercio tradicional</p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-gray-500 leading-tight">
+                  Restaurantes, comiderías, tiendas o farmacias que despachan sus propios pedidos.
+                </p>
+              </div>
+
+              <div
+                onClick={() => setBusinessType('EMPRESA_RIDERS')}
+                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left ${
+                  businessType === 'EMPRESA_RIDERS'
+                    ? 'border-gray-900 bg-gray-50/70 shadow-xs'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <div className={`p-2 rounded-lg ${businessType === 'EMPRESA_RIDERS' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    <Motorcycle size={18} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-xs text-gray-900">Empresa de Riders</p>
+                    <p className="text-[10px] text-gray-500">Agencia / Flota Delivery</p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-gray-500 leading-tight">
+                  Gestiona repartidores para múltiples comercios, liquida comisiones y despacha pedidos.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Configuración de Comisiones (Solo si es EMPRESA_RIDERS) */}
+          {businessType === 'EMPRESA_RIDERS' && (
+            <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 space-y-3">
+              <p className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Coins size={15} className="text-amber-700" />
+                <span>Configuración de Comisiones y Despacho</span>
+              </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
+                    Comisión Base (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="100"
+                    value={commissionRate}
+                    onChange={(e) => setCommissionRate(e.target.value)}
+                    placeholder="15"
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">Por defecto: 15%</p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
+                    Comisión Distancia Larga (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="100"
+                    value={altCommissionRate}
+                    onChange={(e) => setAltCommissionRate(e.target.value)}
+                    placeholder="12"
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">Para {altCommissionDistanceKm || '40'} km o más</p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
+                    Umbral Distancia Larga (km)
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={altCommissionDistanceKm}
+                    onChange={(e) => setAltCommissionDistanceKm(e.target.value)}
+                    placeholder="40"
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
+                    Expiración por intento (min)
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={dispatchTimeoutMin}
+                    onChange={(e) => setDispatchTimeoutMin(e.target.value)}
+                    placeholder="3"
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
-              Tipo de negocio
+              Categoría descriptiva (opcional)
             </label>
             <input
               type="text"
               value={type}
               onChange={(e) => setType(e.target.value)}
-              placeholder="Ej: restaurante, farmacia, tienda..."
+              placeholder={businessType === 'EMPRESA_RIDERS' ? "Ej: Flota express, Delivery central..." : "Ej: Restaurante, comidería, farmacia, tienda..."}
               className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
             />
           </div>

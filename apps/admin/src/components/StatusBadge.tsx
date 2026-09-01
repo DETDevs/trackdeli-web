@@ -2,6 +2,7 @@ import type { OrderStatus } from 'api-client';
 
 const statusConfig: Record<OrderStatus | string, { label: string; className: string; dot: string; pulse: boolean }> = {
   PENDIENTE:            { label: 'Pendiente',           className: 'bg-amber-50 text-amber-700',   dot: 'bg-amber-400',   pulse: true  },
+  OFERTADO:             { label: 'Ofertado',            className: 'bg-amber-50 text-amber-800 border border-amber-200', dot: 'bg-amber-500', pulse: true },
   COTIZANDO:            { label: 'Cotizando',           className: 'bg-violet-50 text-violet-700', dot: 'bg-violet-500',  pulse: true  },
   ACEPTADO:             { label: 'Aceptado',            className: 'bg-blue-50 text-blue-700',     dot: 'bg-blue-400',    pulse: true  },
   EN_CAMINO_AL_NEGOCIO: { label: 'Hacia el negocio',    className: 'bg-blue-50 text-blue-700',     dot: 'bg-blue-400',    pulse: true  },

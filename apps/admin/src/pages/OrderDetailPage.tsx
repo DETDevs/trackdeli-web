@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getOrder, type OrderStatus, apiClient, getMyBusiness } from 'api-client';
-import { ArrowLeft, Copy, Motorcycle, Bicycle, Car, PersonSimpleWalk, Phone, WhatsappLogo } from '@phosphor-icons/react';
+import { ArrowLeft, Copy, Motorcycle, Bicycle, Car, PersonSimpleWalk, Phone, WhatsappLogo, Buildings } from '@phosphor-icons/react';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDateTime } from '../utils/formatDate';
 import LiveMap from '../components/LiveMap';
@@ -9,15 +9,17 @@ import { useMapStore } from '../store/map.store';
 import { useSocketStore } from '../store/socket.store';
 import { useWhatsAppTracking, TRACKABLE_STATUSES } from '../hooks/useWhatsAppTracking';
 import { OrderQuotesPanel } from '../components/OrderQuotesPanel';
+import { OrderDispatchPanel } from '../components/OrderDispatchPanel';
 import { useEffect } from 'react';
 
 const STATUS_SEQUENCE: string[] = [
-  'PENDIENTE', 'COTIZANDO', 'ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'EN_CAMINO', 'CERCA_DEL_DESTINO',
+  'PENDIENTE', 'OFERTADO', 'COTIZANDO', 'ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'EN_CAMINO', 'CERCA_DEL_DESTINO',
   'VERIFICANDO_ENTREGA', 'ENTREGADO',
 ];
 
 const statusLabel: Record<string, string> = {
   PENDIENTE: 'Pendiente',
+  OFERTADO: 'Ofertado',
   COTIZANDO: 'Cotizando',
   ACEPTADO: 'Aceptado',
   EN_CAMINO_AL_NEGOCIO: 'Hacia el negocio',
@@ -192,6 +194,15 @@ export const OrderDetailPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         {/* Left: Info + Quotes + Photos */}
         <div className="space-y-4">
+          {/* Panel de Asignación / Despacho a Repartidores */}
+          {(order.status === 'OFERTADO' || (order.dispatches && order.dispatches.length > 0)) && (
+            <OrderDispatchPanel
+              orderId={order.id}
+              orderStatus={order.status}
+              initialDispatches={order.dispatches}
+            />
+          )}
+
           {/* Panel de Propuestas de Tarifas */}
           {(
             order.status === 'COTIZANDO' ||
@@ -205,6 +216,17 @@ export const OrderDetailPage = () => {
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5 space-y-4">
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">Información</div>
             <dl className="space-y-3">
+              {(order.originBusinessName || order.originBusinessClient?.name) && (
+                <div className="flex justify-between items-center bg-gray-50/80 -mx-2 px-2.5 py-1.5 rounded-lg border border-gray-100">
+                  <dt className="text-xs font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <Buildings size={14} className="text-gray-500" />
+                    <span>Negocio Origen</span>
+                  </dt>
+                  <dd className="text-sm font-bold text-gray-900">
+                    {order.originBusinessName || order.originBusinessClient?.name}
+                  </dd>
+                </div>
+              )}
               <div className="flex justify-between">
                 <dt className="text-sm text-gray-500">Cliente</dt>
                 <dd className="text-sm font-medium text-gray-900">{order.customerName}</dd>

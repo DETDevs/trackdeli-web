@@ -3,7 +3,6 @@ import {
   Package,
   ListChecks,
   Plus,
-  Users,
   ChartBar,
   SignOut,
   Gear,
@@ -11,6 +10,10 @@ import {
   WhatsappLogo,
   List,
   X,
+  Buildings,
+  Coins,
+  Motorcycle,
+  Link as LinkIcon,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,9 +56,11 @@ export const AppLayout = () => {
   }, []);
 
   const isMembershipInactive =
-    business?.isActive === false ||
-    business?.membership?.status === 'EXPIRED' ||
-    Boolean(paymentRequiredMessage);
+    business?.businessType !== 'EMPRESA_RIDERS' && (
+      business?.isActive === false ||
+      business?.membership?.status === 'EXPIRED' ||
+      Boolean(paymentRequiredMessage)
+    );
 
   // Initialize real-time order notifications
   useOrderNotifications();
@@ -78,8 +83,11 @@ export const AppLayout = () => {
     if (pathname === '/orders/new') return 'Nuevo Pedido';
     if (pathname.startsWith('/orders/')) return 'Detalle de Pedido';
     if (pathname.startsWith('/orders')) return 'Pedidos';
+    if (pathname.startsWith('/clients')) return 'Clientes del Negocio';
     if (pathname.startsWith('/staff')) return 'Repartidores';
     if (pathname.startsWith('/reports')) return 'Reportes';
+    if (pathname.startsWith('/commissions')) return 'Comisiones';
+    if (pathname.startsWith('/invites')) return 'Invitaciones';
     if (pathname.startsWith('/settings')) return 'Configuración';
     return '';
   };
@@ -158,14 +166,32 @@ export const AppLayout = () => {
               GESTIÓN
             </div>
             <div className="space-y-1">
+              {business?.businessType === 'EMPRESA_RIDERS' && (
+                <NavLink to="/clients" className={navLinkClass}>
+                  <Buildings size={18} weight="regular" />
+                  Clientes
+                </NavLink>
+              )}
               <NavLink to="/staff" className={navLinkClass}>
-                <Users size={18} weight="regular" />
+                <Motorcycle size={18} weight="regular" />
                 Repartidores
               </NavLink>
+              {business?.businessType === 'EMPRESA_RIDERS' && (
+                <NavLink to="/invites" className={navLinkClass}>
+                  <LinkIcon size={18} weight="regular" />
+                  Invitaciones
+                </NavLink>
+              )}
               <NavLink to="/reports" className={navLinkClass}>
                 <ChartBar size={18} weight="regular" />
                 Reportes
               </NavLink>
+              {business?.businessType === 'EMPRESA_RIDERS' && (
+                <NavLink to="/commissions" className={navLinkClass}>
+                  <Coins size={18} weight="regular" />
+                  Comisiones
+                </NavLink>
+              )}
               <NavLink to="/settings" className={navLinkClass}>
                 <Gear size={18} weight="regular" />
                 Configuración

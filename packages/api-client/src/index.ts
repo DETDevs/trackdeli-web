@@ -5,3 +5,5 @@ export * from './endpoints/users';
 export * from './endpoints/tracking';
 export * from './endpoints/ratings';
 export * from './endpoints/businesses';
+export * from './endpoints/commissions';
+export * from './endpoints/inviteCodes';

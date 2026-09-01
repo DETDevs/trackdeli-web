@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   createOrder,
   getMyBusiness,
+  getBusinessClients,
   calculateOrderFee,
   type CreateOrderDto,
   type DeliveryPaymentStatus,
@@ -56,6 +57,16 @@ export const CreateOrderPage = () => {
     deliveryPaymentStatus: 'CONTRA_ENTREGA' as DeliveryPaymentStatus,
     deliveryFee: '',
   });
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ['business-clients'],
+    queryFn: () => getBusinessClients({ isActive: true }),
+    enabled: business?.businessType === 'EMPRESA_RIDERS',
+  });
+
+  const [originBusinessClientId, setOriginBusinessClientId] = useState('');
+  const [originBusinessName, setOriginBusinessName] = useState('');
+  const [useManualOriginInput, setUseManualOriginInput] = useState(false);
 
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
   const [formError, setFormError] = useState('');
@@ -276,9 +287,16 @@ export const CreateOrderPage = () => {
       return setFormError('La dirección de entrega es requerida.');
     }
 
+    if (business?.businessType === 'EMPRESA_RIDERS' && !originBusinessClientId && !originBusinessName.trim()) {
+      toast.error('Debes seleccionar o ingresar el negocio de origen.');
+      return setFormError('Debes indicar el negocio de origen.');
+    }
+
     const payload: CreateOrderDto = {
       customerName: nameStr,
       customerPhone: phoneDigits,
+      originBusinessClientId: originBusinessClientId || undefined,
+      originBusinessName: (originBusinessName.trim() || undefined),
       destinationAddress: addressStr,
       description: form.description.trim() || undefined,
       deliveryPaymentStatus: form.deliveryPaymentStatus,
@@ -306,9 +324,81 @@ export const CreateOrderPage = () => {
         onSubmit={handleSubmit}
         className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 space-y-6"
       >
+        {/* Negocio de Origen (Solo para EMPRESA_RIDERS) */}
+        {business?.businessType === 'EMPRESA_RIDERS' && (
+          <div>
+            <SECTION title="Negocio de Origen" />
+            <div className="space-y-2">
+              {!useManualOriginInput ? (
+                <div>
+                  <Field label="Negocio que solicita el envío *">
+                    <select
+                      value={originBusinessClientId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setOriginBusinessClientId(val);
+                        const selected = clients.find((c) => c.id === val);
+                        if (selected) {
+                          setOriginBusinessName(selected.name);
+                        } else {
+                          setOriginBusinessName('');
+                        }
+                      }}
+                      className={inputClass}
+                    >
+                      <option value="">Seleccionar negocio asociado...</option>
+                      {clients.map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {client.name} {client.phone ? `(${client.phone})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <p className="text-xs text-gray-400 mt-1 flex items-center justify-between">
+                    <span>¿No encontrás el negocio en la lista?</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUseManualOriginInput(true);
+                        setOriginBusinessClientId('');
+                      }}
+                      className="text-brand-600 hover:text-brand-700 font-medium underline cursor-pointer"
+                    >
+                      Escribir manualmente
+                    </button>
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <Field label="Nombre del negocio de origen *">
+                    <input
+                      className={inputClass}
+                      type="text"
+                      placeholder="Ej. Pollos El Buen Sabor"
+                      value={originBusinessName}
+                      onChange={(e) => setOriginBusinessName(e.target.value)}
+                    />
+                  </Field>
+                  {clients.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setUseManualOriginInput(false)}
+                        className="text-brand-600 hover:text-brand-700 font-medium underline cursor-pointer"
+                      >
+                        ← Seleccionar de la lista de clientes
+                      </button>
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Cliente */}
         <div>
-          <SECTION title="Cliente" />
+          <SECTION title="Cliente Final" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Field label="Nombre del cliente">
               <input
