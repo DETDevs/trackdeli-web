@@ -40,6 +40,7 @@ export const InviteCodesPage = () => {
   } = useQuery<InviteCode[]>({
     queryKey: ['invite-codes'],
     queryFn: getInviteCodes,
+    retry: false,
   });
 
   const { data: usages = [], isLoading: loadingUsages } = useQuery<InviteCodeUsage[]>({

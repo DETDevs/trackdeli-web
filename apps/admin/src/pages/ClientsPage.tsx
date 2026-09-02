@@ -17,7 +17,11 @@ import {
   Trash,
   X,
   CircleNotch,
+  MapTrifold,
+  Keyboard,
+  Check,
 } from '@phosphor-icons/react';
+import { PinPicker } from 'map';
 import { toast } from 'react-hot-toast';
 
 export const ClientsPage = () => {
@@ -30,11 +34,15 @@ export const ClientsPage = () => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [locationMode, setLocationMode] = useState<'text' | 'map'>('text');
   const [isActive, setIsActive] = useState(true);
 
-  const { data: clients = [], isLoading, isError, refetch } = useQuery({
+  const { data: clients = [], isLoading } = useQuery({
     queryKey: ['business-clients'],
     queryFn: () => getBusinessClients(),
+    retry: false,
   });
 
   const createMutation = useMutation({
@@ -44,8 +52,8 @@ export const ClientsPage = () => {
       toast.success('Cliente agregado correctamente');
       handleCloseModal();
     },
-    onError: () => {
-      toast.error('Error al agregar el cliente');
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Error al agregar el cliente');
     },
   });
 
@@ -56,8 +64,8 @@ export const ClientsPage = () => {
       toast.success('Cliente actualizado');
       handleCloseModal();
     },
-    onError: () => {
-      toast.error('Error al actualizar el cliente');
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Error al actualizar el cliente');
     },
   });
 
@@ -67,8 +75,8 @@ export const ClientsPage = () => {
       queryClient.invalidateQueries({ queryKey: ['business-clients'] });
       toast.success('Cliente eliminado');
     },
-    onError: () => {
-      toast.error('Error al eliminar el cliente');
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Error al eliminar el cliente');
     },
   });
 
@@ -88,6 +96,9 @@ export const ClientsPage = () => {
     setName('');
     setPhone('');
     setAddress('');
+    setLatitude(null);
+    setLongitude(null);
+    setLocationMode('text');
     setIsActive(true);
     setIsModalOpen(true);
   };
@@ -97,6 +108,9 @@ export const ClientsPage = () => {
     setName(client.name);
     setPhone(client.phone || '');
     setAddress(client.address || '');
+    setLatitude(client.latitude ?? null);
+    setLongitude(client.longitude ?? null);
+    setLocationMode(client.latitude ? 'map' : 'text');
     setIsActive(client.isActive);
     setIsModalOpen(true);
   };
@@ -113,23 +127,22 @@ export const ClientsPage = () => {
       return;
     }
 
+    const payload = {
+      name: name.trim(),
+      phone: phone.trim() || undefined,
+      address: address.trim() || undefined,
+      latitude: latitude ?? undefined,
+      longitude: longitude ?? undefined,
+      isActive,
+    };
+
     if (editingClient) {
       updateMutation.mutate({
         id: editingClient.id,
-        data: {
-          name: name.trim(),
-          phone: phone.trim() || undefined,
-          address: address.trim() || undefined,
-          isActive,
-        },
+        data: payload,
       });
     } else {
-      createMutation.mutate({
-        name: name.trim(),
-        phone: phone.trim() || undefined,
-        address: address.trim() || undefined,
-        isActive,
-      });
+      createMutation.mutate(payload);
     }
   };
 
@@ -159,65 +172,58 @@ export const ClientsPage = () => {
 
         <button
           onClick={handleOpenCreate}
-          className="bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-xs cursor-pointer shrink-0"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
         >
           <Plus size={16} weight="bold" />
           <span>Agregar cliente</span>
         </button>
       </div>
 
-      {/* Search Toolbar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-md">
-          <MagnifyingGlass size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar por nombre, teléfono o dirección..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-xs focus:border-gray-900 outline-none transition-colors"
-          />
-        </div>
+      {/* Search Filter */}
+      <div className="flex items-center gap-3 bg-white p-3.5 rounded-xl border border-gray-100 shadow-2xs">
+        <MagnifyingGlass size={18} className="text-gray-400 shrink-0 ml-1" />
+        <input
+          type="text"
+          placeholder="Buscar por nombre, teléfono o dirección..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-transparent text-xs sm:text-sm text-gray-900 placeholder:text-gray-400 outline-none"
+        />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm('')}
+            className="text-xs text-gray-400 hover:text-gray-600 px-2 cursor-pointer"
+          >
+            Limpiar
+          </button>
+        )}
       </div>
 
-      {isError && (
-        <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-xs text-red-700 flex items-center justify-between">
-          <span>No se pudieron cargar los clientes asociados.</span>
-          <button onClick={() => refetch()} className="underline font-medium cursor-pointer">
-            Reintentar
-          </button>
-        </div>
-      )}
-
-      {/* Desktop Table */}
-      <div className="hidden md:block bg-white border border-gray-100 rounded-2xl shadow-xs overflow-hidden">
-        <table className="w-full text-left border-collapse text-xs">
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-100 shadow-2xs overflow-hidden">
+        <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50 text-gray-400 uppercase tracking-wider font-semibold">
-              <th className="py-3 px-5">Negocio / Cliente</th>
-              <th className="py-3 px-5">Teléfono</th>
-              <th className="py-3 px-5">Dirección de Origen</th>
-              <th className="py-3 px-5">Estado</th>
-              <th className="py-3 px-5 text-right">Acciones</th>
+            <tr className="border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wider bg-gray-50/50">
+              <th className="py-3.5 px-5">Negocio / Cliente</th>
+              <th className="py-3.5 px-4">Teléfono</th>
+              <th className="py-3.5 px-4">Dirección / Recogida</th>
+              <th className="py-3.5 px-4 text-center">Estado</th>
+              <th className="py-3.5 px-5 text-right">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50 text-gray-700">
+          <tbody className="divide-y divide-gray-50 text-xs text-gray-600">
             {isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <tr key={i}>
-                  <td colSpan={5} className="p-4">
-                    <div className="h-6 bg-gray-100 rounded-lg animate-pulse" />
-                  </td>
-                </tr>
-              ))
-            ) : filteredClients.length === 0 ? (
               <tr>
                 <td colSpan={5} className="py-12 text-center text-gray-400">
-                  <Buildings size={32} className="mx-auto text-gray-300 mb-2" />
-                  <p className="font-medium text-gray-600">No hay clientes registrados</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    Agrega los negocios con los que trabajas para seleccionarlos rápidamente al crear pedidos.
-                  </p>
+                  <CircleNotch size={24} className="animate-spin mx-auto mb-2 text-gray-300" />
+                  Cargando clientes del negocio...
+                </td>
+              </tr>
+            ) : filteredClients.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-12 text-center text-gray-400 space-y-1">
+                  <p className="font-medium text-gray-600">No se encontraron clientes</p>
+                  <p className="text-[11px]">Agrega clientes asociados para seleccionarlos rápidamente al crear pedidos.</p>
                 </td>
               </tr>
             ) : (
@@ -225,50 +231,54 @@ export const ClientsPage = () => {
                 <tr key={client.id} className="hover:bg-gray-50/60 transition-colors">
                   <td className="py-3.5 px-5">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-xs">
-                        {client.name.charAt(0).toUpperCase()}
+                      <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-xs shrink-0">
+                        <Buildings size={16} />
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900">{client.name}</p>
-                        {client._count?.orders !== undefined && (
-                          <p className="text-[11px] text-gray-400">{client._count.orders} envíos realizados</p>
-                        )}
+                        <p className="font-semibold text-gray-900 leading-tight">{client.name}</p>
+                        <span className="text-[11px] text-gray-400">
+                          {client._count?.orders ? `${client._count.orders} pedidos` : 'Sin pedidos'}
+                        </span>
                       </div>
                     </div>
                   </td>
-                  <td className="py-3.5 px-5">
+
+                  <td className="py-3.5 px-4">
                     {client.phone ? (
-                      <div className="flex items-center gap-1.5 text-gray-600">
-                        <Phone size={13} className="text-gray-400" />
-                        <span>{client.phone}</span>
-                      </div>
+                      <span className="flex items-center gap-1.5 text-gray-700 font-mono text-[11px]">
+                        <Phone size={12} className="text-gray-400 shrink-0" />
+                        {client.phone}
+                      </span>
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span className="text-gray-300 italic text-[11px]">Sin teléfono</span>
                     )}
                   </td>
-                  <td className="py-3.5 px-5 max-w-xs truncate text-gray-600">
+
+                  <td className="py-3.5 px-4 max-w-xs truncate">
                     {client.address ? (
-                      <div className="flex items-center gap-1.5 truncate">
+                      <span className="flex items-center gap-1.5 text-gray-700 truncate" title={client.address}>
                         <MapPin size={13} className="text-gray-400 shrink-0" />
                         <span className="truncate">{client.address}</span>
-                      </div>
+                      </span>
                     ) : (
-                      <span className="text-gray-300">Sin dirección registrada</span>
+                      <span className="text-gray-300 italic text-[11px]">Sin dirección</span>
                     )}
                   </td>
-                  <td className="py-3.5 px-5">
+
+                  <td className="py-3.5 px-4 text-center">
                     <button
                       onClick={() => handleToggleActive(client)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors cursor-pointer ${
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
                         client.isActive
                           ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                       }`}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full ${client.isActive ? 'bg-emerald-600' : 'bg-gray-400'}`} />
+                      <span className={`w-1.5 h-1.5 rounded-full ${client.isActive ? 'bg-emerald-500' : 'bg-gray-400'}`} />
                       <span>{client.isActive ? 'Activo' : 'Inactivo'}</span>
                     </button>
                   </td>
+
                   <td className="py-3.5 px-5 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
@@ -294,48 +304,51 @@ export const ClientsPage = () => {
         </table>
       </div>
 
-      {/* Mobile Cards */}
+      {/* Mobile Card View */}
       <div className="md:hidden space-y-3">
         {isLoading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 animate-pulse h-28" />
-          ))
+          <div className="py-12 text-center text-gray-400">
+            <CircleNotch size={24} className="animate-spin mx-auto mb-2 text-gray-300" />
+            Cargando clientes...
+          </div>
         ) : filteredClients.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-xs text-gray-400">
-            No se encontraron clientes registrados.
+          <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-gray-400 space-y-1">
+            <p className="font-medium text-gray-600">No se encontraron clientes</p>
+            <p className="text-xs">Agrega clientes asociados para agilizar tus envíos.</p>
           </div>
         ) : (
           filteredClients.map((client) => (
-            <div
-              key={client.id}
-              className="bg-white border border-gray-200/80 rounded-xl p-4 shadow-2xs space-y-3"
-            >
+            <div key={client.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-2xs space-y-3">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-xs shrink-0">
-                    {client.name.charAt(0).toUpperCase()}
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-xs shrink-0">
+                    <Buildings size={16} />
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm text-gray-900 truncate">{client.name}</p>
-                    {client.phone && (
-                      <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                        <Phone size={12} className="text-gray-400" />
-                        <span>{client.phone}</span>
-                      </p>
-                    )}
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">{client.name}</p>
+                    <span className="text-[11px] text-gray-400">
+                      {client._count?.orders ? `${client._count.orders} pedidos` : 'Sin pedidos'}
+                    </span>
                   </div>
                 </div>
 
                 <button
                   onClick={() => handleToggleActive(client)}
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 ${
-                    client.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                    client.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${client.isActive ? 'bg-emerald-600' : 'bg-gray-400'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${client.isActive ? 'bg-emerald-500' : 'bg-gray-400'}`} />
                   <span>{client.isActive ? 'Activo' : 'Inactivo'}</span>
                 </button>
               </div>
+
+              {client.phone && (
+                <p className="text-xs text-gray-600 flex items-center gap-1.5 font-mono">
+                  <Phone size={13} className="text-gray-400 shrink-0" />
+                  <span>{client.phone}</span>
+                </p>
+              )}
 
               {client.address && (
                 <p className="text-xs text-gray-500 flex items-start gap-1.5 pt-1">
@@ -373,7 +386,8 @@ export const ClientsPage = () => {
             className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
           />
 
-          <div className="relative w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl border border-gray-100 shadow-2xl overflow-hidden z-10 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+          <div className="relative w-full max-w-xl bg-white rounded-t-2xl sm:rounded-2xl border border-gray-100 shadow-2xl overflow-hidden z-10 max-h-[94vh] sm:max-h-[90vh] flex flex-col">
+            {/* Header */}
             <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/60">
               <div>
                 <h3 className="text-sm sm:text-base font-semibold text-gray-900 leading-tight">
@@ -391,6 +405,7 @@ export const ClientsPage = () => {
               </button>
             </div>
 
+            {/* Form */}
             <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
@@ -419,16 +434,76 @@ export const ClientsPage = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                  Dirección del Local / Punto de Recogida
-                </label>
-                <textarea
-                  placeholder="Ej. De la iglesia 2 cuadras al norte"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-gray-900 outline-none transition-colors h-20 resize-none"
-                />
+              {/* Selector de Modo de Ubicación (Manual vs Pin en Mapa) */}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Dirección / Punto de Recogida
+                  </label>
+                  <div className="flex items-center bg-gray-100 p-0.5 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setLocationMode('text')}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                        locationMode === 'text'
+                          ? 'bg-white text-gray-900 shadow-2xs'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <Keyboard size={13} />
+                      <span>Manual</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLocationMode('map')}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                        locationMode === 'map'
+                          ? 'bg-white text-gray-900 shadow-2xs'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <MapTrifold size={13} />
+                      <span>Pin en Mapa</span>
+                    </button>
+                  </div>
+                </div>
+
+                {locationMode === 'map' ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">
+                      Arrastrá el pin o buscá la dirección para fijar la ubicación exacta del local del cliente.
+                    </p>
+                    <PinPicker
+                      mapboxToken={(import.meta as any).env.VITE_MAPBOX_TOKEN}
+                      initialLat={latitude || 12.1328}
+                      initialLng={longitude || -86.2504}
+                      onConfirm={(lat, lng, addr) => {
+                        setLatitude(lat);
+                        setLongitude(lng);
+                        if (addr) setAddress(addr);
+                        toast.success('Ubicación fijada en el mapa');
+                      }}
+                    />
+                    {(latitude && longitude) || address ? (
+                      <div className="text-[11px] text-gray-600 bg-emerald-50/70 border border-emerald-100 rounded-lg p-2.5 flex items-center gap-2">
+                        <MapPin size={14} className="text-emerald-600 shrink-0" weight="fill" />
+                        <span className="truncate flex-1 font-medium">
+                          {address || `Coordenadas: ${latitude?.toFixed(5)}, ${longitude?.toFixed(5)}`}
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-semibold shrink-0 flex items-center gap-1">
+                          <Check size={12} weight="bold" /> Guardado
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <textarea
+                    placeholder="Ej. De la iglesia 2 cuadras al norte, frente al parque"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-gray-900 outline-none transition-colors h-20 resize-none"
+                  />
+                )}
               </div>
 
               <div className="flex items-center gap-2 pt-2">
@@ -437,13 +512,14 @@ export const ClientsPage = () => {
                   id="client-active"
                   checked={isActive}
                   onChange={(e) => setIsActive(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                  className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
                 />
                 <label htmlFor="client-active" className="text-xs font-medium text-gray-700 cursor-pointer">
                   Negocio activo (disponible en el selector de pedidos)
                 </label>
               </div>
 
+              {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
                 <button
                   type="button"

@@ -3,8 +3,17 @@ import { TrackingPage } from '../pages/TrackingPage';
 import { DeliveredPage } from '../pages/DeliveredPage';
 import { ExpiredPage } from '../pages/ExpiredPage';
 import { JoinInvitePage } from '../pages/JoinInvitePage';
+import { ConfirmLocationPage } from '../pages/ConfirmLocationPage';
 
 export const router = createBrowserRouter([
+  {
+    path: '/confirmar-ubicacion/:token',
+    element: <ConfirmLocationPage />,
+  },
+  {
+    path: '/confirm-location/:token',
+    element: <ConfirmLocationPage />,
+  },
   {
     path: '/join/:code',
     element: <JoinInvitePage />,

@@ -142,6 +142,7 @@ export interface OrderPhoto {
 }
 
 export interface CreateOrderDto {
+  customerId?: string;
   customerName: string;
   customerPhone: string;
   originBusinessName?: string;

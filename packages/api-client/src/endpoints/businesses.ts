@@ -15,6 +15,8 @@ export interface BusinessClient {
   name: string;
   phone?: string | null;
   address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   isActive: boolean;
   createdAt: string;
   _count?: {
@@ -26,6 +28,8 @@ export interface CreateBusinessClientDto {
   name: string;
   phone?: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
   isActive?: boolean;
 }
 
@@ -33,6 +37,8 @@ export interface UpdateBusinessClientDto {
   name?: string;
   phone?: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
   isActive?: boolean;
 }
 
@@ -103,12 +109,12 @@ export const updateMyBusiness = async (data: UpdateBusinessInput) => {
 // Business Clients (para EMPRESA_RIDERS)
 export const getBusinessClients = async (params?: { search?: string; isActive?: boolean }): Promise<BusinessClient[]> => {
   try {
-    const res = await apiClient.get('/business-clients', { params });
+    const res = await apiClient.get('/businesses/me/clients', { params });
     return Array.isArray(res.data) ? res.data : [];
   } catch (err: any) {
     if (err?.response?.status === 404) {
       try {
-        const res2 = await apiClient.get('/businesses/me/clients', { params });
+        const res2 = await apiClient.get('/business-clients', { params });
         return Array.isArray(res2.data) ? res2.data : [];
       } catch {
         return [];
@@ -120,11 +126,11 @@ export const getBusinessClients = async (params?: { search?: string; isActive?: 
 
 export const createBusinessClient = async (data: CreateBusinessClientDto): Promise<BusinessClient> => {
   try {
-    const res = await apiClient.post('/business-clients', data);
+    const res = await apiClient.post('/businesses/me/clients', data);
     return res.data;
   } catch (err: any) {
     if (err?.response?.status === 404) {
-      const res2 = await apiClient.post('/businesses/me/clients', data);
+      const res2 = await apiClient.post('/business-clients', data);
       return res2.data;
     }
     throw err;
@@ -133,11 +139,11 @@ export const createBusinessClient = async (data: CreateBusinessClientDto): Promi
 
 export const updateBusinessClient = async (id: string, data: UpdateBusinessClientDto): Promise<BusinessClient> => {
   try {
-    const res = await apiClient.patch(`/business-clients/${id}`, data);
+    const res = await apiClient.patch(`/businesses/me/clients/${id}`, data);
     return res.data;
   } catch (err: any) {
     if (err?.response?.status === 404) {
-      const res2 = await apiClient.patch(`/businesses/me/clients/${id}`, data);
+      const res2 = await apiClient.patch(`/business-clients/${id}`, data);
       return res2.data;
     }
     throw err;
@@ -146,11 +152,11 @@ export const updateBusinessClient = async (id: string, data: UpdateBusinessClien
 
 export const deleteBusinessClient = async (id: string): Promise<{ success: boolean }> => {
   try {
-    const res = await apiClient.delete(`/business-clients/${id}`);
+    const res = await apiClient.delete(`/businesses/me/clients/${id}`);
     return res.data || { success: true };
   } catch (err: any) {
     if (err?.response?.status === 404) {
-      const res2 = await apiClient.delete(`/businesses/me/clients/${id}`);
+      const res2 = await apiClient.delete(`/business-clients/${id}`);
       return res2.data || { success: true };
     }
     throw err;
