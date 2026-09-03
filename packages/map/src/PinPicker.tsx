@@ -24,7 +24,7 @@ export const PinPicker: React.FC<PinPickerProps> = ({
   onLocationChange,
   hideConfirmButton = false,
   onMapReady,
-  height = '420px',
+  height = '380px',
   flyToCoords,
   className = '',
 }) => {
@@ -65,7 +65,7 @@ export const PinPicker: React.FC<PinPickerProps> = ({
       onMapReady?.(map);
     });
 
-    // Múltiples resizes para evitar pantalla gris en montado condicional o flex
+    // Múltiples resizes para evitar canvas gris
     const timer1 = setTimeout(() => map.resize(), 100);
     const timer2 = setTimeout(() => map.resize(), 300);
     const timer3 = setTimeout(() => map.resize(), 600);
@@ -118,7 +118,7 @@ export const PinPicker: React.FC<PinPickerProps> = ({
     fetchReverseGeocode(flyToCoords.lng, flyToCoords.lat);
   }, [flyToCoords]);
 
-  // Notificar cambios de ubicación al padre
+  // Notificar cambios de ubicación al componente padre
   useEffect(() => {
     onLocationChange?.(currentLat, currentLng, currentAddress);
   }, [currentLat, currentLng, currentAddress, onLocationChange]);
@@ -178,19 +178,43 @@ export const PinPicker: React.FC<PinPickerProps> = ({
 
   return (
     <div
-      className={`relative w-full rounded-2xl overflow-hidden border border-gray-200/90 flex flex-col bg-gray-100 shadow-xs ${className}`}
-      style={{ height }}
+      className={`relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 shadow-xs flex flex-col ${className}`}
+      style={{ height, position: 'relative' }}
     >
-      {/* Search Bar Overlay */}
-      <div className="absolute top-3 left-3 right-3 z-20">
-        <div className="relative shadow-md rounded-xl">
+      {/* 1. MAP CANVAS (Sibling - NO react children inside to prevent Mapbox DOM overwrite) */}
+      <div
+        ref={mapContainer}
+        className="w-full h-full"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100%',
+          height: '100%',
+        }}
+      />
+
+      {/* 2. SEARCH BAR OVERLAY (Top) */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          left: '10px',
+          right: '10px',
+          zIndex: 40,
+        }}
+      >
+        <div className="relative shadow-md rounded-xl bg-white border border-gray-200/90 flex items-center">
           <MagnifyingGlass
             size={16}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+            className="text-gray-400 pointer-events-none shrink-0"
+            style={{ position: 'absolute', left: '12px' }}
           />
           <input
             type="text"
-            className="w-full bg-white border border-gray-200/80 rounded-xl pl-9 pr-8 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900/15 focus:border-gray-400 transition-all shadow-2xs"
+            className="w-full bg-transparent rounded-xl pl-9 pr-8 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900/15 transition-all"
             placeholder="Buscar calle, barrio o lugar..."
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
@@ -198,14 +222,18 @@ export const PinPicker: React.FC<PinPickerProps> = ({
           {isSearching && (
             <CircleNotch
               size={14}
-              className="animate-spin text-gray-400 absolute right-3 top-1/2 -translate-y-1/2"
+              className="animate-spin text-gray-400 shrink-0"
+              style={{ position: 'absolute', right: '12px' }}
             />
           )}
         </div>
 
         {/* Autocomplete Dropdown */}
         {searchResults.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-gray-100 rounded-xl shadow-xl max-h-52 overflow-y-auto z-30 divide-y divide-gray-50">
+          <div
+            className="mt-1.5 bg-white border border-gray-100 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-gray-50"
+            style={{ position: 'relative', zIndex: 50 }}
+          >
             {searchResults.map((res) => (
               <button
                 key={res.id}
@@ -224,38 +252,69 @@ export const PinPicker: React.FC<PinPickerProps> = ({
         )}
       </div>
 
-      {/* Map Container */}
+      {/* 3. PROMINENT FIXED CENTER PIN (Center of Map) */}
       <div
-        ref={mapContainer}
-        className="flex-1 w-full h-full relative"
-        style={{ minHeight: '260px' }}
+        className="pointer-events-none select-none flex flex-col items-center justify-center"
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -100%)',
+          zIndex: 35,
+        }}
       >
-        {/* Fixed Center Pin */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-10 pointer-events-none select-none">
-          <div className="relative flex flex-col items-center animate-bounce-subtle">
-            <div className="w-9 h-9 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg border-2 border-white ring-2 ring-red-500/20">
-              <MapPin size={20} weight="fill" />
-            </div>
-            {/* Pointer / ground dot */}
-            <div className="w-1.5 h-1.5 bg-red-700 rounded-full -mt-0.5 ring-2 ring-white" />
-            <div className="w-3.5 h-1 bg-black/25 rounded-full blur-[0.6px] mt-0.5" />
+        <div className="relative flex flex-col items-center">
+          {/* Tag tooltip */}
+          <div className="bg-gray-950/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-md mb-1 whitespace-nowrap tracking-wide flex items-center gap-1 border border-white/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
+            <span>Fijar acá</span>
+          </div>
+
+          {/* Large, high-visibility Pin Icon */}
+          <div className="relative">
+            <MapPin
+              size={46}
+              weight="fill"
+              className="text-rose-600 drop-shadow-[0_6px_10px_rgba(225,29,72,0.5)]"
+            />
+          </div>
+
+          {/* Ground anchor pulse dot right under the pin point */}
+          <div className="relative flex items-center justify-center -mt-1">
+            <span
+              className="w-4 h-4 rounded-full bg-rose-500/35 ring-2 ring-rose-500 animate-ping"
+              style={{ position: 'absolute' }}
+            />
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-600 border-2 border-white shadow-xs" />
           </div>
         </div>
       </div>
 
-      {/* Address Bar Pill (Inside Map) */}
-      <div className="absolute bottom-3 left-3 right-3 z-10 pointer-events-none">
-        <div className="bg-white/95 backdrop-blur-xs border border-gray-200/80 rounded-xl px-3 py-2 shadow-sm flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-          <p className="text-[11px] text-gray-700 truncate font-medium flex-1">
-            {isGeocoding ? 'Actualizando dirección...' : currentAddress}
+      {/* 4. ADDRESS BAR PILL (Bottom of Map) */}
+      <div
+        className="pointer-events-none"
+        style={{
+          position: 'absolute',
+          bottom: '10px',
+          left: '10px',
+          right: '10px',
+          zIndex: 30,
+        }}
+      >
+        <div className="bg-white/95 backdrop-blur-xs border border-gray-200/90 rounded-xl px-3.5 py-2 shadow-md flex items-center gap-2.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-100" />
+          <p className="text-[11px] text-gray-800 truncate font-semibold flex-1">
+            {isGeocoding ? 'Obteniendo dirección del mapa...' : currentAddress}
           </p>
         </div>
       </div>
 
-      {/* Bottom Action Bar (if not hidden) */}
+      {/* 5. BOTTOM ACTION BAR (if not hidden by parent) */}
       {!hideConfirmButton && (
-        <div className="bg-white border-t border-gray-100 p-3.5 shrink-0 z-10">
+        <div
+          className="bg-white border-t border-gray-100 p-3.5 shrink-0"
+          style={{ position: 'relative', zIndex: 30 }}
+        >
           <button
             type="button"
             onClick={() => onConfirm?.(currentLat, currentLng, currentAddress)}

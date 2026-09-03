@@ -443,7 +443,7 @@ export const ConfirmLocationPage = () => {
                 initialLat={defaultInitialLat}
                 initialLng={defaultInitialLng}
                 flyToCoords={gpsFlyToCoords}
-                height="350px"
+                height="360px"
                 hideConfirmButton={true}
                 onLocationChange={(lat, lng, address) => {
                   setPickerCoords({ lat, lng });
@@ -451,6 +451,21 @@ export const ConfirmLocationPage = () => {
                 }}
               />
             </div>
+
+            {/* Clear Selected Address Indicator below the map */}
+            {pickerAddress && (
+              <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 flex items-start gap-2.5 shadow-2xs">
+                <MapPin size={18} className="text-emerald-600 shrink-0 mt-0.5" weight="fill" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
+                    Punto de entrega fijado
+                  </p>
+                  <p className="text-xs font-semibold text-gray-900 leading-snug mt-0.5">
+                    {pickerAddress}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Reference field */}
             <div>
