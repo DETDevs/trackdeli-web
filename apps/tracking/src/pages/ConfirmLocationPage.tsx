@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getCustomerLocationSession,
   updateCustomerLocationByToken,
@@ -24,6 +24,7 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
 export const ConfirmLocationPage = () => {
   const { token = '' } = useParams<{ token: string }>();
+  const queryClient = useQueryClient();
 
   const [isLocating, setIsLocating] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -54,6 +55,12 @@ export const ConfirmLocationPage = () => {
   });
 
   const customer = session?.customer;
+  const isAlreadyResponded =
+    session?.sessionStatus === 'RESPONDED' ||
+    session?.status === 'RESPONDED' ||
+    Boolean(session?.respondedAt);
+
+  const shouldShowCompleted = isSuccess || isAlreadyResponded;
   const hasPreviousLocation = Boolean(customer?.lastLatitude && customer?.lastLongitude);
 
   const confirmMutation = useMutation({
@@ -66,6 +73,7 @@ export const ConfirmLocationPage = () => {
       updateCustomerLocationByToken(token, data, customer?.id),
     onSuccess: (_, variables) => {
       setIsSuccess(true);
+      queryClient.invalidateQueries({ queryKey: ['customer-location-session', token] });
       if (variables.latitude && variables.longitude) {
         setConfirmedCoords({
           lat: variables.latitude,
@@ -82,7 +90,7 @@ export const ConfirmLocationPage = () => {
     },
   });
 
-  // Render static/preview map when customer has previous location or after confirming
+  // Render static/preview map when customer has previous location, already responded, or after confirming
   const previewLat = confirmedCoords?.lat || (customer?.lastLatitude ? Number(customer.lastLatitude) : null);
   const previewLng = confirmedCoords?.lng || (customer?.lastLongitude ? Number(customer.lastLongitude) : null);
 
@@ -115,7 +123,7 @@ export const ConfirmLocationPage = () => {
         previewMarker.current.setLngLat([previewLng, previewLat]);
       }
     }
-  }, [previewLat, previewLng, isSuccess, showManualPicker]);
+  }, [previewLat, previewLng, shouldShowCompleted, showManualPicker]);
 
   // Handle GPS Request
   const handleRequestGPS = () => {
@@ -284,8 +292,8 @@ export const ConfirmLocationPage = () => {
 
       {/* Main Container */}
       <main className="max-w-md mx-auto w-full py-4 space-y-4 my-auto">
-        {/* SUCCESS STATE */}
-        {isSuccess ? (
+        {/* SUCCESS / ALREADY RESPONDED STATE */}
+        {shouldShowCompleted ? (
           <div className="bg-white border border-gray-100 rounded-2xl p-6 sm:p-8 shadow-xs text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
               <CheckCircle size={32} weight="fill" />
@@ -297,10 +305,14 @@ export const ConfirmLocationPage = () => {
                 Ubicación confirmada
               </span>
               <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-                ¡Listo! Ubicación guardada
+                {isAlreadyResponded && !isSuccess
+                  ? '¡Ya confirmaste tu ubicación!'
+                  : '¡Listo! Ubicación guardada'}
               </h2>
               <p className="text-xs text-gray-500 leading-relaxed max-w-xs mx-auto">
-                Tu repartidor se dirigirá exactamente a esta dirección para entregar tu pedido.
+                {isAlreadyResponded && !isSuccess
+                  ? 'Tu ubicación de entrega ya fue guardada con éxito para este pedido. ¡Muchas gracias!'
+                  : 'Tu repartidor se dirigirá exactamente a esta dirección para entregar tu pedido.'}
               </p>
             </div>
 
@@ -308,10 +320,10 @@ export const ConfirmLocationPage = () => {
             {previewLat && previewLng && (
               <div className="rounded-xl overflow-hidden border border-gray-100 shadow-inner bg-gray-50 space-y-2">
                 <div ref={previewMapContainer} className="w-full h-44 rounded-xl" />
-                {confirmedCoords?.address && (
+                {(confirmedCoords?.address || customer?.lastAddressText) && (
                   <p className="text-[11px] text-gray-600 px-3 pb-2 flex items-start justify-center gap-1.5 text-center">
                     <MapPin size={13} className="text-emerald-600 shrink-0 mt-0.5" weight="fill" />
-                    <span className="truncate max-w-xs">{confirmedCoords.address}</span>
+                    <span className="truncate max-w-xs">{confirmedCoords?.address || customer?.lastAddressText}</span>
                   </p>
                 )}
               </div>

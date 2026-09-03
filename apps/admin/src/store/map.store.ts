@@ -9,6 +9,8 @@ export interface Repartidor {
   customerName: string;
   status: string;
   lastUpdated: number;
+  destinationType?: 'to_business' | 'to_customer';
+  vehicleType?: string;
 }
 
 interface MapState {

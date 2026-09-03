@@ -25,6 +25,9 @@ export interface CustomerLocationSession {
   customerId: string;
   token: string;
   isActive: boolean;
+  status: 'PENDING' | 'RESPONDED' | string;
+  sessionStatus: 'PENDING' | 'RESPONDED' | string;
+  respondedAt?: string | null;
   expiresAt: string;
   customer: Customer;
 }
@@ -171,11 +174,18 @@ export const getCustomerLocationSession = async (token: string): Promise<Custome
     business: data.business,
   };
 
+  const rawStatus = data.sessionStatus || data.status || data.session?.status;
+  const isResponded = rawStatus === 'RESPONDED' || Boolean(data.respondedAt || data.session?.respondedAt);
+  const sessionStatus = isResponded ? 'RESPONDED' : (rawStatus || 'PENDING');
+
   return {
     id: data.id || data.customerId || customer.id,
     customerId: customer.id || data.customerId,
     token: data.token || token,
     isActive: data.isActive !== undefined ? data.isActive : true,
+    status: sessionStatus,
+    sessionStatus,
+    respondedAt: data.respondedAt || data.session?.respondedAt || null,
     expiresAt: data.expiresAt || new Date(Date.now() + 86400000).toISOString(),
     customer,
   };

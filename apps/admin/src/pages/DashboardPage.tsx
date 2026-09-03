@@ -154,22 +154,36 @@ export const DashboardPage = () => {
     };
   }, [socket, activeOrderIds]);
 
+  const [riderFilter, setRiderFilter] = useState<'ALL' | 'TO_BUSINESS' | 'TO_CUSTOMER'>('ALL');
+
   const { repartidoresActivos } = useMapStore();
   
   const now = Date.now();
-  const enrichedRepartidores = repartidoresActivos
-    .filter(rep => (now - rep.lastUpdated) < 60000)
-    .map(rep => {
-      const order = orders.find(o => o.id === rep.orderId);
-      if (order) {
+  const enrichedRepartidores = useMemo(() => {
+    return repartidoresActivos
+      .filter(rep => (now - rep.lastUpdated) < 60000)
+      .map(rep => {
+        const order = orders.find(o => o.id === rep.orderId);
+        const orderStatus = order?.status || rep.status;
+        const isToBusiness = ['ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO'].includes(orderStatus);
         return {
           ...rep,
-          name: order.deliveryUser?.name || rep.name,
-          customerName: order.customerName || rep.customerName,
+          name: order?.deliveryUser?.name || rep.name,
+          customerName: order?.customerName || rep.customerName,
+          status: orderStatus,
+          destinationType: (isToBusiness ? 'to_business' : 'to_customer') as 'to_business' | 'to_customer',
+          vehicleType: (order?.deliveryUser as any)?.vehicleType || rep.vehicleType || 'MOTO',
         };
-      }
-      return rep;
-    });
+      });
+  }, [repartidoresActivos, orders]);
+
+  const toBusinessOrdersCount = useMemo(() => {
+    return orders.filter(o => ['ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO'].includes(o.status)).length;
+  }, [orders]);
+
+  const toCustomerOrdersCount = useMemo(() => {
+    return orders.filter(o => ['EN_CAMINO', 'CERCA_DEL_DESTINO', 'VERIFICANDO_ENTREGA'].includes(o.status)).length;
+  }, [orders]);
 
   const activeOrdersForMap = useMemo(() => {
     return orders
@@ -177,14 +191,36 @@ export const DashboardPage = () => {
         ['ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'EN_CAMINO', 'CERCA_DEL_DESTINO'].includes(o.status) && 
         o.destinationLat && o.destinationLng
       )
-      .map(o => ({
-        id: o.id,
-        status: o.status,
-        customerName: o.customerName,
-        destinationLat: ((o.status as string) === 'EN_CAMINO_AL_NEGOCIO' || (o.status as string) === 'EN_EL_NEGOCIO' || (o.status as string) === 'ACEPTADO') ? Number(business?.latitude ?? o.destinationLat) : Number(o.destinationLat),
-        destinationLng: ((o.status as string) === 'EN_CAMINO_AL_NEGOCIO' || (o.status as string) === 'EN_EL_NEGOCIO' || (o.status as string) === 'ACEPTADO') ? Number(business?.longitude ?? o.destinationLng) : Number(o.destinationLng),
-      }));
+      .map(o => {
+        const isToBusiness = ['ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO'].includes(o.status);
+        return {
+          id: o.id,
+          status: o.status,
+          customerName: o.customerName,
+          destinationType: (isToBusiness ? 'to_business' : 'to_customer') as 'to_business' | 'to_customer',
+          destinationLat: isToBusiness ? Number(business?.latitude ?? o.destinationLat) : Number(o.destinationLat),
+          destinationLng: isToBusiness ? Number(business?.longitude ?? o.destinationLng) : Number(o.destinationLng),
+        };
+      });
   }, [orders, business]);
+
+  const filteredRepartidores = useMemo(() => {
+    if (riderFilter === 'TO_BUSINESS') {
+      return enrichedRepartidores.filter(r => r.destinationType === 'to_business');
+    }
+    if (riderFilter === 'TO_CUSTOMER') {
+      return enrichedRepartidores.filter(r => r.destinationType === 'to_customer');
+    }
+    return enrichedRepartidores;
+  }, [enrichedRepartidores, riderFilter]);
+
+  const filteredOrdersForMap = useMemo(() => {
+    return activeOrdersForMap.filter(o => {
+      if (riderFilter === 'TO_BUSINESS') return o.destinationType === 'to_business';
+      if (riderFilter === 'TO_CUSTOMER') return o.destinationType === 'to_customer';
+      return true;
+    });
+  }, [activeOrdersForMap, riderFilter]);
 
   return (
     <div className="space-y-6">
@@ -251,16 +287,63 @@ export const DashboardPage = () => {
       </div>
 
       {/* Map Live */}
-      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-        <div className="px-4 lg:px-5 py-3.5 lg:py-4 border-b border-gray-100">
-          <h3 className="text-sm font-medium text-gray-900">Repartidores activos</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {enrichedRepartidores.length} en tiempo real
-          </p>
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-2xs">
+        <div className="px-4 lg:px-5 py-3.5 lg:py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-gray-900">Repartidores y Rutas en Vivo</h3>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {enrichedRepartidores.length} repartidor{enrichedRepartidores.length === 1 ? '' : 'es'} transmitiendo GPS · {enCamino} pedido{enCamino === 1 ? '' : 's'} en curso
+            </p>
+          </div>
+
+          {/* Filter Tabs */}
+          <div className="flex items-center gap-1.5 bg-gray-50/90 p-1 rounded-xl border border-gray-100 text-xs self-start sm:self-auto">
+            <button
+              onClick={() => setRiderFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                riderFilter === 'ALL'
+                  ? 'bg-white text-gray-900 shadow-2xs font-semibold'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Todos ({enCamino})
+            </button>
+            <button
+              onClick={() => setRiderFilter('TO_BUSINESS')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                riderFilter === 'TO_BUSINESS'
+                  ? 'bg-sky-50 text-sky-700 border border-sky-200/60 shadow-2xs font-semibold'
+                  : 'text-gray-500 hover:text-sky-600'
+              }`}
+              title="Riders y pedidos en camino al negocio a recoger"
+            >
+              <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+              Hacia negocio ({toBusinessOrdersCount})
+            </button>
+            <button
+              onClick={() => setRiderFilter('TO_CUSTOMER')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                riderFilter === 'TO_CUSTOMER'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 shadow-2xs font-semibold'
+                  : 'text-gray-500 hover:text-emerald-600'
+              }`}
+              title="Riders y pedidos en camino al cliente a entregar"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              Hacia cliente ({toCustomerOrdersCount})
+            </button>
+          </div>
         </div>
+
         <LiveMap 
-          repartidores={enrichedRepartidores} 
-          activeOrders={activeOrdersForMap}
+          repartidores={filteredRepartidores} 
+          activeOrders={filteredOrdersForMap}
           businessLocation={business?.latitude && business?.longitude ? { lat: business.latitude, lng: business.longitude } : undefined}
           businessName={business?.name}
           focusedOrderId={focusedOrderId}
