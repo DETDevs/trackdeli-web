@@ -152,7 +152,7 @@ export const CreateOrderPage = () => {
             destinationAddress: data.addressText || prev.destinationAddress,
           }));
         }
-        toast.success('¡El cliente confirmó su ubicación en tiempo real! ✅', { duration: 4500 });
+        toast.success('Ubicación confirmada por el cliente');
       }
     };
 
@@ -185,7 +185,7 @@ export const CreateOrderPage = () => {
             destinationAddress: data.addressText || prev.destinationAddress,
           }));
         }
-        toast.success('📍 Ubicación actualizada por el cliente en tiempo real', { duration: 4500 });
+        toast.success('Ubicación actualizada por el cliente');
       }
     };
 
@@ -248,7 +248,7 @@ export const CreateOrderPage = () => {
   const handleShareLocationConfirmation = async () => {
     const phoneTrimmed = form.customerPhone.trim();
     if (!phoneTrimmed) {
-      toast.error('Por favor ingresa primero el WhatsApp del cliente');
+      toast.error('Ingresá el WhatsApp del cliente');
       return;
     }
 
@@ -285,9 +285,9 @@ export const CreateOrderPage = () => {
 
       window.open(waUrl, '_blank');
       setWaitingSocket(true);
-      toast.success('Enlace de ubicación generado y abierto en WhatsApp');
+      toast.success('Enlace abierto en WhatsApp');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Error al generar enlace de confirmación');
+      toast.error(err?.response?.data?.message || 'Error al generar enlace');
     } finally {
       setIsGeneratingLink(false);
     }
@@ -444,14 +444,14 @@ export const CreateOrderPage = () => {
   const { mutate, isPending } = useMutation({
     mutationFn: createOrder,
     onSuccess: () => {
-      toast.success('Pedido creado exitosamente');
+      toast.success('Pedido creado');
       navigate('/orders');
     },
     onError: (err: unknown) => {
       const errorObj = err as { response?: { status?: number; data?: { message?: string } } };
       const msg = errorObj?.response?.data?.message;
       if (errorObj?.response?.status === 402) {
-        toast.error(msg || 'Tu membresía está vencida o requiere pago para crear pedidos.', { duration: 5000 });
+        toast.error(msg || 'Membresía inactiva para crear pedidos');
         setFormError(msg || 'Tu membresía está vencida o requiere pago para crear pedidos. Contacta al soporte para renovarla.');
       } else {
         setFormError(msg ?? 'Ocurrió un error al crear el pedido.');
@@ -472,24 +472,24 @@ export const CreateOrderPage = () => {
 
     const nameStr = form.customerName.trim();
     if (!nameStr) {
-      toast.error('El nombre del cliente es requerido.');
+      toast.error('El nombre del cliente es requerido');
       return setFormError('El nombre del cliente es requerido.');
     }
 
     const phoneDigits = form.customerPhone.trim().replace(/\D/g, '');
     if (phoneDigits.length !== 8) {
-      toast.error('Número de WhatsApp inválido. Debe tener exactamente 8 dígitos.');
+      toast.error('WhatsApp debe tener 8 dígitos');
       return setFormError('Número de WhatsApp inválido. Debe tener exactamente 8 dígitos.');
     }
 
     const addressStr = form.destinationAddress.trim();
     if (!addressStr) {
-      toast.error('La dirección de entrega es requerida.');
+      toast.error('Dirección de entrega requerida');
       return setFormError('La dirección de entrega es requerida.');
     }
 
     if (business?.businessType === 'EMPRESA_RIDERS' && !originBusinessClientId && !originBusinessName.trim()) {
-      toast.error('Debes seleccionar o ingresar el negocio de origen.');
+      toast.error('Negocio de origen requerido');
       return setFormError('Debes indicar el negocio de origen.');
     }
 

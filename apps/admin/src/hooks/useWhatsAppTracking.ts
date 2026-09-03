@@ -36,7 +36,7 @@ export function useWhatsAppTracking() {
 
   const sendTrackingLink = (order: TrackableOrder) => {
     if (!order.trackingToken) {
-      toast.error('El link de tracking aún no está disponible. El repartidor debe tomar el pedido primero.');
+      toast.error('Tracking aún no disponible');
       return;
     }
 
@@ -62,12 +62,12 @@ export function useWhatsAppTracking() {
 
   const copyTrackingLink = (order: TrackableOrder) => {
     if (!order.trackingToken) {
-      toast.error('El link de tracking aún no está disponible.');
+      toast.error('Tracking aún no disponible');
       return;
     }
     const url = getTrackingUrl(order.trackingToken);
     navigator.clipboard.writeText(url);
-    toast.success('Link copiado al portapapeles');
+    toast.success('Link copiado');
   };
 
   return {

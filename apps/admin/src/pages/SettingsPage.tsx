@@ -211,13 +211,13 @@ export const SettingsPage = () => {
   const locationMutation = useMutation({
     mutationFn: updateMyBusiness,
     onSuccess: () => {
-      toast.success('Ubicación del negocio guardada exitosamente');
+      toast.success('Ubicación guardada');
       queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message;
       if (err?.response?.status === 402) {
-        toast.error(msg || 'Tu membresía está inactiva o requiere pago para actualizar la ubicación.', { duration: 5000 });
+        toast.error(msg || 'Membresía inactiva para actualizar ubicación');
       } else {
         toast.error(msg || 'Error al guardar la ubicación');
       }
@@ -228,13 +228,13 @@ export const SettingsPage = () => {
   const whatsappMutation = useMutation({
     mutationFn: updateMyBusiness,
     onSuccess: () => {
-      toast.success('Número de WhatsApp guardado exitosamente');
+      toast.success('WhatsApp guardado');
       queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message;
       if (err?.response?.status === 402) {
-        toast.error(msg || 'Tu membresía está inactiva o requiere pago para guardar WhatsApp.', { duration: 5000 });
+        toast.error(msg || 'Membresía inactiva para guardar WhatsApp');
       } else {
         toast.error(msg || 'Error al guardar el número de WhatsApp');
       }
@@ -245,13 +245,13 @@ export const SettingsPage = () => {
   const pricingMutation = useMutation({
     mutationFn: updateMyBusiness,
     onSuccess: () => {
-      toast.success('Configuración de precios guardada exitosamente');
+      toast.success('Tarifas guardadas');
       queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message;
       if (err?.response?.status === 402) {
-        toast.error(msg || 'Tu membresía está inactiva o requiere pago para guardar tarifas.', { duration: 5000 });
+        toast.error(msg || 'Membresía inactiva para guardar tarifas');
       } else {
         toast.error(msg || 'Error al guardar la configuración de precios');
       }
