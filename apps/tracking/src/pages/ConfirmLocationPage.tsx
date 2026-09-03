@@ -11,7 +11,6 @@ import {
   NavigationArrow,
   CircleNotch,
   WarningCircle,
-  MapTrifold,
   Storefront,
   ArrowsClockwise,
   Check,
@@ -125,11 +124,26 @@ export const ConfirmLocationPage = () => {
     }
   }, [previewLat, previewLng, shouldShowCompleted, showManualPicker]);
 
+  const [pickerCoords, setPickerCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [pickerAddress, setPickerAddress] = useState<string>('');
+  const [gpsFlyToCoords, setGpsFlyToCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  const defaultInitialLat = customer?.lastLatitude
+    ? Number(customer.lastLatitude)
+    : (customer?.business as any)?.latitude
+    ? Number((customer?.business as any).latitude)
+    : 12.1328;
+
+  const defaultInitialLng = customer?.lastLongitude
+    ? Number(customer.lastLongitude)
+    : (customer?.business as any)?.longitude
+    ? Number((customer?.business as any).longitude)
+    : -86.2504;
+
   // Handle GPS Request
   const handleRequestGPS = () => {
     if (!navigator.geolocation) {
-      setGeoError('Tu navegador no soporta geolocalización GPS.');
-      setShowManualPicker(true);
+      setGeoError('Tu dispositivo o navegador no soporta geolocalización GPS.');
       return;
     }
 
@@ -137,49 +151,30 @@ export const ConfirmLocationPage = () => {
     setGeoError(null);
 
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+      (pos) => {
         setIsLocating(false);
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-
-        let detectedAddress = '';
-        if (MAPBOX_TOKEN) {
-          try {
-            const res = await fetch(
-              `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}`
-            );
-            const data = await res.json();
-            if (data.features && data.features.length > 0) {
-              detectedAddress = data.features[0].place_name;
-            }
-          } catch {
-            // Ignorar error de geocodificación inversa
-          }
-        }
-
-        confirmMutation.mutate({
-          latitude: lat,
-          longitude: lng,
-          addressText: detectedAddress || undefined,
-        });
+        setGpsFlyToCoords({ lat, lng });
+        setPickerCoords({ lat, lng });
       },
       (err) => {
         setIsLocating(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          setGeoError(
-            'Permiso de ubicación denegado. No te preocupes, podés elegir tu ubicación en el mapa.'
-          );
-        } else {
-          setGeoError(
-            'No pudimos obtener tu señal GPS en este momento. Por favor seleccioná tu ubicación en el mapa.'
-          );
+        console.warn('Geolocation error:', err);
+        let msg = 'No se pudo obtener tu ubicación GPS automáticamente.';
+        if (err.code === 1) {
+          msg = 'Permiso de ubicación no concedido. Podés arrastrar el mapa o buscar tu dirección.';
+        } else if (err.code === 2) {
+          msg = 'Señal GPS no disponible. Podés mover el pin en el mapa.';
+        } else if (err.code === 3) {
+          msg = 'Tiempo de espera agotado al obtener GPS. Fijá tu ubicación en el mapa.';
         }
-        setShowManualPicker(true);
+        setGeoError(msg);
       },
       {
         enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 0,
+        timeout: 10000,
+        maximumAge: 30000,
       }
     );
   };
@@ -195,12 +190,18 @@ export const ConfirmLocationPage = () => {
     });
   };
 
-  // Handle Manual Pin Confirm
-  const handleManualMapConfirm = (lat: number, lng: number, address: string) => {
+  // Handle Confirm Location from PinPicker
+  const handleConfirmLocation = () => {
+    const lat = pickerCoords?.lat ?? defaultInitialLat;
+    const lng = pickerCoords?.lng ?? defaultInitialLng;
+    const finalAddress = manualAddress?.trim()
+      ? (pickerAddress ? `${pickerAddress} (${manualAddress.trim()})` : manualAddress.trim())
+      : (pickerAddress || customer?.lastAddressText || 'Ubicación confirmada');
+
     confirmMutation.mutate({
       latitude: lat,
       longitude: lng,
-      addressText: address || manualAddress || undefined,
+      addressText: finalAddress,
     });
   };
 
@@ -375,7 +376,10 @@ export const ConfirmLocationPage = () => {
               </button>
 
               <button
-                onClick={handleRequestGPS}
+                onClick={() => {
+                  setShowManualPicker(true);
+                  handleRequestGPS();
+                }}
                 disabled={isLocating || confirmMutation.isPending}
                 className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium text-xs sm:text-sm rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
@@ -396,18 +400,32 @@ export const ConfirmLocationPage = () => {
             )}
           </div>
         ) : (
-          /* CASO A / FALLBACK MANUAL: Cliente nuevo o sin ubicación guardada */
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
-            <div className="text-center space-y-1.5">
-              <div className="w-12 h-12 rounded-2xl bg-gray-900 text-white flex items-center justify-center mx-auto shadow-xs">
-                <MapPin size={24} weight="bold" />
+          /* CASO A / MAP PICKER: Cliente nuevo o actualización de ubicación */
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+            {/* Header with Title and "Usar GPS" Button */}
+            <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-gray-900 tracking-tight">
+                  Confirmá tu ubicación
+                </h2>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Arrastrá el mapa o buscá tu dirección para fijar el pin exacto
+                </p>
               </div>
-              <h2 className="text-lg font-bold text-gray-900 tracking-tight">
-                Confirmá tu ubicación
-              </h2>
-              <p className="text-xs text-gray-500 leading-relaxed max-w-xs mx-auto">
-                <span className="font-medium text-gray-800">¡Hola {customer.name}!</span> Compartí tu ubicación para que el repartidor llegue directo a tu puerta sin perderse.
-              </p>
+
+              <button
+                type="button"
+                onClick={handleRequestGPS}
+                disabled={isLocating}
+                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95 shrink-0 cursor-pointer disabled:opacity-60"
+              >
+                {isLocating ? (
+                  <CircleNotch size={14} className="animate-spin text-emerald-600" />
+                ) : (
+                  <NavigationArrow size={14} weight="fill" className="text-emerald-600" />
+                )}
+                <span>{isLocating ? 'Obteniendo GPS...' : 'Usar GPS'}</span>
+              </button>
             </div>
 
             {/* Error banner if GPS failed */}
@@ -418,82 +436,55 @@ export const ConfirmLocationPage = () => {
               </div>
             )}
 
-            {/* MANUAL MAP PICKER FALLBACK */}
-            {showManualPicker ? (
-              <div className="space-y-3 pt-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
-                    <MapTrifold size={14} />
-                    <span>Elegir punto en el mapa</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleRequestGPS}
-                    disabled={isLocating}
-                    className="text-xs text-emerald-700 font-medium hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <NavigationArrow size={12} weight="fill" />
-                    <span>Usar GPS</span>
-                  </button>
-                </div>
+            {/* Interactive Mapbox PinPicker */}
+            <div className="w-full">
+              <PinPicker
+                mapboxToken={MAPBOX_TOKEN}
+                initialLat={defaultInitialLat}
+                initialLng={defaultInitialLng}
+                flyToCoords={gpsFlyToCoords}
+                height="350px"
+                hideConfirmButton={true}
+                onLocationChange={(lat, lng, address) => {
+                  setPickerCoords({ lat, lng });
+                  setPickerAddress(address);
+                }}
+              />
+            </div>
 
-                <p className="text-xs text-gray-500">
-                  Arrastrá el mapa o buscá tu dirección para fijar el pin exacto de tu casa.
-                </p>
+            {/* Reference field */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1">
+                Referencia o punto de entrega (opcional)
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. Casa verde con portón negro, timbre blanco"
+                value={manualAddress}
+                onChange={(e) => setManualAddress(e.target.value)}
+                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 outline-none transition-all"
+              />
+            </div>
 
-                <div className="rounded-xl overflow-hidden border border-gray-200">
-                  <PinPicker
-                    mapboxToken={MAPBOX_TOKEN}
-                    initialLat={customer.lastLatitude ? Number(customer.lastLatitude) : 12.1328}
-                    initialLng={customer.lastLongitude ? Number(customer.lastLongitude) : -86.2504}
-                    onConfirm={handleManualMapConfirm}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-500 mb-1">
-                    Referencia o punto de entrega (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. Casa verde con portón negro"
-                    value={manualAddress}
-                    onChange={(e) => setManualAddress(e.target.value)}
-                    className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs focus:border-gray-900 outline-none"
-                  />
-                </div>
-              </div>
-            ) : (
-              /* PRIMARY GPS BUTTON FLOW */
-              <div className="space-y-3 pt-2">
-                <button
-                  onClick={handleRequestGPS}
-                  disabled={isLocating || confirmMutation.isPending}
-                  className="w-full py-4 px-4 bg-gray-900 hover:bg-gray-800 active:scale-[0.99] text-white font-semibold text-sm rounded-xl transition-all flex items-center justify-center gap-2.5 shadow-sm cursor-pointer disabled:opacity-60"
-                >
-                  {isLocating || confirmMutation.isPending ? (
-                    <>
-                      <CircleNotch size={18} className="animate-spin text-white" />
-                      <span>Obteniendo ubicación GPS...</span>
-                    </>
-                  ) : (
-                    <>
-                      <NavigationArrow size={18} weight="fill" className="text-emerald-400" />
-                      <span>Compartir mi ubicación actual</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowManualPicker(true)}
-                  className="w-full py-2.5 text-xs font-medium text-gray-500 hover:text-gray-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <MapTrifold size={14} />
-                  <span>¿Preferís elegir en el mapa? Tocá acá</span>
-                </button>
-              </div>
-            )}
+            {/* Fixed Confirm Button Below the Map */}
+            <button
+              type="button"
+              onClick={handleConfirmLocation}
+              disabled={confirmMutation.isPending}
+              className="w-full py-3.5 px-4 bg-gray-900 hover:bg-gray-800 active:scale-[0.99] text-white font-semibold text-sm rounded-xl transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-60"
+            >
+              {confirmMutation.isPending ? (
+                <>
+                  <CircleNotch size={18} className="animate-spin text-white" />
+                  <span>Guardando ubicación...</span>
+                </>
+              ) : (
+                <>
+                  <Check size={18} weight="bold" />
+                  <span>Confirmar ubicación</span>
+                </>
+              )}
+            </button>
           </div>
         )}
       </main>

@@ -17,6 +17,8 @@ export interface Customer {
     logoUrl?: string | null;
     whatsappNumber?: string | null;
     whatsappDisplay?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
   };
 }
 
