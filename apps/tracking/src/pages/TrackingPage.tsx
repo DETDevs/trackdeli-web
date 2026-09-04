@@ -276,15 +276,20 @@ export const TrackingPage = () => {
   }, [error, navigate]);
 
   useEffect(() => {
-    if (data?.lastPosition && !repartidorPosition) {
+    if (data?.lastPosition) {
       const lat = data.lastPosition.lat ?? (data.lastPosition as any).latitude;
       const lng = data.lastPosition.lng ?? (data.lastPosition as any).longitude;
       if (lat && lng) {
         setRepartidorPosition({ lat, lng });
-        setLastLocationTime(Date.now());
+        const posTime = data.lastPosition.timestamp
+          ? new Date(data.lastPosition.timestamp).getTime()
+          : Date.now();
+        if (!lastLocationTime || posTime >= lastLocationTime) {
+          setLastLocationTime(posTime);
+        }
       }
     }
-  }, [data?.lastPosition, repartidorPosition]);
+  }, [data?.lastPosition]);
 
   useEffect(() => {
     if (

@@ -105,6 +105,7 @@ export function calculateHeading(
 export function updateRiderMarkerHeading(markerElement: HTMLElement, heading: number) {
   const circle = markerElement.querySelector('.marker-rider__circle') as HTMLElement | null;
   if (circle) {
+    circle.style.transition = 'none';
     circle.style.transform = `rotate(${heading}deg)`;
   }
 }
