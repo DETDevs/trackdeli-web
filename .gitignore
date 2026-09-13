@@ -145,3 +145,6 @@ dist
 *secret*.json
 firebase-credentials*.json
 google-credentials*.json
+
+# Scripts y utilidades locales
+scripts/
