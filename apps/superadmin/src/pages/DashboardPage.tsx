@@ -32,7 +32,6 @@ export const DashboardPage = () => {
       />
 
       <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
-        {/* 1. StatCards Fila Superior */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           <StatCard
             title="Negocios Activos"
@@ -60,7 +59,6 @@ export const DashboardPage = () => {
           />
         </div>
 
-        {/* 2. Sección de Alertas: Membresías por Vencer */}
         <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -132,9 +130,7 @@ export const DashboardPage = () => {
           )}
         </div>
 
-        {/* 3. Gráfico de Órdenes & Resumen Hoy */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Chart 30 Días */}
           <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -163,7 +159,6 @@ export const DashboardPage = () => {
             )}
           </div>
 
-          {/* Resumen 30 días & Hoy */}
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs flex flex-col justify-between space-y-6">
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-1">
@@ -217,9 +212,7 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* 4. Top Rankings: Negocios y Repartidores */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Top Negocios */}
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -266,7 +259,6 @@ export const DashboardPage = () => {
             </div>
           </div>
 
-          {/* Top Repartidores */}
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -315,7 +307,6 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* 5. Actividad Reciente Rápida */}
         <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>

@@ -43,11 +43,9 @@ export const MapboxRidersMap = ({
     };
   }, []);
 
-  // Update markers when riders change
   useEffect(() => {
     if (!map.current) return;
 
-    // Clear existing markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 

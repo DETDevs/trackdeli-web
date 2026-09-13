@@ -84,9 +84,6 @@ export function createDestinationMarker({
   return el;
 }
 
-/**
- * Calcular heading (ángulo de rotación en grados de 0 a 360) entre dos posiciones
- */
 export function calculateHeading(
   prevLng: number,
   prevLat: number,
@@ -99,9 +96,6 @@ export function calculateHeading(
   return (angle + 360) % 360;
 }
 
-/**
- * Aplica rotación a la moto/vehículo del marcador de repartidor
- */
 export function updateRiderMarkerHeading(markerElement: HTMLElement, heading: number) {
   const circle = markerElement.querySelector('.marker-rider__circle') as HTMLElement | null;
   if (circle) {

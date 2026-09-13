@@ -149,7 +149,6 @@ export const TrackingPage = () => {
   const [lastLocationTime, setLastLocationTime] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
 
-  // Timer para verificar si el tracking sigue activo (últimos 60s)
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(Date.now());
@@ -157,7 +156,6 @@ export const TrackingPage = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Rating state con persistencia local
   const [rating, setRating] = useState<number>(() => {
     if (typeof window !== "undefined" && token) {
       const saved = localStorage.getItem(`trackdeli_rating_${token}`);
@@ -184,13 +182,12 @@ export const TrackingPage = () => {
       if (!status || status === "ENTREGADO" || status === "CERRADO" || status === "CANCELADO") {
         return false;
       }
-      return 3000; // Polling rápido de respaldo a 3s durante entregas activas
+      return 3000;
     },
     refetchIntervalInBackground: true,
     retry: 2,
   });
 
-  // Sincronizar calificación si el backend ya la tiene guardada
   useEffect(() => {
     if (!data) return;
     const backendRating =
@@ -213,7 +210,6 @@ export const TrackingPage = () => {
 
   const rateMutation = useMutation({
     mutationFn: async (score: number) => {
-      // Guardar inmediatamente en localStorage para preservar en refresh
       if (token) {
         localStorage.setItem(`trackdeli_rating_${token}`, score.toString());
       }
@@ -255,7 +251,6 @@ export const TrackingPage = () => {
       });
     },
     onError: (_, score) => {
-      // Aunque falle temporalmente la API, mantenemos el score visual en el cliente
       setRating(score);
       setRatingSubmitted(true);
       toast.success("¡Gracias por tu calificación!", {
@@ -321,7 +316,6 @@ export const TrackingPage = () => {
     const handleStatusUpdate = (statusData?: { status?: string; order?: any }) => {
       const newStatus = statusData?.status || statusData?.order?.status;
       if (newStatus) {
-        // Actualización instantánea (0ms) en la interfaz antes de esperar la petición HTTP
         queryClient.setQueryData(["tracking", token], (old: any) => {
           if (!old) return old;
           return {
@@ -336,7 +330,6 @@ export const TrackingPage = () => {
         }
       }
 
-      // Revalidar en segundo plano para obtener fotos y datos completos
       queryClient.invalidateQueries({ queryKey: ["tracking", token] });
       queryClient.refetchQueries({ queryKey: ["tracking", token] });
     };
@@ -416,7 +409,6 @@ export const TrackingPage = () => {
   return (
     <div className="min-h-screen bg-[#F0F2F5] flex flex-col items-center">
       <div className="w-full max-w-[430px] bg-white min-h-screen shadow-lg relative flex flex-col font-sans">
-        {/* HEADER FLOTANTE */}
         <div className="absolute top-0 left-0 w-full z-20 px-4 pt-6 pb-4 bg-gradient-to-b from-black/20 to-transparent pointer-events-none">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-3 bg-white/95 backdrop-blur-md px-3 py-2.5 rounded-xl shadow-sm border border-white/20 w-fit pointer-events-auto">
@@ -451,7 +443,6 @@ export const TrackingPage = () => {
           </div>
         </div>
 
-        {/* MAPA (65vh) */}
         <div className="w-full h-[65vh] bg-gray-100 relative shrink-0">
           {data?.destinationLat && data?.destinationLng ? (
             <TrackingMap
@@ -481,15 +472,12 @@ export const TrackingPage = () => {
           )}
         </div>
 
-        {/* BOTTOM SHEET */}
         <div className="relative z-20 -mt-6 bg-white rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.06)] flex-1 flex flex-col">
-          {/* Handle bar */}
           <div className="w-full flex justify-center pt-3 pb-4">
             <div className="w-12 h-1.5 bg-gray-200 rounded-full" />
           </div>
 
           {currentStatus === "ENTREGADO" ? (
-            /* PANTALLA ENTREGADO */
             <div className="px-6 pb-10 flex flex-col items-center animate-fade-in-up">
               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle size={32} weight="fill" />
@@ -579,9 +567,7 @@ export const TrackingPage = () => {
               )}
             </div>
           ) : (
-            /* PANTALLA TRACKING ACTIVO */
             <div className="px-6 pb-10 flex flex-col gap-6">
-              {/* Card de Estado Principal */}
               <div
                 className={`${config.bgColor} rounded-2xl p-4 flex flex-col gap-4 border border-black/5`}
               >
@@ -675,7 +661,6 @@ export const TrackingPage = () => {
                 )}
               </div>
 
-              {/* FOTOS ARMADO */}
               {fotosArmado.length > 0 && (
                 <div>
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
@@ -694,7 +679,6 @@ export const TrackingPage = () => {
                 </div>
               )}
 
-              {/* TIMELINE */}
               <div>
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-5">
                   Estado del pedido

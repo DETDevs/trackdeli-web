@@ -5,6 +5,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { BusinessesPage } from './pages/BusinessesPage';
 import { BusinessDetailPage } from './pages/BusinessDetailPage';
+import { UsersPage } from './pages/UsersPage';
 import { RidersPage } from './pages/RidersPage';
 import { LogsPage } from './pages/LogsPage';
 
@@ -55,6 +56,10 @@ export const router = createBrowserRouter([
           {
             path: '/businesses/:id',
             element: <BusinessDetailPage />,
+          },
+          {
+            path: '/users',
+            element: <UsersPage />,
           },
           {
             path: '/riders',

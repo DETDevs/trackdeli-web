@@ -3,12 +3,10 @@ export const ExpiredPage = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <div className="w-full max-w-[430px] mx-auto bg-white min-h-screen flex flex-col items-center justify-center px-6 text-center">
 
-        {/* Logo */}
         <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center mb-8">
           <span className="text-white text-sm font-semibold">TD</span>
         </div>
 
-        {/* Ícono */}
         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
           <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}

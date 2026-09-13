@@ -33,7 +33,6 @@ export const LoginPage = () => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 min-h-screen">
-      {/* Left Panel */}
       <div className="bg-gray-900 text-white p-12 flex flex-col justify-between hidden md:flex">
         <div>
           <div className="w-10 h-10 bg-white text-gray-900 rounded-lg flex items-center justify-center font-bold text-lg mb-2">
@@ -64,7 +63,6 @@ export const LoginPage = () => {
         </div>
       </div>
 
-      {/* Right Panel */}
       <div className="bg-white p-8 md:p-12 flex flex-col items-center justify-center relative">
         <div className="w-full max-w-sm">
           <div className="mb-8">

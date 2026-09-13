@@ -21,7 +21,6 @@ export const LogsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredLogs = logs.filter((log) => {
-    // Search
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
       log.description.toLowerCase().includes(searchLower) ||
@@ -31,7 +30,6 @@ export const LogsPage = () => {
 
     if (!matchesSearch) return false;
 
-    // Filter type
     if (filterType === 'DELIVERED') return log.type === 'ORDER_DELIVERED';
     if (filterType === 'CREATED') return log.type === 'ORDER_CREATED';
     if (filterType === 'CANCELLED') return log.type === 'ORDER_CANCELLED';
@@ -42,7 +40,6 @@ export const LogsPage = () => {
     return true;
   });
 
-  // Group by Date header (HOY, AYER, etc.)
   const groupedLogs: Record<string, SystemLog[]> = {};
   filteredLogs.forEach((log) => {
     const groupKey = getGroupDateHeader(log.createdAt);
@@ -94,7 +91,6 @@ export const LogsPage = () => {
       />
 
       <div className="p-8 space-y-6 max-w-5xl mx-auto">
-        {/* Filtros */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="relative w-full sm:w-80">
             <MagnifyingGlass
@@ -135,7 +131,6 @@ export const LogsPage = () => {
           </div>
         </div>
 
-        {/* Lista de Logs agrupados */}
         {isLoading ? (
           <div className="py-20 text-center text-xs text-gray-400">
             <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-brand-500 border-t-transparent mb-2" />

@@ -44,7 +44,6 @@ export const OrdersPage = () => {
 
   return (
     <div className="space-y-4">
-      {/* Toolbar Responsive */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 max-w-full sm:max-w-md">
           <div className="relative flex-1">
@@ -91,7 +90,6 @@ export const OrdersPage = () => {
         </div>
       )}
 
-      {/* Desktop Table */}
       <div className="hidden md:block bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
         <table className="w-full text-left">
           <thead>
@@ -194,7 +192,6 @@ export const OrdersPage = () => {
           </tbody>
         </table>
         
-        {/* Pagination controls desktop */}
         {totalPages > 1 && (
           <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between bg-white">
             <div className="text-sm text-gray-500">
@@ -223,7 +220,6 @@ export const OrdersPage = () => {
         )}
       </div>
 
-      {/* Mobile Cards View */}
       <div className="md:hidden space-y-2.5">
         {isLoading ? (
           Array.from({ length: 5 }).map((_, i) => (
@@ -241,7 +237,6 @@ export const OrdersPage = () => {
               <OrderCardMobile key={order.id} order={order} />
             ))}
 
-            {/* Mobile Pagination */}
             {totalPages > 1 && (
               <div className="pt-2 flex items-center justify-between text-xs text-gray-500">
                 <span>Página {currentPage} de {totalPages}</span>

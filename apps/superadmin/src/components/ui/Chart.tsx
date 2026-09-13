@@ -38,7 +38,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export const OrdersChart = ({ data }: ChartProps) => {
   const formattedData = data.map((item) => {
-    // Convert YYYY-MM-DD to DD/MM
     const parts = item.date.split('-');
     const label = parts.length === 3 ? `${parts[2]}/${parts[1]}` : item.date;
     return {

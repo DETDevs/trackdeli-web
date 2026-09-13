@@ -30,7 +30,6 @@ export const ClientsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<BusinessClient | null>(null);
 
-  // Form state
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -161,7 +160,6 @@ export const ClientsPage = () => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-gray-900 leading-tight">Clientes del Negocio</h2>
@@ -179,7 +177,6 @@ export const ClientsPage = () => {
         </button>
       </div>
 
-      {/* Search Filter */}
       <div className="flex items-center gap-3 bg-white p-3.5 rounded-xl border border-gray-100 shadow-2xs">
         <MagnifyingGlass size={18} className="text-gray-400 shrink-0 ml-1" />
         <input
@@ -199,7 +196,6 @@ export const ClientsPage = () => {
         )}
       </div>
 
-      {/* Desktop Table View */}
       <div className="hidden md:block bg-white rounded-xl border border-gray-100 shadow-2xs overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -304,7 +300,6 @@ export const ClientsPage = () => {
         </table>
       </div>
 
-      {/* Mobile Card View */}
       <div className="md:hidden space-y-3">
         {isLoading ? (
           <div className="py-12 text-center text-gray-400">
@@ -378,7 +373,6 @@ export const ClientsPage = () => {
         )}
       </div>
 
-      {/* Modal Crear / Editar Cliente */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
           <div
@@ -387,7 +381,6 @@ export const ClientsPage = () => {
           />
 
           <div className="relative w-full max-w-xl bg-white rounded-t-2xl sm:rounded-2xl border border-gray-100 shadow-2xl overflow-hidden z-10 max-h-[94vh] sm:max-h-[90vh] flex flex-col">
-            {/* Header */}
             <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/60">
               <div>
                 <h3 className="text-sm sm:text-base font-semibold text-gray-900 leading-tight">
@@ -405,7 +398,6 @@ export const ClientsPage = () => {
               </button>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
@@ -434,7 +426,6 @@ export const ClientsPage = () => {
                 />
               </div>
 
-              {/* Selector de Modo de Ubicación (Manual vs Pin en Mapa) */}
               <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -519,7 +510,6 @@ export const ClientsPage = () => {
                 </label>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
                 <button
                   type="button"

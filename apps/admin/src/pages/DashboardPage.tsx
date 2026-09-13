@@ -119,7 +119,6 @@ export const DashboardPage = () => {
       const newIds = activeOrderIds ? activeOrderIds.split(',') : [];
       const newIdSet = new Set(newIds);
 
-      // 1. Join nuevos que no estamos
       newIds.forEach(id => {
         if (!joinedRooms.current.has(id)) {
           socket.emit('join_order', { orderId: id });
@@ -127,7 +126,6 @@ export const DashboardPage = () => {
         }
       });
 
-      // 2. Leave de rooms que ya no están activos
       joinedRooms.current.forEach(id => {
         if (!newIdSet.has(id)) {
           socket.emit('leave_order', { orderId: id });
@@ -140,7 +138,6 @@ export const DashboardPage = () => {
       syncOrders();
     }
 
-    // Al reconectar, volver a unirse a todos los rooms guardados
     const onConnect = () => {
       joinedRooms.current.forEach(id => {
         socket.emit('join_order', { orderId: id });
@@ -224,7 +221,6 @@ export const DashboardPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Alerta de Membresía Vencida o Inactiva */}
       {(business?.isActive === false || business?.membership?.status === 'EXPIRED') && (
         <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -250,7 +246,6 @@ export const DashboardPage = () => {
         </div>
       )}
 
-      {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         {ordersLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -286,7 +281,6 @@ export const DashboardPage = () => {
         )}
       </div>
 
-      {/* Map Live */}
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-2xs">
         <div className="px-4 lg:px-5 py-3.5 lg:py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -302,7 +296,6 @@ export const DashboardPage = () => {
             </p>
           </div>
 
-          {/* Filter Tabs */}
           <div className="flex items-center gap-1.5 bg-gray-50/90 p-1 rounded-xl border border-gray-100 text-xs self-start sm:self-auto">
             <button
               onClick={() => setRiderFilter('ALL')}
@@ -351,7 +344,6 @@ export const DashboardPage = () => {
         />
       </div>
 
-      {/* Recent Orders */}
       <div>
         <div className="flex items-center justify-between mb-3 lg:mb-4">
           <div>
@@ -366,7 +358,6 @@ export const DashboardPage = () => {
           </button>
         </div>
         
-        {/* Desktop View */}
         <div className="hidden md:block space-y-3">
           {ordersLoading ? (
             Array.from({ length: 5 }).map((_, i) => (
@@ -425,7 +416,6 @@ export const DashboardPage = () => {
           )}
         </div>
 
-        {/* Mobile View: Cards */}
         <div className="md:hidden space-y-2.5">
           {ordersLoading ? (
             Array.from({ length: 4 }).map((_, i) => (

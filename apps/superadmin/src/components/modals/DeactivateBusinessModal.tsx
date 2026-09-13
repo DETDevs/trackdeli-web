@@ -46,7 +46,6 @@ export const DeactivateBusinessModal: React.FC<DeactivateBusinessModalProps> = (
       maxWidth="max-w-md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Warning Banner */}
         <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-xs text-red-900 space-y-2">
           <div className="flex items-center gap-2 font-semibold text-red-700">
             <Warning size={18} weight="fill" />
@@ -63,7 +62,6 @@ export const DeactivateBusinessModal: React.FC<DeactivateBusinessModalProps> = (
           </div>
         </div>
 
-        {/* Motivo de desactivación */}
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
             Motivo de desactivación (opcional)
@@ -77,7 +75,6 @@ export const DeactivateBusinessModal: React.FC<DeactivateBusinessModalProps> = (
           />
         </div>
 
-        {/* Confirmación por nombre */}
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
             Para confirmar, escribí el nombre del negocio:{' '}
@@ -96,7 +93,6 @@ export const DeactivateBusinessModal: React.FC<DeactivateBusinessModalProps> = (
           />
         </div>
 
-        {/* Acciones */}
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
           <button
             type="button"

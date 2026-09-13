@@ -1,15 +1,7 @@
-/**
- * Utilidades matemáticas y geométricas para animación fluida de tracking
- * en tiempo real tipo Uber / PedidosYa.
- */
 
 const DEG2RAD = Math.PI / 180;
 const METERS_PER_DEG_LAT = 111132;
 
-/**
- * Distancia perpendicular en metros desde un punto P a un segmento de línea [A, B]
- * usando proyección equirrectangular local de alta precisión.
- */
 export function pointToSegmentDistanceMeters(
   pLng: number,
   pLat: number,
@@ -49,9 +41,6 @@ export function pointToSegmentDistanceMeters(
   return { distance, projection: [projLng, projLat], t };
 }
 
-/**
- * Calcula la distancia en metros entre dos coordenadas geográficas.
- */
 export function calculateDistanceMeters(
   lng1: number,
   lat1: number,
@@ -65,10 +54,6 @@ export function calculateDistanceMeters(
   return Math.hypot(dx, dy);
 }
 
-/**
- * Encuentra el punto más cercano en una polilínea al punto dado,
- * la distancia mínima en metros y el índice del segmento correspondiente.
- */
 export function findClosestPointOnRoute(
   pLng: number,
   pLat: number,
@@ -107,10 +92,6 @@ export function findClosestPointOnRoute(
   return { minDistance, segmentIndex, projectedPoint };
 }
 
-/**
- * Interpolación angular por el camino más corto (0 a 360 grados).
- * Evita giros bruscos de 360° al cruzar el norte (0°/360°).
- */
 export function interpolateAngle(fromAngle: number, toAngle: number, t: number): number {
   let diff = (toAngle - fromAngle) % 360;
   if (diff < -180) diff += 360;
@@ -118,11 +99,6 @@ export function interpolateAngle(fromAngle: number, toAngle: number, t: number):
   return (fromAngle + diff * t + 360) % 360;
 }
 
-/**
- * Recorta la polilínea de la ruta a medida que el rider avanza.
- * El resultado inicia exactamente en la posición interpolada del rider,
- * seguido por los puntos restantes de la ruta hacia el destino.
- */
 export function trimRouteCoordinates(
   riderPos: [number, number],
   coords: [number, number][],

@@ -84,7 +84,6 @@ export const CreateOrderPage = () => {
   const [formError, setFormError] = useState('');
   const [locationMode, setLocationMode] = useState<'text' | 'map'>('text');
 
-  // Customer search & autocomplete state
   const [searchResults, setSearchResults] = useState<Customer[]>([]);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -97,7 +96,6 @@ export const CreateOrderPage = () => {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fee calculation state
   const [calculatedInfo, setCalculatedInfo] = useState<{
     fee: number;
     distanceKm: number;
@@ -107,7 +105,6 @@ export const CreateOrderPage = () => {
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -118,7 +115,6 @@ export const CreateOrderPage = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Listen to Socket.io events for real-time customer location confirmation
   useEffect(() => {
     if (!socket) return;
 
@@ -198,7 +194,6 @@ export const CreateOrderPage = () => {
     };
   }, [socket, customerId, selectedCustomer, form.customerPhone]);
 
-  // Debounced Customer Search
   const handleCustomerSearch = (val: string) => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
 
@@ -224,7 +219,6 @@ export const CreateOrderPage = () => {
     }, 280);
   };
 
-  // Select Customer from dropdown
   const handleSelectCustomer = (cust: Customer) => {
     setSelectedCustomer(cust);
     setCustomerId(cust.id);
@@ -244,7 +238,6 @@ export const CreateOrderPage = () => {
     toast.success(`Cliente "${cust.name}" autocompletado`);
   };
 
-  // Generate & Share Location Confirmation link via WhatsApp
   const handleShareLocationConfirmation = async () => {
     const phoneTrimmed = form.customerPhone.trim();
     if (!phoneTrimmed) {
@@ -293,7 +286,6 @@ export const CreateOrderPage = () => {
     }
   };
 
-  // Debounced fee calculation when destination coordinates or model change
   useEffect(() => {
     if (!business) return;
 
@@ -351,7 +343,6 @@ export const CreateOrderPage = () => {
       return;
     }
 
-    // PER_KM
     const lat = parseFloat(form.destinationLat);
     const lng = parseFloat(form.destinationLng);
 
@@ -520,7 +511,6 @@ export const CreateOrderPage = () => {
       ? business.pricingZones
       : [];
 
-  // Calculate days since confirmation
   const getConfirmationDays = () => {
     if (!selectedCustomer?.lastConfirmedAt) return null;
     const diffMs = Date.now() - new Date(selectedCustomer.lastConfirmedAt).getTime();
@@ -535,7 +525,6 @@ export const CreateOrderPage = () => {
         onSubmit={handleSubmit}
         className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 space-y-6"
       >
-        {/* Negocio de Origen (Solo para EMPRESA_RIDERS) */}
         {business?.businessType === 'EMPRESA_RIDERS' && (
           <div>
             <SECTION title="Negocio de Origen" />
@@ -607,14 +596,12 @@ export const CreateOrderPage = () => {
           </div>
         )}
 
-        {/* Cliente Final con Autocompletado */}
         <div className="relative" ref={dropdownRef}>
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">
               Cliente Final
             </div>
 
-            {/* Status / Confirmation Badge */}
             {liveLocationConfirmed || liveLocationUpdated ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -636,7 +623,6 @@ export const CreateOrderPage = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {/* Nombre con autocompletado */}
             <Field label="Nombre del cliente">
               <div className="relative">
                 <input
@@ -655,7 +641,6 @@ export const CreateOrderPage = () => {
               </div>
             </Field>
 
-            {/* WhatsApp con autocompletado */}
             <Field label="WhatsApp del cliente">
               <div className="flex">
                 <span className="inline-flex items-center px-3 bg-gray-50 border border-r-0 border-gray-200 rounded-l-md text-sm text-gray-500">
@@ -675,7 +660,6 @@ export const CreateOrderPage = () => {
             </Field>
           </div>
 
-          {/* Autocomplete Dropdown */}
           {isDropdownOpen && searchResults.length > 0 && (
             <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl border border-gray-200 shadow-xl z-30 overflow-hidden divide-y divide-gray-50 max-h-60 overflow-y-auto">
               <div className="p-2 bg-gray-50 text-[11px] font-medium text-gray-500 flex items-center justify-between">
@@ -721,7 +705,6 @@ export const CreateOrderPage = () => {
             </div>
           )}
 
-          {/* Botón de Compartir Ubicación por WhatsApp */}
           <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-2">
               <button
@@ -761,13 +744,11 @@ export const CreateOrderPage = () => {
           </div>
         </div>
 
-        {/* Entrega */}
         <div>
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">
               Entrega
             </div>
-            {/* Toggle Modo */}
             <div className="flex bg-gray-100 p-1 rounded-lg">
               <button
                 type="button"
@@ -844,7 +825,6 @@ export const CreateOrderPage = () => {
             </div>
           )}
 
-          {/* Selector de Zona para Negocios con Tarifas por Zonas */}
           {zones.length > 0 && (
             <div className="mt-4 p-3.5 bg-gray-50 rounded-xl border border-gray-100 space-y-1.5">
               <label className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
@@ -867,7 +847,6 @@ export const CreateOrderPage = () => {
           )}
         </div>
 
-        {/* Pago y Tarifa de Delivery */}
         <div>
           <SECTION title="Tarifa y Cobro" />
           <div className="space-y-4">
@@ -883,7 +862,6 @@ export const CreateOrderPage = () => {
               </select>
             </Field>
 
-            {/* Cálculo de Tarifa Dinámica */}
             {business?.pricingModel === 'RIDER_QUOTE' ? (
               <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-2.5 text-xs text-amber-900">
                 <Motorcycle size={18} className="text-amber-600 shrink-0 mt-0.5" />
@@ -929,7 +907,6 @@ export const CreateOrderPage = () => {
               </div>
             ) : null}
 
-            {/* Descripción adicional del pedido */}
             <Field label="Notas / Detalle del pedido (Opcional)">
               <textarea
                 className={`${inputClass} h-20 resize-none`}

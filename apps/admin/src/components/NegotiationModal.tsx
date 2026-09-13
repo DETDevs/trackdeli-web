@@ -47,7 +47,6 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { socket } = useSocketStore();
 
-  // Read latest quotes list from cache/server so this modal updates reactively when quote_updated arrives
   const { data: quotes = [] } = useQuery<OrderQuote[]>({
     queryKey: ['quotes', orderId],
     enabled: isOpen && !!orderId,
@@ -55,7 +54,6 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
 
   const currentQuote = quotes.find((q) => q.id === quote.id) || quote;
 
-  // Fetch messages for this quote
   const { data: messages = [], isLoading: isLoadingMessages } = useQuery<OrderMessage[]>({
     queryKey: ['messages', currentQuote.id],
     queryFn: () => getQuoteMessages(orderId, currentQuote.id),
@@ -63,7 +61,6 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
     refetchInterval: 4000,
   });
 
-  // Socket listener for new messages & quote updates
   useEffect(() => {
     if (!socket || !isOpen) return;
 
@@ -90,14 +87,12 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
     };
   }, [socket, isOpen, currentQuote.id, orderId, queryClient]);
 
-  // Scroll to bottom when messages update
   useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen]);
 
-  // Mutation: Send message & optional counter offer
   const sendMessageMutation = useMutation({
     mutationFn: async () => {
       const parsedCounter = counterFee ? parseFloat(counterFee) : undefined;
@@ -117,7 +112,6 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
     },
   });
 
-  // Mutation: Accept quote
   const acceptMutation = useMutation({
     mutationFn: () => acceptOrderQuote(orderId, currentQuote.id),
     onSuccess: () => {
@@ -163,7 +157,6 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[85vh] overflow-hidden border border-gray-100">
-        {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/80">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-800 shadow-xs">
@@ -192,7 +185,6 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
           </button>
         </div>
 
-        {/* Banner de Precio arriba del Chat */}
         <div className="px-5 py-3 border-b border-gray-100 bg-white space-y-2">
           <div
             className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between border transition-all ${
@@ -233,7 +225,6 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
           </div>
         </div>
 
-        {/* Chat / Historial de Mensajes */}
         <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-[#F9FAFB] min-h-[220px] max-h-[320px]">
           {isLoadingMessages ? (
             <div className="flex items-center justify-center h-32 text-xs text-gray-400 animate-pulse">
@@ -283,10 +274,8 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Form & Acciones */}
         <form onSubmit={handleSend} className="p-4 border-t border-gray-100 bg-white space-y-3">
           <div className="grid grid-cols-3 gap-3">
-            {/* Contrapropuesta de precio */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-gray-700 block">
                 Contraoferta (C$)
@@ -306,7 +295,6 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
               </div>
             </div>
 
-            {/* Mensaje */}
             <div className="col-span-2 space-y-1">
               <label className="text-[11px] font-semibold text-gray-700 block">
                 Mensaje <span className="text-red-500">*</span>
@@ -331,7 +319,6 @@ export const NegotiationModal: React.FC<NegotiationModalProps> = ({
             </div>
           </div>
 
-          {/* Botón de Confirmar y Asignar */}
           <div className="pt-2 border-t border-gray-100 space-y-2">
             <button
               type="button"

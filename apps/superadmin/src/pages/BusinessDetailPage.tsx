@@ -17,6 +17,10 @@ import {
   Paperclip,
   Gear,
   Coins,
+  Receipt,
+  Key,
+  Lock,
+  LockOpen,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { StatCard } from '../components/ui/StatCard';
@@ -36,6 +40,14 @@ import { formatDateTime, formatDateShort } from '../utils/format';
 import { RegisterMembershipModal } from '../components/modals/RegisterMembershipModal';
 import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
 import { ImageViewerModal } from '../components/modals/ImageViewerModal';
+import { BusinessProductsSection } from '../components/business/BusinessProductsSection';
+import { useBusinessProducts } from '../hooks/useBusinessProducts';
+import { useSuperAdminUsers } from '../hooks/useSuperAdminUsers';
+import { type AdminUser } from 'api-client';
+import { CreateSuperAdminUserModal } from '../components/modals/users/CreateSuperAdminUserModal';
+import { UserPasswordModal } from '../components/modals/users/UserPasswordModal';
+import { ChangeUserPasswordModal } from '../components/modals/users/ChangeUserPasswordModal';
+import { DeactivateUserModal } from '../components/modals/users/DeactivateUserModal';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -44,16 +56,40 @@ export const BusinessDetailPage = () => {
   const navigate = useNavigate();
   const { data: business, isLoading, isError } = useBusinessDetail(id!);
   const { data: memberships = [], isLoading: loadingMemberships } = useBusinessMemberships(id!);
+  const { data: productsData } = useBusinessProducts(id!);
   const toggleMutation = useToggleBusiness();
   const updateMutation = useUpdateBusiness();
 
-  // Modals state
+  const isDeliveryActive = productsData
+    ? productsData.products.DELIVERY.status === 'ACTIVE'
+    : (business?.hasTrackDeli ?? true);
+  const isPosActive = productsData
+    ? productsData.products.POS.status === 'ACTIVE'
+    : (business?.hasPOS ?? false);
+
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
   const [isEditModelModalOpen, setIsEditModelModalOpen] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
 
-  // Model Form State
+  const { data: businessUsers = [], isLoading: loadingBusinessUsers } = useSuperAdminUsers({
+    businessId: id,
+  });
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [createdUser, setCreatedUser] = useState<AdminUser | null>(null);
+  const [createdUserPassword, setCreatedUserPassword] = useState<string | null>(null);
+  const [passwordTargetUser, setPasswordTargetUser] = useState<AdminUser | null>(null);
+  const [deactivateTargetUser, setDeactivateTargetUser] = useState<AdminUser | null>(null);
+
+  const activeEncargados = businessUsers.filter(
+    (u) => u.role === 'ENCARGADO' && u.isActive
+  );
+  const isTargetOnlyActiveEncargado =
+    deactivateTargetUser?.role === 'ENCARGADO' &&
+    deactivateTargetUser?.isActive &&
+    activeEncargados.length === 1 &&
+    activeEncargados[0].id === deactivateTargetUser.id;
+
   const [modelBusinessType, setModelBusinessType] = useState<BusinessType>('NEGOCIO');
   const [modelCommissionRate, setModelCommissionRate] = useState('15');
   const [modelAltCommissionRate, setModelAltCommissionRate] = useState('12');
@@ -117,7 +153,6 @@ export const BusinessDetailPage = () => {
     );
   }
 
-  // Calculate membership status from memberships list or business
   const latestMembership: MembershipItem | undefined =
     memberships[0] || (business as any).latestMembership;
 
@@ -222,7 +257,6 @@ export const BusinessDetailPage = () => {
       />
 
       <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
-        {/* Back Link & Info Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <button
             onClick={() => navigate('/businesses')}
@@ -232,16 +266,22 @@ export const BusinessDetailPage = () => {
             <span>Volver a Negocios</span>
           </button>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            {business.businessType === 'EMPRESA_RIDERS' ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
-                <Motorcycle size={14} weight="bold" />
-                <span>Empresa de Riders</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            {isDeliveryActive && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-900 border border-amber-200/80">
+                <Motorcycle size={13} weight="duotone" className="text-amber-700" />
+                <span>{business.businessType === 'EMPRESA_RIDERS' ? 'Delivery (Riders)' : 'TrackDeli Delivery'}</span>
               </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                <Storefront size={14} />
-                <span>Comercio Común</span>
+            )}
+            {isPosActive && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-900 border border-purple-200/80">
+                <Receipt size={13} weight="duotone" className="text-purple-700" />
+                <span>POS {productsData?.products?.POS?.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'}</span>
+              </span>
+            )}
+            {!isDeliveryActive && !isPosActive && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                <span>Sin productos contratados</span>
               </span>
             )}
             <Badge variant={business.isActive ? 'success' : 'neutral'} dot>
@@ -253,7 +293,6 @@ export const BusinessDetailPage = () => {
           </div>
         </div>
 
-        {/* 1. StatCards Fila Superior */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <StatCard
             title="Pedidos Hoy"
@@ -275,8 +314,27 @@ export const BusinessDetailPage = () => {
           />
         </div>
 
-        {/* 2. SECCIÓN PRINCIPAL: COMISIONES (si es EMPRESA_RIDERS) O MEMBRESÍA (si es NEGOCIO) */}
-        {business.businessType === 'EMPRESA_RIDERS' ? (
+        <BusinessProductsSection
+          businessId={business.id}
+          businessName={business.name}
+          businessType={business.businessType}
+          businessCommissionRate={business.commissionRate}
+          businessAltCommissionRate={business.altCommissionRate}
+          businessAltCommissionDistanceKm={business.altCommissionDistanceKm}
+          businessDispatchTimeoutMin={business.dispatchTimeoutMin}
+        />
+
+        {!isDeliveryActive ? (
+          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs text-center py-8 space-y-2">
+            <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-400 mx-auto flex items-center justify-center">
+              <Motorcycle size={20} />
+            </div>
+            <h4 className="text-sm font-semibold text-gray-900">Módulo de Delivery Inactivo</h4>
+            <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+              Este negocio opera sin el servicio de despacho de TrackDeli. La facturación por comisiones de entrega y cuotas de membresía aplican únicamente cuando el producto Delivery está activo. Puedes contratarlo desde la sección de Productos Contratados arriba.
+            </p>
+          </div>
+        ) : business.businessType === 'EMPRESA_RIDERS' ? (
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
               <div>
@@ -310,7 +368,6 @@ export const BusinessDetailPage = () => {
               </button>
             </div>
 
-            {/* Resumen de Tasas Configuradas */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-amber-50/40 p-4 rounded-xl border border-amber-100/80">
               <div>
                 <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider">
@@ -353,7 +410,6 @@ export const BusinessDetailPage = () => {
               </div>
             </div>
 
-            {/* Métricas Estimadas de Comisión */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
                 <span className="text-xs text-gray-500 font-medium">Entregas Este Mes</span>
@@ -381,7 +437,6 @@ export const BusinessDetailPage = () => {
           </div>
         ) : (
           <>
-            {/* 2. SECCIÓN DE MEMBRESÍA ACTUAL (Solo para NEGOCIO) */}
             <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
                 <div>
@@ -421,7 +476,6 @@ export const BusinessDetailPage = () => {
                 </button>
               </div>
 
-              {/* Info del Último Pago */}
               {latestMembership ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50/70 p-4 rounded-xl border border-gray-100">
                   <div>
@@ -477,7 +531,6 @@ export const BusinessDetailPage = () => {
               )}
             </div>
 
-            {/* 3. HISTORIAL DE PAGOS DE MEMBRESÍA */}
             <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-900">
@@ -570,49 +623,103 @@ export const BusinessDetailPage = () => {
           </>
         )}
 
-        {/* 4. Grid Encargados y Repartidores */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {/* Encargados */}
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
-            <div className="flex items-center gap-2 mb-4">
-              <Users size={18} className="text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-900">
-                Encargados ({business.encargados.length})
-              </h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Users size={18} className="text-gray-500" />
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Usuarios del Negocio ({businessUsers.length})
+                </h3>
+              </div>
+              <button
+                id="btn-add-biz-user"
+                onClick={() => setIsAddUserModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
+              >
+                <Plus size={14} weight="bold" />
+                <span>Agregar Usuario</span>
+              </button>
             </div>
 
             <div className="divide-y divide-gray-100">
-              {business.encargados.map((enc) => (
-                <div key={enc.id} className="py-3 flex items-center justify-between text-xs">
-                  <div>
-                    <p className="font-medium text-gray-900">{enc.name}</p>
-                    <div className="flex items-center gap-3 text-gray-400 mt-0.5">
-                      <span className="flex items-center gap-1">
-                        <EnvelopeSimple size={12} />
-                        {enc.email}
+              {businessUsers.map((u) => (
+                <div key={u.id} className="py-3 flex items-center justify-between text-xs gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900 truncate">{u.name}</p>
+                      <span
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          u.role === 'ENCARGADO'
+                            ? 'bg-green-50 text-green-700 border border-green-200/60'
+                            : u.role === 'CAJERO'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {u.role === 'ENCARGADO' ? 'Encargado' : u.role === 'CAJERO' ? 'Cajero' : u.role}
                       </span>
-                      {enc.phone && (
+                    </div>
+                    <div className="flex items-center gap-3 text-gray-400 mt-0.5 flex-wrap">
+                      <span className="flex items-center gap-1 font-mono text-[11px]">
+                        <EnvelopeSimple size={12} />
+                        {u.email}
+                      </span>
+                      {u.phone && (
                         <span className="flex items-center gap-1">
                           <Phone size={12} />
-                          {enc.phone}
+                          {u.phone}
                         </span>
                       )}
                     </div>
                   </div>
-                  <Badge variant={enc.isActive ? 'success' : 'neutral'} size="sm">
-                    {enc.isActive ? 'Activo' : 'Inactivo'}
-                  </Badge>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant={u.isActive ? 'success' : 'neutral'} size="sm">
+                      {u.isActive ? 'Activo' : 'Inactivo'}
+                    </Badge>
+
+                    <div className="flex items-center gap-1 ml-1 border-l border-gray-100 pl-2">
+                      <button
+                        onClick={() => setPasswordTargetUser(u)}
+                        title="Cambiar contraseña"
+                        className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Key size={15} />
+                      </button>
+
+                      <button
+                        onClick={() => setDeactivateTargetUser(u)}
+                        title={u.isActive ? 'Desactivar usuario' : 'Activar usuario'}
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          u.isActive
+                            ? 'text-gray-400 hover:text-amber-700 hover:bg-amber-50'
+                            : 'text-gray-400 hover:text-green-700 hover:bg-green-50'
+                        }`}
+                      >
+                        {u.isActive ? <Lock size={15} /> : <LockOpen size={15} />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))}
-              {business.encargados.length === 0 && (
-                <p className="py-6 text-center text-xs text-gray-400">
-                  No hay encargados asociados registrados
-                </p>
+
+              {!loadingBusinessUsers && businessUsers.length === 0 && (
+                <div className="py-8 text-center space-y-2">
+                  <p className="text-xs text-gray-400">
+                    No hay usuarios registrados para este negocio.
+                  </p>
+                  <button
+                    onClick={() => setIsAddUserModalOpen(true)}
+                    className="text-xs text-brand-600 hover:text-brand-700 font-medium cursor-pointer"
+                  >
+                    + Agregar el primer usuario
+                  </button>
+                </div>
               )}
             </div>
           </div>
 
-          {/* Repartidores que han trabajado con este negocio */}
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
             <div className="flex items-center gap-2 mb-4">
               <Motorcycle size={18} className="text-gray-500" />
@@ -652,7 +759,6 @@ export const BusinessDetailPage = () => {
           </div>
         </div>
 
-        {/* 5. Últimos 10 Pedidos */}
         <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-900">Últimos Pedidos</h3>
@@ -728,7 +834,6 @@ export const BusinessDetailPage = () => {
           </div>
         </div>
 
-        {/* 6. Ubicación en el Mapa */}
         {business.latitude && business.longitude && (
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-4">
             <h3 className="text-sm font-semibold text-gray-900">Ubicación del Negocio</h3>
@@ -739,7 +844,6 @@ export const BusinessDetailPage = () => {
         )}
       </div>
 
-      {/* Modals */}
       <RegisterMembershipModal
         isOpen={isRegisterModalOpen}
         onClose={() => setIsRegisterModalOpen(false)}
@@ -763,7 +867,6 @@ export const BusinessDetailPage = () => {
         title={`Comprobante de Pago — ${business.name}`}
       />
 
-      {/* Modal Configurar Modelo de Negocio */}
       <Modal
         isOpen={isEditModelModalOpen}
         onClose={() => setIsEditModelModalOpen(false)}
@@ -823,7 +926,6 @@ export const BusinessDetailPage = () => {
             </div>
           </div>
 
-          {/* Configuración de Comisiones si es EMPRESA_RIDERS */}
           {modelBusinessType === 'EMPRESA_RIDERS' && (
             <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 space-y-3">
               <p className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -917,6 +1019,41 @@ export const BusinessDetailPage = () => {
           </div>
         </form>
       </Modal>
+
+      <CreateSuperAdminUserModal
+        isOpen={isAddUserModalOpen}
+        presetBusinessId={business.id}
+        presetBusinessName={business.name}
+        onClose={() => setIsAddUserModalOpen(false)}
+        onSuccess={(newUser, initialPass) => {
+          setIsAddUserModalOpen(false);
+          setCreatedUser(newUser);
+          setCreatedUserPassword(initialPass);
+        }}
+      />
+
+      <UserPasswordModal
+        isOpen={Boolean(createdUser && createdUserPassword)}
+        user={createdUser}
+        password={createdUserPassword}
+        onClose={() => {
+          setCreatedUser(null);
+          setCreatedUserPassword(null);
+        }}
+      />
+
+      <ChangeUserPasswordModal
+        isOpen={Boolean(passwordTargetUser)}
+        user={passwordTargetUser}
+        onClose={() => setPasswordTargetUser(null)}
+      />
+
+      <DeactivateUserModal
+        isOpen={Boolean(deactivateTargetUser)}
+        user={deactivateTargetUser}
+        isOnlyActiveEncargado={isTargetOnlyActiveEncargado}
+        onClose={() => setDeactivateTargetUser(null)}
+      />
     </div>
   );
 };

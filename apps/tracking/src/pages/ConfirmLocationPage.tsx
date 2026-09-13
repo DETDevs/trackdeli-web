@@ -36,7 +36,6 @@ export const ConfirmLocationPage = () => {
   } | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Map container ref for returning customer preview & success state
   const previewMapContainer = useRef<HTMLDivElement>(null);
   const previewMap = useRef<mapboxgl.Map | null>(null);
   const previewMarker = useRef<mapboxgl.Marker | null>(null);
@@ -89,7 +88,6 @@ export const ConfirmLocationPage = () => {
     },
   });
 
-  // Render static/preview map when customer has previous location, already responded, or after confirming
   const previewLat = confirmedCoords?.lat || (customer?.lastLatitude ? Number(customer.lastLatitude) : null);
   const previewLng = confirmedCoords?.lng || (customer?.lastLongitude ? Number(customer.lastLongitude) : null);
 
@@ -140,7 +138,6 @@ export const ConfirmLocationPage = () => {
     ? Number((customer?.business as any).longitude)
     : -86.2504;
 
-  // Handle GPS Request
   const handleRequestGPS = () => {
     if (!navigator.geolocation) {
       setGeoError('Tu dispositivo o navegador no soporta geolocalización GPS.');
@@ -179,7 +176,6 @@ export const ConfirmLocationPage = () => {
     );
   };
 
-  // Handle "Sí, sigo acá" (Caso B: confirmar ubicación guardada)
   const handleConfirmExisting = () => {
     if (!customer?.lastLatitude || !customer?.lastLongitude) return;
     confirmMutation.mutate({
@@ -190,7 +186,6 @@ export const ConfirmLocationPage = () => {
     });
   };
 
-  // Handle Confirm Location from PinPicker
   const handleConfirmLocation = () => {
     const lat = pickerCoords?.lat ?? defaultInitialLat;
     const lng = pickerCoords?.lng ?? defaultInitialLng;
@@ -205,7 +200,6 @@ export const ConfirmLocationPage = () => {
     });
   };
 
-  // 1. Loading State
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#FBFBFB] flex flex-col items-center justify-center p-6 text-center">
@@ -218,7 +212,6 @@ export const ConfirmLocationPage = () => {
     );
   }
 
-  // 2. Error / Expired Session State
   if (isError || !session || !customer) {
     if (isError && error) {
       console.error('TrackDeli Error - Location Session Fetch Failed:', error);
@@ -227,7 +220,7 @@ export const ConfirmLocationPage = () => {
     }
 
     const status = (error as any)?.response?.status;
-    const isNetworkError = error && !status; // e.g. CORS or no internet
+    const isNetworkError = error && !status;
     const isServerError = status >= 500;
 
     if (isNetworkError || isServerError) {
@@ -276,7 +269,6 @@ export const ConfirmLocationPage = () => {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-gray-900 flex flex-col justify-between p-4 sm:p-6 font-sans select-none">
-      {/* Top Header */}
       <header className="max-w-md mx-auto w-full pt-2 pb-4 flex items-center justify-between border-b border-gray-100">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gray-900 text-white flex items-center justify-center font-bold text-xs shadow-xs">
@@ -291,9 +283,7 @@ export const ConfirmLocationPage = () => {
         </div>
       </header>
 
-      {/* Main Container */}
       <main className="max-w-md mx-auto w-full py-4 space-y-4 my-auto">
-        {/* SUCCESS / ALREADY RESPONDED STATE */}
         {shouldShowCompleted ? (
           <div className="bg-white border border-gray-100 rounded-2xl p-6 sm:p-8 shadow-xs text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
@@ -317,7 +307,6 @@ export const ConfirmLocationPage = () => {
               </p>
             </div>
 
-            {/* Read-only Mini Map Preview */}
             {previewLat && previewLng && (
               <div className="rounded-xl overflow-hidden border border-gray-100 shadow-inner bg-gray-50 space-y-2">
                 <div ref={previewMapContainer} className="w-full h-44 rounded-xl" />
@@ -338,7 +327,6 @@ export const ConfirmLocationPage = () => {
             </div>
           </div>
         ) : hasPreviousLocation && !showManualPicker ? (
-          /* CASO B: Cliente recurrente con ubicación previa guardada */
           <div className="bg-white border border-gray-100 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
             <div className="text-center space-y-1">
               <h2 className="text-lg font-bold text-gray-900 tracking-tight">
@@ -349,7 +337,6 @@ export const ConfirmLocationPage = () => {
               </p>
             </div>
 
-            {/* Map Preview */}
             <div className="rounded-xl overflow-hidden border border-gray-100 bg-gray-100 shadow-2xs relative">
               <div ref={previewMapContainer} className="w-full h-48" />
               {customer.lastAddressText && (
@@ -360,7 +347,6 @@ export const ConfirmLocationPage = () => {
               )}
             </div>
 
-            {/* Action Buttons: 2 large touch-friendly buttons */}
             <div className="space-y-2.5 pt-1">
               <button
                 onClick={handleConfirmExisting}
@@ -400,9 +386,7 @@ export const ConfirmLocationPage = () => {
             )}
           </div>
         ) : (
-          /* CASO A / MAP PICKER: Cliente nuevo o actualización de ubicación */
           <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
-            {/* Header with Title and "Usar GPS" Button */}
             <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-3">
               <div>
                 <h2 className="text-base font-bold text-gray-900 tracking-tight">
@@ -428,7 +412,6 @@ export const ConfirmLocationPage = () => {
               </button>
             </div>
 
-            {/* Error banner if GPS failed */}
             {geoError && (
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
                 <WarningCircle size={16} className="shrink-0 mt-0.5 text-amber-600" />
@@ -436,7 +419,6 @@ export const ConfirmLocationPage = () => {
               </div>
             )}
 
-            {/* Interactive Mapbox PinPicker */}
             <div className="w-full">
               <PinPicker
                 mapboxToken={MAPBOX_TOKEN}
@@ -452,7 +434,6 @@ export const ConfirmLocationPage = () => {
               />
             </div>
 
-            {/* Clear Selected Address Indicator below the map */}
             {pickerAddress && (
               <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 flex items-start gap-2.5 shadow-2xs">
                 <MapPin size={18} className="text-emerald-600 shrink-0 mt-0.5" weight="fill" />
@@ -467,7 +448,6 @@ export const ConfirmLocationPage = () => {
               </div>
             )}
 
-            {/* Reference field */}
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1">
                 Referencia o punto de entrega (opcional)
@@ -481,7 +461,6 @@ export const ConfirmLocationPage = () => {
               />
             </div>
 
-            {/* Fixed Confirm Button Below the Map */}
             <button
               type="button"
               onClick={handleConfirmLocation}
@@ -504,7 +483,6 @@ export const ConfirmLocationPage = () => {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="text-center text-[11px] text-gray-400 py-3 max-w-md mx-auto w-full border-t border-gray-100">
         TrackDeli — Entrega y seguimiento en tiempo real
       </footer>

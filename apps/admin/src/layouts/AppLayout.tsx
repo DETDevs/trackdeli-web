@@ -14,6 +14,7 @@ import {
   Coins,
   Motorcycle,
   Link as LinkIcon,
+  Users,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,7 +38,6 @@ export const AppLayout = () => {
     staleTime: 60000,
   });
 
-  // Cerrar sidebar al navegar a otra ruta en mobile
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
@@ -62,7 +62,6 @@ export const AppLayout = () => {
       Boolean(paymentRequiredMessage)
     );
 
-  // Initialize real-time order notifications
   useOrderNotifications();
 
   const roleLabels: Record<string, string> = {
@@ -84,6 +83,7 @@ export const AppLayout = () => {
     if (pathname.startsWith('/orders/')) return 'Detalle de Pedido';
     if (pathname.startsWith('/orders')) return 'Pedidos';
     if (pathname.startsWith('/clients')) return 'Clientes del Negocio';
+    if (pathname.startsWith('/team')) return 'Mi Equipo';
     if (pathname.startsWith('/staff')) return 'Repartidores';
     if (pathname.startsWith('/reports')) return 'Reportes';
     if (pathname.startsWith('/commissions')) return 'Comisiones';
@@ -107,7 +107,6 @@ export const AppLayout = () => {
 
   return (
     <div className="flex h-screen bg-[#FAFAFA] overflow-hidden">
-      {/* Overlay oscuro en mobile cuando el sidebar está abierto */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-30 lg:hidden backdrop-blur-xs transition-opacity"
@@ -115,13 +114,11 @@ export const AppLayout = () => {
         />
       )}
 
-      {/* Sidebar Drawer en mobile / Fijo en desktop */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-100 flex flex-col transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto shrink-0 select-none ${
           sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
-        {/* Logo & Close Button on Mobile */}
         <div className="px-6 py-5 flex items-center justify-between border-b border-gray-50 lg:border-none">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gray-900 text-white rounded-md flex items-center justify-center font-bold text-sm">
@@ -139,7 +136,6 @@ export const AppLayout = () => {
           </button>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 px-3 py-2 space-y-6 overflow-y-auto">
           <div>
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 mb-2 mt-4">
@@ -172,6 +168,10 @@ export const AppLayout = () => {
                   Clientes
                 </NavLink>
               )}
+              <NavLink to="/team" className={navLinkClass}>
+                <Users size={18} weight="regular" />
+                Mi Equipo
+              </NavLink>
               <NavLink to="/staff" className={navLinkClass}>
                 <Motorcycle size={18} weight="regular" />
                 Repartidores
@@ -200,7 +200,6 @@ export const AppLayout = () => {
           </div>
         </nav>
 
-        {/* User Profile */}
         <div className="p-4 border-t border-gray-100">
           <div className="flex items-center gap-3 mb-4 px-2">
             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-medium text-sm">
@@ -221,9 +220,7 @@ export const AppLayout = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Banner de Membresía Vencida o Inactiva */}
         {isMembershipInactive && (
           <div className="bg-amber-50 border-b border-amber-200/80 px-4 lg:px-6 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-amber-900 z-20 shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -247,7 +244,6 @@ export const AppLayout = () => {
           </div>
         )}
 
-        {/* TopBar / Header con Botón Hamburger */}
         <header className="bg-white border-b border-gray-100 px-4 lg:px-6 py-3.5 lg:py-4 flex items-center justify-between z-10 shrink-0">
           <div className="flex items-center gap-3">
             <button
@@ -267,7 +263,6 @@ export const AppLayout = () => {
           </div>
         </header>
 
-        {/* Content Area */}
         <div className="flex-1 overflow-auto relative">
           <AnimatePresence mode="wait">
             <motion.div

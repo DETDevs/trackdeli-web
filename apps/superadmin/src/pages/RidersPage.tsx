@@ -24,13 +24,11 @@ export const RidersPage = () => {
   const { data: activeRiders = [] } = useActiveRiders();
   const toggleMutation = useToggleRider();
 
-  // Filter states
   const [tab, setTab] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [vehicleFilter, setVehicleFilter] = useState<string>('ALL');
 
   const filteredRiders = riders.filter((r) => {
-    // 1. Search text
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
       r.name.toLowerCase().includes(searchLower) ||
@@ -40,12 +38,10 @@ export const RidersPage = () => {
 
     if (!matchesSearch) return false;
 
-    // 2. Vehicle filter
     if (vehicleFilter !== 'ALL' && r.vehicleType !== vehicleFilter) {
       return false;
     }
 
-    // 3. Tab filter
     if (tab === 'ACTIVE') return r.isActive && r.isAvailable;
     if (tab === 'INACTIVE') return !r.isActive;
     return true;
@@ -175,7 +171,6 @@ export const RidersPage = () => {
       />
 
       <div className="p-4 lg:p-8 space-y-4 lg:space-y-6 max-w-7xl mx-auto">
-        {/* 1. Mapa de Repartidores Activos en Vivo */}
         <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <div>
@@ -195,10 +190,8 @@ export const RidersPage = () => {
           <MapboxRidersMap riders={activeRiders} height="h-[250px] sm:h-[350px] md:h-[400px]" />
         </div>
 
-        {/* 2. Filtros y Búsqueda */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
-            {/* Input de Búsqueda */}
             <div className="relative w-full sm:w-72">
               <MagnifyingGlass
                 size={16}
@@ -213,7 +206,6 @@ export const RidersPage = () => {
               />
             </div>
 
-            {/* Selector de Vehículo */}
             <select
               value={vehicleFilter}
               onChange={(e) => setVehicleFilter(e.target.value)}
@@ -227,7 +219,6 @@ export const RidersPage = () => {
             </select>
           </div>
 
-          {/* Tabs */}
           <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200/80 shadow-2xs self-stretch sm:self-auto overflow-x-auto">
             <button
               onClick={() => setTab('ALL')}
@@ -260,7 +251,6 @@ export const RidersPage = () => {
           </div>
         </div>
 
-        {/* 3. Tabla Desktop */}
         <div className="hidden md:block">
           <DataTable
             columns={columns}
@@ -272,7 +262,6 @@ export const RidersPage = () => {
           />
         </div>
 
-        {/* Mobile Cards */}
         <div className="md:hidden space-y-2.5">
           {loadingRiders ? (
             Array.from({ length: 4 }).map((_, i) => (

@@ -28,10 +28,19 @@ export interface BusinessItem {
   whatsappNumber?: string | null;
   whatsappDisplay?: string | null;
   membership?: {
-    status: 'ACTIVE' | 'EXPIRED' | 'NONE';
+    status: 'ACTIVE' | 'EXPIRED' | 'NONE' | 'NOT_CONTRACTED';
     endDate: string | null;
     daysLeft: number | null;
   };
+  productSubscriptions?: Array<{
+    id?: string;
+    productType: 'DELIVERY' | 'POS';
+    status: 'ACTIVE' | 'INACTIVE';
+    posVertical?: 'RESTAURANTE' | 'RETAIL' | null;
+    posMonthlyFee?: number | null;
+  }>;
+  hasPOS?: boolean;
+  hasTrackDeli?: boolean;
 }
 
 export interface BusinessDetail extends BusinessItem {

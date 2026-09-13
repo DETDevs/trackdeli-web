@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   SquaresFour,
   Storefront,
+  Users,
   Motorcycle,
   ClockCounterClockwise,
   SignOut,
@@ -14,6 +15,7 @@ import { useAuthStore } from '../../lib/auth';
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: SquaresFour },
   { to: '/businesses', label: 'Negocios', icon: Storefront },
+  { to: '/users', label: 'Usuarios', icon: Users },
   { to: '/riders', label: 'Repartidores', icon: Motorcycle },
   { to: '/logs', label: 'Logs', icon: ClockCounterClockwise },
 ];
@@ -38,7 +40,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
       }`}
     >
-      {/* Header / Brand */}
       <div className="h-16 px-6 flex items-center justify-between border-b border-gray-100">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-gray-900 text-white flex items-center justify-center font-bold text-xs">
@@ -64,7 +65,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         )}
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
@@ -88,7 +88,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         })}
       </nav>
 
-      {/* User info & Logout */}
       <div className="p-3 border-t border-gray-100">
         <div className="px-3 py-2 mb-2 flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-semibold">

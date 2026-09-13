@@ -75,27 +75,71 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {business.membership ? (
-            <Badge
-              variant={
-                business.membership.status === 'ACTIVE'
-                  ? 'success'
-                  : business.membership.status === 'EXPIRED'
-                  ? 'danger'
-                  : 'neutral'
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {(() => {
+            const deliverySub = business.productSubscriptions?.find((s) => s.productType === 'DELIVERY');
+            const posSub = business.productSubscriptions?.find((s) => s.productType === 'POS');
+            const hasDelivery = deliverySub ? deliverySub.status === 'ACTIVE' : (business.hasTrackDeli ?? true);
+            const hasPos = posSub ? posSub.status === 'ACTIVE' : (business.hasPOS ?? false);
+
+            if (!hasDelivery && !hasPos) {
+              return <Badge variant="neutral" size="sm">Sin productos</Badge>;
+            }
+
+            const renderDeliveryBadge = (compact = false) => {
+              if (business.businessType === 'EMPRESA_RIDERS') {
+                const rate = business.commissionRate ? `${(business.commissionRate * 100).toFixed(0)}%` : '15%';
+                return (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
+                    <span>{compact ? rate : `Comisión (${rate})`}</span>
+                  </span>
+                );
               }
-              size="sm"
-            >
-              {business.membership.status === 'ACTIVE'
-                ? `Activa (${business.membership.daysLeft ?? 0}d)`
-                : business.membership.status === 'EXPIRED'
-                ? 'Vencida'
-                : 'Sin plan'}
-            </Badge>
-          ) : (
-            <Badge variant="neutral" size="sm">Sin plan</Badge>
-          )}
+
+              const mem = business.membership;
+              if (mem && mem.status === 'ACTIVE') {
+                const days = mem.daysLeft ?? 0;
+                return (
+                  <Badge variant={days <= 7 ? 'warning' : 'success'} dot size="sm">
+                    {compact ? `${days}d` : `Activa ${days}d`}
+                  </Badge>
+                );
+              }
+              if (!mem || mem.status === 'NOT_CONTRACTED' || mem.status === 'NONE') {
+                return (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                    {compact ? 'Delivery' : 'Sin membresía'}
+                  </span>
+                );
+              }
+              return (
+                <Badge variant="danger" dot size="sm">
+                  Vencida
+                </Badge>
+              );
+            };
+
+            const renderPosBadge = (compact = false) => (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-800 border border-purple-200/80">
+                <span>{compact ? 'POS' : 'Solo POS'}</span>
+              </span>
+            );
+
+            if (hasDelivery && hasPos) {
+              return (
+                <>
+                  {renderDeliveryBadge(true)}
+                  {renderPosBadge(true)}
+                </>
+              );
+            }
+
+            if (!hasDelivery && hasPos) {
+              return renderPosBadge(false);
+            }
+
+            return renderDeliveryBadge(false);
+          })()}
 
           <div className="text-gray-400 pl-1">
             <ArrowRight size={14} />

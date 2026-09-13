@@ -25,7 +25,6 @@ export const RiderCardMobile: React.FC<RiderCardMobileProps> = ({ rider, onToggl
 
   return (
     <div className="bg-white border border-gray-200/80 rounded-xl p-4 transition-all shadow-2xs space-y-3">
-      {/* Header Info */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           {rider.profilePhotoUrl ? (
@@ -54,7 +53,6 @@ export const RiderCardMobile: React.FC<RiderCardMobileProps> = ({ rider, onToggl
           </div>
         </div>
 
-        {/* Toggle Switch */}
         <button
           onClick={(e) => onToggle(e, rider.id)}
           className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
@@ -70,7 +68,6 @@ export const RiderCardMobile: React.FC<RiderCardMobileProps> = ({ rider, onToggl
         </button>
       </div>
 
-      {/* Vehicle & Metrics */}
       <div className="flex items-center justify-between text-xs text-gray-600 pt-1">
         <div className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
           <span className="text-gray-500">{getVehicleIcon(rider.vehicleType)}</span>
@@ -100,7 +97,6 @@ export const RiderCardMobile: React.FC<RiderCardMobileProps> = ({ rider, onToggl
         </div>
       </div>
 
-      {/* Status Footer */}
       <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 text-xs">
         <div className="text-gray-400 text-[11px]">
           Hoy: <strong className="text-gray-800 font-semibold">{rider.deliveriesToday}</strong>

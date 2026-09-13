@@ -23,7 +23,6 @@ export function calculateFeeClient(config: PricingConfig, distanceKm: number): n
     return Number(base.toFixed(2));
   }
 
-  // PER_KM
   const ratePerKm = Number(config.ratePerKm) || 0;
   const freeZoneKm = Number(config.freeZoneKm) || 0;
   const minRate = Number(config.minRate) || 0;

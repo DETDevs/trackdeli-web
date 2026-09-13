@@ -104,7 +104,6 @@ export function DataTable<T>({
         </table>
       </div>
 
-      {/* Paginación */}
       {data.length > pageSize && (
         <div className="py-3 px-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 bg-white">
           <span>

@@ -10,6 +10,7 @@ import { OrdersPage } from "../pages/OrdersPage";
 import { CreateOrderPage } from "../pages/CreateOrderPage";
 import { OrderDetailPage } from "../pages/OrderDetailPage";
 import { StaffPage } from "../pages/StaffPage";
+import { TeamPage } from "../pages/TeamPage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { ClientsPage } from "../pages/ClientsPage";
@@ -47,6 +48,7 @@ const router = createBrowserRouter([
       { path: "orders/new", element: <CreateOrderPage /> },
       { path: "orders/:id", element: <OrderDetailPage /> },
       { path: "clients", element: <ClientsPage /> },
+      { path: "team", element: <TeamPage /> },
       { path: "staff", element: <StaffPage /> },
       { path: "invites", element: <InviteCodesPage /> },
       { path: "reports", element: <ReportsPage /> },

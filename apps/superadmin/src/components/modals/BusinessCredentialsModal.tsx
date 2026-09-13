@@ -75,7 +75,6 @@ export const BusinessCredentialsModal: React.FC<BusinessCredentialsModalProps> =
           Compartí estas credenciales de acceso al encargado del negocio:
         </p>
 
-        {/* Email Field */}
         <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
           <span className="text-[11px] font-medium text-gray-500 uppercase flex items-center gap-1.5">
             <EnvelopeSimple size={13} className="text-gray-400" />
@@ -96,7 +95,6 @@ export const BusinessCredentialsModal: React.FC<BusinessCredentialsModalProps> =
           </div>
         </div>
 
-        {/* Password Field */}
         {password && (
           <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
             <span className="text-[11px] font-medium text-gray-500 uppercase flex items-center gap-1.5">
@@ -119,7 +117,6 @@ export const BusinessCredentialsModal: React.FC<BusinessCredentialsModalProps> =
           </div>
         )}
 
-        {/* Warning Banner */}
         <div className="p-3 rounded-xl bg-amber-50 border border-amber-100/80 flex items-start gap-2.5 text-xs text-amber-900">
           <Warning size={16} className="text-amber-600 shrink-0 mt-0.5" />
           <p className="text-[11px] text-amber-800 leading-tight">
@@ -127,7 +124,6 @@ export const BusinessCredentialsModal: React.FC<BusinessCredentialsModalProps> =
           </p>
         </div>
 
-        {/* Acciones */}
         <div className="space-y-2 pt-2 border-t border-gray-100">
           <button
             type="button"

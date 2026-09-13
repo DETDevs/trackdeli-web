@@ -21,7 +21,6 @@ interface MapState {
 export const useMapStore = create<MapState>((set) => ({
   repartidoresActivos: [],
   updateRepartidorLocation: (data) => set((state) => {
-    // Backend's location_updated payload might omit userId, so we match by orderId
     const existing = state.repartidoresActivos.findIndex(r => r.orderId === data.orderId);
     if (existing >= 0) {
       const updated = [...state.repartidoresActivos];
@@ -34,7 +33,6 @@ export const useMapStore = create<MapState>((set) => ({
       };
       return { repartidoresActivos: updated };
     } else {
-      // Create a temporary entry until we fetch real data
       return {
         repartidoresActivos: [
           ...state.repartidoresActivos,

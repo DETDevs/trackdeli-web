@@ -55,7 +55,6 @@ export const OrderDetailPage = () => {
     queryFn: () => getMyBusiness(),
   });
 
-  // Agregar query para fotos
   const { data: photos = [] } = useQuery({
     queryKey: ['order-photos', id],
     queryFn: async () => {
@@ -70,7 +69,6 @@ export const OrderDetailPage = () => {
     enabled: !!id,
   });
 
-  // Separar fotos por tipo
   const fotosArmado = photos.filter(p => p.type === 'ARMADO');
   const fotosEntrega = photos.filter(p => p.type === 'ENTREGA');
 
@@ -115,7 +113,6 @@ export const OrderDetailPage = () => {
     );
   }
 
-  // Build timeline dynamically based on current status index
   const currentStatusIndex = STATUS_SEQUENCE.indexOf(order.status as OrderStatus);
   
   let timeline = STATUS_SEQUENCE.map((s, idx) => {
@@ -146,7 +143,6 @@ export const OrderDetailPage = () => {
     };
   });
 
-  // Handle cut-off for CANCELADO / INCIDENCIA
   if (order.status === 'CANCELADO' || order.status === 'INCIDENCIA') {
     const cutoffIndex = order.takenAt ? 1 : 0;
     
@@ -172,7 +168,6 @@ export const OrderDetailPage = () => {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      {/* Back */}
       <button
         onClick={() => navigate('/orders')}
         className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
@@ -181,7 +176,6 @@ export const OrderDetailPage = () => {
         Volver a pedidos
       </button>
 
-      {/* Title & Status */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">{order.customerName}</h1>
@@ -190,11 +184,8 @@ export const OrderDetailPage = () => {
         <StatusBadge status={order.status} />
       </div>
 
-      {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-        {/* Left: Info + Quotes + Photos */}
         <div className="space-y-4">
-          {/* Panel de Asignación / Despacho a Repartidores */}
           {(order.status === 'OFERTADO' || (order.dispatches && order.dispatches.length > 0)) && (
             <OrderDispatchPanel
               orderId={order.id}
@@ -203,7 +194,6 @@ export const OrderDetailPage = () => {
             />
           )}
 
-          {/* Panel de Propuestas de Tarifas */}
           {(
             order.status === 'COTIZANDO' ||
             (((order as any).business?.pricingModel === 'RIDER_QUOTE' || business?.pricingModel === 'RIDER_QUOTE' || order.priceNegotiated) &&
@@ -271,7 +261,6 @@ export const OrderDetailPage = () => {
               </div>
             </dl>
 
-            {/* Botón Enviar Tracking por WhatsApp */}
             {canSendTracking ? (
               <div className="flex gap-2 pt-2 border-t border-gray-100">
                 <button
@@ -306,7 +295,6 @@ export const OrderDetailPage = () => {
             )}
           </div>
 
-          {/* Photos */}
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
             {fotosArmado.length > 0 ? (
               <div>
@@ -335,7 +323,6 @@ export const OrderDetailPage = () => {
               <p className="text-sm text-gray-400">Sin fotos de armado</p>
             )}
 
-            {/* Renderizar fotos de entrega: */}
             {fotosEntrega.length > 0 && (
               <div className="mt-4">
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
@@ -357,9 +344,7 @@ export const OrderDetailPage = () => {
           </div>
         </div>
 
-        {/* Right: Timeline + Repartidor + Tracking */}
         <div className="space-y-4">
-          {/* Timeline */}
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-5">Timeline de estados</div>
             <div className="space-y-0">
@@ -394,7 +379,6 @@ export const OrderDetailPage = () => {
             </div>
           </div>
 
-          {/* Repartidor */}
           {order.deliveryUser && (
             <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
               <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Repartidor asignado</div>
@@ -440,7 +424,6 @@ export const OrderDetailPage = () => {
             </div>
           )}
 
-          {/* Mapa de Tracking */}
           {['EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'EN_CAMINO', 'CERCA_DEL_DESTINO'].includes(order.status) && (
             <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100">

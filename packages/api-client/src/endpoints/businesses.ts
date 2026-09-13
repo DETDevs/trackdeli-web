@@ -106,7 +106,6 @@ export const updateMyBusiness = async (data: UpdateBusinessInput) => {
   return res.data as Business;
 };
 
-// Business Clients (para EMPRESA_RIDERS)
 export const getBusinessClients = async (params?: { search?: string; isActive?: boolean }): Promise<BusinessClient[]> => {
   try {
     const res = await apiClient.get('/businesses/me/clients', { params });

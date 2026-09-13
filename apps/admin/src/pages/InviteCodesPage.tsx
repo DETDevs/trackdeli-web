@@ -27,7 +27,6 @@ export const InviteCodesPage = () => {
   const [createdCode, setCreatedCode] = useState<InviteCode | null>(null);
   const [viewingCode, setViewingCode] = useState<InviteCode | null>(null);
 
-  // Form state
   const [description, setDescription] = useState('');
   const [maxUses, setMaxUses] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
@@ -131,7 +130,6 @@ export const InviteCodesPage = () => {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
@@ -152,7 +150,6 @@ export const InviteCodesPage = () => {
         </button>
       </div>
 
-      {/* Loading state */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <CircleNotch size={32} className="animate-spin text-gray-400" />
@@ -160,7 +157,6 @@ export const InviteCodesPage = () => {
         </div>
       )}
 
-      {/* Error state */}
       {isError && (
         <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center space-y-3">
           <p className="text-sm font-medium text-red-800">
@@ -175,7 +171,6 @@ export const InviteCodesPage = () => {
         </div>
       )}
 
-      {/* Empty state */}
       {!isLoading && !isError && inviteCodes.length === 0 && (
         <div className="bg-white border border-gray-100 rounded-xl p-8 sm:p-12 text-center space-y-4">
           <div className="w-12 h-12 rounded-xl bg-gray-50 text-gray-700 mx-auto flex items-center justify-center">
@@ -199,7 +194,6 @@ export const InviteCodesPage = () => {
         </div>
       )}
 
-      {/* List of Invite Codes */}
       {!isLoading && !isError && inviteCodes.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {inviteCodes.map((code) => (
@@ -209,7 +203,6 @@ export const InviteCodesPage = () => {
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  {/* OTP grande con tracking amplio */}
                   <div className="flex items-center gap-3">
                     <span className="text-3xl font-semibold tracking-[0.3em] text-[#0F0F0F] font-mono">
                       {code.code}
@@ -250,7 +243,6 @@ export const InviteCodesPage = () => {
                 </span>
               </div>
 
-              {/* Usages quick link */}
               {code.usedCount > 0 && (
                 <div className="mt-3">
                   <button
@@ -263,7 +255,6 @@ export const InviteCodesPage = () => {
                 </div>
               )}
 
-              {/* Acciones */}
               <div className="flex gap-2 mt-4 pt-3 border-t border-gray-50">
                 <button
                   onClick={() => handleShareWhatsApp(code.code)}
@@ -285,11 +276,9 @@ export const InviteCodesPage = () => {
         </div>
       )}
 
-      {/* Modal: Crear / Éxito Código */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <h3 className="font-semibold text-base text-gray-900">
                 {createdCode ? 'Código Generado' : 'Nuevo código de invitación'}
@@ -302,7 +291,6 @@ export const InviteCodesPage = () => {
               </button>
             </div>
 
-            {/* 4. Modal de éxito — mostrar el OTP generado */}
             {createdCode ? (
               <div className="text-center py-2 space-y-4">
                 <p className="text-sm text-gray-500">
@@ -339,7 +327,6 @@ export const InviteCodesPage = () => {
                 </button>
               </div>
             ) : (
-              /* 3. Modal de crear código — simplificado */
               <form onSubmit={handleCreateSubmit} className="space-y-4">
                 <p className="text-sm text-gray-500">
                   Se generará un código de 6 dígitos automáticamente.
@@ -411,7 +398,6 @@ export const InviteCodesPage = () => {
         </div>
       )}
 
-      {/* Modal: Ver Riders Vinculados */}
       {viewingCode && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
@@ -435,7 +421,6 @@ export const InviteCodesPage = () => {
               </button>
             </div>
 
-            {/* List */}
             <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
               {loadingUsages ? (
                 <div className="flex flex-col items-center justify-center py-10 gap-2">

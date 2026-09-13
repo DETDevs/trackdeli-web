@@ -18,7 +18,6 @@ export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
 
-  // Cerrar sidebar al cambiar de ruta en mobile
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
@@ -26,7 +25,6 @@ export const Layout = () => {
   return (
     <SidebarContext.Provider value={{ sidebarOpen, setSidebarOpen }}>
       <div className="flex h-screen w-screen overflow-hidden bg-gray-25 font-sans">
-        {/* Overlay oscuro en mobile */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 bg-black/40 z-30 lg:hidden backdrop-blur-xs transition-opacity"
@@ -34,10 +32,8 @@ export const Layout = () => {
           />
         )}
 
-        {/* Sidebar Drawer en mobile / Fijo en desktop */}
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        {/* Contenido Principal */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <main className="flex-1 overflow-y-auto">
             <Outlet />

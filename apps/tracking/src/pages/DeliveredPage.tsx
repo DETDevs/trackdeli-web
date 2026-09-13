@@ -80,7 +80,6 @@ export const DeliveredPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <div className="w-full max-w-[430px] mx-auto bg-white min-h-screen flex flex-col shadow-sm pb-12">
-        {/* Header simple */}
         <div className="px-6 py-4 flex items-center gap-3 border-b border-gray-100">
           <div className="w-8 h-8 bg-gray-900 text-white rounded-md flex items-center justify-center font-bold text-xs">
             TD
@@ -138,7 +137,6 @@ export const DeliveredPage = () => {
             </div>
           )}
 
-          {/* Propina */}
           <div className="mt-8 text-center pt-8 border-t border-gray-100">
             <p className="text-sm font-medium text-gray-900 mb-2">
               ¿Querés dejar propina al repartidor?

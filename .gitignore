@@ -127,3 +127,21 @@ dist
 
 # Vite
 *.local
+
+# Variables de entorno y secretos
+*.example
+*.example.*
+*.sample
+*.sample.*
+*.pem
+*.p8
+*.p12
+*.pfx
+*.key
+*.crt
+*credential*.json
+*credentials*.json
+*service-account*.json
+*secret*.json
+firebase-credentials*.json
+google-credentials*.json

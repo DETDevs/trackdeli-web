@@ -45,7 +45,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
     (import.meta as any).env?.VITE_MAPBOX_TOKEN ||
     'pk.eyJ1IjoiZWR3aW50b3JyZXMyMSIsImEiOiJjbXQ2bWwzYjkyMHRkMnlvaHY1ZnIwdGR3In0.yQ7e5NbovzVMQ4eeW9Pw3w';
 
-  // Inicializar Mapbox Map
   useEffect(() => {
     if (!mapContainer.current || !effectiveToken) return;
 
@@ -65,7 +64,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
       onMapReady?.(map);
     });
 
-    // Múltiples resizes para evitar canvas gris
     const timer1 = setTimeout(() => map.resize(), 100);
     const timer2 = setTimeout(() => map.resize(), 300);
     const timer3 = setTimeout(() => map.resize(), 600);
@@ -103,7 +101,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
     };
   }, [effectiveToken]);
 
-  // Manejar flyTo externo cuando cambian coordenadas GPS
   useEffect(() => {
     if (!mapRef.current || !flyToCoords) return;
     if (isNaN(flyToCoords.lat) || isNaN(flyToCoords.lng)) return;
@@ -118,7 +115,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
     fetchReverseGeocode(flyToCoords.lng, flyToCoords.lat);
   }, [flyToCoords]);
 
-  // Notificar cambios de ubicación al componente padre
   useEffect(() => {
     onLocationChange?.(currentLat, currentLng, currentAddress);
   }, [currentLat, currentLng, currentAddress, onLocationChange]);
@@ -181,7 +177,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
       className={`relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 shadow-xs flex flex-col ${className}`}
       style={{ height, position: 'relative' }}
     >
-      {/* 1. MAP CANVAS (Sibling - NO react children inside to prevent Mapbox DOM overwrite) */}
       <div
         ref={mapContainer}
         className="w-full h-full"
@@ -196,7 +191,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
         }}
       />
 
-      {/* 2. SEARCH BAR OVERLAY (Top) */}
       <div
         style={{
           position: 'absolute',
@@ -228,7 +222,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
           )}
         </div>
 
-        {/* Autocomplete Dropdown */}
         {searchResults.length > 0 && (
           <div
             className="mt-1.5 bg-white border border-gray-100 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-gray-50"
@@ -252,7 +245,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
         )}
       </div>
 
-      {/* 3. PROMINENT FIXED CENTER PIN (Center of Map) */}
       <div
         className="pointer-events-none select-none flex flex-col items-center justify-center"
         style={{
@@ -264,13 +256,11 @@ export const PinPicker: React.FC<PinPickerProps> = ({
         }}
       >
         <div className="relative flex flex-col items-center">
-          {/* Tag tooltip */}
           <div className="bg-gray-950/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-md mb-1 whitespace-nowrap tracking-wide flex items-center gap-1 border border-white/20">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
             <span>Fijar acá</span>
           </div>
 
-          {/* Large, high-visibility Pin Icon */}
           <div className="relative">
             <MapPin
               size={46}
@@ -279,7 +269,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
             />
           </div>
 
-          {/* Ground anchor pulse dot right under the pin point */}
           <div className="relative flex items-center justify-center -mt-1">
             <span
               className="w-4 h-4 rounded-full bg-rose-500/35 ring-2 ring-rose-500 animate-ping"
@@ -290,7 +279,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
         </div>
       </div>
 
-      {/* 4. ADDRESS BAR PILL (Bottom of Map) */}
       <div
         className="pointer-events-none"
         style={{
@@ -309,7 +297,6 @@ export const PinPicker: React.FC<PinPickerProps> = ({
         </div>
       </div>
 
-      {/* 5. BOTTOM ACTION BAR (if not hidden by parent) */}
       {!hideConfirmButton && (
         <div
           className="bg-white border-t border-gray-100 p-3.5 shrink-0"

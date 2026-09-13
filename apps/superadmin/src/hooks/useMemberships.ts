@@ -75,10 +75,8 @@ export function useCreateMembership() {
   return useMutation({
     mutationFn: async (input: CreateMembershipInput) => {
       const { file, ...body } = input;
-      // 1. Crear membresía
       const { data: membership } = await apiClient.post('/superadmin/memberships', body);
 
-      // 2. Subir comprobante si se adjuntó archivo
       if (file && membership?.id) {
         const formData = new FormData();
         formData.append('file', file);

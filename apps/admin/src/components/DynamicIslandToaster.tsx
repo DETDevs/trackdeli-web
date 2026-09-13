@@ -22,13 +22,11 @@ export const DynamicIslandToaster: React.FC = () => {
   const { toasts } = useToasterStore();
   const [activeToast, setActiveToast] = useState<DisplayToast | null>(null);
   
-  // Refs para mantener estado síncrono en callbacks y temporizadores
   const activeToastRef = useRef<DisplayToast | null>(null);
   const queueRef = useRef<DisplayToast[]>([]);
   const processedIdsRef = useRef<Set<string>>(new Set());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Mantener activeToastRef sincronizado
   useEffect(() => {
     activeToastRef.current = activeToast;
   }, [activeToast]);
@@ -57,11 +55,9 @@ export const DynamicIslandToaster: React.FC = () => {
     showNext();
   }, [showNext]);
 
-  // Procesar nuevos toasts que ingresan por react-hot-toast
   useEffect(() => {
     if (!toasts || toasts.length === 0) return;
 
-    // Buscar toasts que aún no hayamos procesado
     for (const t of toasts) {
       if (processedIdsRef.current.has(t.id)) continue;
       processedIdsRef.current.add(t.id);
@@ -84,7 +80,6 @@ export const DynamicIslandToaster: React.FC = () => {
         type = 'warning';
       }
 
-      // Duración: errores tienen 4000ms, éxito/info 3500ms
       const duration = t.duration && t.duration > 0 ? t.duration : type === 'error' ? 4000 : 3500;
       const newToast: DisplayToast = {
         id: t.id,
@@ -96,36 +91,29 @@ export const DynamicIslandToaster: React.FC = () => {
       const current = activeToastRef.current;
 
       if (!current) {
-        // Nada en pantalla: mostrar de inmediato
         clearTimer();
         setActiveToast(newToast);
         timerRef.current = setTimeout(() => {
           showNext();
         }, newToast.duration);
       } else if (current.type === 'error') {
-        // Caso: El toast actual es un ERROR
         if (newToast.type === 'error') {
-          // Otro error: reemplaza inmediatamente y resetea temporizador
           clearTimer();
           setActiveToast(newToast);
           timerRef.current = setTimeout(() => {
             showNext();
           }, newToast.duration);
         } else {
-          // Toast de éxito/info: NO reemplaza al error, se encola para mostrarse después
           queueRef.current.push(newToast);
         }
       } else {
-        // Caso: El toast actual es éxito, info o loading
         if (newToast.type === 'error') {
-          // Un error SIEMPRE interrumpe de inmediato a uno no-crítico
           clearTimer();
           setActiveToast(newToast);
           timerRef.current = setTimeout(() => {
             showNext();
           }, newToast.duration);
         } else {
-          // Entre dos toasts no-críticos (ej. 2 éxitos): reemplaza inmediatamente
           clearTimer();
           setActiveToast(newToast);
           timerRef.current = setTimeout(() => {
@@ -136,7 +124,6 @@ export const DynamicIslandToaster: React.FC = () => {
     }
   }, [toasts, clearTimer, showNext]);
 
-  // Limpiar timer al desmontar
   useEffect(() => {
     return () => clearTimer();
   }, [clearTimer]);
@@ -153,7 +140,6 @@ export const DynamicIslandToaster: React.FC = () => {
         return <CircleNotch size={17} weight="regular" className="animate-spin text-white/70 shrink-0" />;
       case 'info':
       default:
-        // Design system: #6B7280 (gray-500) para info
         return <Info size={17} weight="regular" className="text-[#6B7280] shrink-0" />;
     }
   };

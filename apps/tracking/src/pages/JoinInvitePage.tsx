@@ -30,7 +30,6 @@ export const JoinInvitePage = () => {
 
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-white flex flex-col justify-between p-4 sm:p-6 select-none font-sans">
-      {/* Top Header */}
       <header className="flex items-center justify-between max-w-md mx-auto w-full pt-2">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-white text-black flex items-center justify-center font-bold text-sm">
@@ -47,9 +46,7 @@ export const JoinInvitePage = () => {
         </span>
       </header>
 
-      {/* Main Content Card */}
       <main className="max-w-md mx-auto w-full py-8 space-y-6 my-auto">
-        {/* Icon & Title */}
         <div className="text-center space-y-3">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-black flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20">
             <Motorcycle size={36} weight="bold" />
@@ -67,7 +64,6 @@ export const JoinInvitePage = () => {
           </div>
         </div>
 
-        {/* Code Box */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-5 text-center space-y-3 backdrop-blur-md">
           <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">
             Tu Código de Invitación
@@ -104,7 +100,6 @@ export const JoinInvitePage = () => {
           )}
         </div>
 
-        {/* Instructions */}
         <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 space-y-3.5">
           <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider">
             ¿Cómo empezar?
@@ -140,7 +135,6 @@ export const JoinInvitePage = () => {
           </ol>
         </div>
 
-        {/* CTA Buttons */}
         <div className="space-y-2.5 pt-2">
           <button
             onClick={handleCopy}
@@ -152,7 +146,6 @@ export const JoinInvitePage = () => {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="text-center text-[11px] text-gray-500 py-4 max-w-md mx-auto w-full border-t border-white/5">
         TrackDeli — Logística y Tracking en Tiempo Real
       </footer>

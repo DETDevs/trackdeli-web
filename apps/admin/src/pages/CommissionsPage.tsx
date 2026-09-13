@@ -48,7 +48,6 @@ export const CommissionsPage = () => {
     queryFn: () => getOrders(),
   });
 
-  // Calculate or fallback commissions from orders for the selected month
   const derivedCommissions = useMemo(() => {
     if (apiCommissions.length > 0) {
       return apiCommissions;
@@ -142,7 +141,6 @@ export const CommissionsPage = () => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-gray-900 leading-tight">
@@ -154,7 +152,6 @@ export const CommissionsPage = () => {
         </div>
 
         <div className="flex items-center gap-2 self-stretch sm:self-auto">
-          {/* Month Selector */}
           <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1 shadow-xs">
             <button
               onClick={handlePrevMonth}
@@ -186,7 +183,6 @@ export const CommissionsPage = () => {
         </div>
       </div>
 
-      {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs">
           <div className="flex items-center justify-between text-gray-500 mb-2">
@@ -222,7 +218,6 @@ export const CommissionsPage = () => {
         </div>
       </div>
 
-      {/* Statement Status Banner */}
       <div
         className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs ${
           statementStatus === 'PAID'
@@ -253,7 +248,6 @@ export const CommissionsPage = () => {
         </span>
       </div>
 
-      {/* Detail Table */}
       <div className="bg-white border border-gray-100 rounded-2xl shadow-xs overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
@@ -267,7 +261,6 @@ export const CommissionsPage = () => {
           </span>
         </div>
 
-        {/* Desktop Table */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
@@ -353,7 +346,6 @@ export const CommissionsPage = () => {
           </table>
         </div>
 
-        {/* Mobile Cards */}
         <div className="md:hidden divide-y divide-gray-100">
           {loadingCommissions || loadingOrders ? (
             Array.from({ length: 3 }).map((_, i) => (

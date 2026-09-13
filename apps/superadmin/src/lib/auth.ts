@@ -83,7 +83,6 @@ export const useAuthStore = create<AuthState>((set) => ({
           return;
         }
       } catch {
-        // ignore
       }
     }
     set({ user: null, accessToken: null, isAuthenticated: false });

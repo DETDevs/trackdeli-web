@@ -68,13 +68,11 @@ export default function TrackingMap({
   const destinoMarker = useRef<mapboxgl.Marker | null>(null);
   const businessMarker = useRef<mapboxgl.Marker | null>(null);
 
-  // Referencias para animación fluida continua (Dead Reckoning / LERP)
   const animationFrameId = useRef<number | null>(null);
   const currentAnimatedLngLat = useRef<[number, number] | null>(null);
   const currentAnimatedHeading = useRef<number>(0);
   const prevUpdateTimestamp = useRef<number | null>(null);
 
-  // Referencias para sincronización de ruta y detección de desvíos
   const fullRouteCoords = useRef<[number, number][]>([]);
   const currentClosestSegmentIndex = useRef<number>(0);
   const consecutiveDeviations = useRef<number>(0);
@@ -83,7 +81,6 @@ export default function TrackingMap({
 
   const hasFittedInitialBounds = useRef<boolean>(false);
 
-  // Ajustar cámara con bounds holgados
   const fitMapBounds = useCallback(
     (animate = true) => {
       if (!map.current) return;
@@ -110,7 +107,6 @@ export default function TrackingMap({
     [destLat, destLng, repLat, repLng, bizLat, bizLng]
   );
 
-  // Determinar punto objetivo de la ruta activa según el estado del pedido
   const getActiveTargetCoordinates = useCallback((): [number, number] | null => {
     if (orderStatus === 'EN_CAMINO_AL_NEGOCIO' && bizLng !== undefined && bizLat !== undefined) {
       return [bizLng, bizLat];
@@ -121,7 +117,6 @@ export default function TrackingMap({
     return null;
   }, [orderStatus, bizLng, bizLat, destLng, destLat]);
 
-  // Actualizar la línea de ruta recortada sincrónicamente con el avatar
   const updateRouteLineSync = useCallback((riderLngLat: [number, number]) => {
     if (!map.current || !map.current.isStyleLoaded()) return;
     const source = map.current.getSource('route') as mapboxgl.GeoJSONSource | undefined;
@@ -133,12 +128,10 @@ export default function TrackingMap({
       fullRouteCoords.current
     );
 
-    // Progreso monótono para evitar retrocesos en intersecciones
     if (segmentIndex >= currentClosestSegmentIndex.current) {
       currentClosestSegmentIndex.current = segmentIndex;
     }
 
-    // El primer punto de la polilínea recortada es exactamente la posición del rider
     const trimmed = trimRouteCoordinates(
       riderLngLat,
       fullRouteCoords.current,
@@ -155,7 +148,6 @@ export default function TrackingMap({
     });
   }, []);
 
-  // Consultar Mapbox Directions API para trazar o recalcular ruta
   const fetchAndApplyRoute = useCallback(
     async (origin: [number, number], destination: [number, number], isRecalculation = false) => {
       if (!mapboxgl.accessToken || isFetchingRoute.current) return;
@@ -191,7 +183,6 @@ export default function TrackingMap({
                 },
               });
 
-              // Capa de borde/resplandor para acabado profesional tipo Uber
               m.addLayer(
                 {
                   id: 'route-casing',
@@ -207,7 +198,6 @@ export default function TrackingMap({
                 'waterway-label'
               );
 
-              // Capa principal vibrante
               m.addLayer(
                 {
                   id: 'route',
@@ -223,7 +213,6 @@ export default function TrackingMap({
                 'waterway-label'
               );
             } else {
-              // Si el rider ya tiene posición animada, recortar inmediatamente la nueva ruta
               if (currentAnimatedLngLat.current) {
                 updateRouteLineSync(currentAnimatedLngLat.current);
               } else {
@@ -250,7 +239,6 @@ export default function TrackingMap({
     [updateRouteLineSync]
   );
 
-  // Inicializar instancia de Mapbox
   useEffect(() => {
     if (!mapContainer.current) return;
 
@@ -279,12 +267,10 @@ export default function TrackingMap({
     };
   }, []);
 
-  // Marcadores estáticos (Destino y Negocio) y trazado inicial de la ruta
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const m = map.current;
 
-    // Marcador de destino
     if (!destinoMarker.current && !isNaN(destLat) && !isNaN(destLng)) {
       const destinoEl = createDestinationMarker({ label: 'Destino' });
       destinoMarker.current = new mapboxgl.Marker({ element: destinoEl })
@@ -292,7 +278,6 @@ export default function TrackingMap({
         .addTo(m);
     }
 
-    // Marcador del negocio
     if (bizLat !== undefined && bizLng !== undefined && !isNaN(bizLat) && !isNaN(bizLng)) {
       if (!businessMarker.current) {
         const bizEl = createBusinessMarker({ name: businessName || 'Negocio' });
@@ -302,7 +287,6 @@ export default function TrackingMap({
       }
     }
 
-    // Trazar ruta inicial (desde el negocio o rider hacia el destino)
     const target = getActiveTargetCoordinates();
     if (target && fullRouteCoords.current.length === 0) {
       const startOrigin: [number, number] =
@@ -317,7 +301,6 @@ export default function TrackingMap({
       }
     }
 
-    // Centrar bounds inicialmente una sola vez
     if (!hasFittedInitialBounds.current) {
       fitMapBounds(false);
       hasFittedInitialBounds.current = true;
@@ -336,7 +319,6 @@ export default function TrackingMap({
     fitMapBounds,
   ]);
 
-  // Manejo y animación fluida en tiempo real del repartidor (TIPO UBER / PEDIDOSYA)
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const m = map.current;
@@ -363,7 +345,6 @@ export default function TrackingMap({
 
     const targetPos: [number, number] = [repLng, repLat];
 
-    // 1. Si el marcador no existía aún, crearlo en la posición exacta inicial
     if (!repartidorMarker.current) {
       const el = createRiderMarker({ vehicleType, isLive: true });
       repartidorMarker.current = new mapboxgl.Marker({ element: el })
@@ -379,12 +360,10 @@ export default function TrackingMap({
         hasFittedInitialBounds.current = true;
       }
 
-      // Recortar ruta si ya está disponible
       updateRouteLineSync(targetPos);
       return;
     }
 
-    // 2. Si ya existía, preparar la animación de interpolación suave
     const startPos: [number, number] = currentAnimatedLngLat.current || [
       repartidorMarker.current.getLngLat().lng,
       repartidorMarker.current.getLngLat().lat,
@@ -397,7 +376,6 @@ export default function TrackingMap({
       targetPos[1]
     );
 
-    // Si el salto es masivo (> 5km, e.g. cambio brusco o primera geolocalización), mover directo sin animar
     if (distanceMoved > 5000) {
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
       repartidorMarker.current.setLngLat(targetPos);
@@ -407,7 +385,6 @@ export default function TrackingMap({
       return;
     }
 
-    // 3. Detección de desvío de la ruta original
     if (fullRouteCoords.current.length > 0) {
       const { minDistance } = findClosestPointOnRoute(
         targetPos[0],
@@ -415,10 +392,8 @@ export default function TrackingMap({
         fullRouteCoords.current
       );
 
-      // Umbral de 40 metros
       if (minDistance > 40) {
         consecutiveDeviations.current += 1;
-        // Si la desviación es sostenida durante 3 lecturas consecutivas
         if (
           consecutiveDeviations.current >= 3 &&
           !isFetchingRoute.current &&
@@ -435,24 +410,20 @@ export default function TrackingMap({
       }
     }
 
-    // 4. Calcular intervalo medido entre emisiones para duración de animación dinámica
     const now = performance.now();
     const elapsedSinceLast = prevUpdateTimestamp.current
       ? now - prevUpdateTimestamp.current
       : 3000;
     prevUpdateTimestamp.current = now;
 
-    // Ventana de animación acoplada al intervalo de emisión (1.5s - 5s)
     const animDuration = Math.max(1500, Math.min(elapsedSinceLast, 5000));
 
-    // 5. Calcular rotación/heading del rider hacia el nuevo punto
     let targetHeading = currentAnimatedHeading.current;
     if (distanceMoved >= 2) {
       targetHeading = calculateHeading(startPos[0], startPos[1], targetPos[0], targetPos[1]);
     }
     const startHeading = currentAnimatedHeading.current;
 
-    // 6. Cancelar animación previa e iniciar ciclo fluido en requestAnimationFrame
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
     }
@@ -463,7 +434,6 @@ export default function TrackingMap({
       const elapsed = timestamp - animStartTime;
       const progress = Math.min(elapsed / animDuration, 1);
 
-      // Interpolación lineal constante (LERP) para deslizamiento continuo como en Uber
       const curLng = startPos[0] + (targetPos[0] - startPos[0]) * progress;
       const curLat = startPos[1] + (targetPos[1] - startPos[1]) * progress;
       const currentPos: [number, number] = [curLng, curLat];
@@ -473,16 +443,13 @@ export default function TrackingMap({
       if (repartidorMarker.current) {
         repartidorMarker.current.setLngLat(currentPos);
 
-        // Interpolación angular suave por el camino más corto
         const curHeading = interpolateAngle(startHeading, targetHeading, progress);
         currentAnimatedHeading.current = curHeading;
         updateRiderMarkerHeading(repartidorMarker.current.getElement(), curHeading);
       }
 
-      // Sincronizar el recorte de la línea de ruta en el MISMO frame de la animación
       updateRouteLineSync(currentPos);
 
-      // Cámara suave: si el rider se acerca al borde del mapa, acompañar suavemente
       if (m && !m.isMoving() && !m.isEasing()) {
         const bounds = m.getBounds();
         if (bounds) {
@@ -523,7 +490,6 @@ export default function TrackingMap({
 
   return (
     <div className="relative w-full h-full min-h-[300px]">
-      {/* Badge flotante de tiempo y distancia de la ruta */}
       {routeInfo && (
         <div className="absolute top-20 left-4 bg-white/95 backdrop-blur-md border border-gray-200/80 rounded-xl shadow-md px-3.5 py-2 z-10 text-sm font-semibold text-gray-900 flex items-center gap-2 animate-fade-in">
           <div className="w-2.5 h-2.5 rounded-full bg-[#22C55E] animate-pulse" />
@@ -532,7 +498,6 @@ export default function TrackingMap({
         </div>
       )}
 
-      {/* Botón flotante para recentrar vista tipo Uber */}
       <button
         type="button"
         onClick={() => fitMapBounds(true)}

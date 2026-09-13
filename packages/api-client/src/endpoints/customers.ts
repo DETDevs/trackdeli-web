@@ -61,7 +61,6 @@ export const searchCustomers = async (
       const res = await apiClient.get(`/businesses/${businessId}/customers/search?q=${q}`);
       if (Array.isArray(res.data)) return res.data;
     } catch {
-      // Fallback to global search
     }
   }
 
@@ -94,11 +93,9 @@ export const createLocationConfirmationLink = async (params: {
         };
       }
     } catch {
-      // Fallback to generic upsert creation below
     }
   }
 
-  // Generic endpoint with upsert
   try {
     const res = await apiClient.post('/customers/location-confirmation-link', {
       businessId: params.businessId,
@@ -130,10 +127,6 @@ export const createLocationConfirmationLink = async (params: {
   }
 };
 
-/**
- * Resuelve el token de confirmación de ubicación del cliente contra el endpoint de clientes
- * NUNCA contra TrackingSession de pedidos.
- */
 export const getCustomerLocationSession = async (token: string): Promise<CustomerLocationSession> => {
   let data: any = null;
 
@@ -163,7 +156,6 @@ export const getCustomerLocationSession = async (token: string): Promise<Custome
     throw new Error('Sesión de ubicación no encontrada');
   }
 
-  // Normalizar datos de respuesta (tanto si viene objeto Customer directo como si viene empaquetado)
   const customer: Customer = data.customer || {
     id: data.id || data.customerId,
     businessId: data.businessId,

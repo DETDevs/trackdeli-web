@@ -24,7 +24,6 @@ export const OrderDispatchPanel: React.FC<OrderDispatchPanelProps> = ({
 }) => {
   const [now, setNow] = useState(Date.now());
 
-  // Update clock every second for countdown and elapsed calculations
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -36,7 +35,6 @@ export const OrderDispatchPanel: React.FC<OrderDispatchPanelProps> = ({
     refetchInterval: orderStatus === 'OFERTADO' ? 3000 : false,
   });
 
-  // Sort by attempt descending
   const sortedDispatches = useMemo(() => {
     return [...dispatches].sort((a, b) => b.attempt - a.attempt);
   }, [dispatches]);
@@ -53,7 +51,6 @@ export const OrderDispatchPanel: React.FC<OrderDispatchPanelProps> = ({
     return null;
   }
 
-  // Calculate elapsed time from sentAt
   const formatElapsed = (sentAt: string) => {
     const sentTime = new Date(sentAt).getTime();
     const diffSec = Math.max(0, Math.floor((now - sentTime) / 1000));
@@ -63,7 +60,6 @@ export const OrderDispatchPanel: React.FC<OrderDispatchPanelProps> = ({
     return `${mins} min ${secs} seg`;
   };
 
-  // Calculate remaining countdown until timeoutAt
   const formatCountdown = (timeoutAt: string) => {
     const expiresTime = new Date(timeoutAt).getTime();
     const remainSec = Math.floor((expiresTime - now) / 1000);
@@ -75,7 +71,6 @@ export const OrderDispatchPanel: React.FC<OrderDispatchPanelProps> = ({
 
   return (
     <div className="bg-white border border-amber-200/80 rounded-xl shadow-xs overflow-hidden">
-      {/* Header */}
       <div className="px-5 py-3.5 bg-amber-50/70 border-b border-amber-200/60 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Hourglass size={18} weight="fill" className="text-amber-600 animate-spin-slow" />
@@ -92,7 +87,6 @@ export const OrderDispatchPanel: React.FC<OrderDispatchPanelProps> = ({
       </div>
 
       <div className="p-5 space-y-4">
-        {/* Active Dispatch */}
         {activeDispatch ? (
           <div className="bg-amber-50/40 border border-amber-100 rounded-xl p-4 space-y-3">
             <div className="flex items-start justify-between gap-2">
@@ -140,7 +134,6 @@ export const OrderDispatchPanel: React.FC<OrderDispatchPanelProps> = ({
           )
         )}
 
-        {/* Previous Attempts */}
         {pastDispatches.length > 0 && (
           <div className="pt-2 border-t border-gray-100">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">

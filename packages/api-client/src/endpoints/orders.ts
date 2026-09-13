@@ -263,7 +263,6 @@ export const sendQuoteMessage = async (
   }
 };
 
-// Dispatches
 export const getOrderDispatches = async (orderId: string): Promise<OrderDispatch[]> => {
   try {
     const res = await apiClient.get(`/orders/${orderId}/dispatches`);

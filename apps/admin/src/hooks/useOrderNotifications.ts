@@ -14,7 +14,6 @@ export function useOrderNotifications() {
   useEffect(() => {
     if (!accessToken || !user?.businessId) return;
 
-    // Conectar al WebSocket
     // @ts-ignore: Vite injects import.meta.env during build
     const baseUrl = import.meta.env?.VITE_WS_URL || import.meta.env?.VITE_API_BASE_URL?.replace('/api/v1', '') || 'https://trackdeli-api-production.up.railway.app';
     const socket = io(`${baseUrl}/tracking`, {
@@ -29,25 +28,20 @@ export function useOrderNotifications() {
 
     socket.on('connect', () => {
       console.log('[WS Admin] Conectado');
-      // Unirse al room del negocio para recibir actualizaciones
       socket.emit('join_business', { businessId: user.businessId });
     });
 
-    // Nuevo pedido creado → actualizar lista
     socket.on('orders_updated', () => {
       console.log('[WS Admin] orders_updated');
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     });
 
-    // Estado de pedido cambiado → actualizar lista y detalle
     socket.on('order_status_changed', (data: { orderId: string; status: string }) => {
-      // Invalidar queries para refrescar datos
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['order', data.orderId] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
 
-      // Toast de notificación
       const statusLabels: Record<string, string> = {
         COTIZANDO: '🏷️ Pedido en cotización de tarifas',
         TOMADO: '📦 Pedido tomado por un repartidor',
@@ -73,7 +67,6 @@ export function useOrderNotifications() {
       }
     });
 
-    // Nueva propuesta de tarifa recibida
     socket.on('new_quote', (data: any) => {
       console.log('[WS Admin] new_quote', data);
       const orderId = data?.orderId || data?.quote?.orderId;
@@ -97,7 +90,6 @@ export function useOrderNotifications() {
       });
     });
 
-    // Propuesta actualizada por el rider
     socket.on('quote_updated', (data: any) => {
       console.log('[WS Admin] quote_updated', data);
       const orderId = data?.orderId || data?.quote?.orderId;
@@ -118,7 +110,6 @@ export function useOrderNotifications() {
       });
     });
 
-    // Nuevo mensaje en la negociación
     socket.on('new_message', (data: any) => {
       console.log('[WS Admin] new_message', data);
       const quoteId = data?.quoteId || data?.message?.quoteId;
@@ -131,7 +122,6 @@ export function useOrderNotifications() {
       }
     });
 
-    // Propuesta aceptada
     socket.on('quote_accepted', (data: any) => {
       console.log('[WS Admin] quote_accepted', data);
       const orderId = data?.orderId || data?.quote?.orderId;

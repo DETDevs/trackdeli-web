@@ -161,7 +161,6 @@ export const SettingsPage = () => {
     queryFn: getMyBusiness,
   });
 
-  // State para tarifas
   const [pricingModel, setPricingModel] = useState<PricingModel>('FIXED');
   const [baseRate, setBaseRate] = useState<string>('50.00');
   const [ratePerKm, setRatePerKm] = useState<string>('5.00');
@@ -169,10 +168,8 @@ export const SettingsPage = () => {
   const [minRate, setMinRate] = useState<string>('0');
   const [maxRate, setMaxRate] = useState<string>('0');
 
-  // State para lista de zonas de precio fijo
   const [pricingZones, setPricingZones] = useState<PricingZoneFormItem[]>([]);
 
-  // State para WhatsApp
   const [whatsappDigits, setWhatsappDigits] = useState<string>('');
 
   useEffect(() => {
@@ -193,7 +190,6 @@ export const SettingsPage = () => {
           : []
       );
 
-      // Cargar número de WhatsApp existente
       if (business.whatsappNumber) {
         const raw = business.whatsappNumber.replace(/\D/g, '');
         if (raw.startsWith('505') && raw.length > 3) {
@@ -207,7 +203,6 @@ export const SettingsPage = () => {
     }
   }, [business]);
 
-  // Mutation para actualizar ubicación
   const locationMutation = useMutation({
     mutationFn: updateMyBusiness,
     onSuccess: () => {
@@ -224,7 +219,6 @@ export const SettingsPage = () => {
     },
   });
 
-  // Mutation para actualizar WhatsApp
   const whatsappMutation = useMutation({
     mutationFn: updateMyBusiness,
     onSuccess: () => {
@@ -241,7 +235,6 @@ export const SettingsPage = () => {
     },
   });
 
-  // Mutation para actualizar tarifas
   const pricingMutation = useMutation({
     mutationFn: updateMyBusiness,
     onSuccess: () => {
@@ -318,7 +311,6 @@ export const SettingsPage = () => {
   const handleSavePricing = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validar zonas con nombres vacíos
     const filteredZones = pricingZones
       .filter((z) => z.name.trim() !== '')
       .map((z) => ({
@@ -348,7 +340,6 @@ export const SettingsPage = () => {
         </p>
       </div>
 
-      {/* 1. Ubicación Principal */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-4">
           <MapPin size={18} className="text-gray-700" />
@@ -377,7 +368,6 @@ export const SettingsPage = () => {
         )}
       </div>
 
-      {/* 2. Contacto del Negocio */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
         <div className="flex items-center gap-2 mb-1">
           <WhatsappLogo size={20} className="text-emerald-600" weight="fill" />
@@ -418,7 +408,6 @@ export const SettingsPage = () => {
             </p>
           </div>
 
-          {/* Mostrar número guardado actualmente */}
           {business?.whatsappDisplay && (
             <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-100 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2 text-emerald-800">
@@ -450,7 +439,6 @@ export const SettingsPage = () => {
         </form>
       </div>
 
-      {/* 3. Configuración de Tarifas de Entrega */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-2">
           <CurrencyDollar size={20} className="text-brand-600" />
@@ -463,7 +451,6 @@ export const SettingsPage = () => {
         </p>
 
         <form onSubmit={handleSavePricing} className="space-y-6">
-          {/* Opciones de Modelo de Precios */}
           <div>
             <label className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-3">
               Modelo de precios
@@ -523,7 +510,6 @@ export const SettingsPage = () => {
             </div>
           </div>
 
-          {/* Info Box para RIDER_QUOTE */}
           {pricingModel === 'RIDER_QUOTE' && (
             <div className="pt-4 border-t border-gray-100 animate-in fade-in duration-150">
               <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-100 flex items-start gap-3">
@@ -535,10 +521,8 @@ export const SettingsPage = () => {
             </div>
           )}
 
-          {/* Campos para PRECIO FIJO / POR ZONAS */}
           {pricingModel === 'FIXED' && (
             <div className="pt-4 border-t border-gray-100 space-y-5 animate-in fade-in duration-150">
-              {/* Tarifa General Base */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Tarifa fija general (por defecto)
@@ -563,7 +547,6 @@ export const SettingsPage = () => {
                 </p>
               </div>
 
-              {/* Lista de Zonas */}
               <div className="pt-3 border-t border-gray-100/80">
                 <div className="flex items-center justify-between mb-3">
                   <div>
@@ -650,7 +633,6 @@ export const SettingsPage = () => {
             </div>
           )}
 
-          {/* Campos para POR DISTANCIA */}
           {pricingModel === 'PER_KM' && (
             <div className="pt-4 border-t border-gray-100 space-y-4 animate-in fade-in duration-150">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -759,7 +741,6 @@ export const SettingsPage = () => {
             </div>
           )}
 
-          {/* Vista Previa de Precios */}
           <PricingPreview
             model={pricingModel}
             baseRate={parseFloat(baseRate) || 0}
@@ -770,7 +751,6 @@ export const SettingsPage = () => {
             pricingZones={pricingZones}
           />
 
-          {/* Botón Guardar */}
           <div className="pt-3 border-t border-gray-100 flex justify-end">
             <button
               type="submit"

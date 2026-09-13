@@ -61,7 +61,6 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
         setEndDate(format(addDays(d, 30), 'yyyy-MM-dd'));
       }
     } catch {
-      // ignore
     }
   };
 
@@ -112,7 +111,6 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
       maxWidth="max-w-lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Período */}
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1.5">
             Período de vigencia
@@ -144,7 +142,6 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
           </p>
         </div>
 
-        {/* Monto y Moneda */}
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
             <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -180,7 +177,6 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
           </div>
         </div>
 
-        {/* Método de Pago y Fecha de Cobro */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -213,7 +209,6 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
           </div>
         </div>
 
-        {/* Comprobante de Pago */}
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
             Comprobante de pago (opcional)
@@ -263,7 +258,6 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
           )}
         </div>
 
-        {/* Notas Internas */}
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
             Notas internas (opcional)
@@ -277,7 +271,6 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
           />
         </div>
 
-        {/* Acciones */}
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
           <button
             type="button"

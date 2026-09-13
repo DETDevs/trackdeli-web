@@ -8,7 +8,13 @@ import {
   ShieldCheck,
   Motorcycle,
   Coins,
+  Receipt,
+  ForkKnife,
+  ShoppingBag,
+  Check,
 } from '@phosphor-icons/react';
+import toast from 'react-hot-toast';
+import apiClient from '../lib/apiClient';
 import { TopBar } from '../components/layout/TopBar';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { Badge } from '../components/ui/Badge';
@@ -22,6 +28,7 @@ import {
   CreateBusinessResult,
   type BusinessType,
 } from '../hooks/useBusinesses';
+import { type PosVertical } from '../hooks/useBusinessProducts';
 import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
 import { BusinessCredentialsModal } from '../components/modals/BusinessCredentialsModal';
 
@@ -31,31 +38,35 @@ export const BusinessesPage = () => {
   const toggleMutation = useToggleBusiness();
   const createMutation = useCreateBusiness();
 
-  // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
-  // Modal Create Business State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState('');
+
+  const [hasDelivery, setHasDelivery] = useState(true);
+  const [hasPOS, setHasPOS] = useState(false);
+
   const [businessType, setBusinessType] = useState<BusinessType>('NEGOCIO');
   const [commissionRate, setCommissionRate] = useState('15');
   const [altCommissionRate, setAltCommissionRate] = useState('12');
   const [altCommissionDistanceKm, setAltCommissionDistanceKm] = useState('40');
   const [dispatchTimeoutMin, setDispatchTimeoutMin] = useState('3');
+
+  const [posVertical, setPosVertical] = useState<PosVertical>('RESTAURANTE');
+  const [posMonthlyFee, setPosMonthlyFee] = useState('');
+
   const [encargadoName, setEncargadoName] = useState('');
   const [encargadoEmail, setEncargadoEmail] = useState('');
   const [encargadoPassword, setEncargadoPassword] = useState('');
 
-  // Modal Credentials State
   const [createdCredentials, setCreatedCredentials] = useState<{
     businessName: string;
     email: string;
     password?: string;
   } | null>(null);
 
-  // Modal Deactivate State
   const [deactivatingBusiness, setDeactivatingBusiness] = useState<{
     id: string;
     name: string;
@@ -76,10 +87,8 @@ export const BusinessesPage = () => {
   const handleToggleClick = (e: React.MouseEvent, row: BusinessItem) => {
     e.stopPropagation();
     if (row.isActive) {
-      // Show confirmation modal to deactivate
       setDeactivatingBusiness({ id: row.id, name: row.name });
     } else {
-      // Activate directly
       toggleMutation.mutate(row.id);
     }
   };
@@ -96,15 +105,32 @@ export const BusinessesPage = () => {
     e.preventDefault();
     if (!name || !encargadoName || !encargadoEmail || !encargadoPassword) return;
 
+    if (!hasDelivery && !hasPOS) {
+      toast.error('Debes seleccionar al menos un producto contratado (Delivery o POS)');
+      return;
+    }
+
     createMutation.mutate(
       {
         name: name.trim(),
         type: type.trim() || undefined,
-        businessType,
-        commissionRate: businessType === 'EMPRESA_RIDERS' ? (Number(commissionRate) / 100 || 0.15) : undefined,
-        altCommissionRate: businessType === 'EMPRESA_RIDERS' ? (Number(altCommissionRate) / 100 || 0.12) : undefined,
-        altCommissionDistanceKm: businessType === 'EMPRESA_RIDERS' ? (Number(altCommissionDistanceKm) || 40) : undefined,
-        dispatchTimeoutMin: businessType === 'EMPRESA_RIDERS' ? (Number(dispatchTimeoutMin) || 3) : undefined,
+        businessType: hasDelivery ? businessType : 'NEGOCIO',
+        commissionRate:
+          hasDelivery && businessType === 'EMPRESA_RIDERS'
+            ? Number(commissionRate) / 100 || 0.15
+            : undefined,
+        altCommissionRate:
+          hasDelivery && businessType === 'EMPRESA_RIDERS'
+            ? Number(altCommissionRate) / 100 || 0.12
+            : undefined,
+        altCommissionDistanceKm:
+          hasDelivery && businessType === 'EMPRESA_RIDERS'
+            ? Number(altCommissionDistanceKm) || 40
+            : undefined,
+        dispatchTimeoutMin:
+          hasDelivery && businessType === 'EMPRESA_RIDERS'
+            ? Number(dispatchTimeoutMin) || 3
+            : undefined,
         encargado: {
           name: encargadoName.trim(),
           email: encargadoEmail.trim(),
@@ -112,20 +138,59 @@ export const BusinessesPage = () => {
         },
       },
       {
-        onSuccess: (data: CreateBusinessResult) => {
+        onSuccess: async (data: CreateBusinessResult) => {
+          const bizId = data.business.id;
+
+          try {
+            if (hasDelivery) {
+              await apiClient.post(`/businesses/${bizId}/products/DELIVERY/activate`, {
+                commissionRate:
+                  businessType === 'EMPRESA_RIDERS'
+                    ? Number(commissionRate) / 100 || 0.15
+                    : 0.15,
+                altCommissionRate:
+                  businessType === 'EMPRESA_RIDERS'
+                    ? Number(altCommissionRate) / 100 || 0.12
+                    : 0.12,
+                altCommissionDistanceKm:
+                  businessType === 'EMPRESA_RIDERS'
+                    ? Number(altCommissionDistanceKm) || 40
+                    : 40,
+                dispatchTimeoutMin:
+                  businessType === 'EMPRESA_RIDERS'
+                    ? Number(dispatchTimeoutMin) || 3
+                    : 3,
+                reason: 'Activación inicial al crear negocio',
+              });
+            }
+
+            if (hasPOS) {
+              await apiClient.post(`/businesses/${bizId}/products/POS/activate`, {
+                posVertical,
+                posMonthlyFee: posMonthlyFee ? Number(posMonthlyFee) : undefined,
+                reason: 'Activación inicial al crear negocio',
+              });
+            }
+          } catch (activateErr) {
+            console.error('Error al activar productos tras crear negocio:', activateErr);
+          }
+
           setIsModalOpen(false);
           setName('');
           setType('');
+          setHasDelivery(true);
+          setHasPOS(false);
           setBusinessType('NEGOCIO');
           setCommissionRate('15');
           setAltCommissionRate('12');
           setAltCommissionDistanceKm('40');
           setDispatchTimeoutMin('3');
+          setPosVertical('RESTAURANTE');
+          setPosMonthlyFee('');
           setEncargadoName('');
           setEncargadoEmail('');
           setEncargadoPassword('');
 
-          // Open credentials modal
           setCreatedCredentials({
             businessName: data.business.name,
             email: data.encargado.email,
@@ -139,30 +204,44 @@ export const BusinessesPage = () => {
   const columns: Column<BusinessItem>[] = [
     {
       header: 'Negocio',
-      accessor: (row) => (
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
-            {row.businessType === 'EMPRESA_RIDERS' ? (
-              <Motorcycle size={18} className="text-amber-700" />
-            ) : (
-              <Storefront size={18} />
-            )}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-medium text-gray-900 leading-tight">{row.name}</p>
-              {row.businessType === 'EMPRESA_RIDERS' && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
-                  Riders
-                </span>
+      accessor: (row) => {
+        const deliverySub = row.productSubscriptions?.find((s) => s.productType === 'DELIVERY');
+        const posSub = row.productSubscriptions?.find((s) => s.productType === 'POS');
+        const hasDelivery = deliverySub ? deliverySub.status === 'ACTIVE' : (row.hasTrackDeli ?? true);
+        const hasPos = posSub ? posSub.status === 'ACTIVE' : (row.hasPOS ?? false);
+        const isRiders = row.businessType === 'EMPRESA_RIDERS';
+
+        return (
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
+              {isRiders ? (
+                <Motorcycle size={18} className="text-amber-700" />
+              ) : !hasDelivery && hasPos ? (
+                <Receipt size={18} className="text-purple-700" />
+              ) : (
+                <Storefront size={18} />
               )}
             </div>
-            <p className="text-xs text-gray-400 capitalize">
-              {row.businessType === 'EMPRESA_RIDERS' ? (row.type || 'Empresa de Riders') : (row.type || 'Comercio')}
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-medium text-gray-900 leading-tight">{row.name}</p>
+                {isRiders && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
+                    Riders
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 capitalize">
+                {isRiders
+                  ? row.type || 'Empresa de Riders'
+                  : !hasDelivery && hasPos
+                  ? row.type || 'Comercio POS'
+                  : row.type || 'Comercio'}
+              </p>
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       header: 'Pedidos Hoy',
@@ -185,37 +264,86 @@ export const BusinessesPage = () => {
     {
       header: 'Membresía / Modelo',
       accessor: (row) => {
-        if (row.businessType === 'EMPRESA_RIDERS') {
-          const rate = row.commissionRate ? `${(row.commissionRate * 100).toFixed(0)}%` : '15%';
+        const deliverySub = row.productSubscriptions?.find((s) => s.productType === 'DELIVERY');
+        const posSub = row.productSubscriptions?.find((s) => s.productType === 'POS');
+
+        const hasDelivery = deliverySub ? deliverySub.status === 'ACTIVE' : (row.hasTrackDeli ?? true);
+        const hasPos = posSub ? posSub.status === 'ACTIVE' : (row.hasPOS ?? false);
+
+        if (!hasDelivery && !hasPos) {
           return (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
-              <Coins size={13} className="text-amber-700" />
-              <span>Comisión ({rate})</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+              Sin productos activos
             </span>
           );
         }
 
-        const mem = row.membership;
-        if (mem && mem.status === 'ACTIVE') {
-          const days = mem.daysLeft ?? 0;
-          if (days <= 7) {
+        const renderDeliveryBadge = (compact = false) => {
+          if (row.businessType === 'EMPRESA_RIDERS') {
+            const rate = row.commissionRate ? `${(row.commissionRate * 100).toFixed(0)}%` : '15%';
             return (
-              <Badge variant="warning" dot size="sm">
-                Vence en {days}d
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
+                <Coins size={12} className="text-amber-700" />
+                <span>{compact ? rate : `Comisión (${rate})`}</span>
+              </span>
+            );
+          }
+
+          const mem = row.membership;
+          if (mem && mem.status === 'ACTIVE') {
+            const days = mem.daysLeft ?? 0;
+            if (days <= 7) {
+              return (
+                <Badge variant="warning" dot size="sm">
+                  {compact ? `${days}d` : `Vence en ${days}d`}
+                </Badge>
+              );
+            }
+            return (
+              <Badge variant="success" dot size="sm">
+                {compact ? `${days}d` : `Activa ${days}d`}
               </Badge>
             );
           }
+          if (!mem || mem.status === 'NOT_CONTRACTED' || mem.status === 'NONE') {
+            return (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                {compact ? 'Delivery' : 'Sin membresía'}
+              </span>
+            );
+          }
           return (
-            <Badge variant="success" dot size="sm">
-              Activa {days}d
+            <Badge variant="danger" dot size="sm">
+              Vencida
             </Badge>
           );
+        };
+
+        const renderPosBadge = (compact = false) => {
+          const vertical = posSub?.posVertical || 'RESTAURANTE';
+          const label = vertical === 'RETAIL' ? 'Retail' : 'Rest.';
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-800 border border-purple-200/80">
+              <Receipt size={12} className="text-purple-700" />
+              <span>{compact ? 'POS' : `Solo POS (${label})`}</span>
+            </span>
+          );
+        };
+
+        if (hasDelivery && hasPos) {
+          return (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {renderDeliveryBadge(true)}
+              {renderPosBadge(true)}
+            </div>
+          );
         }
-        return (
-          <Badge variant="danger" dot size="sm">
-            Vencida
-          </Badge>
-        );
+
+        if (!hasDelivery && hasPos) {
+          return renderPosBadge(false);
+        }
+
+        return renderDeliveryBadge(false);
       },
     },
     {
@@ -264,9 +392,7 @@ export const BusinessesPage = () => {
       />
 
       <div className="p-4 lg:p-8 space-y-4 lg:space-y-6 max-w-7xl mx-auto">
-        {/* Controles de búsqueda y filtros */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          {/* Input de Búsqueda */}
           <div className="relative w-full sm:w-80">
             <MagnifyingGlass
               size={16}
@@ -281,7 +407,6 @@ export const BusinessesPage = () => {
             />
           </div>
 
-          {/* Filtros de Estado */}
           <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200/80 shadow-2xs self-stretch sm:self-auto overflow-x-auto">
             <button
               onClick={() => setStatusFilter('ALL')}
@@ -316,7 +441,6 @@ export const BusinessesPage = () => {
           </div>
         </div>
 
-        {/* Tabla Desktop */}
         <div className="hidden md:block">
           <DataTable
             columns={columns}
@@ -329,7 +453,6 @@ export const BusinessesPage = () => {
           />
         </div>
 
-        {/* Mobile Cards */}
         <div className="md:hidden space-y-2.5">
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
@@ -351,7 +474,6 @@ export const BusinessesPage = () => {
         </div>
       </div>
 
-      {/* Modal Crear Negocio */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -360,160 +482,304 @@ export const BusinessesPage = () => {
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleCreateBusiness} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Nombre del negocio *
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej: Pollos El Buen Sabor"
-              required
-              className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
-            />
-          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Nombre del negocio *
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ej: Pollos El Buen Sabor"
+                required
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
+              />
+            </div>
 
-          {/* Selector de Modelo de Negocio (2 Tipos) */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
-              Modelo de Negocio *
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div
-                onClick={() => setBusinessType('NEGOCIO')}
-                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left ${
-                  businessType === 'NEGOCIO'
-                    ? 'border-gray-900 bg-gray-50/70 shadow-xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 mb-1.5">
-                  <div className={`p-2 rounded-lg ${businessType === 'NEGOCIO' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                    <Storefront size={18} />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-xs text-gray-900">Negocio Común</p>
-                    <p className="text-[10px] text-gray-500">Comercio tradicional</p>
-                  </div>
-                </div>
-                <p className="text-[11px] text-gray-500 leading-tight">
-                  Restaurantes, comiderías, tiendas o farmacias que despachan sus propios pedidos.
-                </p>
-              </div>
-
-              <div
-                onClick={() => setBusinessType('EMPRESA_RIDERS')}
-                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left ${
-                  businessType === 'EMPRESA_RIDERS'
-                    ? 'border-gray-900 bg-gray-50/70 shadow-xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 mb-1.5">
-                  <div className={`p-2 rounded-lg ${businessType === 'EMPRESA_RIDERS' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                    <Motorcycle size={18} />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-xs text-gray-900">Empresa de Riders</p>
-                    <p className="text-[10px] text-gray-500">Agencia / Flota Delivery</p>
-                  </div>
-                </div>
-                <p className="text-[11px] text-gray-500 leading-tight">
-                  Gestiona repartidores para múltiples comercios, liquida comisiones y despacha pedidos.
-                </p>
-              </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Categoría descriptiva (opcional)
+              </label>
+              <input
+                type="text"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                placeholder="Ej: Restaurante, cafetería, tienda de conveniencia..."
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
+              />
             </div>
           </div>
 
-          {/* Configuración de Comisiones (Solo si es EMPRESA_RIDERS) */}
-          {businessType === 'EMPRESA_RIDERS' && (
-            <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 space-y-3">
-              <p className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Coins size={15} className="text-amber-700" />
-                <span>Configuración de Comisiones y Despacho</span>
+          <div className="pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Productos Contratados *
+              </label>
+              <span className="text-[10px] text-gray-400">Selecciona al menos uno</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div
+                onClick={() => setHasDelivery(!hasDelivery)}
+                className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start justify-between ${
+                  hasDelivery
+                    ? 'border-gray-900 bg-gray-50/80 shadow-2xs'
+                    : 'border-gray-200 hover:border-gray-300 bg-white opacity-60'
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                      hasDelivery ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-400'
+                    }`}
+                  >
+                    <Motorcycle size={17} weight="duotone" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-xs text-gray-900 leading-tight">
+                      TrackDeli (Delivery)
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
+                      Despacho y pedidos a domicilio
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 mt-0.5 ${
+                    hasDelivery
+                      ? 'bg-gray-900 border-gray-900 text-white'
+                      : 'border-gray-300 bg-white'
+                  }`}
+                >
+                  {hasDelivery && <Check size={12} weight="bold" />}
+                </div>
+              </div>
+
+              <div
+                onClick={() => setHasPOS(!hasPOS)}
+                className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start justify-between ${
+                  hasPOS
+                    ? 'border-gray-900 bg-gray-50/80 shadow-2xs'
+                    : 'border-gray-200 hover:border-gray-300 bg-white opacity-60'
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                      hasPOS ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-400'
+                    }`}
+                  >
+                    <Receipt size={17} weight="duotone" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-xs text-gray-900 leading-tight">
+                      Sistema POS
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
+                      Punto de venta, mesas y caja
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 mt-0.5 ${
+                    hasPOS
+                      ? 'bg-gray-900 border-gray-900 text-white'
+                      : 'border-gray-300 bg-white'
+                  }`}
+                >
+                  {hasPOS && <Check size={12} weight="bold" />}
+                </div>
+              </div>
+            </div>
+
+            {!hasDelivery && !hasPOS && (
+              <p className="text-[11px] text-red-600 font-medium mt-2">
+                Debes seleccionar al menos un producto contratado para continuar.
               </p>
+            )}
+          </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
-                    Comisión Base (%)
-                  </label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    max="100"
-                    value={commissionRate}
-                    onChange={(e) => setCommissionRate(e.target.value)}
-                    placeholder="15"
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-0.5">Por defecto: 15%</p>
+          {hasDelivery && (
+            <div className="p-3.5 rounded-xl bg-amber-50/40 border border-amber-200/70 space-y-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
+                <Motorcycle size={16} className="text-amber-700" />
+                <span>Configuración de TrackDeli (Delivery)</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Modelo de Delivery *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div
+                    onClick={() => setBusinessType('NEGOCIO')}
+                    className={`p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between ${
+                      businessType === 'NEGOCIO'
+                        ? 'border-gray-900 bg-white shadow-2xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white/70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Storefront size={15} />
+                      <span className="font-semibold text-xs text-gray-900">Comercio Común</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Membresía mensual tradicional</p>
+                  </div>
+
+                  <div
+                    onClick={() => setBusinessType('EMPRESA_RIDERS')}
+                    className={`p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between ${
+                      businessType === 'EMPRESA_RIDERS'
+                        ? 'border-gray-900 bg-white shadow-2xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white/70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Motorcycle size={15} />
+                      <span className="font-semibold text-xs text-gray-900">Empresa de Riders</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Comisión liquidada por carrera</p>
+                  </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
-                    Comisión Distancia Larga (%)
-                  </label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    max="100"
-                    value={altCommissionRate}
-                    onChange={(e) => setAltCommissionRate(e.target.value)}
-                    placeholder="12"
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-0.5">Para {altCommissionDistanceKm || '40'} km o más</p>
+              {businessType === 'EMPRESA_RIDERS' && (
+                <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-amber-200/50">
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-700 mb-1">
+                      Comisión Base (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      max="100"
+                      value={commissionRate}
+                      onChange={(e) => setCommissionRate(e.target.value)}
+                      placeholder="15"
+                      className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-700 mb-1">
+                      Distancia Larga (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      max="100"
+                      value={altCommissionRate}
+                      onChange={(e) => setAltCommissionRate(e.target.value)}
+                      placeholder="12"
+                      className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-700 mb-1">
+                      Umbral Distancia (km)
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={altCommissionDistanceKm}
+                      onChange={(e) => setAltCommissionDistanceKm(e.target.value)}
+                      placeholder="40"
+                      className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-700 mb-1">
+                      Timeout Despacho (min)
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      max="60"
+                      value={dispatchTimeoutMin}
+                      onChange={(e) => setDispatchTimeoutMin(e.target.value)}
+                      placeholder="3"
+                      className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                    />
+                  </div>
                 </div>
+              )}
+            </div>
+          )}
 
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
-                    Umbral Distancia Larga (km)
-                  </label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    value={altCommissionDistanceKm}
-                    onChange={(e) => setAltCommissionDistanceKm(e.target.value)}
-                    placeholder="40"
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                  />
+          {hasPOS && (
+            <div className="p-3.5 rounded-xl bg-purple-50/40 border border-purple-200/70 space-y-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-900">
+                <Receipt size={16} className="text-purple-700" />
+                <span>Configuración de Sistema POS</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Vertical de Punto de Venta *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div
+                    onClick={() => setPosVertical('RESTAURANTE')}
+                    className={`p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between ${
+                      posVertical === 'RESTAURANTE'
+                        ? 'border-gray-900 bg-white shadow-2xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white/70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <ForkKnife size={15} />
+                      <span className="font-semibold text-xs text-gray-900">Restaurante</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Comandas, mesas y cocina</p>
+                  </div>
+
+                  <div
+                    onClick={() => setPosVertical('RETAIL')}
+                    className={`p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between ${
+                      posVertical === 'RETAIL'
+                        ? 'border-gray-900 bg-white shadow-2xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white/70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <ShoppingBag size={15} />
+                      <span className="font-semibold text-xs text-gray-900">Retail / Comercio</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500">Venta rápida y control de stock</p>
+                  </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
-                    Expiración por intento (min)
-                  </label>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-700 mb-1">
+                  Tarifa Mensual POS en USD (opcional)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
+                    $
+                  </span>
                   <input
                     type="number"
-                    step="1"
-                    min="1"
-                    value={dispatchTimeoutMin}
-                    onChange={(e) => setDispatchTimeoutMin(e.target.value)}
-                    placeholder="3"
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                    step="0.01"
+                    min="0"
+                    value={posMonthlyFee}
+                    onChange={(e) => setPosMonthlyFee(e.target.value)}
+                    placeholder="25.00"
+                    className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
                   />
                 </div>
               </div>
             </div>
           )}
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Categoría descriptiva (opcional)
-            </label>
-            <input
-              type="text"
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              placeholder={businessType === 'EMPRESA_RIDERS' ? "Ej: Flota express, Delivery central..." : "Ej: Restaurante, comidería, farmacia, tienda..."}
-              className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
-            />
-          </div>
 
           <div className="pt-3 border-t border-gray-100">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-900 mb-3">
@@ -563,7 +829,7 @@ export const BusinessesPage = () => {
                   className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
                 />
                 <p className="text-[11px] text-gray-400 mt-1">
-                  El encargado podrá cambiar esta contraseña al ingresar.
+                  El usuario podrá ingresar tanto al panel web como al POS con estas credenciales.
                 </p>
               </div>
             </div>
@@ -579,8 +845,8 @@ export const BusinessesPage = () => {
             </button>
             <button
               type="submit"
-              disabled={createMutation.isPending}
-              className="px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors shadow-xs"
+              disabled={(!hasDelivery && !hasPOS) || createMutation.isPending}
+              className="px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
             >
               {createMutation.isPending ? 'Creando...' : 'Crear Negocio'}
             </button>
@@ -588,7 +854,6 @@ export const BusinessesPage = () => {
         </form>
       </Modal>
 
-      {/* Modal Mostrar Credenciales Generadas */}
       {createdCredentials && (
         <BusinessCredentialsModal
           isOpen={!!createdCredentials}
@@ -599,7 +864,6 @@ export const BusinessesPage = () => {
         />
       )}
 
-      {/* Modal Confirmación Desactivar */}
       {deactivatingBusiness && (
         <DeactivateBusinessModal
           isOpen={!!deactivatingBusiness}

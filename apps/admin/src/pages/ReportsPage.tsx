@@ -44,7 +44,6 @@ export const ReportsPage = () => {
       ? Math.round(tiempos.reduce((a, b) => a + b, 0) / tiempos.length)
       : null;
 
-    // Count by status
     const byStatus: Record<string, number> = {};
     for (const o of orders) {
       byStatus[o.status] = (byStatus[o.status] ?? 0) + 1;
@@ -53,7 +52,6 @@ export const ReportsPage = () => {
     return { entregadosHoy: entregadosHoy.length, totalMes: totalMes.length, avgMinutes, byStatus };
   }, [orders]);
 
-  // Delivery performance per user
   const staffPerformance = useMemo(() => {
     return users.map(u => {
       const myOrders = orders.filter(o => o.deliveryUserId === u.id);
@@ -71,7 +69,6 @@ export const ReportsPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Stat Cards */}
       <div className="grid grid-cols-3 gap-4">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
@@ -101,7 +98,6 @@ export const ReportsPage = () => {
         )}
       </div>
 
-      {/* Orders by status */}
       <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
         <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-5">Pedidos por estado</div>
         {isLoading ? (
@@ -137,7 +133,6 @@ export const ReportsPage = () => {
         )}
       </div>
 
-      {/* Staff performance */}
       <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">Rendimiento por repartidor</div>

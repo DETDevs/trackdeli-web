@@ -88,7 +88,6 @@ export default function LiveMap({
     };
   }, []);
 
-  // Business Marker
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
 
@@ -107,7 +106,6 @@ export default function LiveMap({
     }
   }, [businessLocation, businessName, mapLoaded]);
 
-  // Drivers Markers
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
 
@@ -143,7 +141,6 @@ export default function LiveMap({
         const startPos = marker.getLngLat();
         const endPos = new mapboxgl.LngLat(rep.lng, rep.lat);
 
-        // Actualizar variante de estilo (azul / verde) y badge si cambió de estado
         const el = marker.getElement();
         const targetClass = isToBusiness ? 'marker-rider--to-business' : 'marker-rider--to-customer';
         const otherClass = isToBusiness ? 'marker-rider--to-customer' : 'marker-rider--to-business';
@@ -156,13 +153,11 @@ export default function LiveMap({
           badgeEl.textContent = badgeText;
         }
 
-        // Actualizar contenido del Popup
         const popup = marker.getPopup();
         if (popup) {
           popup.setHTML(popupHtml);
         }
 
-        // Rotar según dirección de movimiento
         if (startPos.lng !== endPos.lng || startPos.lat !== endPos.lat) {
           const heading = calculateHeading(startPos.lng, startPos.lat, endPos.lng, endPos.lat);
           updateRiderMarkerHeading(marker.getElement(), heading);
@@ -221,7 +216,6 @@ export default function LiveMap({
     });
   }, [repartidores, onMarkerClick, mapLoaded]);
 
-  // Destination Markers (Solo para entregas a clientes)
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
 
@@ -232,7 +226,6 @@ export default function LiveMap({
         order.destinationType === 'to_business' ||
         ['ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO'].includes(order.status);
 
-      // Si va al negocio, el destino es la tienda (ya identificada con su propio pin)
       if (isToBusiness) {
         if (destMarkers.current.has(order.id)) {
           destMarkers.current.get(order.id)?.remove();
@@ -267,7 +260,6 @@ export default function LiveMap({
     });
   }, [activeOrders, onMarkerClick, mapLoaded]);
 
-  // Fetch routes con origen y destino según fase (hacia negocio vs hacia cliente)
   useEffect(() => {
     if (!map.current || !mapLoaded || !businessLocation) return;
 
@@ -283,13 +275,11 @@ export default function LiveMap({
       let destLngLat: [number, number] | null = null;
 
       if (isToBusiness) {
-        // Hacia negocio: Desde el rider hacia la tienda
         if (rider && !isNaN(rider.lat) && !isNaN(rider.lng)) {
           originLngLat = [rider.lng, rider.lat];
         }
         destLngLat = [businessLocation.lng, businessLocation.lat];
       } else {
-        // Hacia cliente: Desde el rider (o negocio) hacia la casa del cliente
         if (rider && !isNaN(rider.lat) && !isNaN(rider.lng)) {
           originLngLat = [rider.lng, rider.lat];
         } else {
@@ -330,7 +320,6 @@ export default function LiveMap({
     });
   }, [activeOrders, repartidores, businessLocation, mapLoaded]);
 
-  // Render routes con colores diferenciados (azul = negocio, verde = cliente)
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const m = map.current;
@@ -358,7 +347,7 @@ export default function LiveMap({
           } else {
             opacity = 0.2;
             width = 2;
-            color = '#94A3B8'; // Gray for unfocused
+            color = '#94A3B8';
           }
         }
 
@@ -384,7 +373,6 @@ export default function LiveMap({
           m.setPaintProperty(layerId, 'line-width', width);
         }
         
-        // Move focused route to top
         if (focusedOrderId === routeOrderId && m.getLayer(layerId)) {
           m.moveLayer(layerId);
         }
@@ -416,7 +404,6 @@ export default function LiveMap({
         className="border border-gray-100"
       />
 
-      {/* Legend Top Left */}
       <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-gray-100/80 shadow-xs flex items-center gap-3 text-[11px] font-medium text-gray-600 z-10 pointer-events-none">
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-[#0284C7]"></span>
@@ -428,7 +415,6 @@ export default function LiveMap({
         </div>
       </div>
       
-      {/* ETA Box */}
       {focusedRoute && focusedRoute.properties?.duration && focusedRoute.properties?.distance && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white px-4 py-2.5 rounded-xl shadow-lg border border-gray-100/70 flex items-center gap-2 pointer-events-none z-10 animate-fade-in-up">
           <div className={`w-2.5 h-2.5 rounded-full ${

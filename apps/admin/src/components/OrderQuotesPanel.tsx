@@ -35,14 +35,12 @@ export const OrderQuotesPanel: React.FC<OrderQuotesPanelProps> = ({
   const queryClient = useQueryClient();
   const [selectedQuoteForNegotiation, setSelectedQuoteForNegotiation] = useState<OrderQuote | null>(null);
 
-  // Fetch quotes for this order
   const { data: quotes = [], isLoading, isRefetching } = useQuery<OrderQuote[]>({
     queryKey: ['quotes', orderId],
     queryFn: () => getOrderQuotes(orderId),
     refetchInterval: orderStatus === 'COTIZANDO' ? 4000 : false,
   });
 
-  // Mutation: Accept quote directly from list
   const acceptMutation = useMutation({
     mutationFn: (quoteId: string) => acceptOrderQuote(orderId, quoteId),
     onSuccess: (_, quoteId) => {
@@ -66,7 +64,6 @@ export const OrderQuotesPanel: React.FC<OrderQuotesPanelProps> = ({
     return <Motorcycle size={18} className="text-indigo-600" />;
   };
 
-  // Sort quotes by distance to business (ascending)
   const sortedQuotes = [...quotes].sort((a, b) => {
     const distA = a.distanceToBusinessKm ?? 9999;
     const distB = b.distanceToBusinessKm ?? 9999;
@@ -75,7 +72,6 @@ export const OrderQuotesPanel: React.FC<OrderQuotesPanelProps> = ({
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-      {/* Header */}
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-violet-50/50 via-white to-white">
         <div className="flex items-center gap-2">
           <Tag size={16} className="text-violet-600" />
@@ -92,7 +88,6 @@ export const OrderQuotesPanel: React.FC<OrderQuotesPanelProps> = ({
         </span>
       </div>
 
-      {/* Content */}
       <div className="p-5">
         {isLoading ? (
           <div className="space-y-3">
@@ -141,7 +136,6 @@ export const OrderQuotesPanel: React.FC<OrderQuotesPanelProps> = ({
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
-                    {/* Rider Info & Vehicle */}
                     <div className="flex items-start gap-3">
                       <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0 shadow-2xs">
                         {quote.rider?.profilePhotoUrl ? (
@@ -196,7 +190,6 @@ export const OrderQuotesPanel: React.FC<OrderQuotesPanelProps> = ({
                       </div>
                     </div>
 
-                    {/* Pricing & ETA */}
                     <div className="text-right shrink-0">
                       <div
                         className={`text-base font-bold font-mono ${
@@ -229,7 +222,6 @@ export const OrderQuotesPanel: React.FC<OrderQuotesPanelProps> = ({
                     </div>
                   </div>
 
-                  {/* Actions (if quote is still open/pending) */}
                   {!isAccepted && !isRejected && orderStatus === 'COTIZANDO' && (
                     <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
                       <button
@@ -264,7 +256,6 @@ export const OrderQuotesPanel: React.FC<OrderQuotesPanelProps> = ({
         )}
       </div>
 
-      {/* Modal de Negociación */}
       {selectedQuoteForNegotiation && (
         <NegotiationModal
           isOpen={!!selectedQuoteForNegotiation}

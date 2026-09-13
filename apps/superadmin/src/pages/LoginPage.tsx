@@ -32,7 +32,6 @@ export const LoginPage = () => {
   return (
     <div className="min-h-screen w-screen flex items-center justify-center bg-gray-25 p-4 font-sans">
       <div className="w-full max-w-md bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
-        {/* Header */}
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-12 h-12 rounded-2xl bg-gray-900 text-white flex items-center justify-center font-bold text-lg mb-4 shadow-sm">
             TD
@@ -47,14 +46,12 @@ export const LoginPage = () => {
           </p>
         </div>
 
-        {/* Error Alert */}
         {errorMsg && (
           <div className="mb-6 p-3 rounded-xl bg-red-50 border border-red-100 text-xs text-red-700">
             {errorMsg}
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">
