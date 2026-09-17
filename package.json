@@ -11,8 +11,10 @@
     "dev:admin": "turbo run dev --filter=admin",
     "dev:tracking": "turbo run dev --filter=tracking",
     "dev:superadmin": "turbo run dev --filter=superadmin",
+    "dev:booking": "turbo run dev --filter=booking",
     "build": "turbo run build",
     "build:superadmin": "turbo run build --filter=superadmin",
+    "build:booking": "turbo run build --filter=booking",
     "lint": "turbo run lint",
     "clean:comments": "node scripts/clean-comments.js"
   },
