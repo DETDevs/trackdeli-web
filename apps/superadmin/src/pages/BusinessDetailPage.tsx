@@ -18,6 +18,7 @@ import {
   Gear,
   Coins,
   Receipt,
+  Wallet,
   Key,
   Lock,
   LockOpen,
@@ -66,6 +67,9 @@ export const BusinessDetailPage = () => {
   const isPosActive = productsData
     ? productsData.products.POS.status === 'ACTIVE'
     : (business?.hasPOS ?? false);
+  const isCarteraActive = productsData
+    ? productsData.products.CARTERA_COBRO?.status === 'ACTIVE'
+    : ((business as any)?.hasCarteraCobro ?? false);
 
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
@@ -279,7 +283,13 @@ export const BusinessDetailPage = () => {
                 <span>POS {productsData?.products?.POS?.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'}</span>
               </span>
             )}
-            {!isDeliveryActive && !isPosActive && (
+            {isCarteraActive && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80">
+                <Wallet size={13} weight="duotone" className="text-emerald-700" />
+                <span>Cartera de Cobro</span>
+              </span>
+            )}
+            {!isDeliveryActive && !isPosActive && !isCarteraActive && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
                 <span>Sin productos contratados</span>
               </span>
@@ -477,7 +487,7 @@ export const BusinessDetailPage = () => {
               </div>
 
               {latestMembership ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50/70 p-4 rounded-xl border border-gray-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 bg-gray-50/70 p-4 rounded-xl border border-gray-100">
                   <div>
                     <span className="text-[11px] font-medium text-gray-400 uppercase">
                       Monto
@@ -485,6 +495,32 @@ export const BusinessDetailPage = () => {
                     <p className="text-sm font-semibold text-gray-900 mt-0.5">
                       ${Number(latestMembership.amount).toFixed(2)} {latestMembership.currency}
                     </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[11px] font-medium text-gray-400 uppercase">
+                      Producto(s)
+                    </span>
+                    <div className="mt-1 flex items-center gap-1 flex-wrap">
+                      {latestMembership.products && latestMembership.products.length > 0 ? (
+                        latestMembership.products.map((p) => (
+                          <span
+                            key={p.id || p.businessProductSubscriptionId}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-900 text-white"
+                          >
+                            {p.productType === 'DELIVERY'
+                              ? 'Delivery'
+                              : p.productType === 'POS'
+                              ? 'POS'
+                              : p.productType === 'CARTERA_COBRO'
+                              ? 'Cartera'
+                              : p.name}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-gray-400">Sin especificar</span>
+                      )}
+                    </div>
                   </div>
 
                   <div>
@@ -546,6 +582,7 @@ export const BusinessDetailPage = () => {
                   <thead>
                     <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-medium bg-gray-50/50">
                       <th className="py-2.5 px-3">Período</th>
+                      <th className="py-2.5 px-3">Producto(s)</th>
                       <th className="py-2.5 px-3">Monto</th>
                       <th className="py-2.5 px-3">Método</th>
                       <th className="py-2.5 px-3">Pago recibido</th>
@@ -563,16 +600,69 @@ export const BusinessDetailPage = () => {
 
                       return (
                         <tr key={m.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="py-3 px-3 font-medium text-gray-900">
+                          <td className="py-3 px-3 font-medium text-gray-900 whitespace-nowrap">
                             {formatDateShort(m.startDate)} — {formatDateShort(m.endDate)}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-gray-900">
+                          <td className="py-3 px-3">
+                            {m.products && m.products.length > 0 ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {m.products.map((p) => {
+                                  if (p.productType === 'DELIVERY') {
+                                    return (
+                                      <span
+                                        key={p.id || p.businessProductSubscriptionId}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-900 border border-amber-200/80"
+                                      >
+                                        <Motorcycle size={11} weight="duotone" className="text-amber-700" />
+                                        <span>Delivery</span>
+                                      </span>
+                                    );
+                                  }
+                                  if (p.productType === 'POS') {
+                                    return (
+                                      <span
+                                        key={p.id || p.businessProductSubscriptionId}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-900 border border-purple-200/80"
+                                      >
+                                        <Receipt size={11} weight="duotone" className="text-purple-700" />
+                                        <span>POS</span>
+                                      </span>
+                                    );
+                                  }
+                                  if (p.productType === 'CARTERA_COBRO') {
+                                    return (
+                                      <span
+                                        key={p.id || p.businessProductSubscriptionId}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80"
+                                      >
+                                        <Wallet size={11} weight="duotone" className="text-emerald-700" />
+                                        <span>Cartera</span>
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <span
+                                      key={p.id || p.businessProductSubscriptionId}
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-700"
+                                    >
+                                      {p.name}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-500">
+                                Sin especificar
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-gray-900 whitespace-nowrap">
                             ${Number(m.amount).toFixed(2)} {m.currency}
                           </td>
                           <td className="py-3 px-3 text-gray-600">
                             {getPaymentMethodLabel(m.paymentMethod)}
                           </td>
-                          <td className="py-3 px-3 text-gray-600">
+                          <td className="py-3 px-3 text-gray-600 whitespace-nowrap">
                             {formatDateShort(m.paidAt || m.createdAt)}
                           </td>
                           <td className="py-3 px-3">
@@ -611,7 +701,7 @@ export const BusinessDetailPage = () => {
                     })}
                     {!loadingMemberships && memberships.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="py-6 text-center text-gray-400">
+                        <td colSpan={7} className="py-6 text-center text-gray-400">
                           No hay historial de membresías registrado
                         </td>
                       </tr>

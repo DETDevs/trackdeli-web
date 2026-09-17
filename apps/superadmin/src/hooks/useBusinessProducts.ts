@@ -2,9 +2,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../lib/apiClient';
 import toast from 'react-hot-toast';
 
-export type BusinessProductType = 'DELIVERY' | 'POS';
+export type BusinessProductType = 'DELIVERY' | 'POS' | 'CARTERA_COBRO';
 export type BusinessProductStatus = 'ACTIVE' | 'INACTIVE';
 export type PosVertical = 'RESTAURANTE' | 'RETAIL';
+
+export function getProductLabel(productType: BusinessProductType): string {
+  switch (productType) {
+    case 'DELIVERY':
+      return 'TrackDeli (Delivery)';
+    case 'POS':
+      return 'Sistema POS';
+    case 'CARTERA_COBRO':
+      return 'Cartera de Cobro';
+    default:
+      return productType;
+  }
+}
 
 export type BusinessProductAction =
   | 'ACTIVATED'
@@ -43,12 +56,26 @@ export interface BusinessProductPosSub {
   updatedAt?: string;
 }
 
+export interface BusinessProductCarteraSub {
+  id?: string;
+  productType: 'CARTERA_COBRO';
+  status: BusinessProductStatus;
+  carteraMonthlyFee?: number | null;
+  activatedAt?: string | null;
+  activatedBy?: string | null;
+  deactivatedAt?: string | null;
+  deactivatedBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface BusinessProductsResponse {
   businessId: string;
   businessName: string;
   products: {
     DELIVERY: BusinessProductDeliverySub;
     POS: BusinessProductPosSub;
+    CARTERA_COBRO?: BusinessProductCarteraSub;
   };
 }
 
@@ -59,6 +86,7 @@ export interface ActivateProductDto {
   dispatchTimeoutMin?: number;
   posVertical?: PosVertical;
   posMonthlyFee?: number;
+  carteraMonthlyFee?: number;
   reason?: string;
 }
 
@@ -81,6 +109,7 @@ export interface DeactivationConflictDetails {
   activeOrders?: number;
   activeDispatches?: number;
   openCashRegisters?: number;
+  pendingCreditAccounts?: number;
   [key: string]: any;
 }
 
@@ -141,7 +170,7 @@ export function useActivateProduct() {
       return data;
     },
     onSuccess: (_, variables) => {
-      const label = variables.productType === 'DELIVERY' ? 'TrackDeli (Delivery)' : 'Sistema POS';
+      const label = getProductLabel(variables.productType);
       toast.success(`Producto ${label} activado / configurado con éxito`);
       queryClient.invalidateQueries({
         queryKey: ['superadmin-business-products', variables.businessId],
@@ -186,7 +215,7 @@ export function useDeactivateProduct() {
       return data;
     },
     onSuccess: (data, variables) => {
-      const label = variables.productType === 'DELIVERY' ? 'TrackDeli (Delivery)' : 'Sistema POS';
+      const label = getProductLabel(variables.productType);
       if (data?.forced) {
         toast.success(`Producto ${label} desactivado de forma forzada`);
       } else {

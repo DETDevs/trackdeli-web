@@ -1,15 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { format, addDays } from 'date-fns';
 import {
   UploadSimple,
   X,
   ArrowRight,
+  Motorcycle,
+  Receipt,
+  Wallet,
+  Check,
 } from '@phosphor-icons/react';
 import { Modal } from '../ui/Modal';
 import {
   useCreateMembership,
   PaymentMethod,
 } from '../../hooks/useMemberships';
+import {
+  useBusinessProducts,
+  BusinessProductType,
+} from '../../hooks/useBusinessProducts';
 
 interface RegisterMembershipModalProps {
   isOpen: boolean;
@@ -27,6 +35,64 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const defaultEndStr = format(addDays(new Date(), 30), 'yyyy-MM-dd');
 
+  const { data: productsData } = useBusinessProducts(businessId);
+
+  const activeProducts = useMemo(() => {
+    if (!productsData?.products) return [];
+    const list: Array<{
+      id: string;
+      productType: BusinessProductType;
+      name: string;
+      subtitle: string;
+      fee: number | null;
+      icon: React.ReactNode;
+      activeColor: string;
+    }> = [];
+
+    if (productsData.products.DELIVERY?.status === 'ACTIVE' && productsData.products.DELIVERY.id) {
+      list.push({
+        id: productsData.products.DELIVERY.id,
+        productType: 'DELIVERY',
+        name: 'TrackDeli (Delivery)',
+        subtitle: 'Despacho y reparto',
+        fee: null,
+        icon: <Motorcycle size={16} weight="duotone" className="text-amber-600 shrink-0" />,
+        activeColor: 'border-amber-500 bg-amber-50/50 ring-1 ring-amber-500/30',
+      });
+    }
+
+    if (productsData.products.POS?.status === 'ACTIVE' && productsData.products.POS.id) {
+      const fee = productsData.products.POS.posMonthlyFee;
+      list.push({
+        id: productsData.products.POS.id,
+        productType: 'POS',
+        name: 'Sistema POS',
+        subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Punto de venta',
+        fee: fee ?? null,
+        icon: <Receipt size={16} weight="duotone" className="text-purple-600 shrink-0" />,
+        activeColor: 'border-purple-500 bg-purple-50/50 ring-1 ring-purple-500/30',
+      });
+    }
+
+    if (
+      productsData.products.CARTERA_COBRO?.status === 'ACTIVE' &&
+      productsData.products.CARTERA_COBRO.id
+    ) {
+      const fee = productsData.products.CARTERA_COBRO.carteraMonthlyFee;
+      list.push({
+        id: productsData.products.CARTERA_COBRO.id,
+        productType: 'CARTERA_COBRO',
+        name: 'Cartera de Cobro',
+        subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Crédito y cobranza',
+        fee: fee ?? null,
+        icon: <Wallet size={16} weight="duotone" className="text-emerald-600 shrink-0" />,
+        activeColor: 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500/30',
+      });
+    }
+
+    return list;
+  }, [productsData]);
+
   const [startDate, setStartDate] = useState(todayStr);
   const [endDate, setEndDate] = useState(defaultEndStr);
   const [amount, setAmount] = useState<number>(35.0);
@@ -36,6 +102,7 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
   const [notes, setNotes] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
   const createMembershipMutation = useCreateMembership();
 
@@ -50,8 +117,21 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
       setNotes('');
       setFile(null);
       setPreviewUrl(null);
+
+      // Preselect automatically if exactly 1 active product:
+      if (activeProducts.length === 1) {
+        setSelectedProductIds([activeProducts[0].id]);
+      } else {
+        setSelectedProductIds([]);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, activeProducts]);
+
+  const toggleProduct = (id: string) => {
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+    );
+  };
 
   const handleStartDateChange = (val: string) => {
     setStartDate(val);
@@ -93,6 +173,8 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
         paidAt: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(),
         notes: notes.trim() || undefined,
         file,
+        businessProductSubscriptionIds:
+          selectedProductIds.length > 0 ? selectedProductIds : undefined,
       },
       {
         onSuccess: () => {
@@ -140,6 +222,65 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
           <p className="text-[11px] text-gray-400 mt-1">
             Autocompletado a 30 días de cobertura
           </p>
+        </div>
+
+        {/* Selector múltiple de productos contratados */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-medium text-gray-700">
+              Producto(s) cubierto(s) por este pago
+            </label>
+            {activeProducts.length > 1 && (
+              <span className="text-[10px] text-gray-400">
+                Selecciona uno o varios
+              </span>
+            )}
+          </div>
+
+          {activeProducts.length === 0 ? (
+            <div className="p-3 rounded-xl bg-gray-50 border border-gray-200/80 text-[11px] text-gray-500">
+              Este negocio no tiene productos contratados activos en este momento.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {activeProducts.map((prod) => {
+                const isSelected = selectedProductIds.includes(prod.id);
+                return (
+                  <button
+                    key={prod.id}
+                    type="button"
+                    onClick={() => toggleProduct(prod.id)}
+                    className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                      isSelected
+                        ? `${prod.activeColor} shadow-2xs`
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="shrink-0">{prod.icon}</div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-gray-900 truncate">
+                          {prod.name}
+                        </p>
+                        <p className="text-[10px] text-gray-500 truncate">
+                          {prod.subtitle}
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                        isSelected
+                          ? 'bg-gray-900 border-gray-900 text-white'
+                          : 'border-gray-300 bg-white'
+                      }`}
+                    >
+                      {isSelected && <Check size={11} weight="bold" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-3">

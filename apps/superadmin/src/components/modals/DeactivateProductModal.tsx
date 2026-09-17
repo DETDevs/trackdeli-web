@@ -6,12 +6,14 @@ import {
   Package,
   Motorcycle,
   CashRegister,
+  Wallet,
 } from '@phosphor-icons/react';
 import { Modal } from '../ui/Modal';
 import {
   useDeactivateProduct,
   BusinessProductType,
   DeactivationConflictDetails,
+  getProductLabel,
 } from '../../hooks/useBusinessProducts';
 
 interface DeactivateProductModalProps {
@@ -49,7 +51,9 @@ export const DeactivateProductModal: React.FC<DeactivateProductModalProps> = ({
   }, [isOpen]);
 
   const isDelivery = productType === 'DELIVERY';
-  const label = isDelivery ? 'TrackDeli (Delivery)' : 'Sistema POS';
+  const isPos = productType === 'POS';
+  const isCartera = productType === 'CARTERA_COBRO';
+  const label = getProductLabel(productType);
 
   const isNameMatch = typedName.trim() === businessName.trim();
 
@@ -120,13 +124,19 @@ export const DeactivateProductModal: React.FC<DeactivateProductModalProps> = ({
                   <li>Los repartidores dejarán de recibir pedidos de este negocio.</li>
                   <li>Se verificará que no existan pedidos ni despachos activos.</li>
                 </>
-              ) : (
+              ) : isPos ? (
                 <>
                   <li>No se permitirá iniciar sesión en terminales POS de este negocio.</li>
                   <li>Se verificará que todas las cajas registradoras estén cerradas.</li>
                   <li>El catálogo y mesas quedarán congelados para venta.</li>
                 </>
-              )}
+              ) : isCartera ? (
+                <>
+                  <li>No se permitirá registrar nuevas ventas a crédito (fiar a clientes).</li>
+                  <li>Se verificará que no existan cuentas por cobrar con saldo pendiente.</li>
+                  <li>El historial de créditos y abonos existentes se mantendrá solo para consulta.</li>
+                </>
+              ) : null}
             </ul>
           </div>
 
@@ -213,6 +223,18 @@ export const DeactivateProductModal: React.FC<DeactivateProductModalProps> = ({
                     </div>
                   </div>
                 )}
+
+                {conflictDetails.pendingCreditAccounts !== undefined && (
+                  <div className="bg-white/80 p-2 rounded-lg border border-red-100 flex items-center gap-2 col-span-2">
+                    <Wallet size={16} className="text-red-600" />
+                    <div>
+                      <p className="text-[10px] text-gray-500 uppercase font-semibold">Cuentas por Cobrar Pendientes</p>
+                      <p className="text-xs font-semibold text-gray-900">
+                        {conflictDetails.pendingCreditAccounts} cuenta(s) con saldo pendiente
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -224,12 +246,17 @@ export const DeactivateProductModal: React.FC<DeactivateProductModalProps> = ({
                     <li>Los pedidos en curso continuarán normalmente su entrega.</li>
                     <li>No se podrán crear nuevos pedidos para este negocio.</li>
                   </>
-                ) : (
+                ) : isPos ? (
                   <>
                     <li>Las cajas abiertas NO se cerrarán automáticamente y deberán cuadrarse manualmente.</li>
                     <li>Los cajeros no podrán continuar cobrando ventas.</li>
                   </>
-                )}
+                ) : isCartera ? (
+                  <>
+                    <li>Las cuentas con saldo pendiente quedarán congeladas y no podrán recibir abonos vía POS.</li>
+                    <li>El comercio deberá gestionar la cobranza pendiente de forma externa.</li>
+                  </>
+                ) : null}
               </ul>
             </div>
           </div>

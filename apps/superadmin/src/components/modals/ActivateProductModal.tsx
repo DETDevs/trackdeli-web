@@ -7,12 +7,14 @@ import {
   ForkKnife,
   ShoppingBag,
   Sparkle,
+  Wallet,
 } from '@phosphor-icons/react';
 import { Modal } from '../ui/Modal';
 import {
   useActivateProduct,
   BusinessProductType,
   PosVertical,
+  getProductLabel,
 } from '../../hooks/useBusinessProducts';
 import { BusinessType } from '../../hooks/useBusinesses';
 
@@ -34,6 +36,9 @@ interface ActivateProductModalProps {
     posVertical?: PosVertical | null;
     posMonthlyFee?: number | null;
   };
+  currentCarteraConfig?: {
+    carteraMonthlyFee?: number | null;
+  };
 }
 
 export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
@@ -45,6 +50,7 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
   isCurrentlyActive = false,
   currentDeliveryConfig,
   currentPosConfig,
+  currentCarteraConfig,
 }) => {
   const activateMutation = useActivateProduct();
 
@@ -56,6 +62,8 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
 
   const [posVertical, setPosVertical] = useState<PosVertical>('RESTAURANTE');
   const [posMonthlyFee, setPosMonthlyFee] = useState('');
+
+  const [carteraMonthlyFee, setCarteraMonthlyFee] = useState('');
 
   const [reason, setReason] = useState('');
 
@@ -77,17 +85,24 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
           String(currentDeliveryConfig?.altCommissionDistanceKm ?? 40)
         );
         setDispatchTimeoutMin(String(currentDeliveryConfig?.dispatchTimeoutMin ?? 3));
-      } else {
+      } else if (productType === 'POS') {
         setPosVertical(currentPosConfig?.posVertical || 'RESTAURANTE');
         setPosMonthlyFee(
           currentPosConfig?.posMonthlyFee !== null && currentPosConfig?.posMonthlyFee !== undefined
             ? String(currentPosConfig.posMonthlyFee)
             : ''
         );
+      } else if (productType === 'CARTERA_COBRO') {
+        setCarteraMonthlyFee(
+          currentCarteraConfig?.carteraMonthlyFee !== null &&
+            currentCarteraConfig?.carteraMonthlyFee !== undefined
+            ? String(currentCarteraConfig.carteraMonthlyFee)
+            : ''
+        );
       }
       setReason('');
     }
-  }, [isOpen, productType, currentDeliveryConfig, currentPosConfig]);
+  }, [isOpen, productType, currentDeliveryConfig, currentPosConfig, currentCarteraConfig]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,9 +128,14 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
                 : 3,
             reason: reason.trim() || undefined,
           }
-        : {
+        : productType === 'POS'
+        ? {
             posVertical,
             posMonthlyFee: posMonthlyFee ? Number(posMonthlyFee) : undefined,
+            reason: reason.trim() || undefined,
+          }
+        : {
+            carteraMonthlyFee: carteraMonthlyFee ? Number(carteraMonthlyFee) : undefined,
             reason: reason.trim() || undefined,
           };
 
@@ -134,9 +154,9 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
   };
 
   const isDelivery = productType === 'DELIVERY';
-  const title = `${isCurrentlyActive ? 'Configurar' : 'Activar'} ${
-    isDelivery ? 'TrackDeli (Delivery)' : 'Sistema POS'
-  }`;
+  const isPos = productType === 'POS';
+  const isCartera = productType === 'CARTERA_COBRO';
+  const title = `${isCurrentlyActive ? 'Configurar' : 'Activar'} ${getProductLabel(productType)}`;
 
   return (
     <Modal
@@ -149,18 +169,28 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200/80 flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-gray-900 text-white flex items-center justify-center shrink-0">
-            {isDelivery ? <Motorcycle size={18} /> : <Receipt size={18} />}
+            {isDelivery ? (
+              <Motorcycle size={18} />
+            ) : isPos ? (
+              <Receipt size={18} />
+            ) : (
+              <Wallet size={18} />
+            )}
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-900">
               {isDelivery
                 ? 'Plataforma de Despacho y Asignación de Repartidores'
-                : 'Punto de Venta para Operaciones en Local'}
+                : isPos
+                ? 'Punto de Venta para Operaciones en Local'
+                : 'Módulo de Créditos a Clientes y Cuentas por Cobrar'}
             </p>
             <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
               {isDelivery
                 ? 'Permite a los repartidores recibir órdenes, calcular comisiones y gestionar rutas.'
-                : 'Habilita comanderas, apertura de cajas, gestión de mesas y emisión de tickets/facturas.'}
+                : isPos
+                ? 'Habilita comanderas, apertura de cajas, gestión de mesas y emisión de tickets/facturas.'
+                : 'Permite ventas a crédito en terminales POS, registro de abonos parciales, seguimiento de saldos y control de cartera vencida.'}
             </p>
           </div>
         </div>
@@ -310,7 +340,7 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
           </div>
         )}
 
-        {!isDelivery && (
+        {isPos && (
           <div className="space-y-3.5">
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
@@ -395,6 +425,33 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
               </div>
               <p className="text-[10px] text-gray-400 mt-1">
                 Dejar vacío si no se aplica tarifa fija mensual para este negocio.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isCartera && (
+          <div className="space-y-3.5">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Tarifa Mensual Cartera de Cobro en USD (opcional)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
+                  $
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={carteraMonthlyFee}
+                  onChange={(e) => setCarteraMonthlyFee(e.target.value)}
+                  placeholder="29.99"
+                  className="w-full h-10 pl-7 pr-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                />
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Dejar vacío si no se aplica tarifa fija mensual para este servicio.
               </p>
             </div>
           </div>

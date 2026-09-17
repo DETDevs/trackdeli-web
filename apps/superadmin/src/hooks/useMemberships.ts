@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../lib/apiClient';
 import toast from 'react-hot-toast';
 
+import { BusinessProductType } from './useBusinessProducts';
+
 export type PaymentMethod =
   | 'TRANSFERENCIA'
   | 'EFECTIVO'
@@ -10,6 +12,14 @@ export type PaymentMethod =
   | 'OTRO';
 
 export type MembershipStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'PENDING';
+
+export interface MembershipProductItem {
+  id: string;
+  businessProductSubscriptionId: string;
+  productType: BusinessProductType;
+  name: string;
+  amountAttributed?: number | null;
+}
 
 export interface MembershipItem {
   id: string;
@@ -29,6 +39,8 @@ export interface MembershipItem {
   notes: string | null;
   status: MembershipStatus;
   daysLeft?: number;
+  products?: MembershipProductItem[];
+  isUnitemized?: boolean;
   createdAt: string;
   updatedAt?: string;
   createdBy?: string;
@@ -44,6 +56,7 @@ export interface CreateMembershipInput {
   paidAt?: string;
   notes?: string;
   file?: File | null;
+  businessProductSubscriptionIds?: string[];
 }
 
 export function useBusinessMemberships(businessId: string) {

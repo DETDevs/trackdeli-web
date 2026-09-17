@@ -7,6 +7,7 @@ import {
   BusinessProductType,
   BusinessProductAction,
   BusinessProductAuditLogItem,
+  getProductLabel,
 } from '../../hooks/useBusinessProducts';
 import { formatDateTime } from '../../utils/format';
 
@@ -31,8 +32,7 @@ export const ProductAuditLogModal: React.FC<ProductAuditLogModalProps> = ({
     isOpen
   );
 
-  const isDelivery = productType === 'DELIVERY';
-  const label = isDelivery ? 'TrackDeli (Delivery)' : 'Sistema POS';
+  const label = productType ? getProductLabel(productType) : '';
 
   const getActionBadge = (action: BusinessProductAction) => {
     switch (action) {
@@ -90,11 +90,23 @@ export const ProductAuditLogModal: React.FC<ProductAuditLogModalProps> = ({
     if (m.openCashRegisters !== undefined) {
       details.push(`${m.openCashRegisters} cajas abiertas`);
     }
+    if (m.pendingCreditAccounts !== undefined) {
+      details.push(`${m.pendingCreditAccounts} cuentas pendientes`);
+    }
     if (m.posVertical) {
       details.push(`Vertical: ${m.posVertical}`);
     }
     if (m.commissionRate !== undefined) {
       details.push(`Comisión: ${(m.commissionRate * 100).toFixed(0)}%`);
+    }
+    if (m.posMonthlyFee !== undefined && m.posMonthlyFee !== null) {
+      details.push(`Tarifa POS: $${Number(m.posMonthlyFee).toFixed(2)}/mes`);
+    }
+    if (m.carteraMonthlyFee !== undefined && m.carteraMonthlyFee !== null) {
+      details.push(`Tarifa Cartera: $${Number(m.carteraMonthlyFee).toFixed(2)}/mes`);
+    }
+    if (m.carteraCobroMonthlyFee !== undefined && m.carteraCobroMonthlyFee !== null) {
+      details.push(`Tarifa Cartera: $${Number(m.carteraCobroMonthlyFee).toFixed(2)}/mes`);
     }
 
     if (details.length === 0) {
