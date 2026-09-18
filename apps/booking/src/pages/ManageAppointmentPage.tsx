@@ -78,6 +78,7 @@ export const ManageAppointmentPage: React.FC = () => {
   // Formato de fecha
   const dateObj = new Date(appointment.scheduledAt);
   const formattedDate = new Intl.DateTimeFormat('es-ES', {
+    timeZone: 'America/Managua',
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -85,6 +86,7 @@ export const ManageAppointmentPage: React.FC = () => {
   }).format(dateObj);
 
   const formattedTime = new Intl.DateTimeFormat('es-ES', {
+    timeZone: 'America/Managua',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,

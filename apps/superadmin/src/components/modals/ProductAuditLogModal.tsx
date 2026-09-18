@@ -93,6 +93,9 @@ export const ProductAuditLogModal: React.FC<ProductAuditLogModalProps> = ({
     if (m.pendingCreditAccounts !== undefined) {
       details.push(`${m.pendingCreditAccounts} cuentas pendientes`);
     }
+    if (m.pendingAppointments !== undefined) {
+      details.push(`${m.pendingAppointments} citas pendientes`);
+    }
     if (m.posVertical) {
       details.push(`Vertical: ${m.posVertical}`);
     }
@@ -107,6 +110,9 @@ export const ProductAuditLogModal: React.FC<ProductAuditLogModalProps> = ({
     }
     if (m.carteraCobroMonthlyFee !== undefined && m.carteraCobroMonthlyFee !== null) {
       details.push(`Tarifa Cartera: $${Number(m.carteraCobroMonthlyFee).toFixed(2)}/mes`);
+    }
+    if (m.citasMonthlyFee !== undefined && m.citasMonthlyFee !== null) {
+      details.push(`Tarifa Citas: $${Number(m.citasMonthlyFee).toFixed(2)}/mes`);
     }
 
     if (details.length === 0) {

@@ -7,6 +7,7 @@ import {
   Sliders,
   Wallet,
   CreditCard,
+  CalendarBlank,
 } from '@phosphor-icons/react';
 import {
   useBusinessProducts,
@@ -64,18 +65,26 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
   const carteraSub = productsData?.products?.CARTERA_COBRO;
   const isCarteraActive = carteraSub?.status === 'ACTIVE';
 
+  const citasSub = productsData?.products?.CITAS;
+  const isCitasActive = citasSub?.status === 'ACTIVE';
+
+  const activeCount = [isDeliveryActive, isPosActive, isCarteraActive, isCitasActive].filter(Boolean).length;
+
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-6">
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 sm:p-7 shadow-xs space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <Sliders size={20} className="text-brand-600" weight="duotone" />
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
               Productos Contratados
             </h3>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+              {activeCount} de 4 activos
+            </span>
           </div>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Gestión independiente de suscripciones TrackDeli (Delivery), Sistema POS y Cartera de Cobro.
+          <p className="text-xs text-gray-500 mt-1">
+            Gestión independiente de suscripciones TrackDeli (Delivery), Sistema POS, Cartera de Cobro y Citas.
           </p>
         </div>
 
@@ -89,7 +98,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
         {/* TrackDeli (Delivery) Card */}
         <ProductCard
           productType="DELIVERY"
@@ -120,9 +129,9 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
             })
           }
         >
-          <div className="p-3 rounded-lg bg-gray-50 border border-gray-100 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-gray-500 font-medium">Modelo</span>
+          <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-gray-500 font-medium">Modelo</span>
               <span className="font-semibold text-gray-900 text-xs">
                 {businessType === 'EMPRESA_RIDERS'
                   ? 'Empresa de Riders'
@@ -131,7 +140,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
             </div>
 
             {businessType === 'EMPRESA_RIDERS' && (
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-200/60 text-[11px]">
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-200/60 text-xs">
                 <div>
                   <span className="text-gray-400">Comisión Base: </span>
                   <span className="font-semibold text-gray-900">
@@ -193,26 +202,26 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
             })
           }
         >
-          <div className="p-3 rounded-lg bg-gray-50 border border-gray-100 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-gray-500 font-medium">Vertical</span>
-              <span className="inline-flex items-center gap-1 font-semibold text-gray-900 text-xs">
+          <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-gray-500 font-medium">Vertical</span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs">
                 {posSub?.posVertical === 'RETAIL' ? (
                   <>
-                    <ShoppingBag size={13} className="text-purple-600" />
+                    <ShoppingBag size={14} className="text-purple-600" />
                     <span>Retail / Comercio</span>
                   </>
                 ) : (
                   <>
-                    <ForkKnife size={13} className="text-purple-600" />
+                    <ForkKnife size={14} className="text-purple-600" />
                     <span>Restaurante / Mesas</span>
                   </>
                 )}
               </span>
             </div>
 
-            <div className="flex items-center justify-between pt-1 border-t border-gray-200/60 text-[11px]">
-              <span className="text-gray-400">Tarifa Mensual:</span>
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+              <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
               <span className="font-semibold text-gray-900 font-mono">
                 {posSub?.posMonthlyFee
                   ? `$${Number(posSub.posMonthlyFee).toFixed(2)} / mes`
@@ -252,20 +261,70 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
             })
           }
         >
-          <div className="p-3 rounded-lg bg-gray-50 border border-gray-100 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-gray-500 font-medium">Módulo</span>
-              <span className="inline-flex items-center gap-1 font-semibold text-gray-900 text-xs">
-                <CreditCard size={13} className="text-emerald-600" />
+          <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-gray-500 font-medium">Módulo</span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs">
+                <CreditCard size={14} className="text-emerald-600" />
                 <span>Crédito y Cobranza POS</span>
               </span>
             </div>
 
-            <div className="flex items-center justify-between pt-1 border-t border-gray-200/60 text-[11px]">
-              <span className="text-gray-400">Tarifa Mensual:</span>
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+              <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
               <span className="font-semibold text-gray-900 font-mono">
                 {carteraSub?.carteraMonthlyFee
                   ? `$${Number(carteraSub.carteraMonthlyFee).toFixed(2)} / mes`
+                  : 'Sin cuota fija'}
+              </span>
+            </div>
+          </div>
+        </ProductCard>
+
+        {/* Citas Card */}
+        <ProductCard
+          productType="CITAS"
+          title="Citas"
+          subtitle="Reservas online, agenda y gestión de citas"
+          activateButtonLabel="Activar Citas"
+          icon={<CalendarBlank size={22} weight="duotone" />}
+          iconActiveThemeClass="bg-sky-500/10 text-sky-800 border border-sky-200/60"
+          isActive={!!isCitasActive}
+          activatedAt={citasSub?.activatedAt}
+          inactiveDescription="Este negocio no tiene contratado el servicio de Citas. La página pública de reservas y la agenda están deshabilitadas."
+          onAuditClick={() => setAuditLogModal({ isOpen: true, productType: 'CITAS' })}
+          onConfigureClick={() =>
+            setActiveModal({
+              isOpen: true,
+              productType: 'CITAS',
+              isCurrentlyActive: true,
+            })
+          }
+          onDeactivateClick={() =>
+            setDeactivateModal({ isOpen: true, productType: 'CITAS' })
+          }
+          onActivateClick={() =>
+            setActiveModal({
+              isOpen: true,
+              productType: 'CITAS',
+              isCurrentlyActive: false,
+            })
+          }
+        >
+          <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-gray-500 font-medium">Módulo</span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs">
+                <CalendarBlank size={14} className="text-sky-600" />
+                <span>Reservas y Agenda</span>
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+              <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
+              <span className="font-semibold text-gray-900 font-mono">
+                {citasSub?.citasMonthlyFee
+                  ? `$${Number(citasSub.citasMonthlyFee).toFixed(2)} / mes`
                   : 'Sin cuota fija'}
               </span>
             </div>
@@ -296,6 +355,9 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           }}
           currentCarteraConfig={{
             carteraMonthlyFee: carteraSub?.carteraMonthlyFee,
+          }}
+          currentCitasConfig={{
+            citasMonthlyFee: citasSub?.citasMonthlyFee,
           }}
         />
       )}

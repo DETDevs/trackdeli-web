@@ -19,9 +19,14 @@ export const RescheduleModal: React.FC<RescheduleModalProps> = ({
   isSubmitting,
   appointment,
 }) => {
-  // Inicializar fecha seleccionada en hoy
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  // Inicializar fecha seleccionada en hoy (hora local)
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
 
   // Consultar disponibilidad del servicio para la fecha elegida

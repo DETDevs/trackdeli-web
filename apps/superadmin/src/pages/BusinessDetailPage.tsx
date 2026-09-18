@@ -19,6 +19,7 @@ import {
   Coins,
   Receipt,
   Wallet,
+  CalendarBlank,
   Key,
   Lock,
   LockOpen,
@@ -70,6 +71,9 @@ export const BusinessDetailPage = () => {
   const isCarteraActive = productsData
     ? productsData.products.CARTERA_COBRO?.status === 'ACTIVE'
     : ((business as any)?.hasCarteraCobro ?? false);
+  const isCitasActive = productsData
+    ? productsData.products.CITAS?.status === 'ACTIVE'
+    : ((business as any)?.hasCitas ?? false);
 
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
@@ -289,7 +293,13 @@ export const BusinessDetailPage = () => {
                 <span>Cartera de Cobro</span>
               </span>
             )}
-            {!isDeliveryActive && !isPosActive && !isCarteraActive && (
+            {isCitasActive && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 text-sky-900 border border-sky-200/80">
+                <CalendarBlank size={13} weight="duotone" className="text-sky-700" />
+                <span>Citas</span>
+              </span>
+            )}
+            {!isDeliveryActive && !isPosActive && !isCarteraActive && !isCitasActive && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
                 <span>Sin productos contratados</span>
               </span>
@@ -514,6 +524,8 @@ export const BusinessDetailPage = () => {
                               ? 'POS'
                               : p.productType === 'CARTERA_COBRO'
                               ? 'Cartera'
+                              : p.productType === 'CITAS'
+                              ? 'Citas'
                               : p.name}
                           </span>
                         ))
@@ -637,6 +649,17 @@ export const BusinessDetailPage = () => {
                                       >
                                         <Wallet size={11} weight="duotone" className="text-emerald-700" />
                                         <span>Cartera</span>
+                                      </span>
+                                    );
+                                  }
+                                  if (p.productType === 'CITAS') {
+                                    return (
+                                      <span
+                                        key={p.id || p.businessProductSubscriptionId}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-900 border border-sky-200/80"
+                                      >
+                                        <CalendarBlank size={11} weight="duotone" className="text-sky-700" />
+                                        <span>Citas</span>
                                       </span>
                                     );
                                   }

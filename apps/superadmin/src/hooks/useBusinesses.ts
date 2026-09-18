@@ -34,15 +34,17 @@ export interface BusinessItem {
   };
   productSubscriptions?: Array<{
     id?: string;
-    productType: 'DELIVERY' | 'POS' | 'CARTERA_COBRO';
+    productType: 'DELIVERY' | 'POS' | 'CARTERA_COBRO' | 'CITAS';
     status: 'ACTIVE' | 'INACTIVE';
     posVertical?: 'RESTAURANTE' | 'RETAIL' | null;
     posMonthlyFee?: number | null;
     carteraMonthlyFee?: number | null;
+    citasMonthlyFee?: number | null;
   }>;
   hasPOS?: boolean;
   hasTrackDeli?: boolean;
   hasCarteraCobro?: boolean;
+  hasCitas?: boolean;
 }
 
 export interface BusinessDetail extends BusinessItem {

@@ -7,6 +7,7 @@ import {
   Motorcycle,
   CashRegister,
   Wallet,
+  CalendarBlank,
 } from '@phosphor-icons/react';
 import { Modal } from '../ui/Modal';
 import {
@@ -53,6 +54,7 @@ export const DeactivateProductModal: React.FC<DeactivateProductModalProps> = ({
   const isDelivery = productType === 'DELIVERY';
   const isPos = productType === 'POS';
   const isCartera = productType === 'CARTERA_COBRO';
+  const isCitas = productType === 'CITAS';
   const label = getProductLabel(productType);
 
   const isNameMatch = typedName.trim() === businessName.trim();
@@ -135,6 +137,12 @@ export const DeactivateProductModal: React.FC<DeactivateProductModalProps> = ({
                   <li>No se permitirá registrar nuevas ventas a crédito (fiar a clientes).</li>
                   <li>Se verificará que no existan cuentas por cobrar con saldo pendiente.</li>
                   <li>El historial de créditos y abonos existentes se mantendrá solo para consulta.</li>
+                </>
+              ) : isCitas ? (
+                <>
+                  <li>No se permitirá agendar nuevas citas ni acceder a la página de reservas.</li>
+                  <li>Se verificará que no existan citas pendientes o confirmadas programadas para el futuro.</li>
+                  <li>El historial de citas pasadas se conservará intacto para consulta y reportes.</li>
                 </>
               ) : null}
             </ul>
@@ -235,6 +243,18 @@ export const DeactivateProductModal: React.FC<DeactivateProductModalProps> = ({
                     </div>
                   </div>
                 )}
+
+                {conflictDetails.pendingAppointments !== undefined && (
+                  <div className="bg-white/80 p-2 rounded-lg border border-red-100 flex items-center gap-2 col-span-2">
+                    <CalendarBlank size={16} className="text-red-600" />
+                    <div>
+                      <p className="text-[10px] text-gray-500 uppercase font-semibold">Citas Futuras Pendientes</p>
+                      <p className="text-xs font-semibold text-gray-900">
+                        {conflictDetails.pendingAppointments} cita(s) pendiente(s) o confirmada(s)
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -255,6 +275,11 @@ export const DeactivateProductModal: React.FC<DeactivateProductModalProps> = ({
                   <>
                     <li>Las cuentas con saldo pendiente quedarán congeladas y no podrán recibir abonos vía POS.</li>
                     <li>El comercio deberá gestionar la cobranza pendiente de forma externa.</li>
+                  </>
+                ) : isCitas ? (
+                  <>
+                    <li>Las citas pendientes o confirmadas NO se cancelarán automáticamente pero el portal quedará bloqueado.</li>
+                    <li>Los clientes no podrán reagendar ni gestionar sus citas existentes en línea.</li>
                   </>
                 ) : null}
               </ul>

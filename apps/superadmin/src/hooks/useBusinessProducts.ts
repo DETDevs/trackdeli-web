@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../lib/apiClient';
 import toast from 'react-hot-toast';
 
-export type BusinessProductType = 'DELIVERY' | 'POS' | 'CARTERA_COBRO';
+export type BusinessProductType = 'DELIVERY' | 'POS' | 'CARTERA_COBRO' | 'CITAS';
 export type BusinessProductStatus = 'ACTIVE' | 'INACTIVE';
 export type PosVertical = 'RESTAURANTE' | 'RETAIL';
 
@@ -14,6 +14,8 @@ export function getProductLabel(productType: BusinessProductType): string {
       return 'Sistema POS';
     case 'CARTERA_COBRO':
       return 'Cartera de Cobro';
+    case 'CITAS':
+      return 'Citas';
     default:
       return productType;
   }
@@ -69,6 +71,19 @@ export interface BusinessProductCarteraSub {
   updatedAt?: string;
 }
 
+export interface BusinessProductCitasSub {
+  id?: string;
+  productType: 'CITAS';
+  status: BusinessProductStatus;
+  citasMonthlyFee?: number | null;
+  activatedAt?: string | null;
+  activatedBy?: string | null;
+  deactivatedAt?: string | null;
+  deactivatedBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface BusinessProductsResponse {
   businessId: string;
   businessName: string;
@@ -76,6 +91,7 @@ export interface BusinessProductsResponse {
     DELIVERY: BusinessProductDeliverySub;
     POS: BusinessProductPosSub;
     CARTERA_COBRO?: BusinessProductCarteraSub;
+    CITAS?: BusinessProductCitasSub;
   };
 }
 
@@ -87,6 +103,7 @@ export interface ActivateProductDto {
   posVertical?: PosVertical;
   posMonthlyFee?: number;
   carteraMonthlyFee?: number;
+  citasMonthlyFee?: number;
   reason?: string;
 }
 
@@ -110,6 +127,7 @@ export interface DeactivationConflictDetails {
   activeDispatches?: number;
   openCashRegisters?: number;
   pendingCreditAccounts?: number;
+  pendingAppointments?: number;
   [key: string]: any;
 }
 

@@ -38,43 +38,43 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   return (
     <div
-      className={`p-5 rounded-xl border transition-all flex flex-col justify-between ${
+      className={`p-5 sm:p-6 rounded-2xl border transition-all flex flex-col justify-between h-full ${
         isActive
-          ? 'border-gray-200/90 bg-white shadow-2xs'
-          : 'border-dashed border-gray-200 bg-gray-50/50'
+          ? 'border-gray-200/90 bg-white shadow-2xs hover:shadow-xs'
+          : 'border-dashed border-gray-200 bg-gray-50/60'
       }`}
     >
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
                 isActive
                   ? iconActiveThemeClass
-                  : 'bg-gray-100 text-gray-400'
+                  : 'bg-gray-100 text-gray-400 border border-gray-200/60'
               }`}
             >
               {icon}
             </div>
-            <div>
-              <h4 className="font-semibold text-sm text-gray-900 leading-tight">
+            <div className="min-w-0">
+              <h4 className="font-semibold text-sm text-gray-900 leading-tight truncate">
                 {title}
               </h4>
-              <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>
+              <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{subtitle}</p>
             </div>
           </div>
 
-          <Badge variant={isActive ? 'success' : 'neutral'} dot size="sm">
+          <Badge variant={isActive ? 'success' : 'neutral'} dot size="sm" className="shrink-0">
             {isActive ? 'Activo' : 'Inactivo'}
           </Badge>
         </div>
 
         {/* Date and Details / Inactive notice */}
-        <div className="space-y-2 pt-1 text-xs">
-          <div className="flex items-center justify-between text-[11px] text-gray-400 pb-1 border-b border-gray-100">
-            <span>Fecha de activación</span>
-            <span className="font-medium text-gray-700">
+        <div className="space-y-2.5 pt-1 text-xs">
+          <div className="flex items-center justify-between text-xs text-gray-400 pb-1.5 border-b border-gray-100">
+            <span className="font-medium text-gray-500">Fecha de activación</span>
+            <span className="font-semibold text-gray-800">
               {activatedAt
                 ? formatDateShort(activatedAt)
                 : isActive
@@ -86,7 +86,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {isActive ? (
             children
           ) : (
-            <div className="py-3 px-3 rounded-lg bg-gray-100/70 text-gray-500 text-[11px] leading-relaxed">
+            <div className="p-3.5 rounded-xl bg-gray-100/70 border border-gray-200/50 text-gray-500 text-xs leading-relaxed min-h-[64px] flex items-center">
               {inactiveDescription}
             </div>
           )}
@@ -94,11 +94,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       </div>
 
       {/* Footer Actions */}
-      <div className="flex items-center justify-between gap-2 pt-4 mt-4 border-t border-gray-100">
+      <div className="flex items-center justify-between gap-2 pt-4 mt-5 border-t border-gray-100">
         <button
           type="button"
           onClick={onAuditClick}
-          className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 transition-colors"
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 -ml-1 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
         >
           <ClockCounterClockwise size={14} />
           <span>Auditoría</span>
@@ -110,7 +110,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <button
                 type="button"
                 onClick={onConfigureClick}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs cursor-pointer"
               >
                 <Gear size={13} />
                 <span>Configurar</span>
@@ -118,7 +118,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <button
                 type="button"
                 onClick={onDeactivateClick}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200/60 transition-colors"
+                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100/80 border border-red-200/60 transition-colors cursor-pointer"
               >
                 <span>Desactivar</span>
               </button>
@@ -127,7 +127,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <button
               type="button"
               onClick={onActivateClick}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs"
+              className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
             >
               <Plus size={13} weight="bold" />
               <span>{activateButtonLabel || `Activar ${title}`}</span>

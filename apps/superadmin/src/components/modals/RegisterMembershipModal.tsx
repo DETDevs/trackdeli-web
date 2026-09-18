@@ -7,6 +7,7 @@ import {
   Motorcycle,
   Receipt,
   Wallet,
+  CalendarBlank,
   Check,
 } from '@phosphor-icons/react';
 import { Modal } from '../ui/Modal';
@@ -53,7 +54,7 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
       list.push({
         id: productsData.products.DELIVERY.id,
         productType: 'DELIVERY',
-        name: 'TrackDeli (Delivery)',
+        name: 'Delivery',
         subtitle: 'Despacho y reparto',
         fee: null,
         icon: <Motorcycle size={16} weight="duotone" className="text-amber-600 shrink-0" />,
@@ -67,8 +68,8 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
         id: productsData.products.POS.id,
         productType: 'POS',
         name: 'Sistema POS',
-        subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Punto de venta',
-        fee: fee ?? null,
+        subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Sin cuota fija',
+        fee: fee ? Number(fee) : null,
         icon: <Receipt size={16} weight="duotone" className="text-purple-600 shrink-0" />,
         activeColor: 'border-purple-500 bg-purple-50/50 ring-1 ring-purple-500/30',
       });
@@ -83,10 +84,26 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
         id: productsData.products.CARTERA_COBRO.id,
         productType: 'CARTERA_COBRO',
         name: 'Cartera de Cobro',
-        subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Crédito y cobranza',
-        fee: fee ?? null,
+        subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Sin cuota fija',
+        fee: fee ? Number(fee) : null,
         icon: <Wallet size={16} weight="duotone" className="text-emerald-600 shrink-0" />,
         activeColor: 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500/30',
+      });
+    }
+
+    if (
+      productsData.products.CITAS?.status === 'ACTIVE' &&
+      productsData.products.CITAS.id
+    ) {
+      const fee = productsData.products.CITAS.citasMonthlyFee;
+      list.push({
+        id: productsData.products.CITAS.id,
+        productType: 'CITAS',
+        name: 'Citas',
+        subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Sin cuota fija',
+        fee: fee ? Number(fee) : null,
+        icon: <CalendarBlank size={16} weight="duotone" className="text-sky-600 shrink-0" />,
+        activeColor: 'border-sky-500 bg-sky-50/50 ring-1 ring-sky-500/30',
       });
     }
 
@@ -95,7 +112,7 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
 
   const [startDate, setStartDate] = useState(todayStr);
   const [endDate, setEndDate] = useState(defaultEndStr);
-  const [amount, setAmount] = useState<number>(35.0);
+  const [amount, setAmount] = useState<string>('');
   const [currency, setCurrency] = useState('USD');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('TRANSFERENCIA');
   const [paidAt, setPaidAt] = useState(todayStr);
@@ -106,11 +123,25 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
 
   const createMembershipMutation = useCreateMembership();
 
+  const calculateSuggestedAmount = (productIds: string[], curr: string): string => {
+    if (curr !== 'USD') return '';
+    if (productIds.length === 0) return '';
+    const selected = activeProducts.filter((p) => productIds.includes(p.id));
+    const sumFees = selected.reduce((acc, p) => acc + (p.fee ? Number(p.fee) : 0), 0);
+    if (sumFees > 0) {
+      return sumFees.toFixed(2);
+    }
+    // Si solo seleccionó Delivery (que no tiene cuota fija en el backend, cuota base legacy de $35)
+    if (selected.some((p) => p.productType === 'DELIVERY')) {
+      return '35.00';
+    }
+    return '';
+  };
+
   useEffect(() => {
     if (isOpen) {
       setStartDate(todayStr);
       setEndDate(defaultEndStr);
-      setAmount(35.0);
       setCurrency('USD');
       setPaymentMethod('TRANSFERENCIA');
       setPaidAt(todayStr);
@@ -118,19 +149,40 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
       setFile(null);
       setPreviewUrl(null);
 
-      // Preselect automatically if exactly 1 active product:
+      // Preseleccionar automáticamente si tiene exactamente 1 producto activo:
       if (activeProducts.length === 1) {
-        setSelectedProductIds([activeProducts[0].id]);
+        const initialIds = [activeProducts[0].id];
+        setSelectedProductIds(initialIds);
+        setAmount(calculateSuggestedAmount(initialIds, 'USD'));
       } else {
         setSelectedProductIds([]);
+        setAmount('');
       }
     }
   }, [isOpen, activeProducts]);
 
   const toggleProduct = (id: string) => {
-    setSelectedProductIds((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
+    const nextSelected = selectedProductIds.includes(id)
+      ? selectedProductIds.filter((p) => p !== id)
+      : [...selectedProductIds, id];
+
+    setSelectedProductIds(nextSelected);
+
+    if (currency === 'USD') {
+      const suggested = calculateSuggestedAmount(nextSelected, 'USD');
+      setAmount(suggested);
+    }
+  };
+
+  const handleCurrencyChange = (newCurrency: string) => {
+    setCurrency(newCurrency);
+    if (newCurrency === 'NIO') {
+      // Sin tasa de cambio oficial en el sistema, campo vacío para carga manual
+      setAmount('');
+    } else if (newCurrency === 'USD') {
+      const suggested = calculateSuggestedAmount(selectedProductIds, 'USD');
+      setAmount(suggested);
+    }
   };
 
   const handleStartDateChange = (val: string) => {
@@ -160,14 +212,15 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!businessId || !startDate || !endDate || amount <= 0) return;
+    const numAmount = parseFloat(amount);
+    if (!businessId || !startDate || !endDate || isNaN(numAmount) || numAmount <= 0) return;
 
     createMembershipMutation.mutate(
       {
         businessId,
         startDate: new Date(startDate).toISOString(),
         endDate: new Date(endDate).toISOString(),
-        amount: Number(amount),
+        amount: numAmount,
         currency,
         paymentMethod,
         paidAt: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(),
@@ -242,7 +295,7 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
               Este negocio no tiene productos contratados activos en este momento.
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {activeProducts.map((prod) => {
                 const isSelected = selectedProductIds.includes(prod.id);
                 return (
@@ -250,19 +303,19 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
                     key={prod.id}
                     type="button"
                     onClick={() => toggleProduct(prod.id)}
-                    className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                    className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
                       isSelected
                         ? `${prod.activeColor} shadow-2xs`
                         : 'border-gray-200 bg-white hover:border-gray-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <div className="shrink-0">{prod.icon}</div>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-gray-900 truncate">
+                        <p className="text-xs font-semibold text-gray-900 leading-tight">
                           {prod.name}
                         </p>
-                        <p className="text-[10px] text-gray-500 truncate">
+                        <p className="text-[11px] text-gray-500 mt-0.5 font-mono">
                           {prod.subtitle}
                         </p>
                       </div>
@@ -289,19 +342,39 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
               Monto pagado
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                $
+              <span
+                className={`absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold ${
+                  currency === 'NIO' ? 'text-amber-700' : 'text-gray-400'
+                }`}
+              >
+                {currency === 'NIO' ? 'C$' : '$'}
               </span>
               <input
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
                 value={amount}
-                onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder={currency === 'USD' ? '0.00' : 'Ej: 1500.00'}
                 required
-                className="w-full h-10 pl-7 pr-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900 font-medium"
+                className={`w-full h-10 ${
+                  currency === 'NIO' ? 'pl-9' : 'pl-7'
+                } pr-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900 font-semibold font-mono`}
               />
             </div>
+            {currency === 'USD' ? (
+              <p className="text-[11px] text-gray-400 mt-1">
+                {selectedProductIds.length > 0
+                  ? amount
+                    ? `Monto sugerido para los productos seleccionados ($${amount}). Editable si aplica descuento.`
+                    : 'Monto sugerido según tarifas activas.'
+                  : 'Selecciona producto(s) para sugerir el monto automáticamente.'}
+              </p>
+            ) : (
+              <p className="text-[11px] text-amber-600 mt-1">
+                No hay tasa de cambio oficial configurada. Ingrese el monto en Córdobas (C$) manualmente.
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -309,10 +382,10 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
             </label>
             <select
               value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900 font-medium"
+              onChange={(e) => handleCurrencyChange(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900 font-medium cursor-pointer"
             >
-              <option value="USD">USD</option>
+              <option value="USD">USD ($)</option>
               <option value="NIO">NIO (C$)</option>
             </select>
           </div>

@@ -8,6 +8,7 @@ import {
   ShoppingBag,
   Sparkle,
   Wallet,
+  CalendarBlank,
 } from '@phosphor-icons/react';
 import { Modal } from '../ui/Modal';
 import {
@@ -39,6 +40,9 @@ interface ActivateProductModalProps {
   currentCarteraConfig?: {
     carteraMonthlyFee?: number | null;
   };
+  currentCitasConfig?: {
+    citasMonthlyFee?: number | null;
+  };
 }
 
 export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
@@ -51,6 +55,7 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
   currentDeliveryConfig,
   currentPosConfig,
   currentCarteraConfig,
+  currentCitasConfig,
 }) => {
   const activateMutation = useActivateProduct();
 
@@ -64,6 +69,7 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
   const [posMonthlyFee, setPosMonthlyFee] = useState('');
 
   const [carteraMonthlyFee, setCarteraMonthlyFee] = useState('');
+  const [citasMonthlyFee, setCitasMonthlyFee] = useState('');
 
   const [reason, setReason] = useState('');
 
@@ -99,10 +105,17 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
             ? String(currentCarteraConfig.carteraMonthlyFee)
             : ''
         );
+      } else if (productType === 'CITAS') {
+        setCitasMonthlyFee(
+          currentCitasConfig?.citasMonthlyFee !== null &&
+            currentCitasConfig?.citasMonthlyFee !== undefined
+            ? String(currentCitasConfig.citasMonthlyFee)
+            : ''
+        );
       }
       setReason('');
     }
-  }, [isOpen, productType, currentDeliveryConfig, currentPosConfig, currentCarteraConfig]);
+  }, [isOpen, productType, currentDeliveryConfig, currentPosConfig, currentCarteraConfig, currentCitasConfig]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,8 +147,13 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
             posMonthlyFee: posMonthlyFee ? Number(posMonthlyFee) : undefined,
             reason: reason.trim() || undefined,
           }
-        : {
+        : productType === 'CARTERA_COBRO'
+        ? {
             carteraMonthlyFee: carteraMonthlyFee ? Number(carteraMonthlyFee) : undefined,
+            reason: reason.trim() || undefined,
+          }
+        : {
+            citasMonthlyFee: citasMonthlyFee ? Number(citasMonthlyFee) : undefined,
             reason: reason.trim() || undefined,
           };
 
@@ -156,6 +174,7 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
   const isDelivery = productType === 'DELIVERY';
   const isPos = productType === 'POS';
   const isCartera = productType === 'CARTERA_COBRO';
+  const isCitas = productType === 'CITAS';
   const title = `${isCurrentlyActive ? 'Configurar' : 'Activar'} ${getProductLabel(productType)}`;
 
   return (
@@ -173,8 +192,10 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
               <Motorcycle size={18} />
             ) : isPos ? (
               <Receipt size={18} />
-            ) : (
+            ) : isCartera ? (
               <Wallet size={18} />
+            ) : (
+              <CalendarBlank size={18} />
             )}
           </div>
           <div>
@@ -183,14 +204,18 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
                 ? 'Plataforma de Despacho y Asignación de Repartidores'
                 : isPos
                 ? 'Punto de Venta para Operaciones en Local'
-                : 'Módulo de Créditos a Clientes y Cuentas por Cobrar'}
+                : isCartera
+                ? 'Módulo de Créditos a Clientes y Cuentas por Cobrar'
+                : 'Plataforma de Reservas Online y Gestión de Citas'}
             </p>
             <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
               {isDelivery
                 ? 'Permite a los repartidores recibir órdenes, calcular comisiones y gestionar rutas.'
                 : isPos
                 ? 'Habilita comanderas, apertura de cajas, gestión de mesas y emisión de tickets/facturas.'
-                : 'Permite ventas a crédito en terminales POS, registro de abonos parciales, seguimiento de saldos y control de cartera vencida.'}
+                : isCartera
+                ? 'Permite ventas a crédito en terminales POS, registro de abonos parciales, seguimiento de saldos y control de cartera vencida.'
+                : 'Habilita la página pública de reservas para clientes, sincronización de agenda por barbero/profesional y confirmaciones automáticas.'}
             </p>
           </div>
         </div>
@@ -447,6 +472,33 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
                   value={carteraMonthlyFee}
                   onChange={(e) => setCarteraMonthlyFee(e.target.value)}
                   placeholder="29.99"
+                  className="w-full h-10 pl-7 pr-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                />
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Dejar vacío si no se aplica tarifa fija mensual para este servicio.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isCitas && (
+          <div className="space-y-3.5">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Tarifa Mensual Citas en USD (opcional)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
+                  $
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={citasMonthlyFee}
+                  onChange={(e) => setCitasMonthlyFee(e.target.value)}
+                  placeholder="25.00"
                   className="w-full h-10 pl-7 pr-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
                 />
               </div>
