@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BusinessItem } from '../../hooks/useBusinesses';
 import { Badge } from './Badge';
-import { ArrowRight } from '@phosphor-icons/react';
+import { ArrowRight, Motorcycle, Coins, Receipt, Wallet, CalendarBlank } from '@phosphor-icons/react';
 
 interface BusinessCardMobileProps {
   business: BusinessItem;
@@ -49,14 +49,14 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
         </div>
 
         <button
+          type="button"
           onClick={(e) => onToggle(e, business)}
-          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-            business.isActive ? 'bg-brand-600' : 'bg-gray-200'
+          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+            business.isActive ? 'bg-primary' : 'bg-gray-200'
           }`}
-          title={business.isActive ? 'Desactivar negocio' : 'Activar negocio'}
         >
           <span
-            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
               business.isActive ? 'translate-x-4' : 'translate-x-0'
             }`}
           />
@@ -77,68 +77,94 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
 
         <div className="flex items-center gap-1.5 flex-wrap">
           {(() => {
-            const deliverySub = business.productSubscriptions?.find((s) => s.productType === 'DELIVERY');
-            const posSub = business.productSubscriptions?.find((s) => s.productType === 'POS');
-            const hasDelivery = deliverySub ? deliverySub.status === 'ACTIVE' : (business.hasTrackDeli ?? true);
-            const hasPos = posSub ? posSub.status === 'ACTIVE' : (business.hasPOS ?? false);
+            const isDeliveryActive = business.productSubscriptions
+              ? business.productSubscriptions.some((s) => s.productType === 'DELIVERY' && s.status === 'ACTIVE')
+              : (business.hasTrackDeli ?? false);
+            const isPosActive = business.productSubscriptions
+              ? business.productSubscriptions.some((s) => s.productType === 'POS' && s.status === 'ACTIVE')
+              : (business.hasPOS ?? false);
+            const isCarteraActive = business.productSubscriptions
+              ? business.productSubscriptions.some((s) => s.productType === 'CARTERA_COBRO' && s.status === 'ACTIVE')
+              : (business.hasCarteraCobro ?? false);
+            const isCitasActive = business.productSubscriptions
+              ? business.productSubscriptions.some((s) => s.productType === 'CITAS' && s.status === 'ACTIVE')
+              : (business.hasCitas ?? false);
 
-            if (!hasDelivery && !hasPos) {
+            if (!isDeliveryActive && !isPosActive && !isCarteraActive && !isCitasActive) {
               return <Badge variant="neutral" size="sm">Sin productos</Badge>;
             }
 
-            const renderDeliveryBadge = (compact = false) => {
+            const badges: React.ReactNode[] = [];
+
+            // 1. Delivery
+            if (isDeliveryActive) {
               if (business.businessType === 'EMPRESA_RIDERS') {
                 const rate = business.commissionRate ? `${(business.commissionRate * 100).toFixed(0)}%` : '15%';
-                return (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
-                    <span>{compact ? rate : `Comisión (${rate})`}</span>
+                badges.push(
+                  <span key="delivery" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
+                    <Coins size={11} className="text-amber-700" />
+                    <span>{rate}</span>
                   </span>
                 );
+              } else {
+                const mem = business.membership;
+                if (mem && mem.status === 'ACTIVE') {
+                  const days = mem.daysLeft ?? 0;
+                  badges.push(
+                    <Badge key="delivery" variant={days <= 7 ? 'warning' : 'success'} dot size="sm">
+                      {days <= 7 ? `${days}d` : `Activa ${days}d`}
+                    </Badge>
+                  );
+                } else if (mem?.status === 'EXPIRED') {
+                  badges.push(
+                    <Badge key="delivery" variant="danger" dot size="sm">
+                      Vencida
+                    </Badge>
+                  );
+                } else {
+                  badges.push(
+                    <span key="delivery" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
+                      <Motorcycle size={11} weight="duotone" className="text-amber-700" />
+                      <span>Delivery</span>
+                    </span>
+                  );
+                }
               }
+            }
 
-              const mem = business.membership;
-              if (mem && mem.status === 'ACTIVE') {
-                const days = mem.daysLeft ?? 0;
-                return (
-                  <Badge variant={days <= 7 ? 'warning' : 'success'} dot size="sm">
-                    {compact ? `${days}d` : `Activa ${days}d`}
-                  </Badge>
-                );
-              }
-              if (!mem || mem.status === 'NOT_CONTRACTED' || mem.status === 'NONE') {
-                return (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
-                    {compact ? 'Delivery' : 'Sin membresía'}
-                  </span>
-                );
-              }
-              return (
-                <Badge variant="danger" dot size="sm">
-                  Vencida
-                </Badge>
-              );
-            };
-
-            const renderPosBadge = (compact = false) => (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-800 border border-purple-200/80">
-                <span>{compact ? 'POS' : 'Solo POS'}</span>
-              </span>
-            );
-
-            if (hasDelivery && hasPos) {
-              return (
-                <>
-                  {renderDeliveryBadge(true)}
-                  {renderPosBadge(true)}
-                </>
+            // 2. POS
+            if (isPosActive) {
+              const posSub = business.productSubscriptions?.find((s) => s.productType === 'POS');
+              const vertical = posSub?.posVertical === 'RETAIL' ? 'Retail' : 'Rest.';
+              badges.push(
+                <span key="pos" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-800 border border-purple-200/80">
+                  <Receipt size={11} className="text-purple-700" />
+                  <span>POS ({vertical})</span>
+                </span>
               );
             }
 
-            if (!hasDelivery && hasPos) {
-              return renderPosBadge(false);
+            // 3. Cartera de Cobro
+            if (isCarteraActive) {
+              badges.push(
+                <span key="cartera" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                  <Wallet size={11} className="text-emerald-700" />
+                  <span>Cartera</span>
+                </span>
+              );
             }
 
-            return renderDeliveryBadge(false);
+            // 4. Citas
+            if (isCitasActive) {
+              badges.push(
+                <span key="citas" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-800 border border-sky-200/80">
+                  <CalendarBlank size={11} className="text-sky-700" />
+                  <span>Citas</span>
+                </span>
+              );
+            }
+
+            return badges;
           })()}
 
           <div className="text-gray-400 pl-1">

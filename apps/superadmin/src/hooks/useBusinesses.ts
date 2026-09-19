@@ -36,6 +36,7 @@ export interface BusinessItem {
     id?: string;
     productType: 'DELIVERY' | 'POS' | 'CARTERA_COBRO' | 'CITAS';
     status: 'ACTIVE' | 'INACTIVE';
+    deliveryMonthlyFee?: number | null;
     posVertical?: 'RESTAURANTE' | 'RETAIL' | null;
     posMonthlyFee?: number | null;
     carteraMonthlyFee?: number | null;
@@ -99,6 +100,15 @@ export interface CreateBusinessInput {
   altCommissionRate?: number;
   altCommissionDistanceKm?: number;
   dispatchTimeoutMin?: number;
+  hasDelivery?: boolean;
+  deliveryMonthlyFee?: number;
+  hasPOS?: boolean;
+  posVertical?: string;
+  posMonthlyFee?: number;
+  hasCarteraCobro?: boolean;
+  carteraMonthlyFee?: number;
+  hasCitas?: boolean;
+  citasMonthlyFee?: number;
   encargado?: {
     name: string;
     email: string;
@@ -180,7 +190,6 @@ export function useCreateBusiness() {
     },
     onSuccess: () => {
       toast.success('Negocio y encargado creados exitosamente');
-      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
     },
     onError: (err: any) => {

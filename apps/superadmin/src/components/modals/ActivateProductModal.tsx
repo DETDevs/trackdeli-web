@@ -28,6 +28,7 @@ interface ActivateProductModalProps {
   isCurrentlyActive?: boolean;
   currentDeliveryConfig?: {
     businessType?: BusinessType;
+    deliveryMonthlyFee?: number | null;
     commissionRate?: number;
     altCommissionRate?: number;
     altCommissionDistanceKm?: number;
@@ -60,6 +61,7 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
   const activateMutation = useActivateProduct();
 
   const [businessType, setBusinessType] = useState<BusinessType>('NEGOCIO');
+  const [deliveryMonthlyFee, setDeliveryMonthlyFee] = useState('');
   const [commissionRate, setCommissionRate] = useState('15');
   const [altCommissionRate, setAltCommissionRate] = useState('12');
   const [altCommissionDistanceKm, setAltCommissionDistanceKm] = useState('40');
@@ -77,6 +79,12 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
     if (isOpen) {
       if (productType === 'DELIVERY') {
         setBusinessType(currentDeliveryConfig?.businessType || 'NEGOCIO');
+        setDeliveryMonthlyFee(
+          currentDeliveryConfig?.deliveryMonthlyFee !== null &&
+            currentDeliveryConfig?.deliveryMonthlyFee !== undefined
+            ? String(currentDeliveryConfig.deliveryMonthlyFee)
+            : ''
+        );
         setCommissionRate(
           currentDeliveryConfig?.commissionRate !== undefined
             ? String(Math.round(currentDeliveryConfig.commissionRate * 100))
@@ -123,6 +131,12 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
     const dto =
       productType === 'DELIVERY'
         ? {
+            deliveryMonthlyFee:
+              businessType === 'NEGOCIO'
+                ? deliveryMonthlyFee
+                  ? Number(deliveryMonthlyFee)
+                  : undefined
+                : undefined,
             commissionRate:
               businessType === 'EMPRESA_RIDERS'
                 ? Number(commissionRate) / 100 || 0.15
@@ -360,6 +374,31 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
                     />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {businessType === 'NEGOCIO' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Tarifa Mensual Delivery en USD (opcional)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={deliveryMonthlyFee}
+                    onChange={(e) => setDeliveryMonthlyFee(e.target.value)}
+                    placeholder="35.00"
+                    className="w-full h-10 pl-7 pr-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Dejar vacío si no se aplica tarifa fija mensual para este servicio.
+                </p>
               </div>
             )}
           </div>

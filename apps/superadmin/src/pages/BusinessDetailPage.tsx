@@ -43,7 +43,7 @@ import { RegisterMembershipModal } from '../components/modals/RegisterMembership
 import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
 import { ImageViewerModal } from '../components/modals/ImageViewerModal';
 import { BusinessProductsSection } from '../components/business/BusinessProductsSection';
-import { useBusinessProducts } from '../hooks/useBusinessProducts';
+import { useBusinessProducts, type BusinessProductType } from '../hooks/useBusinessProducts';
 import { useSuperAdminUsers } from '../hooks/useSuperAdminUsers';
 import { type AdminUser } from 'api-client';
 import { CreateSuperAdminUserModal } from '../components/modals/users/CreateSuperAdminUserModal';
@@ -64,7 +64,7 @@ export const BusinessDetailPage = () => {
 
   const isDeliveryActive = productsData
     ? productsData.products.DELIVERY.status === 'ACTIVE'
-    : (business?.hasTrackDeli ?? true);
+    : (business?.hasTrackDeli ?? false);
   const isPosActive = productsData
     ? productsData.products.POS.status === 'ACTIVE'
     : (business?.hasPOS ?? false);
@@ -76,9 +76,16 @@ export const BusinessDetailPage = () => {
     : ((business as any)?.hasCitas ?? false);
 
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [registerModalInitialProductType, setRegisterModalInitialProductType] =
+    useState<BusinessProductType | undefined>(undefined);
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
   const [isEditModelModalOpen, setIsEditModelModalOpen] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
+
+  const handleOpenRegisterPayment = (productType?: BusinessProductType) => {
+    setRegisterModalInitialProductType(productType);
+    setIsRegisterModalOpen(true);
+  };
 
   const { data: businessUsers = [], isLoading: loadingBusinessUsers } = useSuperAdminUsers({
     businessId: id,
@@ -197,10 +204,16 @@ export const BusinessDetailPage = () => {
         return 'PayPal';
       case 'BINANCE':
         return 'Binance';
+      case 'ALTA_INICIAL':
+        return 'Alta inicial';
+      case 'AUTOMATICO':
+        return 'Automático';
       default:
-        return 'Otro';
+        return method ? method.charAt(0).toUpperCase() + method.slice(1).toLowerCase() : 'Otro';
     }
-  };  const handleSaveModel = (e: React.FormEvent) => {
+  };
+
+  const handleSaveModel = (e: React.FormEvent) => {
     e.preventDefault();
     updateMutation.mutate(
       {
@@ -342,19 +355,10 @@ export const BusinessDetailPage = () => {
           businessAltCommissionRate={business.altCommissionRate}
           businessAltCommissionDistanceKm={business.altCommissionDistanceKm}
           businessDispatchTimeoutMin={business.dispatchTimeoutMin}
+          onRegisterPaymentClick={handleOpenRegisterPayment}
         />
 
-        {!isDeliveryActive ? (
-          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs text-center py-8 space-y-2">
-            <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-400 mx-auto flex items-center justify-center">
-              <Motorcycle size={20} />
-            </div>
-            <h4 className="text-sm font-semibold text-gray-900">Módulo de Delivery Inactivo</h4>
-            <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
-              Este negocio opera sin el servicio de despacho de TrackDeli. La facturación por comisiones de entrega y cuotas de membresía aplican únicamente cuando el producto Delivery está activo. Puedes contratarlo desde la sección de Productos Contratados arriba.
-            </p>
-          </div>
-        ) : business.businessType === 'EMPRESA_RIDERS' ? (
+        {business.businessType === 'EMPRESA_RIDERS' ? (
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
               <div>
@@ -488,7 +492,7 @@ export const BusinessDetailPage = () => {
                 </div>
 
                 <button
-                  onClick={() => setIsRegisterModalOpen(true)}
+                  onClick={() => handleOpenRegisterPayment(undefined)}
                   className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition-colors shadow-xs self-start sm:self-auto cursor-pointer"
                 >
                   <Plus size={14} weight="bold" />
@@ -959,9 +963,14 @@ export const BusinessDetailPage = () => {
 
       <RegisterMembershipModal
         isOpen={isRegisterModalOpen}
-        onClose={() => setIsRegisterModalOpen(false)}
+        onClose={() => {
+          setIsRegisterModalOpen(false);
+          setRegisterModalInitialProductType(undefined);
+        }}
         businessId={business.id}
         businessName={business.name}
+        businessType={business.businessType}
+        initialSelectedProductType={registerModalInitialProductType}
       />
 
       <DeactivateBusinessModal

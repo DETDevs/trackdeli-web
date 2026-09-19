@@ -102,6 +102,9 @@ export const ProductAuditLogModal: React.FC<ProductAuditLogModalProps> = ({
     if (m.commissionRate !== undefined) {
       details.push(`Comisión: ${(m.commissionRate * 100).toFixed(0)}%`);
     }
+    if (m.deliveryMonthlyFee !== undefined && m.deliveryMonthlyFee !== null) {
+      details.push(`Tarifa Delivery: $${Number(m.deliveryMonthlyFee).toFixed(2)}/mes`);
+    }
     if (m.posMonthlyFee !== undefined && m.posMonthlyFee !== null) {
       details.push(`Tarifa POS: $${Number(m.posMonthlyFee).toFixed(2)}/mes`);
     }

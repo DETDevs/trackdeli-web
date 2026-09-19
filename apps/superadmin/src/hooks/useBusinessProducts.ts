@@ -32,6 +32,7 @@ export interface BusinessProductDeliverySub {
   id?: string;
   productType: 'DELIVERY';
   status: BusinessProductStatus;
+  deliveryMonthlyFee?: number | null;
   commissionRate?: number;
   altCommissionRate?: number;
   altCommissionDistanceKm?: number;
@@ -96,6 +97,7 @@ export interface BusinessProductsResponse {
 }
 
 export interface ActivateProductDto {
+  deliveryMonthlyFee?: number;
   commissionRate?: number;
   altCommissionRate?: number;
   altCommissionDistanceKm?: number;

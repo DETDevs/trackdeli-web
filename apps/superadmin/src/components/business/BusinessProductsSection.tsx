@@ -27,6 +27,7 @@ interface BusinessProductsSectionProps {
   businessAltCommissionRate?: number;
   businessAltCommissionDistanceKm?: number;
   businessDispatchTimeoutMin?: number;
+  onRegisterPaymentClick?: (productType: BusinessProductType) => void;
 }
 
 export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = ({
@@ -37,6 +38,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
   businessAltCommissionRate,
   businessAltCommissionDistanceKm,
   businessDispatchTimeoutMin,
+  onRegisterPaymentClick,
 }) => {
   const { data: productsData, isLoading } = useBusinessProducts(businessId);
 
@@ -109,6 +111,8 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           iconActiveThemeClass="bg-amber-500/10 text-amber-800 border border-amber-200/60"
           isActive={!!isDeliveryActive}
           activatedAt={deliverySub?.activatedAt}
+          deactivatedAt={deliverySub?.deactivatedAt}
+          isMembershipProduct={businessType !== 'EMPRESA_RIDERS'}
           inactiveDescription="Este negocio no tiene contratado el servicio de Delivery. No se permiten órdenes de reparto."
           onAuditClick={() => setAuditLogModal({ isOpen: true, productType: 'DELIVERY' })}
           onConfigureClick={() =>
@@ -128,6 +132,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
               isCurrentlyActive: false,
             })
           }
+          onRegisterPaymentClick={() => onRegisterPaymentClick?.('DELIVERY')}
         >
           <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -169,6 +174,17 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                 </div>
               </div>
             )}
+
+            {businessType !== 'EMPRESA_RIDERS' && (
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+                <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
+                <span className="font-semibold text-gray-900 font-mono">
+                  {deliverySub?.deliveryMonthlyFee
+                    ? `$${Number(deliverySub.deliveryMonthlyFee).toFixed(2)} / mes`
+                    : 'Sin cuota fija'}
+                </span>
+              </div>
+            )}
           </div>
         </ProductCard>
 
@@ -177,11 +193,12 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           productType="POS"
           title="Sistema POS"
           subtitle="Punto de venta, mesas y caja"
-          activateButtonLabel="Activar POS"
           icon={<Receipt size={22} weight="duotone" />}
           iconActiveThemeClass="bg-purple-500/10 text-purple-800 border border-purple-200/60"
           isActive={!!isPosActive}
           activatedAt={posSub?.activatedAt}
+          deactivatedAt={posSub?.deactivatedAt}
+          isMembershipProduct={true}
           inactiveDescription="Este negocio no tiene contratado el Sistema POS. El acceso a terminales de venta en el local está bloqueado."
           onAuditClick={() => setAuditLogModal({ isOpen: true, productType: 'POS' })}
           onConfigureClick={() =>
@@ -194,13 +211,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           onDeactivateClick={() =>
             setDeactivateModal({ isOpen: true, productType: 'POS' })
           }
-          onActivateClick={() =>
-            setActiveModal({
-              isOpen: true,
-              productType: 'POS',
-              isCurrentlyActive: false,
-            })
-          }
+          onRegisterPaymentClick={() => onRegisterPaymentClick?.('POS')}
         >
           <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -236,11 +247,12 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           productType="CARTERA_COBRO"
           title="Cartera de Cobro"
           subtitle="Ventas a crédito, abonos y cartera vencida"
-          activateButtonLabel="Activar Cartera"
           icon={<Wallet size={22} weight="duotone" />}
           iconActiveThemeClass="bg-emerald-500/10 text-emerald-800 border border-emerald-200/60"
           isActive={!!isCarteraActive}
           activatedAt={carteraSub?.activatedAt}
+          deactivatedAt={carteraSub?.deactivatedAt}
+          isMembershipProduct={true}
           inactiveDescription="Este negocio no tiene contratada la Cartera de Cobro. El registro de ventas a crédito y control de saldos está deshabilitado."
           onAuditClick={() => setAuditLogModal({ isOpen: true, productType: 'CARTERA_COBRO' })}
           onConfigureClick={() =>
@@ -253,13 +265,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           onDeactivateClick={() =>
             setDeactivateModal({ isOpen: true, productType: 'CARTERA_COBRO' })
           }
-          onActivateClick={() =>
-            setActiveModal({
-              isOpen: true,
-              productType: 'CARTERA_COBRO',
-              isCurrentlyActive: false,
-            })
-          }
+          onRegisterPaymentClick={() => onRegisterPaymentClick?.('CARTERA_COBRO')}
         >
           <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -286,11 +292,12 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           productType="CITAS"
           title="Citas"
           subtitle="Reservas online, agenda y gestión de citas"
-          activateButtonLabel="Activar Citas"
           icon={<CalendarBlank size={22} weight="duotone" />}
           iconActiveThemeClass="bg-sky-500/10 text-sky-800 border border-sky-200/60"
           isActive={!!isCitasActive}
           activatedAt={citasSub?.activatedAt}
+          deactivatedAt={citasSub?.deactivatedAt}
+          isMembershipProduct={true}
           inactiveDescription="Este negocio no tiene contratado el servicio de Citas. La página pública de reservas y la agenda están deshabilitadas."
           onAuditClick={() => setAuditLogModal({ isOpen: true, productType: 'CITAS' })}
           onConfigureClick={() =>
@@ -303,13 +310,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           onDeactivateClick={() =>
             setDeactivateModal({ isOpen: true, productType: 'CITAS' })
           }
-          onActivateClick={() =>
-            setActiveModal({
-              isOpen: true,
-              productType: 'CITAS',
-              isCurrentlyActive: false,
-            })
-          }
+          onRegisterPaymentClick={() => onRegisterPaymentClick?.('CITAS')}
         >
           <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -342,6 +343,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           isCurrentlyActive={activeModal.isCurrentlyActive}
           currentDeliveryConfig={{
             businessType,
+            deliveryMonthlyFee: deliverySub?.deliveryMonthlyFee,
             commissionRate: deliverySub?.commissionRate ?? businessCommissionRate,
             altCommissionRate: deliverySub?.altCommissionRate ?? businessAltCommissionRate,
             altCommissionDistanceKm:

@@ -19,12 +19,15 @@ import {
   useBusinessProducts,
   BusinessProductType,
 } from '../../hooks/useBusinessProducts';
+import { BusinessType } from '../../hooks/useBusinesses';
 
 interface RegisterMembershipModalProps {
   isOpen: boolean;
   onClose: () => void;
   businessId: string;
   businessName: string;
+  businessType?: BusinessType;
+  initialSelectedProductType?: BusinessProductType;
 }
 
 export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = ({
@@ -32,13 +35,15 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
   onClose,
   businessId,
   businessName,
+  businessType,
+  initialSelectedProductType,
 }) => {
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const defaultEndStr = format(addDays(new Date(), 30), 'yyyy-MM-dd');
 
   const { data: productsData } = useBusinessProducts(businessId);
 
-  const activeProducts = useMemo(() => {
+  const availableProducts = useMemo(() => {
     if (!productsData?.products) return [];
     const list: Array<{
       id: string;
@@ -48,67 +53,74 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
       fee: number | null;
       icon: React.ReactNode;
       activeColor: string;
+      isCurrentlyActive: boolean;
     }> = [];
 
-    if (productsData.products.DELIVERY?.status === 'ACTIVE' && productsData.products.DELIVERY.id) {
+    if (
+      businessType !== 'EMPRESA_RIDERS' &&
+      productsData.products.DELIVERY?.id
+    ) {
+      const sub = productsData.products.DELIVERY;
+      const fee = sub.deliveryMonthlyFee;
       list.push({
-        id: productsData.products.DELIVERY.id,
+        id: sub.id!,
         productType: 'DELIVERY',
         name: 'Delivery',
-        subtitle: 'Despacho y reparto',
-        fee: null,
+        subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Sin cuota fija',
+        fee: fee ? Number(fee) : null,
         icon: <Motorcycle size={16} weight="duotone" className="text-amber-600 shrink-0" />,
         activeColor: 'border-amber-500 bg-amber-50/50 ring-1 ring-amber-500/30',
+        isCurrentlyActive: sub.status === 'ACTIVE',
       });
     }
 
-    if (productsData.products.POS?.status === 'ACTIVE' && productsData.products.POS.id) {
-      const fee = productsData.products.POS.posMonthlyFee;
+    if (productsData.products.POS?.id) {
+      const sub = productsData.products.POS;
+      const fee = sub.posMonthlyFee;
       list.push({
-        id: productsData.products.POS.id,
+        id: sub.id!,
         productType: 'POS',
         name: 'Sistema POS',
         subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Sin cuota fija',
         fee: fee ? Number(fee) : null,
         icon: <Receipt size={16} weight="duotone" className="text-purple-600 shrink-0" />,
         activeColor: 'border-purple-500 bg-purple-50/50 ring-1 ring-purple-500/30',
+        isCurrentlyActive: sub.status === 'ACTIVE',
       });
     }
 
-    if (
-      productsData.products.CARTERA_COBRO?.status === 'ACTIVE' &&
-      productsData.products.CARTERA_COBRO.id
-    ) {
-      const fee = productsData.products.CARTERA_COBRO.carteraMonthlyFee;
+    if (productsData.products.CARTERA_COBRO?.id) {
+      const sub = productsData.products.CARTERA_COBRO;
+      const fee = sub.carteraMonthlyFee;
       list.push({
-        id: productsData.products.CARTERA_COBRO.id,
+        id: sub.id!,
         productType: 'CARTERA_COBRO',
         name: 'Cartera de Cobro',
         subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Sin cuota fija',
         fee: fee ? Number(fee) : null,
         icon: <Wallet size={16} weight="duotone" className="text-emerald-600 shrink-0" />,
         activeColor: 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500/30',
+        isCurrentlyActive: sub.status === 'ACTIVE',
       });
     }
 
-    if (
-      productsData.products.CITAS?.status === 'ACTIVE' &&
-      productsData.products.CITAS.id
-    ) {
-      const fee = productsData.products.CITAS.citasMonthlyFee;
+    if (productsData.products.CITAS?.id) {
+      const sub = productsData.products.CITAS;
+      const fee = sub.citasMonthlyFee;
       list.push({
-        id: productsData.products.CITAS.id,
+        id: sub.id!,
         productType: 'CITAS',
         name: 'Citas',
         subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Sin cuota fija',
         fee: fee ? Number(fee) : null,
         icon: <CalendarBlank size={16} weight="duotone" className="text-sky-600 shrink-0" />,
         activeColor: 'border-sky-500 bg-sky-50/50 ring-1 ring-sky-500/30',
+        isCurrentlyActive: sub.status === 'ACTIVE',
       });
     }
 
     return list;
-  }, [productsData]);
+  }, [productsData, businessType]);
 
   const [startDate, setStartDate] = useState(todayStr);
   const [endDate, setEndDate] = useState(defaultEndStr);
@@ -126,14 +138,10 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
   const calculateSuggestedAmount = (productIds: string[], curr: string): string => {
     if (curr !== 'USD') return '';
     if (productIds.length === 0) return '';
-    const selected = activeProducts.filter((p) => productIds.includes(p.id));
+    const selected = availableProducts.filter((p) => productIds.includes(p.id));
     const sumFees = selected.reduce((acc, p) => acc + (p.fee ? Number(p.fee) : 0), 0);
     if (sumFees > 0) {
       return sumFees.toFixed(2);
-    }
-    // Si solo seleccionó Delivery (que no tiene cuota fija en el backend, cuota base legacy de $35)
-    if (selected.some((p) => p.productType === 'DELIVERY')) {
-      return '35.00';
     }
     return '';
   };
@@ -149,9 +157,22 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
       setFile(null);
       setPreviewUrl(null);
 
+      if (initialSelectedProductType) {
+        const target = availableProducts.find(
+          (p) => p.productType === initialSelectedProductType
+        );
+        if (target) {
+          const initialIds = [target.id];
+          setSelectedProductIds(initialIds);
+          setAmount(calculateSuggestedAmount(initialIds, 'USD'));
+          return;
+        }
+      }
+
       // Preseleccionar automáticamente si tiene exactamente 1 producto activo:
-      if (activeProducts.length === 1) {
-        const initialIds = [activeProducts[0].id];
+      const alreadyActive = availableProducts.filter((p) => p.isCurrentlyActive);
+      if (alreadyActive.length === 1) {
+        const initialIds = [alreadyActive[0].id];
         setSelectedProductIds(initialIds);
         setAmount(calculateSuggestedAmount(initialIds, 'USD'));
       } else {
@@ -159,7 +180,7 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
         setAmount('');
       }
     }
-  }, [isOpen, activeProducts]);
+  }, [isOpen, availableProducts, initialSelectedProductType]);
 
   const toggleProduct = (id: string) => {
     const nextSelected = selectedProductIds.includes(id)
@@ -283,20 +304,20 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
             <label className="block text-xs font-medium text-gray-700">
               Producto(s) cubierto(s) por este pago
             </label>
-            {activeProducts.length > 1 && (
+            {availableProducts.length > 1 && (
               <span className="text-[10px] text-gray-400">
                 Selecciona uno o varios
               </span>
             )}
           </div>
 
-          {activeProducts.length === 0 ? (
+          {availableProducts.length === 0 ? (
             <div className="p-3 rounded-xl bg-gray-50 border border-gray-200/80 text-[11px] text-gray-500">
-              Este negocio no tiene productos contratados activos en este momento.
+              Este negocio no tiene productos de membresía disponibles para suscripción.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {activeProducts.map((prod) => {
+              {availableProducts.map((prod) => {
                 const isSelected = selectedProductIds.includes(prod.id);
                 return (
                   <button
@@ -312,9 +333,20 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="shrink-0">{prod.icon}</div>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-gray-900 leading-tight">
-                          {prod.name}
-                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-xs font-semibold text-gray-900 leading-tight">
+                            {prod.name}
+                          </p>
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              prod.isCurrentlyActive
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                                : 'bg-gray-100 text-gray-600 border border-gray-200/80'
+                            }`}
+                          >
+                            {prod.isCurrentlyActive ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </div>
                         <p className="text-[11px] text-gray-500 mt-0.5 font-mono">
                           {prod.subtitle}
                         </p>
@@ -494,9 +526,11 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
             Cancelar
           </button>
           <button
+            id="btn-submit-membership-payment"
+            data-testid="btn-submit-membership-payment"
             type="submit"
             disabled={createMembershipMutation.isPending}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
           >
             {createMembershipMutation.isPending ? (
               'Guardando...'

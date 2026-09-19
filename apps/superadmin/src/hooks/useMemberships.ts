@@ -9,6 +9,8 @@ export type PaymentMethod =
   | 'EFECTIVO'
   | 'PAYPAL'
   | 'BINANCE'
+  | 'ALTA_INICIAL'
+  | 'AUTOMATICO'
   | 'OTRO';
 
 export type MembershipStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'PENDING';
@@ -108,13 +110,17 @@ export function useCreateMembership() {
 
       return membership;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       toast.success('Pago de membresía registrado exitosamente');
+      const bizId = variables.businessId || data?.businessId;
       queryClient.invalidateQueries({
-        queryKey: ['superadmin-business-memberships', data.businessId],
+        queryKey: ['superadmin-business-memberships', bizId],
       });
       queryClient.invalidateQueries({
-        queryKey: ['superadmin-business', data.businessId],
+        queryKey: ['superadmin-business', bizId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-business-products', bizId],
       });
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-expiring-memberships'] });

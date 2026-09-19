@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gear, ClockCounterClockwise, Plus } from '@phosphor-icons/react';
+import { Gear, ClockCounterClockwise, Plus, CreditCard } from '@phosphor-icons/react';
 import { Badge } from '../ui/Badge';
 import { formatDateShort } from '../../utils/format';
 import { BusinessProductType } from '../../hooks/useBusinessProducts';
@@ -13,15 +13,19 @@ interface ProductCardProps {
   iconActiveThemeClass: string;
   isActive: boolean;
   activatedAt?: string | null;
+  deactivatedAt?: string | null;
   inactiveDescription: string;
+  isMembershipProduct?: boolean;
   onAuditClick: () => void;
   onConfigureClick: () => void;
   onDeactivateClick: () => void;
-  onActivateClick: () => void;
+  onActivateClick?: () => void;
+  onRegisterPaymentClick?: () => void;
   children?: React.ReactNode;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
+  productType,
   title,
   subtitle,
   activateButtonLabel,
@@ -29,11 +33,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   iconActiveThemeClass,
   isActive,
   activatedAt,
+  deactivatedAt,
   inactiveDescription,
+  isMembershipProduct = false,
   onAuditClick,
   onConfigureClick,
   onDeactivateClick,
   onActivateClick,
+  onRegisterPaymentClick,
   children,
 }) => {
   return (
@@ -73,12 +80,28 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* Date and Details / Inactive notice */}
         <div className="space-y-2.5 pt-1 text-xs">
           <div className="flex items-center justify-between text-xs text-gray-400 pb-1.5 border-b border-gray-100">
-            <span className="font-medium text-gray-500">Fecha de activación</span>
-            <span className="font-semibold text-gray-800">
-              {activatedAt
+            <span className="font-medium text-gray-500">
+              {isActive
+                ? 'Fecha de activación'
+                : deactivatedAt
+                ? 'Última baja / vencimiento'
+                : activatedAt
+                ? 'Última activación'
+                : 'Fecha de activación'}
+            </span>
+            <span
+              className={`font-semibold ${
+                !isActive && deactivatedAt ? 'text-amber-800' : 'text-gray-800'
+              }`}
+            >
+              {isActive
+                ? activatedAt
+                  ? formatDateShort(activatedAt)
+                  : 'Activado'
+                : deactivatedAt
+                ? formatDateShort(deactivatedAt)
+                : activatedAt
                 ? formatDateShort(activatedAt)
-                : isActive
-                ? 'Activado'
                 : 'Sin contratar'}
             </span>
           </div>
@@ -86,8 +109,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {isActive ? (
             children
           ) : (
-            <div className="p-3.5 rounded-xl bg-gray-100/70 border border-gray-200/50 text-gray-500 text-xs leading-relaxed min-h-[64px] flex items-center">
-              {inactiveDescription}
+            <div className="p-3.5 rounded-xl bg-gray-100/70 border border-gray-200/50 text-gray-500 text-xs leading-relaxed min-h-[64px] flex flex-col justify-center space-y-2">
+              <p>{inactiveDescription}</p>
+              {isMembershipProduct && (
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-brand-700 bg-brand-50/80 px-2.5 py-1 rounded-lg border border-brand-100/80 w-fit">
+                  <CreditCard size={13} weight="duotone" className="shrink-0" />
+                  <span>Se activa al registrar un pago de membresía</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -123,6 +152,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 <span>Desactivar</span>
               </button>
             </>
+          ) : isMembershipProduct ? (
+            <button
+              id={`btn-register-payment-${productType.toLowerCase()}`}
+              data-testid={`btn-register-payment-${productType.toLowerCase()}`}
+              type="button"
+              onClick={onRegisterPaymentClick}
+              className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
+            >
+              <CreditCard size={13} weight="bold" />
+              <span>Registrar pago</span>
+            </button>
           ) : (
             <button
               type="button"
