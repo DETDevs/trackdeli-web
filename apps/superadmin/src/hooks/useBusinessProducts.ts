@@ -32,6 +32,8 @@ export interface BusinessProductDeliverySub {
   id?: string;
   productType: 'DELIVERY';
   status: BusinessProductStatus;
+  autoRenew?: boolean;
+  renewalCanceledAt?: string | null;
   deliveryMonthlyFee?: number | null;
   commissionRate?: number;
   altCommissionRate?: number;
@@ -49,6 +51,8 @@ export interface BusinessProductPosSub {
   id?: string;
   productType: 'POS';
   status: BusinessProductStatus;
+  autoRenew?: boolean;
+  renewalCanceledAt?: string | null;
   posVertical?: PosVertical | null;
   posMonthlyFee?: number | null;
   activatedAt?: string | null;
@@ -63,6 +67,8 @@ export interface BusinessProductCarteraSub {
   id?: string;
   productType: 'CARTERA_COBRO';
   status: BusinessProductStatus;
+  autoRenew?: boolean;
+  renewalCanceledAt?: string | null;
   carteraMonthlyFee?: number | null;
   activatedAt?: string | null;
   activatedBy?: string | null;
@@ -76,6 +82,8 @@ export interface BusinessProductCitasSub {
   id?: string;
   productType: 'CITAS';
   status: BusinessProductStatus;
+  autoRenew?: boolean;
+  renewalCanceledAt?: string | null;
   citasMonthlyFee?: number | null;
   activatedAt?: string | null;
   activatedBy?: string | null;
@@ -111,6 +119,14 @@ export interface ActivateProductDto {
 
 export interface DeactivateProductDto {
   reason?: string;
+}
+
+export interface CancelRenewalDto {
+  reason?: string;
+}
+
+export interface DeactivateNowProductDto {
+  reason: string;
 }
 
 export interface BusinessProductAuditLogItem {
@@ -256,3 +272,98 @@ export function useDeactivateProduct() {
     },
   });
 }
+
+export function useCancelProductRenewal() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      businessId,
+      productType,
+      dto,
+    }: {
+      businessId: string;
+      productType: BusinessProductType;
+      dto?: CancelRenewalDto;
+    }) => {
+      const { data } = await apiClient.post(
+        `/businesses/${businessId}/products/${productType}/cancel-renewal`,
+        dto || {}
+      );
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      const label = getProductLabel(variables.productType);
+      toast.success(
+        `Renovación de ${label} cancelada. El servicio seguirá activo hasta su vencimiento.`
+      );
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-business-products', variables.businessId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-business-memberships', variables.businessId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-product-audit-log', variables.businessId, variables.productType],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-business', variables.businessId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-businesses'],
+      });
+    },
+    onError: (err: any) => {
+      toast.error(
+        err.response?.data?.message || 'Error al cancelar la renovación del producto'
+      );
+    },
+  });
+}
+
+export function useDeactivateNowProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      businessId,
+      productType,
+      dto,
+    }: {
+      businessId: string;
+      productType: BusinessProductType;
+      dto: DeactivateNowProductDto;
+    }) => {
+      const { data } = await apiClient.post(
+        `/businesses/${businessId}/products/${productType}/deactivate-now`,
+        dto
+      );
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      const label = getProductLabel(variables.productType);
+      toast.success(`Producto ${label} desactivado de forma inmediata.`);
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-business-products', variables.businessId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-business-memberships', variables.businessId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-product-audit-log', variables.businessId, variables.productType],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-business', variables.businessId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-businesses'],
+      });
+    },
+    onError: (err: any) => {
+      toast.error(
+        err.response?.data?.message || 'Error al ejecutar el corte inmediato del producto'
+      );
+    },
+  });
+}
+

@@ -13,11 +13,14 @@ import {
   useBusinessProducts,
   BusinessProductType,
 } from '../../hooks/useBusinessProducts';
+import { useBusinessMemberships } from '../../hooks/useMemberships';
 import { BusinessType } from '../../hooks/useBusinesses';
 import { ProductCard } from './ProductCard';
 import { ActivateProductModal } from '../modals/ActivateProductModal';
 import { DeactivateProductModal } from '../modals/DeactivateProductModal';
 import { ProductAuditLogModal } from '../modals/ProductAuditLogModal';
+import { CancelRenewalModal } from '../modals/CancelRenewalModal';
+import { DeactivateNowModal } from '../modals/DeactivateNowModal';
 
 interface BusinessProductsSectionProps {
   businessId: string;
@@ -41,6 +44,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
   onRegisterPaymentClick,
 }) => {
   const { data: productsData, isLoading } = useBusinessProducts(businessId);
+  const { data: memberships = [] } = useBusinessMemberships(businessId);
 
   const [activeModal, setActiveModal] = useState<{
     isOpen: boolean;
@@ -53,10 +57,32 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
     productType: BusinessProductType;
   } | null>(null);
 
+  const [cancelRenewalModal, setCancelRenewalModal] = useState<{
+    isOpen: boolean;
+    productType: BusinessProductType;
+    coverageEndDate?: string | null;
+  } | null>(null);
+
+  const [deactivateNowModal, setDeactivateNowModal] = useState<{
+    isOpen: boolean;
+    productType: BusinessProductType;
+  } | null>(null);
+
   const [auditLogModal, setAuditLogModal] = useState<{
     isOpen: boolean;
     productType: BusinessProductType;
   } | null>(null);
+
+  const getProductCoverageEndDate = (type: BusinessProductType): string | null => {
+    const activeForProduct = memberships.find((m) => {
+      if (m.status !== 'ACTIVE') return false;
+      const end = new Date(m.endDate);
+      if (end < new Date()) return false;
+      if (!m.products || m.products.length === 0) return true;
+      return m.products.some((p) => p.productType === type);
+    });
+    return activeForProduct?.endDate || (memberships.length > 0 ? memberships[0].endDate : null);
+  };
 
   const deliverySub = productsData?.products?.DELIVERY;
   const isDeliveryActive = deliverySub?.status === 'ACTIVE';
@@ -110,6 +136,9 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           icon={<Motorcycle size={22} weight="duotone" />}
           iconActiveThemeClass="bg-amber-500/10 text-amber-800 border border-amber-200/60"
           isActive={!!isDeliveryActive}
+          autoRenew={deliverySub?.autoRenew ?? true}
+          renewalCanceledAt={deliverySub?.renewalCanceledAt}
+          coverageEndDate={getProductCoverageEndDate('DELIVERY')}
           activatedAt={deliverySub?.activatedAt}
           deactivatedAt={deliverySub?.deactivatedAt}
           isMembershipProduct={businessType !== 'EMPRESA_RIDERS'}
@@ -124,6 +153,16 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           }
           onDeactivateClick={() =>
             setDeactivateModal({ isOpen: true, productType: 'DELIVERY' })
+          }
+          onCancelRenewalClick={() =>
+            setCancelRenewalModal({
+              isOpen: true,
+              productType: 'DELIVERY',
+              coverageEndDate: getProductCoverageEndDate('DELIVERY'),
+            })
+          }
+          onDeactivateNowClick={() =>
+            setDeactivateNowModal({ isOpen: true, productType: 'DELIVERY' })
           }
           onActivateClick={() =>
             setActiveModal({
@@ -196,6 +235,9 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           icon={<Receipt size={22} weight="duotone" />}
           iconActiveThemeClass="bg-purple-500/10 text-purple-800 border border-purple-200/60"
           isActive={!!isPosActive}
+          autoRenew={posSub?.autoRenew ?? true}
+          renewalCanceledAt={posSub?.renewalCanceledAt}
+          coverageEndDate={getProductCoverageEndDate('POS')}
           activatedAt={posSub?.activatedAt}
           deactivatedAt={posSub?.deactivatedAt}
           isMembershipProduct={true}
@@ -210,6 +252,16 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           }
           onDeactivateClick={() =>
             setDeactivateModal({ isOpen: true, productType: 'POS' })
+          }
+          onCancelRenewalClick={() =>
+            setCancelRenewalModal({
+              isOpen: true,
+              productType: 'POS',
+              coverageEndDate: getProductCoverageEndDate('POS'),
+            })
+          }
+          onDeactivateNowClick={() =>
+            setDeactivateNowModal({ isOpen: true, productType: 'POS' })
           }
           onRegisterPaymentClick={() => onRegisterPaymentClick?.('POS')}
         >
@@ -250,6 +302,9 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           icon={<Wallet size={22} weight="duotone" />}
           iconActiveThemeClass="bg-emerald-500/10 text-emerald-800 border border-emerald-200/60"
           isActive={!!isCarteraActive}
+          autoRenew={carteraSub?.autoRenew ?? true}
+          renewalCanceledAt={carteraSub?.renewalCanceledAt}
+          coverageEndDate={getProductCoverageEndDate('CARTERA_COBRO')}
           activatedAt={carteraSub?.activatedAt}
           deactivatedAt={carteraSub?.deactivatedAt}
           isMembershipProduct={true}
@@ -264,6 +319,16 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           }
           onDeactivateClick={() =>
             setDeactivateModal({ isOpen: true, productType: 'CARTERA_COBRO' })
+          }
+          onCancelRenewalClick={() =>
+            setCancelRenewalModal({
+              isOpen: true,
+              productType: 'CARTERA_COBRO',
+              coverageEndDate: getProductCoverageEndDate('CARTERA_COBRO'),
+            })
+          }
+          onDeactivateNowClick={() =>
+            setDeactivateNowModal({ isOpen: true, productType: 'CARTERA_COBRO' })
           }
           onRegisterPaymentClick={() => onRegisterPaymentClick?.('CARTERA_COBRO')}
         >
@@ -295,6 +360,9 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           icon={<CalendarBlank size={22} weight="duotone" />}
           iconActiveThemeClass="bg-sky-500/10 text-sky-800 border border-sky-200/60"
           isActive={!!isCitasActive}
+          autoRenew={citasSub?.autoRenew ?? true}
+          renewalCanceledAt={citasSub?.renewalCanceledAt}
+          coverageEndDate={getProductCoverageEndDate('CITAS')}
           activatedAt={citasSub?.activatedAt}
           deactivatedAt={citasSub?.deactivatedAt}
           isMembershipProduct={true}
@@ -309,6 +377,16 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           }
           onDeactivateClick={() =>
             setDeactivateModal({ isOpen: true, productType: 'CITAS' })
+          }
+          onCancelRenewalClick={() =>
+            setCancelRenewalModal({
+              isOpen: true,
+              productType: 'CITAS',
+              coverageEndDate: getProductCoverageEndDate('CITAS'),
+            })
+          }
+          onDeactivateNowClick={() =>
+            setDeactivateNowModal({ isOpen: true, productType: 'CITAS' })
           }
           onRegisterPaymentClick={() => onRegisterPaymentClick?.('CITAS')}
         >
@@ -374,6 +452,27 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
         />
       )}
 
+      {cancelRenewalModal?.isOpen && (
+        <CancelRenewalModal
+          isOpen={cancelRenewalModal.isOpen}
+          onClose={() => setCancelRenewalModal(null)}
+          businessId={businessId}
+          businessName={businessName}
+          productType={cancelRenewalModal.productType}
+          coverageEndDate={cancelRenewalModal.coverageEndDate}
+        />
+      )}
+
+      {deactivateNowModal?.isOpen && (
+        <DeactivateNowModal
+          isOpen={deactivateNowModal.isOpen}
+          onClose={() => setDeactivateNowModal(null)}
+          businessId={businessId}
+          businessName={businessName}
+          productType={deactivateNowModal.productType}
+        />
+      )}
+
       {auditLogModal?.isOpen && (
         <ProductAuditLogModal
           isOpen={auditLogModal.isOpen}
@@ -386,3 +485,4 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
     </div>
   );
 };
+
