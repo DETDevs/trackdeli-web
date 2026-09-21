@@ -1,5 +1,4 @@
-import React from 'react';
-import { Clock, CurrencyDollar, Check } from '@phosphor-icons/react';
+import { Clock, CurrencyDollar, Check, User } from '@phosphor-icons/react';
 import type { BookingServiceItem } from '../types/booking';
 
 interface ServiceSelectorProps {
@@ -66,6 +65,20 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({
                 <h3 className="text-sm font-semibold text-gray-100 truncate">
                   {service.name}
                 </h3>
+                {service.specialist?.name && (
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5 truncate">
+                    <User size={13} className="text-gray-500 shrink-0" />
+                    <span className="truncate">
+                      Atendido por{' '}
+                      <span className="text-gray-300 font-medium">
+                        {service.specialist.name}
+                      </span>
+                      {service.specialist.specialty?.trim()
+                        ? ` — ${service.specialist.specialty.trim()}`
+                        : ''}
+                    </span>
+                  </p>
+                )}
                 {service.description && (
                   <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
                     {service.description}

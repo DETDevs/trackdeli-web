@@ -15,6 +15,8 @@ import {
   Circle,
   Phone,
   EnvelopeSimple,
+  CaretLeft,
+  CaretRight,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { useSuperAdminUsers } from '../hooks/useSuperAdminUsers';
@@ -35,6 +37,19 @@ const initials = (name: string) =>
     .join('')
     .toUpperCase() || 'U';
 
+const getPageNumbers = (current: number, total: number): (number | string)[] => {
+  if (total <= 5) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 3) {
+    return [1, 2, 3, 4, '...', total];
+  }
+  if (current >= total - 2) {
+    return [1, '...', total - 3, total - 2, total - 1, total];
+  }
+  return [1, '...', current - 1, current, current + 1, '...', total];
+};
+
 export const UsersPage = () => {
   const { data: users = [], isLoading, isError, refetch } = useSuperAdminUsers();
   const { data: businesses = [] } = useBusinesses();
@@ -49,6 +64,8 @@ export const UsersPage = () => {
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [businessFilter, setBusinessFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createdUser, setCreatedUser] = useState<AdminUser | null>(null);
@@ -93,6 +110,15 @@ export const UsersPage = () => {
       return matchesSearch && matchesRole && matchesBusiness && matchesStatus;
     });
   }, [users, search, roleFilter, businessFilter, statusFilter]);
+
+  const totalPages = Math.ceil(filteredUsers.length / pageSize) || 1;
+  const validCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+  const startIndex = (validCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredUsers.length);
+
+  const paginatedUsers = useMemo(() => {
+    return filteredUsers.slice(startIndex, startIndex + pageSize);
+  }, [filteredUsers, startIndex, pageSize]);
 
   const renderRoleBadge = (role: string) => {
     switch (role) {
@@ -175,7 +201,10 @@ export const UsersPage = () => {
                 type="text"
                 placeholder="Buscar por nombre, correo electrónico o teléfono..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full pl-9 pr-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-gray-900 transition-colors"
               />
             </div>
@@ -183,7 +212,10 @@ export const UsersPage = () => {
             <div className="shrink-0 w-full md:w-64">
               <select
                 value={businessFilter}
-                onChange={(e) => setBusinessFilter(e.target.value)}
+                onChange={(e) => {
+                  setBusinessFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-gray-900 transition-colors bg-white cursor-pointer"
               >
                 <option value="ALL">Todos los negocios</option>
@@ -208,7 +240,10 @@ export const UsersPage = () => {
               ].map((r) => (
                 <button
                   key={r.id}
-                  onClick={() => setRoleFilter(r.id)}
+                  onClick={() => {
+                    setRoleFilter(r.id);
+                    setCurrentPage(1);
+                  }}
                   className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer whitespace-nowrap font-medium ${
                     roleFilter === r.id
                       ? 'bg-gray-900 text-white shadow-xs'
@@ -222,7 +257,10 @@ export const UsersPage = () => {
 
             <div className="flex items-center gap-1 bg-gray-50 p-0.5 rounded-lg border border-gray-100">
               <button
-                onClick={() => setStatusFilter('ALL')}
+                onClick={() => {
+                  setStatusFilter('ALL');
+                  setCurrentPage(1);
+                }}
                 className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium ${
                   statusFilter === 'ALL'
                     ? 'bg-white text-gray-900 shadow-xs'
@@ -232,7 +270,10 @@ export const UsersPage = () => {
                 Todos ({users.length})
               </button>
               <button
-                onClick={() => setStatusFilter('ACTIVE')}
+                onClick={() => {
+                  setStatusFilter('ACTIVE');
+                  setCurrentPage(1);
+                }}
                 className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium ${
                   statusFilter === 'ACTIVE'
                     ? 'bg-white text-green-700 shadow-xs'
@@ -242,7 +283,10 @@ export const UsersPage = () => {
                 Activos ({users.filter((u) => u.isActive).length})
               </button>
               <button
-                onClick={() => setStatusFilter('INACTIVE')}
+                onClick={() => {
+                  setStatusFilter('INACTIVE');
+                  setCurrentPage(1);
+                }}
                 className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium ${
                   statusFilter === 'INACTIVE'
                     ? 'bg-white text-gray-900 shadow-xs'
@@ -289,6 +333,7 @@ export const UsersPage = () => {
                 setRoleFilter('ALL');
                 setBusinessFilter('ALL');
                 setStatusFilter('ALL');
+                setCurrentPage(1);
               }}
               className="text-xs text-brand-600 hover:text-brand-700 font-medium cursor-pointer"
             >
@@ -313,7 +358,7 @@ export const UsersPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-xs">
-                  {filteredUsers.map((u) => {
+                  {paginatedUsers.map((u) => {
                     const bizName = u.businessId ? businessMap.get(u.businessId) : null;
 
                     return (
@@ -413,11 +458,84 @@ export const UsersPage = () => {
               </table>
             </div>
 
-            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 text-xs text-gray-400 flex items-center justify-between">
-              <span>
-                Mostrando {filteredUsers.length} de {users.length} usuarios
-              </span>
-              <span>TrackDeli SuperAdmin</span>
+            <div className="px-4 py-3.5 border-t border-gray-100 bg-gray-50/50 text-xs text-gray-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center justify-between w-full sm:w-auto gap-3">
+                <span>
+                  Mostrando{' '}
+                  <strong className="font-semibold text-gray-900">
+                    {filteredUsers.length > 0 ? startIndex + 1 : 0}
+                  </strong>{' '}
+                  a{' '}
+                  <strong className="font-semibold text-gray-900">
+                    {endIndex}
+                  </strong>{' '}
+                  de{' '}
+                  <strong className="font-semibold text-gray-900">
+                    {filteredUsers.length}
+                  </strong>{' '}
+                  usuarios
+                </span>
+
+                <div className="flex items-center gap-1.5 text-gray-400">
+                  <span className="hidden sm:inline">Mostrar:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-white border border-gray-200 text-gray-700 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-gray-900 cursor-pointer shadow-2xs"
+                  >
+                    <option value={10}>10 / pág</option>
+                    <option value={20}>20 / pág</option>
+                    <option value={50}>50 / pág</option>
+                  </select>
+                </div>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={validCurrentPage === 1}
+                    className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 text-gray-700 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors shadow-2xs cursor-pointer"
+                    title="Página anterior"
+                  >
+                    <CaretLeft size={14} weight="bold" />
+                  </button>
+
+                  <div className="flex items-center gap-1 mx-1">
+                    {getPageNumbers(validCurrentPage, totalPages).map((p, idx) =>
+                      p === '...' ? (
+                        <span key={`ellipsis-${idx}`} className="px-1 text-gray-400 select-none">
+                          ...
+                        </span>
+                      ) : (
+                        <button
+                          key={`page-${p}`}
+                          onClick={() => setCurrentPage(Number(p))}
+                          className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                            validCurrentPage === p
+                              ? 'bg-gray-900 text-white shadow-2xs font-semibold'
+                              : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 shadow-2xs'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={validCurrentPage === totalPages}
+                    className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 text-gray-700 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors shadow-2xs cursor-pointer"
+                    title="Página siguiente"
+                  >
+                    <CaretRight size={14} weight="bold" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

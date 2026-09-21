@@ -5,6 +5,12 @@ export type AppointmentStatus =
   | 'COMPLETED'
   | 'NO_SHOW';
 
+export interface BookingSpecialistInfo {
+  id: string;
+  name: string;
+  specialty?: string | null;
+}
+
 export interface BookingServiceItem {
   id: string;
   name: string;
@@ -12,6 +18,8 @@ export interface BookingServiceItem {
   durationMinutes: number;
   price: number;
   hasCustomSchedule: boolean;
+  specialistId?: string | null;
+  specialist?: BookingSpecialistInfo | null;
 }
 
 export interface AvailableSlot {
