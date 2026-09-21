@@ -1,4 +1,4 @@
-import { Clock, CurrencyDollar, Check, User } from '@phosphor-icons/react';
+import { Clock, Check, User } from '@phosphor-icons/react';
 import type { BookingServiceItem } from '../types/booking';
 
 interface ServiceSelectorProps {
@@ -105,9 +105,8 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({
                 {service.durationMinutes} min
               </span>
               <span className="text-gray-600">•</span>
-              <span className="inline-flex items-center gap-1 font-semibold text-brand-400">
-                <CurrencyDollar size={14} />
-                ${service.price.toFixed(2)} USD
+              <span className="font-semibold text-brand-400">
+                C$ {service.price.toFixed(2)}
               </span>
             </div>
           </button>

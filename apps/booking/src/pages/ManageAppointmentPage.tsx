@@ -223,7 +223,7 @@ export const ManageAppointmentPage: React.FC = () => {
           <div className="flex items-center justify-between text-xs pt-1 px-1 border-t border-gray-700/40">
             <span className="text-gray-400">Tarifa del servicio</span>
             <span className="text-sm font-bold text-gray-100">
-              ${appointment.price.toFixed(2)} USD
+              C$ {appointment.price.toFixed(2)}
             </span>
           </div>
         </div>

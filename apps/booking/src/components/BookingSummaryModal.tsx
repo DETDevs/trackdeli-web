@@ -2,7 +2,6 @@ import React from 'react';
 import {
   CalendarBlank,
   Clock,
-  CurrencyDollar,
   MapPin,
   User,
   Phone,
@@ -118,12 +117,11 @@ export const BookingSummaryModal: React.FC<BookingSummaryModalProps> = ({
             </div>
 
             <div className="flex items-center justify-between py-1.5 border-b border-gray-800/80">
-              <span className="text-gray-400 flex items-center gap-1">
-                <CurrencyDollar size={14} className="text-gray-500" />
+              <span className="text-gray-400">
                 Precio estimado
               </span>
               <span className="font-bold text-gray-100 text-sm">
-                ${service.price.toFixed(2)} USD
+                C$ {service.price.toFixed(2)}
               </span>
             </div>
           </div>
