@@ -22,6 +22,8 @@ import { useOrderNotifications } from '../hooks/useOrderNotifications';
 import { useQuery } from '@tanstack/react-query';
 import { getMyBusiness } from 'api-client';
 import { useState, useEffect } from 'react';
+import { useMyProducts } from '../hooks/useMyProducts';
+import { DeliveryAccessBlocked } from '../components/DeliveryAccessBlocked';
 
 export const AppLayout = () => {
   const location = useLocation();
@@ -62,7 +64,18 @@ export const AppLayout = () => {
       Boolean(paymentRequiredMessage)
     );
 
-  useOrderNotifications();
+  const isSuperAdmin = user?.role === 'SUPERADMIN';
+
+  const {
+    data: productsData,
+    isLoading: isLoadingProducts,
+  } = useMyProducts(!isSuperAdmin);
+
+  const isDeliveryActive =
+    isSuperAdmin ||
+    productsData?.products?.DELIVERY?.status === 'ACTIVE';
+
+  useOrderNotifications(isDeliveryActive);
 
   const roleLabels: Record<string, string> = {
     ENCARGADO: 'Encargado',
@@ -76,6 +89,26 @@ export const AppLayout = () => {
     logout();
     navigate('/login');
   };
+
+  if (!isSuperAdmin && isLoadingProducts) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#FAFAFA]">
+        <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-xs text-gray-500 font-medium tracking-tight">
+          Verificando suscripciones del negocio...
+        </p>
+      </div>
+    );
+  }
+
+  if (!isDeliveryActive) {
+    return (
+      <DeliveryAccessBlocked
+        businessName={business?.name || productsData?.businessName}
+        onLogout={handleLogout}
+      />
+    );
+  }
 
   const getPageTitle = (pathname: string) => {
     if (pathname.startsWith('/dashboard')) return 'Dashboard';

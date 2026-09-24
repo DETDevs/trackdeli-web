@@ -6,13 +6,13 @@ import { useAuthStore } from '../store/auth.store';
 import { useMapStore } from '../store/map.store';
 import { useSocketStore } from '../store/socket.store';
 
-export function useOrderNotifications() {
+export function useOrderNotifications(enabled: boolean = true) {
   const queryClient = useQueryClient();
   const { accessToken, user } = useAuthStore();
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!accessToken || !user?.businessId) return;
+    if (!enabled || !accessToken || !user?.businessId) return;
 
     // @ts-ignore: Vite injects import.meta.env during build
     const baseUrl = import.meta.env?.VITE_WS_URL || import.meta.env?.VITE_API_BASE_URL?.replace('/api/v1', '') || 'https://trackdeli-api-production.up.railway.app';

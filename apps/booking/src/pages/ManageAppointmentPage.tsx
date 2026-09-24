@@ -333,7 +333,7 @@ export const ManageAppointmentPage: React.FC = () => {
         {/* Link para reservar otro turno */}
         <div className="pt-2 text-center">
           <Link
-            to={`/booking/${appointment.businessId}`}
+            to={`/booking/${appointment.business?.slug || appointment.businessId}`}
             className="text-xs text-gray-400 hover:text-gray-200 transition-colors inline-flex items-center gap-1"
           >
             <Storefront size={14} />

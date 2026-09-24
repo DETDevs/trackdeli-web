@@ -50,6 +50,7 @@ export interface CreateAppointmentPayload {
 export interface BusinessPublicInfo {
   id: string;
   name: string;
+  slug?: string | null;
   logoUrl?: string | null;
   posAddress?: string | null;
   whatsappNumber?: string | null;
