@@ -98,15 +98,41 @@ export const BookingPage: React.FC = () => {
 
   const validateStep3 = () => {
     const errors: typeof formErrors = {};
-    if (!formData.customerName.trim()) {
+
+    // 1. Nombre completo
+    const trimmedName = formData.customerName.trim();
+    if (!trimmedName) {
       errors.customerName = 'Por favor ingresá tu nombre completo.';
+    } else if (trimmedName.length < 2) {
+      errors.customerName = 'El nombre debe tener al menos 2 caracteres.';
+    } else if (trimmedName.length > 80) {
+      errors.customerName = 'El nombre no puede superar los 80 caracteres.';
     }
-    if (!formData.customerPhone.trim()) {
+
+    // 2. Teléfono WhatsApp
+    const rawPhone = formData.customerPhone.trim();
+    if (!rawPhone) {
       errors.customerPhone = 'Por favor ingresá tu número de WhatsApp.';
+    } else {
+      const digitsOnly = rawPhone.replace(/\D/g, '');
+      const validPhonePattern = /^\+?[0-9\s\-()]{8,20}$/;
+
+      if (!validPhonePattern.test(rawPhone) || rawPhone.lastIndexOf('+') > 0) {
+        errors.customerPhone = 'El formato del número de teléfono no es válido.';
+      } else if (digitsOnly.length < 8) {
+        errors.customerPhone = 'El número debe contener al menos 8 dígitos (ej. 8888 1234).';
+      } else if (digitsOnly.length > 15) {
+        errors.customerPhone = 'El número no puede tener más de 15 dígitos.';
+      } else if (/^(\d)\1{7,}$/.test(digitsOnly)) {
+        errors.customerPhone = 'Por favor ingresá un número de teléfono real.';
+      }
     }
+
+    // 3. Correo electrónico (opcional)
+    const trimmedEmail = formData.customerEmail.trim();
     if (
-      formData.customerEmail.trim() &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail.trim())
+      trimmedEmail &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
     ) {
       errors.customerEmail = 'El formato del correo electrónico no es válido.';
     }

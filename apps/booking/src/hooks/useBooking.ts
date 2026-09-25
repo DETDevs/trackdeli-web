@@ -89,7 +89,13 @@ export const useCreateAppointment = (businessId: string) => {
           return;
         }
 
-        toast.error(typeof msg === 'string' ? msg : 'Error al confirmar la reserva.');
+        const errorText = Array.isArray(msg)
+          ? msg.join('. ')
+          : typeof msg === 'string' && msg
+          ? msg
+          : 'Ocurrió un error al procesar tu reserva. Por favor verificá tus datos.';
+
+        toast.error(errorText, { duration: 5000 });
       } else {
         toast.error('Ocurrió un error inesperado al conectar con el servidor.');
       }

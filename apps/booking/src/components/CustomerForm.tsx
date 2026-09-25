@@ -18,6 +18,17 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
   onChange,
   errors,
 }) => {
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Permitir sólo +, números, espacios, guiones y paréntesis, máx 20 caracteres
+    const rawVal = e.target.value;
+    const filtered = rawVal.replace(/[^0-9+\s\-()]/g, '').slice(0, 20);
+    onChange('customerPhone', filtered);
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange('customerName', e.target.value.slice(0, 80));
+  };
+
   return (
     <div className="space-y-4">
       {/* Nombre Completo */}
@@ -32,8 +43,9 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
           <input
             type="text"
             required
+            maxLength={80}
             value={formData.customerName}
-            onChange={(e) => onChange('customerName', e.target.value)}
+            onChange={handleNameChange}
             placeholder="Ej. Juan Pérez"
             className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-800/80 border text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 transition-all ${
               errors.customerName
@@ -58,10 +70,13 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
           </div>
           <input
             type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             required
+            maxLength={20}
             value={formData.customerPhone}
-            onChange={(e) => onChange('customerPhone', e.target.value)}
-            placeholder="Ej. +505 8888 1234"
+            onChange={handlePhoneChange}
+            placeholder="Ej. +505 8888 1234 o 8888 1234"
             className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-800/80 border text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 transition-all ${
               errors.customerPhone
                 ? 'border-rose-500/60 focus:ring-rose-500/50'
@@ -73,7 +88,7 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
           <p className="text-xs text-rose-400 mt-1">{errors.customerPhone}</p>
         )}
         <p className="text-[11px] text-gray-500 mt-1">
-          Usaremos este número para comunicarnos sobre tu reserva.
+          Ingresá un número válido (ej. 8888 1234 o con código de país +505 8888 1234).
         </p>
       </div>
 
