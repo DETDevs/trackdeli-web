@@ -37,15 +37,22 @@ export const bookingApi = {
 
   /**
    * Consulta los slots disponibles para un servicio y una fecha específica (YYYY-MM-DD).
+   * Opcionalmente filtra por especialista asignado (o evalúa todos si no se envía).
    */
   async getAvailability(
     businessId: string,
     serviceId: string,
-    date: string
+    date: string,
+    specialistId?: string
   ): Promise<AvailabilityResponse> {
     const res = await apiClient.get<AvailabilityResponse>(
       `/booking/${businessId}/services/${serviceId}/availability`,
-      { params: { date } }
+      {
+        params: {
+          date,
+          ...(specialistId ? { specialistId } : {}),
+        },
+      }
     );
     return res.data;
   },

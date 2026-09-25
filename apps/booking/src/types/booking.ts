@@ -9,6 +9,7 @@ export interface BookingSpecialistInfo {
   id: string;
   name: string;
   specialty?: string | null;
+  active?: boolean;
 }
 
 export interface BookingServiceItem {
@@ -20,6 +21,7 @@ export interface BookingServiceItem {
   hasCustomSchedule: boolean;
   specialistId?: string | null;
   specialist?: BookingSpecialistInfo | null;
+  specialists?: BookingSpecialistInfo[];
 }
 
 export interface AvailableSlot {
@@ -41,6 +43,7 @@ export interface AvailabilityResponse {
 
 export interface CreateAppointmentPayload {
   serviceId: string;
+  specialistId?: string;
   scheduledAt: string;
   customerName: string;
   customerPhone: string;
@@ -68,6 +71,7 @@ export interface AppointmentDetail {
   id: string;
   businessId: string;
   serviceId: string;
+  specialistId?: string | null;
   customerId: string;
   scheduledAt: string;
   durationMinutes: number;
@@ -80,6 +84,7 @@ export interface AppointmentDetail {
   cancelledAt?: string | null;
   cancellationReason?: string | null;
   service: BookingServiceItem;
+  specialist?: BookingSpecialistInfo | null;
   customer: AppointmentCustomer;
   business: BusinessPublicInfo;
 }

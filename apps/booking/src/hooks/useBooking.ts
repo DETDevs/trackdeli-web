@@ -27,11 +27,12 @@ export const usePublicServices = (businessId?: string) => {
 export const useAvailability = (
   businessId?: string,
   serviceId?: string,
-  date?: string
+  date?: string,
+  specialistId?: string
 ) => {
   return useQuery({
-    queryKey: ['booking', 'availability', businessId, serviceId, date],
-    queryFn: () => bookingApi.getAvailability(businessId!, serviceId!, date!),
+    queryKey: ['booking', 'availability', businessId, serviceId, date, specialistId],
+    queryFn: () => bookingApi.getAvailability(businessId!, serviceId!, date!, specialistId),
     enabled: !!businessId && !!serviceId && !!date,
     staleTime: 1000 * 30, // 30 segundos
     refetchOnWindowFocus: true,

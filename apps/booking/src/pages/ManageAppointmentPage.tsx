@@ -39,10 +39,10 @@ export const ManageAppointmentPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-gray-400 font-medium">
+          <div className="w-10 h-10 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-gray-500 font-medium">
             Cargando información de tu cita...
           </p>
         </div>
@@ -52,13 +52,13 @@ export const ManageAppointmentPage: React.FC = () => {
 
   if (isError || !appointment) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 text-center">
-        <div className="max-w-sm p-6 rounded-2xl bg-gray-800/50 border border-gray-800 space-y-3">
-          <WarningCircle size={36} className="text-rose-400 mx-auto" />
-          <h2 className="text-base font-bold text-gray-100">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 text-center">
+        <div className="max-w-sm p-6 rounded-3xl bg-white border border-gray-200 shadow-sm space-y-3">
+          <WarningCircle size={36} className="text-rose-500 mx-auto" />
+          <h2 className="text-base font-bold text-gray-900">
             Cita no encontrada
           </h2>
-          <p className="text-xs text-gray-400 leading-relaxed">
+          <p className="text-xs text-gray-500 leading-relaxed">
             El enlace de gestión es inválido o la cita ya no se encuentra disponible en el sistema.
           </p>
         </div>
@@ -118,19 +118,19 @@ export const ManageAppointmentPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col selection:bg-brand-500 selection:text-black">
+    <div className="min-h-screen bg-slate-50 text-gray-900 flex flex-col">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-xl mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="border-b border-gray-200 bg-white/95 backdrop-blur-md sticky top-0 z-30 shadow-xs">
+        <div className="max-w-xl mx-auto px-4 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center text-brand-500">
-              <Storefront size={18} />
+            <div className="w-9 h-9 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center text-brand-600 shadow-2xs">
+              <Storefront size={18} weight="duotone" />
             </div>
             <div>
-              <span className="text-[11px] text-gray-400 block font-medium">
+              <span className="text-[11px] text-gray-400 block font-semibold uppercase tracking-wider">
                 Portal de Autogestión
               </span>
-              <h1 className="text-sm font-semibold text-gray-100 truncate">
+              <h1 className="text-sm font-bold text-gray-900 truncate">
                 {appointment.business?.name || 'TrackDeli Citas'}
               </h1>
             </div>
@@ -141,9 +141,9 @@ export const ManageAppointmentPage: React.FC = () => {
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-medium"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 px-3 py-1.5 rounded-xl transition-all shadow-xs"
             >
-              <WhatsappLogo size={16} weight="fill" />
+              <WhatsappLogo size={16} weight="fill" className="text-emerald-600" />
               <span className="hidden sm:inline">WhatsApp</span>
             </a>
           )}
@@ -153,43 +153,49 @@ export const ManageAppointmentPage: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 max-w-xl w-full mx-auto px-4 py-6 sm:py-8 space-y-5">
         {/* Encabezado de la Cita & Badge de Estado */}
-        <div className="p-5 rounded-2xl bg-gray-800/70 border border-gray-700/70 space-y-4">
+        <div className="p-5 sm:p-6 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <span className="text-[11px] uppercase tracking-wider font-semibold text-gray-400">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-gray-400">
                 Detalle de tu turno
               </span>
-              <h2 className="text-lg font-bold text-gray-100 mt-0.5">
+              <h2 className="text-lg font-bold text-gray-900 mt-0.5">
                 {appointment.service.name}
               </h2>
+              {appointment.specialist?.name && (
+                <p className="text-xs text-brand-700 font-semibold mt-0.5">
+                  Atendido por {appointment.specialist.name}
+                  {appointment.specialist.specialty ? ` — ${appointment.specialist.specialty}` : ''}
+                </p>
+              )}
             </div>
             <AppointmentStatusBadge status={appointment.status} />
           </div>
 
           {/* Mensaje de estado PENDIENTE */}
           {appointment.status === 'PENDING' && (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-300/90 leading-relaxed">
-              <strong>Tu solicitud está pendiente de aprobación.</strong> El negocio te
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 leading-relaxed shadow-2xs">
+              <strong className="font-bold text-amber-900">Tu solicitud está pendiente de aprobación.</strong> El negocio te
               confirmará a la brevedad.
             </div>
           )}
 
           {/* Mensaje de estado CONFIRMADA */}
           {appointment.status === 'CONFIRMED' && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-300 leading-relaxed flex items-center gap-2">
-              <CheckCircle size={18} className="text-emerald-400 shrink-0" />
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 leading-relaxed flex items-center gap-2.5 shadow-2xs">
+              <CheckCircle size={18} weight="fill" className="text-emerald-600 shrink-0" />
               <span>¡Tu cita está confirmada por el negocio! Te esperamos a la hora programada.</span>
             </div>
           )}
 
           {/* Mensaje de estado CANCELADA */}
           {appointment.status === 'CANCELLED' && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-300 leading-relaxed flex items-start gap-2">
-              <XCircle size={18} className="text-rose-400 shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-950 leading-relaxed flex items-start gap-2.5 shadow-2xs">
+              <XCircle size={18} weight="fill" className="text-rose-600 shrink-0 mt-0.5" />
               <div>
-                <strong>Esta cita se encuentra cancelada.</strong>
+                <strong className="font-bold text-rose-900">Esta cita se encuentra cancelada.</strong>
                 {appointment.cancellationReason && (
-                  <p className="mt-0.5 text-rose-400/80 text-[11px]">
+                  <p className="mt-0.5 text-rose-800 text-[11px]">
                     Motivo: {appointment.cancellationReason}
                   </p>
                 )}
@@ -199,75 +205,75 @@ export const ManageAppointmentPage: React.FC = () => {
 
           {/* Fecha, Horario, Precio */}
           <div className="pt-2 grid grid-cols-2 gap-3 text-xs">
-            <div className="p-3 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1">
-              <span className="text-gray-400 flex items-center gap-1 text-[11px]">
-                <CalendarBlank size={14} className="text-gray-500" />
+            <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-1">
+              <span className="text-gray-500 flex items-center gap-1 text-[11px] font-medium">
+                <CalendarBlank size={14} className="text-gray-400" />
                 Fecha programada
               </span>
-              <span className="font-semibold text-gray-200 block capitalize">
+              <span className="font-bold text-gray-900 block capitalize">
                 {formattedDate}
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1">
-              <span className="text-gray-400 flex items-center gap-1 text-[11px]">
-                <Clock size={14} className="text-gray-500" />
+            <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-1">
+              <span className="text-gray-500 flex items-center gap-1 text-[11px] font-medium">
+                <Clock size={14} className="text-gray-400" />
                 Horario
               </span>
-              <span className="font-semibold text-brand-400 block">
+              <span className="font-bold text-brand-600 block">
                 {formattedTime} ({appointment.durationMinutes} min)
               </span>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs pt-1 px-1 border-t border-gray-700/40">
-            <span className="text-gray-400">Tarifa del servicio</span>
-            <span className="text-sm font-bold text-gray-100">
+          <div className="flex items-center justify-between text-xs pt-1 px-1 border-t border-gray-100">
+            <span className="text-gray-500">Tarifa del servicio</span>
+            <span className="text-sm font-bold text-gray-900">
               C$ {appointment.price.toFixed(2)}
             </span>
           </div>
         </div>
 
         {/* Información del Negocio y Cliente */}
-        <div className="p-4 rounded-2xl bg-gray-800/40 border border-gray-800 space-y-3 text-xs">
+        <div className="p-4 sm:p-5 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-3 text-xs">
           <div className="flex items-start gap-2.5">
-            <Storefront size={16} className="text-gray-400 shrink-0 mt-0.5" />
+            <Storefront size={18} className="text-brand-600 shrink-0 mt-0.5" weight="duotone" />
             <div>
-              <span className="font-semibold text-gray-200 block">
+              <span className="font-bold text-gray-900 block">
                 {appointment.business?.name}
               </span>
               {appointment.business?.posAddress && (
-                <span className="text-gray-400 text-[11px] block mt-0.5">
+                <span className="text-gray-500 text-[11px] block mt-0.5">
                   {appointment.business.posAddress}
                 </span>
               )}
             </div>
           </div>
 
-          <div className="border-t border-gray-800 pt-2 flex items-center justify-between text-[11px] text-gray-400">
+          <div className="border-t border-gray-100 pt-2.5 flex items-center justify-between text-[11px] text-gray-500">
             <span className="flex items-center gap-1.5">
-              <User size={13} className="text-gray-500" />
-              Titular de la reserva: <strong className="text-gray-300">{appointment.customer.name}</strong>
+              <User size={13} className="text-gray-400" />
+              Titular: <strong className="text-gray-800 font-semibold">{appointment.customer.name}</strong>
             </span>
-            <span>{appointment.customer.phone}</span>
+            <span className="font-medium text-gray-700">{appointment.customer.phone}</span>
           </div>
         </div>
 
         {/* Acciones de Autogestión */}
         {isManageable ? (
-          <div className="p-5 rounded-2xl bg-gray-800/60 border border-gray-700/70 space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+          <div className="p-5 sm:p-6 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-3.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
               Opciones de gestión
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               {/* Botón Reagendar o Nota de límite alcanzado */}
               {appointment.rescheduleCount >= 1 ? (
-                <div className="col-span-1 sm:col-span-2 p-3.5 rounded-xl bg-gray-800 border border-gray-700 text-xs text-gray-300 space-y-1.5">
-                  <p className="font-medium text-amber-300">
+                <div className="col-span-1 sm:col-span-2 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-1.5 shadow-2xs">
+                  <p className="font-bold text-amber-900">
                     Ya reagendaste esta cita una vez.
                   </p>
-                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
                     Para realizar cambios adicionales, por favor contactá directamente al
                     negocio por WhatsApp o teléfono.
                   </p>
@@ -276,9 +282,9 @@ export const ManageAppointmentPage: React.FC = () => {
                       href={whatsappUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400 hover:underline pt-1"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:underline pt-1"
                     >
-                      <WhatsappLogo size={14} weight="fill" />
+                      <WhatsappLogo size={14} weight="fill" className="text-emerald-600" />
                       Contactar por WhatsApp
                     </a>
                   )}
@@ -287,9 +293,9 @@ export const ManageAppointmentPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsRescheduleModalOpen(true)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-600 text-xs font-semibold text-gray-200 transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-xs font-bold text-white transition-all shadow-xs flex items-center justify-center gap-2"
                 >
-                  <ArrowClockwise size={15} className="text-brand-400" />
+                  <ArrowClockwise size={15} weight="bold" />
                   Reagendar turno
                 </button>
               )}
@@ -298,20 +304,20 @@ export const ManageAppointmentPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsCancelModalOpen(true)}
-                className="w-full py-2.5 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-xs font-semibold text-rose-400 transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 text-xs font-bold text-rose-700 border border-rose-200 transition-all flex items-center justify-center gap-2 shadow-2xs"
               >
-                <XCircle size={15} />
+                <XCircle size={15} weight="bold" />
                 Cancelar mi cita
               </button>
             </div>
           </div>
         ) : (
           /* Mensaje cuando ya no es gestionable */
-          <div className="p-4 rounded-2xl bg-gray-800/30 border border-gray-800 text-center space-y-1.5 text-xs text-gray-400">
-            <p className="font-medium text-gray-300">
+          <div className="p-5 rounded-3xl bg-white border border-gray-200 text-center space-y-1.5 text-xs text-gray-500 shadow-xs">
+            <p className="font-bold text-gray-800">
               Esta cita ya no puede ser modificada ni cancelada desde el portal.
             </p>
-            <p className="text-[11px]">
+            <p className="text-[11px] text-gray-400">
               {isPast
                 ? 'El horario programado ya ha transcurrido.'
                 : 'La cita se encuentra finalizada o cancelada.'}
@@ -321,9 +327,9 @@ export const ManageAppointmentPage: React.FC = () => {
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-emerald-400 hover:underline pt-1 font-medium"
+                className="inline-flex items-center gap-1 text-emerald-700 hover:underline pt-1 font-semibold"
               >
-                <WhatsappLogo size={14} weight="fill" />
+                <WhatsappLogo size={14} weight="fill" className="text-emerald-600" />
                 Contactar al negocio por WhatsApp
               </a>
             )}
@@ -334,9 +340,9 @@ export const ManageAppointmentPage: React.FC = () => {
         <div className="pt-2 text-center">
           <Link
             to={`/booking/${appointment.business?.slug || appointment.businessId}`}
-            className="text-xs text-gray-400 hover:text-gray-200 transition-colors inline-flex items-center gap-1"
+            className="text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors inline-flex items-center gap-1.5 p-2 rounded-xl hover:bg-gray-100"
           >
-            <Storefront size={14} />
+            <Storefront size={15} />
             Hacer una nueva reserva en este negocio
           </Link>
         </div>

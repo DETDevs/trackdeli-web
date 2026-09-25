@@ -4,18 +4,21 @@
 
 @layer base {
   :root {
-    --bg-page: #0F0F0F;
-    --bg-surface: #1A1A1A;
-    --border: #292929;
-    --text-primary: #FAFAFA;
-    --text-secondary: #ADADAD;
-    --text-tertiary: #858585;
-    --brand: #22C55E;
+    --bg-page: #F8FAFC;
+    --bg-surface: #FFFFFF;
+    --border: #E2E8F0;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-tertiary: #94A3B8;
+    --brand: #16A34A;
+    --brand-hover: #15803D;
+    --brand-light: #F0FDF4;
+    --brand-border: #BBF7D0;
   }
 
   body {
-    background-color: #0F0F0F;
-    color: #FAFAFA;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     -webkit-tap-highlight-color: transparent;
   }
