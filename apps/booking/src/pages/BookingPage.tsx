@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   ArrowRight,
   ArrowLeft,
   WarningCircle,
+  Warning,
+  ArrowSquareOut,
 } from '@phosphor-icons/react';
 import { BookingHeader } from '../components/BookingHeader';
 import { ServiceSelector } from '../components/ServiceSelector';
@@ -59,6 +61,11 @@ export const BookingPage: React.FC = () => {
 
   // Summary & Success Modal State
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [duplicatePendingError, setDuplicatePendingError] = useState<{
+    message: string;
+    matchedBy?: 'phone' | 'email' | 'both';
+    manageToken?: string;
+  } | null>(null);
   const [createdAppointment, setCreatedAppointment] = useState<AppointmentDetail | null>(null);
 
   // API Queries
@@ -138,6 +145,9 @@ export const BookingPage: React.FC = () => {
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setFormErrors((prev) => ({ ...prev, [field]: undefined }));
+    if (duplicatePendingError && (field === 'customerPhone' || field === 'customerEmail')) {
+      setDuplicatePendingError(null);
+    }
   };
 
   const validateStep3 = () => {
@@ -210,9 +220,28 @@ export const BookingPage: React.FC = () => {
 
       setIsSummaryOpen(false);
       setCreatedAppointment(result);
-    } catch {
-      // Los errores se manejan en el onError del hook
+    } catch (err: any) {
       setIsSummaryOpen(false);
+      if (err?.response?.data?.code === 'DUPLICATE_PENDING_APPOINTMENT') {
+        const data = err.response.data;
+        setDuplicatePendingError({
+          message: data.message,
+          matchedBy: data.matchedBy,
+          manageToken: data.manageToken,
+        });
+        if (data.matchedBy === 'phone' || data.matchedBy === 'both') {
+          setFormErrors((prev) => ({
+            ...prev,
+            customerPhone: 'Ya tenés una solicitud de reserva pendiente con este número.',
+          }));
+        }
+        if (data.matchedBy === 'email' || data.matchedBy === 'both') {
+          setFormErrors((prev) => ({
+            ...prev,
+            customerEmail: 'Ya tenés una solicitud de reserva pendiente con este correo.',
+          }));
+        }
+      }
     }
   };
 
@@ -498,6 +527,36 @@ export const BookingPage: React.FC = () => {
                 El negocio usará estos datos para notificarte y coordinar tu turno.
               </p>
             </div>
+
+            {duplicatePendingError && (
+              <div className="p-4 sm:p-5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 space-y-3 shadow-xs animate-fadeIn">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0 text-amber-700 mt-0.5">
+                    <Warning size={20} weight="fill" />
+                  </div>
+                  <div className="space-y-1 min-w-0">
+                    <h3 className="text-sm font-bold text-amber-900">
+                      Ya tenés una reserva pendiente de confirmación
+                    </h3>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      {duplicatePendingError.message}
+                    </p>
+                  </div>
+                </div>
+
+                {duplicatePendingError.manageToken && (
+                  <div className="pt-2 border-t border-amber-200/80 flex flex-wrap items-center gap-2">
+                    <Link
+                      to={`/manage/${duplicatePendingError.manageToken}`}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs"
+                    >
+                      <ArrowSquareOut size={15} weight="bold" />
+                      Revisar o cancelar mi solicitud previa en el Portal de Autogestión
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="p-5 sm:p-6 rounded-3xl bg-white border border-gray-200 shadow-xs">
               <CustomerForm

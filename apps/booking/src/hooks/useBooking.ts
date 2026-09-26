@@ -68,8 +68,13 @@ export const useCreateAppointment = (businessId: string) => {
           return;
         }
 
-        // Paso 3: Conflicto de slot atómico (409)
+        // Paso 3: Conflicto de slot atómico (409) o solicitud duplicada pendiente
         if (status === 409) {
+          if (error.response.data?.code === 'DUPLICATE_PENDING_APPOINTMENT') {
+            // El error específico de duplicado pendiente se maneja en el formulario (BookingPage)
+            // para ofrecer el enlace contextual al Portal de Autogestión
+            return;
+          }
           toast.error(
             'El horario seleccionado ya no se encuentra disponible. Actualizamos la lista para que elijas otro.',
             { duration: 5000 }
