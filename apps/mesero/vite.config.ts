@@ -8,17 +8,12 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
-      port: 5174,
+      port: 5178,
       proxy: {
         '/api': {
           target,
           changeOrigin: true,
           secure: false,
-        },
-        '/socket.io': {
-          target,
-          ws: true,
-          changeOrigin: true,
         },
       },
     },
@@ -28,7 +23,6 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             vendor: ['react', 'react-dom', 'react-router-dom'],
             query: ['@tanstack/react-query'],
-            socket: ['socket.io-client'],
           },
         },
       },

@@ -12,13 +12,16 @@
     "dev:tracking": "turbo run dev --filter=tracking",
     "dev:superadmin": "turbo run dev --filter=superadmin",
     "dev:booking": "turbo run dev --filter=booking",
+    "dev:mesero": "turbo run dev --filter=mesero",
     "build": "turbo run build",
     "build:superadmin": "turbo run build --filter=superadmin",
     "build:booking": "turbo run build --filter=booking",
+    "build:mesero": "turbo run build --filter=mesero",
     "lint": "turbo run lint",
     "clean:comments": "node scripts/clean-comments.js"
   },
   "devDependencies": {
+    "@types/node": "^26.6.3",
     "turbo": "^2.0.0"
   }
 }

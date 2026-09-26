@@ -259,7 +259,7 @@ export const CreateOrderPage = () => {
       }
 
       const trackingBaseUrl =
-        (import.meta as any).env.VITE_TRACKING_URL || 'https://trackdeli-web-tracking.vercel.app';
+        (import.meta as any).env.VITE_TRACKING_URL || window.location.origin;
       const cleanBase = trackingBaseUrl.replace(/\/+$/, '');
       const confirmationUrl = res.confirmationUrl || `${cleanBase}/confirm-location/${res.token}`;
 

@@ -24,12 +24,8 @@ import {
 import { toast } from "react-hot-toast";
 import TrackingMap from "../components/TrackingMap";
 
-const API_BASE =
-  import.meta.env.VITE_API_URL ||
-  "https://trackdeli-api-production.up.railway.app/api/v1";
-const WS_URL =
-  import.meta.env.VITE_WS_URL ||
-  "https://trackdeli-api-production.up.railway.app";
+const API_BASE = import.meta.env.VITE_API_URL || "/api/v1";
+const WS_URL = import.meta.env.VITE_WS_URL || window.location.origin;
 
 const statusConfig: Record<
   string,

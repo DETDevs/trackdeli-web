@@ -163,31 +163,21 @@ export const BookingPage: React.FC = () => {
       errors.customerName = 'El nombre no puede superar los 80 caracteres.';
     }
 
-    // 2. Teléfono WhatsApp
-    const rawPhone = formData.customerPhone.trim();
-    if (!rawPhone) {
+    // 2. Teléfono WhatsApp (fijo +505, exactamente 8 dígitos)
+    const phoneDigits = formData.customerPhone.replace(/\D/g, '');
+    if (!phoneDigits) {
       errors.customerPhone = 'Por favor ingresá tu número de WhatsApp.';
-    } else {
-      const digitsOnly = rawPhone.replace(/\D/g, '');
-      const validPhonePattern = /^\+?[0-9\s\-()]{8,20}$/;
-
-      if (!validPhonePattern.test(rawPhone) || rawPhone.lastIndexOf('+') > 0) {
-        errors.customerPhone = 'El formato del número de teléfono no es válido.';
-      } else if (digitsOnly.length < 8) {
-        errors.customerPhone = 'El número debe contener al menos 8 dígitos (ej. 8888 1234).';
-      } else if (digitsOnly.length > 15) {
-        errors.customerPhone = 'El número no puede tener más de 15 dígitos.';
-      } else if (/^(\d)\1{7,}$/.test(digitsOnly)) {
-        errors.customerPhone = 'Por favor ingresá un número de teléfono real.';
-      }
+    } else if (phoneDigits.length < 8) {
+      errors.customerPhone = `El número debe tener exactamente 8 dígitos (ingresaste ${phoneDigits.length}/8).`;
+    } else if (/^(\d)\1{7}$/.test(phoneDigits)) {
+      errors.customerPhone = 'Por favor ingresá un número de teléfono válido.';
     }
 
-    // 3. Correo electrónico (opcional)
+    // 3. Correo electrónico (obligatorio para confirmación)
     const trimmedEmail = formData.customerEmail.trim();
-    if (
-      trimmedEmail &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
-    ) {
+    if (!trimmedEmail) {
+      errors.customerEmail = 'Por favor ingresá tu correo electrónico para enviarte la confirmación.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       errors.customerEmail = 'El formato del correo electrónico no es válido.';
     }
 
@@ -205,6 +195,9 @@ export const BookingPage: React.FC = () => {
   const handleConfirmBooking = async () => {
     if (!selectedService || !selectedSlot) return;
 
+    const phoneDigits = formData.customerPhone.replace(/\D/g, '').slice(0, 8);
+    const fullPhone = `+505${phoneDigits}`;
+
     try {
       const result = await createAppointmentMutation.mutateAsync({
         serviceId: selectedService.id,
@@ -214,8 +207,8 @@ export const BookingPage: React.FC = () => {
             : undefined,
         scheduledAt: selectedSlot.scheduledAt,
         customerName: formData.customerName.trim(),
-        customerPhone: formData.customerPhone.trim(),
-        customerEmail: formData.customerEmail.trim() || undefined,
+        customerPhone: fullPhone,
+        customerEmail: formData.customerEmail.trim(),
       });
 
       setIsSummaryOpen(false);

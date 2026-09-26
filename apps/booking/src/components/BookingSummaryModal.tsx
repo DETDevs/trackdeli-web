@@ -55,6 +55,18 @@ export const BookingSummaryModal: React.FC<BookingSummaryModalProps> = ({
     year: 'numeric',
   }).format(dateObj);
 
+  const displayPhone = (() => {
+    if (!customerPhone) return '';
+    const digits = customerPhone.replace(/\D/g, '');
+    if (digits.startsWith('505') && digits.length === 11) {
+      return `+505 ${digits.slice(3, 7)} ${digits.slice(7)}`;
+    }
+    if (digits.length === 8) {
+      return `+505 ${digits.slice(0, 4)} ${digits.slice(4)}`;
+    }
+    return customerPhone.startsWith('+505') ? customerPhone : `+505 ${customerPhone}`;
+  })();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
       <div className="w-full max-w-md bg-white border border-gray-200 rounded-3xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -160,7 +172,7 @@ export const BookingSummaryModal: React.FC<BookingSummaryModalProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <Phone size={14} className="text-gray-400 shrink-0" />
-                <span>{customerPhone}</span>
+                <span className="font-medium text-gray-900">{displayPhone}</span>
               </div>
               {customerEmail ? (
                 <div className="flex items-center gap-2">

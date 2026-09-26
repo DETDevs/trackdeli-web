@@ -15,7 +15,7 @@ export function useOrderNotifications(enabled: boolean = true) {
     if (!enabled || !accessToken || !user?.businessId) return;
 
     // @ts-ignore: Vite injects import.meta.env during build
-    const baseUrl = import.meta.env?.VITE_WS_URL || import.meta.env?.VITE_API_BASE_URL?.replace('/api/v1', '') || 'https://trackdeli-api-production.up.railway.app';
+    const baseUrl = import.meta.env?.VITE_WS_URL || import.meta.env?.VITE_API_BASE_URL?.replace('/api/v1', '') || window.location.origin;
     const socket = io(`${baseUrl}/tracking`, {
       path: '/socket.io',
       transports: ['websocket'],

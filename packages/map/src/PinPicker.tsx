@@ -43,7 +43,7 @@ export const PinPicker: React.FC<PinPickerProps> = ({
   const effectiveToken =
     mapboxToken ||
     (import.meta as any).env?.VITE_MAPBOX_TOKEN ||
-    'pk.eyJ1IjoiZWR3aW50b3JyZXMyMSIsImEiOiJjbXQ2bWwzYjkyMHRkMnlvaHY1ZnIwdGR3In0.yQ7e5NbovzVMQ4eeW9Pw3w';
+    '';
 
   useEffect(() => {
     if (!mapContainer.current || !effectiveToken) return;
