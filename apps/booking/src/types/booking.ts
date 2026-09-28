@@ -41,6 +41,25 @@ export interface AvailabilityResponse {
   availableSlots: AvailableSlot[];
 }
 
+export interface CreateHoldPayload {
+  serviceId: string;
+  specialistId?: string;
+  startAt: string;
+}
+
+export interface AppointmentHoldResponse {
+  holdId: string;
+  holderToken: string;
+  expiresAt: string;
+  serviceId: string;
+  specialistId?: string;
+}
+
+export interface ReleaseHoldResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface CreateAppointmentPayload {
   serviceId: string;
   specialistId?: string;
@@ -48,6 +67,8 @@ export interface CreateAppointmentPayload {
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
+  holdId: string;
+  holderToken: string;
 }
 
 export interface BusinessPublicInfo {

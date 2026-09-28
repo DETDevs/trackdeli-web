@@ -4,6 +4,9 @@ import type {
   BookingServiceItem,
   BusinessPublicInfo,
   CreateAppointmentPayload,
+  CreateHoldPayload,
+  AppointmentHoldResponse,
+  ReleaseHoldResponse,
   AppointmentDetail,
   CancelAppointmentResponse,
   RescheduleAppointmentResponse,
@@ -51,6 +54,47 @@ export const bookingApi = {
         params: {
           date,
           ...(specialistId ? { specialistId } : {}),
+        },
+      }
+    );
+    return res.data;
+  },
+
+  /**
+   * 80b: Crea una reserva temporal (hold) de horario para evitar doble reserva.
+   * Llama a POST /businesses/:businessId/booking/holds
+   */
+  async createHold(
+    businessId: string,
+    payload: CreateHoldPayload
+  ): Promise<AppointmentHoldResponse> {
+    const res = await apiClient.post<AppointmentHoldResponse>(
+      `/businesses/${businessId}/booking/holds`,
+      payload
+    );
+    return res.data;
+  },
+
+  /**
+   * 80b: Libera una reserva temporal explícitamente al dar "Atrás" o cambiar horario.
+   * Llama a DELETE /businesses/:businessId/booking/holds/:holdId
+   */
+  async releaseHold(
+    businessId: string,
+    holdId: string,
+    holderToken: string
+  ): Promise<ReleaseHoldResponse> {
+    const res = await apiClient.delete<ReleaseHoldResponse>(
+      `/businesses/${businessId}/booking/holds/${holdId}`,
+      {
+        headers: {
+          'x-holder-token': holderToken,
+        },
+        params: {
+          holderToken,
+        },
+        data: {
+          holderToken,
         },
       }
     );

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { bookingApi } from '../services/bookingApi';
-import type { CreateAppointmentPayload } from '../types/booking';
+import type { CreateAppointmentPayload, CreateHoldPayload } from '../types/booking';
 
 export const useBusinessInfo = (businessId?: string) => {
   return useQuery({
@@ -68,16 +68,28 @@ export const useCreateAppointment = (businessId: string) => {
           return;
         }
 
-        // Paso 3: Conflicto de slot atómico (409) o solicitud duplicada pendiente
+        // Paso 3: Conflicto de slot atómico (409), duplicado pendiente o hold expirado
         if (status === 409) {
           if (error.response.data?.code === 'DUPLICATE_PENDING_APPOINTMENT') {
             // El error específico de duplicado pendiente se maneja en el formulario (BookingPage)
             // para ofrecer el enlace contextual al Portal de Autogestión
             return;
           }
+
+          const isHoldExpired =
+            typeof msg === 'string' &&
+            (msg.toLowerCase().includes('reserva temporal') ||
+              msg.toLowerCase().includes('expir') ||
+              msg.toLowerCase().includes('hold'));
+
+          if (isHoldExpired) {
+            // Se maneja específicamente en BookingPage con mensaje exacto y regreso al paso 2
+            return;
+          }
+
           toast.error(
             'El horario seleccionado ya no se encuentra disponible. Actualizamos la lista para que elijas otro.',
-            { duration: 5000 }
+            { id: 'slot-conflict-error', duration: 5000 }
           );
           // Invalida inmediatamente disponibilidad para que el cliente elija otro
           queryClient.invalidateQueries({
@@ -104,6 +116,30 @@ export const useCreateAppointment = (businessId: string) => {
         toast.error(errorText, { duration: 5000 });
       } else {
         toast.error('Ocurrió un error inesperado al conectar con el servidor.');
+      }
+    },
+  });
+};
+
+export const useCreateHold = (businessId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: CreateHoldPayload) =>
+      bookingApi.createHold(businessId, payload),
+    onError: (error: unknown) => {
+      if (axios.isAxiosError(error) && error.response) {
+        const status = error.response.status;
+        if (status === 409) {
+          toast.error('Ese horario ya no está disponible, elegí otro', {
+            id: 'slot-conflict-error',
+            duration: 5000,
+          });
+          queryClient.invalidateQueries({
+            queryKey: ['booking', 'availability', businessId],
+          });
+          return;
+        }
       }
     },
   });

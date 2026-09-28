@@ -145,9 +145,14 @@ export const BookingSummaryModal: React.FC<BookingSummaryModalProps> = ({
                 <Clock size={14} className="text-gray-400" />
                 Horario
               </span>
-              <span className="font-bold text-brand-600">
-                {slot.startTime} ({service.durationMinutes} min)
-              </span>
+              <div className="text-right">
+                <span className="font-bold text-brand-600 block">
+                  {slot.startTime} ({service.durationMinutes} min)
+                </span>
+                <span className="text-[10px] text-emerald-700 font-medium">
+                  Reservado temporalmente
+                </span>
+              </div>
             </div>
 
             <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
