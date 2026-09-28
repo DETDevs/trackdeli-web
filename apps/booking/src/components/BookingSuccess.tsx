@@ -39,9 +39,14 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
     hour12: false,
   }).format(dateObj);
 
+  const serviceNames =
+    appointment.items && appointment.items.length > 0
+      ? appointment.items.map((it) => it.serviceName).join(' + ')
+      : appointment.service?.name || 'Servicio';
+
   const whatsappUrl = business?.whatsappNumber
     ? `https://wa.me/${business.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(
-        `Hola, acabo de registrar una solicitud de cita para "${appointment.service.name}" el día ${formattedDate} a las ${formattedTime}. Mi nombre es ${appointment.customer.name}.`
+        `Hola, acabo de registrar una solicitud de cita para "${serviceNames}" el día ${formattedDate} a las ${formattedTime}. Mi nombre es ${appointment.customer.name}.`
       )}`
     : null;
 
@@ -74,10 +79,31 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
             </span>
           </div>
 
+          {appointment.items && appointment.items.length > 1 ? (
+            <div className="pb-2.5 border-b border-gray-200/60 space-y-1.5">
+              <span className="text-xs text-gray-500 block">Servicios ({appointment.items.length})</span>
+              <div className="space-y-1 pl-1">
+                {appointment.items.map((it) => (
+                  <div key={it.id || it.serviceId} className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-gray-900">{it.serviceName}</span>
+                    <span className="text-gray-500 font-medium">C$ {it.price.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between pb-2.5 border-b border-gray-200/60">
+              <span className="text-xs text-gray-500">Servicio</span>
+              <span className="text-xs font-bold text-gray-900">
+                {appointment.service?.name || serviceNames}
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between pb-2.5 border-b border-gray-200/60">
-            <span className="text-xs text-gray-500">Servicio</span>
+            <span className="text-xs text-gray-500">Total</span>
             <span className="text-xs font-bold text-gray-900">
-              {appointment.service.name}
+              C$ {appointment.price.toFixed(2)}
             </span>
           </div>
 

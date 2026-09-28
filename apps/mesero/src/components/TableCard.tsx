@@ -41,7 +41,9 @@ export const TableCard: React.FC<TableCardProps> = ({ table, onClick }) => {
       <div className="flex items-start justify-between w-full gap-1.5">
         <div className="min-w-0 flex-1">
           <span className="text-xl sm:text-2xl font-black tracking-tight block whitespace-nowrap leading-tight text-gray-900">
-            Mesa {table.number}
+            {String(table.number).toLowerCase().includes('mesa')
+              ? table.number
+              : `Mesa ${table.number}`}
           </span>
           <div className="flex items-center gap-1 text-[11px] text-gray-500 font-medium mt-0.5 whitespace-nowrap">
             <Users size={12} weight="bold" className="shrink-0" />

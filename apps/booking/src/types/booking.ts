@@ -38,11 +38,20 @@ export interface AvailabilityResponse {
     name: string;
     durationMinutes: number;
   };
+  services?: Array<{
+    id: string;
+    name: string;
+    durationMinutes: number;
+    price: number;
+  }>;
+  totalDurationMinutes?: number;
+  totalPrice?: number;
   availableSlots: AvailableSlot[];
 }
 
 export interface CreateHoldPayload {
-  serviceId: string;
+  serviceIds?: string[];
+  serviceId?: string;
   specialistId?: string;
   startAt: string;
 }
@@ -51,6 +60,7 @@ export interface AppointmentHoldResponse {
   holdId: string;
   holderToken: string;
   expiresAt: string;
+  serviceIds?: string[];
   serviceId: string;
   specialistId?: string;
 }
@@ -61,7 +71,8 @@ export interface ReleaseHoldResponse {
 }
 
 export interface CreateAppointmentPayload {
-  serviceId: string;
+  serviceIds?: string[];
+  serviceId?: string;
   specialistId?: string;
   scheduledAt: string;
   customerName: string;
@@ -69,6 +80,15 @@ export interface CreateAppointmentPayload {
   customerEmail?: string;
   holdId: string;
   holderToken: string;
+}
+
+export interface AppointmentItem {
+  id?: string;
+  serviceId: string;
+  serviceName: string;
+  durationMinutes: number;
+  price: number;
+  orderIndex?: number;
 }
 
 export interface BusinessPublicInfo {
@@ -105,6 +125,7 @@ export interface AppointmentDetail {
   cancelledAt?: string | null;
   cancellationReason?: string | null;
   service: BookingServiceItem;
+  items?: AppointmentItem[];
   specialist?: BookingSpecialistInfo | null;
   customer: AppointmentCustomer;
   business: BusinessPublicInfo;

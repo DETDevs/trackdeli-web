@@ -26,14 +26,21 @@ export const usePublicServices = (businessId?: string) => {
 
 export const useAvailability = (
   businessId?: string,
-  serviceId?: string,
+  serviceIds?: string | string[],
   date?: string,
   specialistId?: string
 ) => {
+  const resolvedIds = Array.isArray(serviceIds)
+    ? serviceIds.filter(Boolean)
+    : serviceIds
+    ? [serviceIds]
+    : [];
+  const serviceKey = resolvedIds.join(',');
+
   return useQuery({
-    queryKey: ['booking', 'availability', businessId, serviceId, date, specialistId],
-    queryFn: () => bookingApi.getAvailability(businessId!, serviceId!, date!, specialistId),
-    enabled: !!businessId && !!serviceId && !!date,
+    queryKey: ['booking', 'availability', businessId, serviceKey, date, specialistId],
+    queryFn: () => bookingApi.getAvailability(businessId!, resolvedIds, date!, specialistId),
+    enabled: !!businessId && resolvedIds.length > 0 && !!date,
     staleTime: 1000 * 30, // 30 segundos
     refetchOnWindowFocus: true,
   });
@@ -45,10 +52,10 @@ export const useCreateAppointment = (businessId: string) => {
   return useMutation({
     mutationFn: (payload: CreateAppointmentPayload) =>
       bookingApi.createAppointment(businessId, payload),
-    onSuccess: (_, variables) => {
-      // Invalidar slots del servicio
+    onSuccess: () => {
+      // Invalidar slots de disponibilidad del negocio
       queryClient.invalidateQueries({
-        queryKey: ['booking', 'availability', businessId, variables.serviceId],
+        queryKey: ['booking', 'availability', businessId],
       });
     },
     onError: (error: unknown) => {

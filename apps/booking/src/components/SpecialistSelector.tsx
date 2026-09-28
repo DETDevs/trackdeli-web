@@ -1,13 +1,14 @@
 import React from 'react';
 import { ArrowLeft, Check, Sparkle, User } from '@phosphor-icons/react';
-import type { BookingSpecialistInfo } from '../types/booking';
+import type { BookingServiceItem, BookingSpecialistInfo } from '../types/booking';
 
 interface SpecialistSelectorProps {
   specialists: BookingSpecialistInfo[];
   selectedSpecialist: BookingSpecialistInfo | 'any' | null;
   onSelectSpecialist: (specialist: BookingSpecialistInfo | 'any') => void;
   onBack: () => void;
-  serviceName: string;
+  serviceName?: string;
+  services?: BookingServiceItem[];
 }
 
 export const SpecialistSelector: React.FC<SpecialistSelectorProps> = ({
@@ -16,8 +17,14 @@ export const SpecialistSelector: React.FC<SpecialistSelectorProps> = ({
   onSelectSpecialist,
   onBack,
   serviceName,
+  services,
 }) => {
   const isAnySelected = selectedSpecialist === 'any';
+  const displayServiceName =
+    serviceName ||
+    (services && services.length > 0
+      ? services.map((s) => s.name).join(' + ')
+      : '');
 
   return (
     <div className="space-y-4 animate-fadeIn">
@@ -29,11 +36,13 @@ export const SpecialistSelector: React.FC<SpecialistSelectorProps> = ({
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors py-1 px-2 rounded-lg hover:bg-gray-100"
         >
           <ArrowLeft size={14} weight="bold" />
-          Cambiar servicio
+          {services && services.length > 1 ? 'Cambiar servicios' : 'Cambiar servicio'}
         </button>
-        <span className="text-xs text-gray-400 font-medium truncate max-w-[200px]">
-          {serviceName}
-        </span>
+        {displayServiceName && (
+          <span className="text-xs text-gray-400 font-medium truncate max-w-[200px]" title={displayServiceName}>
+            {displayServiceName}
+          </span>
+        )}
       </div>
 
       <div className="pb-1">
@@ -93,7 +102,7 @@ export const SpecialistSelector: React.FC<SpecialistSelectorProps> = ({
           </div>
         </button>
 
-        {/* Especialistas individuales */}
+        {/* Especialistas individuales compatibles */}
         {specialists.map((specialist) => {
           const isSelected =
             selectedSpecialist !== 'any' && selectedSpecialist?.id === specialist.id;
@@ -106,7 +115,7 @@ export const SpecialistSelector: React.FC<SpecialistSelectorProps> = ({
               className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 shadow-xs ${
                 isSelected
                   ? 'bg-emerald-50/70 border-brand-500 ring-2 ring-brand-500/20'
-                  : 'bg-white hover:bg-gray-50/80 border-gray-200 hover:border-gray-300'
+                : 'bg-white hover:bg-gray-50/80 border-gray-200 hover:border-gray-300'
               }`}
             >
               <div className="flex items-center gap-3.5 min-w-0">

@@ -23,7 +23,7 @@ interface BookingSummaryModalProps {
   onConfirm: () => void;
   isSubmitting: boolean;
   business?: BusinessPublicInfo;
-  service: BookingServiceItem;
+  services: BookingServiceItem[];
   specialist?: BookingSpecialistInfo | 'any' | null;
   slot: AvailableSlot;
   customerName: string;
@@ -37,7 +37,7 @@ export const BookingSummaryModal: React.FC<BookingSummaryModalProps> = ({
   onConfirm,
   isSubmitting,
   business,
-  service,
+  services,
   specialist,
   slot,
   customerName,
@@ -54,6 +54,9 @@ export const BookingSummaryModal: React.FC<BookingSummaryModalProps> = ({
     month: 'long',
     year: 'numeric',
   }).format(dateObj);
+
+  const totalDuration = services.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const totalPrice = services.reduce((sum, s) => sum + s.price, 0);
 
   const displayPhone = (() => {
     if (!customerPhone) return '';
@@ -105,12 +108,37 @@ export const BookingSummaryModal: React.FC<BookingSummaryModalProps> = ({
             )}
           </div>
 
-          {/* Detalles del Servicio y Turno */}
+          {/* Desglose de Servicios y Turno */}
           <div className="space-y-2.5 text-xs">
-            <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
-              <span className="text-gray-500">Servicio</span>
-              <span className="font-bold text-gray-900">{service.name}</span>
-            </div>
+            {services.length > 1 ? (
+              <div className="py-2 border-b border-gray-100 space-y-2">
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">
+                  Desglose de servicios ({services.length})
+                </span>
+                <div className="space-y-1.5 bg-gray-50/70 p-2.5 rounded-xl border border-gray-100">
+                  {services.map((svc) => (
+                    <div
+                      key={svc.id}
+                      className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0"
+                    >
+                      <span className="font-semibold text-gray-800">{svc.name}</span>
+                      <div className="flex items-center gap-2 text-gray-600 font-medium">
+                        <span>{svc.durationMinutes} min</span>
+                        <span className="text-gray-300">•</span>
+                        <span className="font-bold text-brand-600">
+                          C$ {svc.price.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
+                <span className="text-gray-500">Servicio</span>
+                <span className="font-bold text-gray-900">{services[0]?.name}</span>
+              </div>
+            )}
 
             {/* Especialista si aplica */}
             {specialist && (
@@ -147,7 +175,7 @@ export const BookingSummaryModal: React.FC<BookingSummaryModalProps> = ({
               </span>
               <div className="text-right">
                 <span className="font-bold text-brand-600 block">
-                  {slot.startTime} ({service.durationMinutes} min)
+                  {slot.startTime} ({totalDuration} min)
                 </span>
                 <span className="text-[10px] text-emerald-700 font-medium">
                   Reservado temporalmente
@@ -156,11 +184,11 @@ export const BookingSummaryModal: React.FC<BookingSummaryModalProps> = ({
             </div>
 
             <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
-              <span className="text-gray-500">
-                Precio estimado
+              <span className="text-gray-500 font-medium">
+                {services.length > 1 ? 'Precio total estimado' : 'Precio estimado'}
               </span>
               <span className="font-bold text-gray-900 text-sm">
-                C$ {service.price.toFixed(2)}
+                C$ {totalPrice.toFixed(2)}
               </span>
             </div>
           </div>

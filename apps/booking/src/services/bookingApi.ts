@@ -39,21 +39,29 @@ export const bookingApi = {
   },
 
   /**
-   * Consulta los slots disponibles para un servicio y una fecha específica (YYYY-MM-DD).
+   * Consulta los slots disponibles para uno o múltiples servicios y una fecha específica (YYYY-MM-DD).
    * Opcionalmente filtra por especialista asignado (o evalúa todos si no se envía).
    */
   async getAvailability(
     businessId: string,
-    serviceId: string,
+    serviceIds: string | string[],
     date: string,
     specialistId?: string
   ): Promise<AvailabilityResponse> {
+    const rawIds = Array.isArray(serviceIds) ? serviceIds.filter(Boolean) : [serviceIds].filter(Boolean);
+    const primaryId = rawIds[0] || '';
+    const endpoint = rawIds.length > 1
+      ? `/booking/${businessId}/availability`
+      : `/booking/${businessId}/services/${primaryId}/availability`;
+
     const res = await apiClient.get<AvailabilityResponse>(
-      `/booking/${businessId}/services/${serviceId}/availability`,
+      endpoint,
       {
         params: {
           date,
           ...(specialistId ? { specialistId } : {}),
+          serviceIds: rawIds.length > 1 ? rawIds.join(',') : undefined,
+          serviceId: primaryId,
         },
       }
     );
@@ -61,16 +69,22 @@ export const bookingApi = {
   },
 
   /**
-   * 80b: Crea una reserva temporal (hold) de horario para evitar doble reserva.
+   * 80b/85b: Crea una reserva temporal (hold) de horario para evitar doble reserva.
    * Llama a POST /businesses/:businessId/booking/holds
    */
   async createHold(
     businessId: string,
     payload: CreateHoldPayload
   ): Promise<AppointmentHoldResponse> {
+    const rawIds = payload.serviceIds || (payload.serviceId ? [payload.serviceId] : []);
+    const normalizedPayload: CreateHoldPayload = {
+      ...payload,
+      serviceIds: rawIds,
+      serviceId: payload.serviceId || rawIds[0],
+    };
     const res = await apiClient.post<AppointmentHoldResponse>(
       `/businesses/${businessId}/booking/holds`,
-      payload
+      normalizedPayload
     );
     return res.data;
   },
@@ -102,15 +116,21 @@ export const bookingApi = {
   },
 
   /**
-   * Crea una nueva cita pública.
+   * Crea una nueva cita pública (soporta múltiples servicios y holdId/holderToken).
    */
   async createAppointment(
     businessId: string,
     payload: CreateAppointmentPayload
   ): Promise<AppointmentDetail> {
+    const rawIds = payload.serviceIds || (payload.serviceId ? [payload.serviceId] : []);
+    const normalizedPayload: CreateAppointmentPayload = {
+      ...payload,
+      serviceIds: rawIds,
+      serviceId: payload.serviceId || rawIds[0],
+    };
     const res = await apiClient.post<AppointmentDetail>(
       `/booking/${businessId}/appointments`,
-      payload
+      normalizedPayload
     );
     return res.data;
   },

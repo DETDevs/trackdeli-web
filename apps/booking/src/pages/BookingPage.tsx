@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -7,7 +7,6 @@ import {
   Warning,
   ArrowSquareOut,
   Clock,
-  Check,
 } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
@@ -47,8 +46,8 @@ export const BookingPage: React.FC = () => {
   // Sub-paso en Step 1: 'service' (1A) o 'specialist' (1B)
   const [serviceSubStep, setServiceSubStep] = useState<'service' | 'specialist'>('service');
 
-  // Form State
-  const [selectedService, setSelectedService] = useState<BookingServiceItem | null>(null);
+  // Form State: 85b soporte de selección múltiple de servicios
+  const [selectedServices, setSelectedServices] = useState<BookingServiceItem[]>([]);
   const [selectedSpecialist, setSelectedSpecialist] = useState<BookingSpecialistInfo | 'any' | null>(null);
 
   // Default date: today in YYYY-MM-DD (local time)
@@ -91,13 +90,40 @@ export const BookingPage: React.FC = () => {
     isError: isServicesError,
   } = usePublicServices(businessId);
 
-  // Consultar disponibilidad pasando el specialistId si se eligió uno individual
+  // Totales de duración y precio de los servicios seleccionados
+  const totalDuration = useMemo(
+    () => selectedServices.reduce((sum, s) => sum + s.durationMinutes, 0),
+    [selectedServices]
+  );
+  const totalPrice = useMemo(
+    () => selectedServices.reduce((sum, s) => sum + s.price, 0),
+    [selectedServices]
+  );
+
+  // 85b: Especialistas que cubren TODOS los servicios seleccionados (intersección estricta)
+  const compatibleSpecialists = useMemo(() => {
+    if (selectedServices.length === 0) return [];
+    const specialistsPerService = selectedServices.map(
+      (s) => s.specialists || (s.specialist ? [s.specialist] : [])
+    );
+    const firstList = specialistsPerService[0] || [];
+    return firstList.filter((spec) =>
+      specialistsPerService.every((list) => list.some((s) => s.id === spec.id))
+    );
+  }, [selectedServices]);
+
+  // Consultar disponibilidad pasando el array de serviceIds
+  const selectedServiceIds = useMemo(
+    () => selectedServices.map((s) => s.id),
+    [selectedServices]
+  );
+
   const {
     data: availabilityData,
     isLoading: isLoadingSlots,
   } = useAvailability(
     businessId,
-    selectedService?.id,
+    selectedServiceIds,
     selectedDate,
     selectedSpecialist && selectedSpecialist !== 'any' ? selectedSpecialist.id : undefined
   );
@@ -133,32 +159,57 @@ export const BookingPage: React.FC = () => {
     };
   }, [currentHold, businessId]);
 
-  // Step 1A -> Seleccionar Servicio
-  const handleSelectService = (service: BookingServiceItem) => {
+  // Step 1A -> Toggle de Servicio (checkbox / multi-selección)
+  const handleToggleService = (service: BookingServiceItem) => {
     if (currentHold && businessId) {
       bookingApi
         .releaseHold(businessId, currentHold.holdId, currentHold.holderToken)
         .catch(() => {});
       setCurrentHold(null);
     }
-    setSelectedService(service);
     setSelectedSlot(null);
 
-    const assignedSpecialists = service.specialists || (service.specialist ? [service.specialist] : []);
+    setSelectedServices((prev) => {
+      const exists = prev.some((s) => s.id === service.id);
+      if (exists) {
+        return prev.filter((s) => s.id !== service.id);
+      } else {
+        return [...prev, service];
+      }
+    });
+  };
 
-    // Si tiene 2 o más especialistas asignados, mostrar sub-paso 1B
-    if (assignedSpecialists.length >= 2) {
+  // Step 1A -> Continuar tras elegir servicios
+  const handleContinueFromStep1 = () => {
+    if (selectedServices.length === 0) return;
+
+    // Calcular especialistas compatibles para la combinación actual
+    const specialistsPerService = selectedServices.map(
+      (s) => s.specialists || (s.specialist ? [s.specialist] : [])
+    );
+    const firstList = specialistsPerService[0] || [];
+    const commonSpecialists = firstList.filter((spec) =>
+      specialistsPerService.every((list) => list.some((s) => s.id === spec.id))
+    );
+
+    if (commonSpecialists.length >= 2) {
+      // 2 o más especialistas cubren todos los servicios: dar opción de elegir o "cualquiera"
       setServiceSubStep('specialist');
       setSelectedSpecialist('any'); // Por defecto 'Cualquier especialista disponible'
-    } else {
-      // 0 o 1 especialista: saltar directo a Fecha y Hora sin fricción
+    } else if (commonSpecialists.length === 1) {
+      // 1 especialista asignado a todos: asignarlo automáticamente sin fricción
+      setSelectedSpecialist(commonSpecialists[0]);
       setServiceSubStep('service');
-      setSelectedSpecialist(assignedSpecialists[0] || null);
+      setCurrentStep(2);
+    } else {
+      // 0 especialistas en común o servicios genéricos
+      setSelectedSpecialist(null);
+      setServiceSubStep('service');
       setCurrentStep(2);
     }
   };
 
-  // Step 1B -> Seleccionar Especialista
+  // Step 1B -> Seleccionar Especialista compatible
   const handleSelectSpecialist = (specialist: BookingSpecialistInfo | 'any') => {
     if (currentHold && businessId) {
       bookingApi
@@ -181,9 +232,7 @@ export const BookingPage: React.FC = () => {
     }
     setSelectedSlot(null);
 
-    const assignedSpecialists =
-      selectedService?.specialists || (selectedService?.specialist ? [selectedService.specialist] : []);
-    if (assignedSpecialists.length >= 2) {
+    if (compatibleSpecialists.length >= 2) {
       setServiceSubStep('specialist');
     } else {
       setServiceSubStep('service');
@@ -214,16 +263,20 @@ export const BookingPage: React.FC = () => {
     setSelectedSlot(slot);
   };
 
-  // 80b: Continuar de Paso 2 -> Paso 3 creando el hold temporal
+  // 80b/85b: Continuar de Paso 2 -> Paso 3 creando el hold temporal con serviceIds array
   const handleContinueToStep3 = async () => {
-    if (!selectedService || !selectedSlot || !businessId) return;
+    if (selectedServices.length === 0 || !selectedSlot || !businessId) return;
 
-    // Si ya tenemos un hold activo para este mismo slot exacto y no ha expirado, avanzar directo
-    if (
+    // Si ya tenemos un hold activo para este mismo slot exacto y mismos servicios y no ha expirado, avanzar directo
+    const isSameHold =
       currentHold &&
       new Date(currentHold.expiresAt).getTime() > Date.now() &&
-      currentHold.serviceId === selectedService.id
-    ) {
+      (currentHold.serviceIds && currentHold.serviceIds.length > 0
+        ? currentHold.serviceIds.length === selectedServices.length &&
+          selectedServices.every((s) => currentHold.serviceIds!.includes(s.id))
+        : currentHold.serviceId === selectedServices[0].id);
+
+    if (isSameHold) {
       setCurrentStep(3);
       return;
     }
@@ -239,7 +292,8 @@ export const BookingPage: React.FC = () => {
     setIsCreatingHold(true);
     try {
       const hold = await bookingApi.createHold(businessId, {
-        serviceId: selectedService.id,
+        serviceIds: selectedServices.map((s) => s.id),
+        serviceId: selectedServices[0].id,
         specialistId:
           selectedSpecialist && selectedSpecialist !== 'any'
             ? selectedSpecialist.id
@@ -364,9 +418,9 @@ export const BookingPage: React.FC = () => {
     setIsSummaryOpen(true);
   };
 
-  // Enviar confirmación final (submit paso 3)
+  // Enviar confirmación final (submit paso 3 con soporte múltiple)
   const handleConfirmBooking = async () => {
-    if (!selectedService || !selectedSlot || !businessId) return;
+    if (selectedServices.length === 0 || !selectedSlot || !businessId) return;
 
     if (!currentHold) {
       toast.error(
@@ -386,7 +440,8 @@ export const BookingPage: React.FC = () => {
 
     try {
       const result = await createAppointmentMutation.mutateAsync({
-        serviceId: selectedService.id,
+        serviceIds: selectedServices.map((s) => s.id),
+        serviceId: selectedServices[0].id,
         specialistId:
           selectedSpecialist && selectedSpecialist !== 'any'
             ? selectedSpecialist.id
@@ -464,7 +519,7 @@ export const BookingPage: React.FC = () => {
     setCreatedAppointment(null);
     setCurrentStep(1);
     setServiceSubStep('service');
-    setSelectedService(null);
+    setSelectedServices([]);
     setSelectedSpecialist(null);
     setSelectedSlot(null);
     setFormData({ customerName: '', customerPhone: '', customerEmail: '' });
@@ -500,9 +555,6 @@ export const BookingPage: React.FC = () => {
     );
   }
 
-  const assignedSpecialists =
-    selectedService?.specialists || (selectedService?.specialist ? [selectedService.specialist] : []);
-
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900 flex flex-col selection:bg-brand-500 selection:text-white">
       {/* Header con Señales de Confianza */}
@@ -521,201 +573,195 @@ export const BookingPage: React.FC = () => {
           </div>
         )}
 
-        {/* ── Stepper clásico: círculos + línea de progreso + labels ── */}
-        <nav aria-label="Progreso de reserva" className="pb-2">
-          <ol className="flex items-center">
+        {/* Stepper Indicator */}
+        <div className="grid grid-cols-3 gap-2 pb-1">
+          {/* Paso 1 */}
+          <button
+            type="button"
+            onClick={() => {
+              if (currentStep > 1) {
+                if (currentStep === 3) {
+                  handleBackToStep1();
+                } else {
+                  setCurrentStep(1);
+                  setServiceSubStep('service');
+                }
+              }
+            }}
+            disabled={currentStep < 1}
+            className={`flex items-center gap-2 p-2.5 rounded-2xl border text-xs transition-all shadow-xs ${
+              currentStep === 1
+                ? 'bg-emerald-50/80 border-brand-500 text-brand-900 font-bold ring-1 ring-brand-500/20'
+                : currentStep > 1
+                ? 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:border-gray-300 font-semibold cursor-pointer'
+                : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'
+            }`}
+          >
+            <span
+              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                currentStep > 1
+                  ? 'bg-brand-600 text-white font-bold'
+                  : currentStep === 1
+                  ? 'bg-brand-600 text-white font-bold'
+                  : 'bg-gray-200 text-gray-500 font-semibold'
+              }`}
+            >
+              1
+            </span>
+            <span className="truncate">
+              {currentStep === 1 && serviceSubStep === 'specialist'
+                ? 'Especialista'
+                : selectedServices.length > 1
+                ? `${selectedServices.length} servicios`
+                : selectedServices.length === 1
+                ? selectedServices[0].name
+                : 'Servicios'}
+            </span>
+          </button>
 
-            {/* ── Paso 1 ── */}
-            <li className="flex flex-col items-center flex-1">
-              <button
-                type="button"
-                onClick={() => {
-                  if (currentStep > 1) {
-                    if (currentStep === 3) handleBackToStep1();
-                    else { setCurrentStep(1); setServiceSubStep('service'); }
-                  }
-                }}
-                disabled={currentStep <= 1}
-                aria-current={currentStep === 1 ? 'step' : undefined}
-                className="flex flex-col items-center gap-1.5 group disabled:cursor-default"
-              >
-                {/* Círculo */}
-                <span
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
-                    currentStep > 1
-                      ? 'bg-brand-600 text-white shadow-sm ring-4 ring-brand-100'
-                      : currentStep === 1
-                      ? 'bg-brand-600 text-white shadow-sm ring-4 ring-brand-100'
-                      : 'bg-gray-100 text-gray-400 border-2 border-gray-200'
-                  }`}
-                >
-                  {currentStep > 1 ? (
-                    <Check size={16} weight="bold" />
-                  ) : (
-                    <span className="text-sm font-bold">1</span>
-                  )}
-                </span>
-                {/* Label */}
-                <span
-                  className={`text-[11px] font-semibold leading-none text-center ${
-                    currentStep === 1 ? 'text-brand-700' : currentStep > 1 ? 'text-gray-600' : 'text-gray-400'
-                  }`}
-                >
-                  {currentStep === 1 && serviceSubStep === 'specialist' ? 'Especialista' : 'Servicio'}
-                </span>
-              </button>
-            </li>
+          {/* Paso 2 */}
+          <button
+            type="button"
+            onClick={() => {
+              if (selectedServices.length > 0 && currentStep > 2) {
+                handleBackFromStep3();
+              }
+            }}
+            disabled={selectedServices.length === 0 || currentStep < 2}
+            className={`flex items-center gap-2 p-2.5 rounded-2xl border text-xs transition-all shadow-xs ${
+              currentStep === 2
+                ? 'bg-emerald-50/80 border-brand-500 text-brand-900 font-bold ring-1 ring-brand-500/20'
+                : currentStep > 2
+                ? 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:border-gray-300 font-semibold cursor-pointer'
+                : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'
+            }`}
+          >
+            <span
+              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                currentStep > 2
+                  ? 'bg-brand-600 text-white font-bold'
+                  : currentStep === 2
+                  ? 'bg-brand-600 text-white font-bold'
+                  : 'bg-gray-200 text-gray-500 font-semibold'
+              }`}
+            >
+              2
+            </span>
+            <span className="truncate">Fecha y Hora</span>
+          </button>
 
-            {/* ── Línea 1→2 ── */}
-            <li className="flex-1 px-2 -mt-4" aria-hidden="true">
-              <div className="h-0.5 w-full rounded-full overflow-hidden bg-gray-200">
-                <div
-                  className="h-full bg-brand-500 transition-all duration-500 ease-out"
-                  style={{ width: currentStep >= 2 ? '100%' : '0%' }}
-                />
-              </div>
-            </li>
-
-            {/* ── Paso 2 ── */}
-            <li className="flex flex-col items-center flex-1">
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedService && currentStep > 2) handleBackFromStep3();
-                }}
-                disabled={!selectedService || currentStep <= 2}
-                aria-current={currentStep === 2 ? 'step' : undefined}
-                className="flex flex-col items-center gap-1.5 group disabled:cursor-default"
-              >
-                <span
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
-                    currentStep > 2
-                      ? 'bg-brand-600 text-white shadow-sm ring-4 ring-brand-100'
-                      : currentStep === 2
-                      ? 'bg-brand-600 text-white shadow-sm ring-4 ring-brand-100'
-                      : 'bg-gray-100 text-gray-400 border-2 border-gray-200'
-                  }`}
-                >
-                  {currentStep > 2 ? (
-                    <Check size={16} weight="bold" />
-                  ) : (
-                    <span className="text-sm font-bold">2</span>
-                  )}
-                </span>
-                <span
-                  className={`text-[11px] font-semibold leading-none text-center ${
-                    currentStep === 2 ? 'text-brand-700' : currentStep > 2 ? 'text-gray-600' : 'text-gray-400'
-                  }`}
-                >
-                  Fecha y Hora
-                </span>
-              </button>
-            </li>
-
-            {/* ── Línea 2→3 ── */}
-            <li className="flex-1 px-2 -mt-4" aria-hidden="true">
-              <div className="h-0.5 w-full rounded-full overflow-hidden bg-gray-200">
-                <div
-                  className="h-full bg-brand-500 transition-all duration-500 ease-out"
-                  style={{ width: currentStep >= 3 ? '100%' : '0%' }}
-                />
-              </div>
-            </li>
-
-            {/* ── Paso 3 ── */}
-            <li className="flex flex-col items-center flex-1">
-              <div
-                aria-current={currentStep === 3 ? 'step' : undefined}
-                className="flex flex-col items-center gap-1.5"
-              >
-                <span
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
-                    currentStep === 3
-                      ? 'bg-brand-600 text-white shadow-sm ring-4 ring-brand-100'
-                      : 'bg-gray-100 text-gray-400 border-2 border-gray-200'
-                  }`}
-                >
-                  <span className="text-sm font-bold">3</span>
-                </span>
-                <span
-                  className={`text-[11px] font-semibold leading-none text-center ${
-                    currentStep === 3 ? 'text-brand-700' : 'text-gray-400'
-                  }`}
-                >
-                  Tus Datos
-                </span>
-              </div>
-            </li>
-
-          </ol>
-        </nav>
+          {/* Paso 3 */}
+          <div
+            className={`flex items-center gap-2 p-2.5 rounded-2xl border text-xs shadow-xs ${
+              currentStep === 3
+                ? 'bg-emerald-50/80 border-brand-500 text-brand-900 font-bold ring-1 ring-brand-500/20'
+                : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'
+            }`}
+          >
+            <span
+              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                currentStep === 3
+                  ? 'bg-brand-600 text-white font-bold'
+                  : 'bg-gray-200 text-gray-500 font-semibold'
+              }`}
+            >
+              3
+            </span>
+            <span className="truncate">Tus Datos</span>
+          </div>
+        </div>
 
         {/* STEP 1: Selección de Servicio o Especialista */}
         {currentStep === 1 && (
           <>
-            {/* Sub-paso 1A: Elegir el tipo de servicio */}
+            {/* Sub-paso 1A: Elegir el tipo de servicio (multi-selección con checkboxes) */}
             {serviceSubStep === 'service' && (
               <div className="space-y-4 animate-fadeIn">
                 <div className="space-y-1">
                   <h2 className="text-lg font-bold text-gray-900">
-                    Seleccioná el servicio que deseás reservar
+                    Seleccioná los servicios que deseás reservar
                   </h2>
                   <p className="text-xs text-gray-500">
-                    Elegí entre los servicios disponibles para ver profesionales y horarios.
+                    Podés marcar uno o varios servicios para armar tu cita.
                   </p>
                 </div>
 
                 <ServiceSelector
                   services={services}
-                  selectedService={selectedService}
-                  onSelectService={handleSelectService}
+                  selectedServices={selectedServices}
+                  onToggleService={handleToggleService}
+                  onContinue={handleContinueFromStep1}
                   isLoading={isLoadingServices}
                 />
               </div>
             )}
 
-            {/* Sub-paso 1B: Elegir especialista (solo si tiene 2 o más) */}
-            {serviceSubStep === 'specialist' && selectedService && (
+            {/* Sub-paso 1B: Elegir especialista (solo especialistas compatibles con TODOS los servicios) */}
+            {serviceSubStep === 'specialist' && selectedServices.length > 0 && (
               <SpecialistSelector
-                specialists={assignedSpecialists}
+                specialists={compatibleSpecialists}
                 selectedSpecialist={selectedSpecialist}
                 onSelectSpecialist={handleSelectSpecialist}
                 onBack={() => setServiceSubStep('service')}
-                serviceName={selectedService.name}
+                services={selectedServices}
               />
             )}
           </>
         )}
 
         {/* STEP 2: Seleccionar Fecha y Horario */}
-        {currentStep === 2 && selectedService && (
+        {currentStep === 2 && selectedServices.length > 0 && (
           <div className="space-y-6 animate-fadeIn">
-            {/* Resumen del servicio y especialista seleccionado */}
-            <div className="p-4 rounded-2xl bg-white border border-gray-200 flex items-center justify-between gap-3 shadow-xs">
-              <div className="space-y-0.5 min-w-0">
-                <span className="text-[10px] font-bold text-brand-700 uppercase tracking-wider block">
-                  Servicio seleccionado
-                </span>
-                <h2 className="text-base font-bold text-gray-900 truncate">
-                  {selectedService.name}
-                </h2>
-                {selectedSpecialist && (
-                  <p className="text-xs text-gray-500 font-medium truncate">
-                    {selectedSpecialist === 'any'
-                      ? 'Cualquier especialista disponible'
-                      : `Atendido por ${selectedSpecialist.name}${
-                          selectedSpecialist.specialty ? ` — ${selectedSpecialist.specialty}` : ''
-                        }`}
-                  </p>
-                )}
+            {/* Resumen de los servicios y especialista seleccionado */}
+            <div className="p-4 rounded-2xl bg-white border border-gray-200 space-y-3 shadow-xs">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1 min-w-0">
+                  <span className="text-[10px] font-bold text-brand-700 uppercase tracking-wider block">
+                    {selectedServices.length > 1 ? 'Servicios seleccionados' : 'Servicio seleccionado'}
+                  </span>
+                  {selectedServices.length === 1 ? (
+                    <h2 className="text-base font-bold text-gray-900 truncate">
+                      {selectedServices[0].name}
+                    </h2>
+                  ) : (
+                    <div className="space-y-1 pt-0.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {selectedServices.map((svc) => (
+                          <span
+                            key={svc.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-900 border border-emerald-200/80"
+                          >
+                            <span>{svc.name}</span>
+                            <span className="text-emerald-600 font-normal">({svc.durationMinutes} min)</span>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="text-xs text-gray-500 font-medium pt-1">
+                        Duración total: <strong className="text-gray-900">{totalDuration} min</strong> • Total:{' '}
+                        <strong className="text-brand-600 font-bold">C$ {totalPrice.toFixed(2)}</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedSpecialist && (
+                    <p className="text-xs text-gray-600 font-medium truncate pt-0.5">
+                      {selectedSpecialist === 'any'
+                        ? 'Cualquier especialista disponible'
+                        : `Atendido por ${selectedSpecialist.name}${
+                            selectedSpecialist.specialty ? ` — ${selectedSpecialist.specialty}` : ''
+                          }`}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleBackFromStep2}
+                  className="text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline shrink-0 pt-0.5 cursor-pointer"
+                >
+                  Cambiar
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleBackFromStep2}
-                className="text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline shrink-0"
-              >
-                Cambiar
-              </button>
             </div>
 
             <DateTimeSelector
@@ -731,7 +777,7 @@ export const BookingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleBackFromStep2}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 shadow-xs transition-colors flex items-center gap-1.5"
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft size={14} weight="bold" />
                 Atrás
@@ -741,7 +787,7 @@ export const BookingPage: React.FC = () => {
                 type="button"
                 onClick={handleContinueToStep3}
                 disabled={!selectedSlot || isCreatingHold}
-                className="px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-40 flex items-center gap-2"
+                className="px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-40 flex items-center gap-2 cursor-pointer"
               >
                 {isCreatingHold ? (
                   <>
@@ -760,7 +806,7 @@ export const BookingPage: React.FC = () => {
         )}
 
         {/* STEP 3: Datos del Cliente */}
-        {currentStep === 3 && selectedService && selectedSlot && (
+        {currentStep === 3 && selectedServices.length > 0 && selectedSlot && (
           <div className="space-y-6 animate-fadeIn">
             <div className="p-4 rounded-2xl bg-white border border-gray-200 flex items-center justify-between gap-3 text-xs shadow-xs">
               <div className="min-w-0 space-y-0.5">
@@ -768,20 +814,24 @@ export const BookingPage: React.FC = () => {
                   Turno elegido
                 </span>
                 <span className="font-bold text-gray-900 truncate block">
-                  {selectedService.name} • {selectedDate} a las {selectedSlot.startTime}
+                  {selectedServices.map((s) => s.name).join(' + ')} • {selectedDate} a las {selectedSlot.startTime} ({totalDuration} min)
                 </span>
-                {selectedSpecialist && (
-                  <span className="text-gray-500 text-[11px] block truncate">
-                    {selectedSpecialist === 'any'
-                      ? 'Cualquier especialista disponible'
-                      : `Con ${selectedSpecialist.name}`}
-                  </span>
-                )}
+                <div className="flex items-center gap-2 text-gray-500 text-[11px] truncate">
+                  {selectedSpecialist && (
+                    <span>
+                      {selectedSpecialist === 'any'
+                        ? 'Cualquier especialista disponible'
+                        : `Con ${selectedSpecialist.name}`}
+                    </span>
+                  )}
+                  <span>•</span>
+                  <span className="font-bold text-brand-600">Total: C$ {totalPrice.toFixed(2)}</span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={handleBackFromStep3}
-                className="text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline shrink-0"
+                className="text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline shrink-0 cursor-pointer"
               >
                 Cambiar turno
               </button>
@@ -846,7 +896,7 @@ export const BookingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleBackFromStep3}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 shadow-xs transition-colors flex items-center gap-1.5"
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft size={14} weight="bold" />
                 Atrás
@@ -855,7 +905,7 @@ export const BookingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleReviewBooking}
-                className="px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2"
+                className="px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
               >
                 Revisar y confirmar
                 <ArrowRight size={15} weight="bold" />
@@ -866,14 +916,14 @@ export const BookingPage: React.FC = () => {
       </main>
 
       {/* Modal Resumen antes de confirmar */}
-      {selectedService && selectedSlot && (
+      {selectedServices.length > 0 && selectedSlot && (
         <BookingSummaryModal
           isOpen={isSummaryOpen}
           onClose={() => setIsSummaryOpen(false)}
           onConfirm={handleConfirmBooking}
           isSubmitting={createAppointmentMutation.isPending}
           business={business}
-          service={selectedService}
+          services={selectedServices}
           specialist={selectedSpecialist}
           slot={selectedSlot}
           customerName={formData.customerName}
