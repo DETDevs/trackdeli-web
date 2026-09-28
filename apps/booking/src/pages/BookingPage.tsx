@@ -7,6 +7,7 @@ import {
   Warning,
   ArrowSquareOut,
   Clock,
+  Check,
 } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
@@ -520,97 +521,134 @@ export const BookingPage: React.FC = () => {
           </div>
         )}
 
-        {/* Stepper Indicator */}
-        <div className="grid grid-cols-3 gap-2 pb-1">
-          {/* Paso 1 */}
-          <button
-            type="button"
-            onClick={() => {
-              if (currentStep > 1) {
-                if (currentStep === 3) {
-                  handleBackToStep1();
-                } else {
-                  setCurrentStep(1);
-                  setServiceSubStep('service');
-                }
-              }
-            }}
-            disabled={currentStep < 1}
-            className={`flex items-center gap-2 p-2.5 rounded-2xl border text-xs transition-all shadow-xs ${
-              currentStep === 1
-                ? 'bg-emerald-50/80 border-brand-500 text-brand-900 font-bold ring-1 ring-brand-500/20'
-                : currentStep > 1
-                ? 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:border-gray-300 font-semibold'
-                : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'
-            }`}
-          >
-            <span
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
-                currentStep > 1
-                  ? 'bg-brand-600 text-white font-bold'
-                  : currentStep === 1
-                  ? 'bg-brand-600 text-white font-bold'
-                  : 'bg-gray-200 text-gray-500 font-semibold'
-              }`}
-            >
-              1
-            </span>
-            <span className="truncate">
-              {currentStep === 1 && serviceSubStep === 'specialist' ? 'Especialista' : 'Servicio'}
-            </span>
-          </button>
+        {/* ── Stepper clásico: círculos + línea de progreso + labels ── */}
+        <nav aria-label="Progreso de reserva" className="pb-2">
+          <ol className="flex items-center">
 
-          {/* Paso 2 */}
-          <button
-            type="button"
-            onClick={() => {
-              if (selectedService && currentStep > 2) {
-                handleBackFromStep3();
-              }
-            }}
-            disabled={!selectedService || currentStep < 2}
-            className={`flex items-center gap-2 p-2.5 rounded-2xl border text-xs transition-all shadow-xs ${
-              currentStep === 2
-                ? 'bg-emerald-50/80 border-brand-500 text-brand-900 font-bold ring-1 ring-brand-500/20'
-                : currentStep > 2
-                ? 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:border-gray-300 font-semibold'
-                : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'
-            }`}
-          >
-            <span
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
-                currentStep > 2
-                  ? 'bg-brand-600 text-white font-bold'
-                  : currentStep === 2
-                  ? 'bg-brand-600 text-white font-bold'
-                  : 'bg-gray-200 text-gray-500 font-semibold'
-              }`}
-            >
-              2
-            </span>
-            <span className="truncate">Fecha y Hora</span>
-          </button>
+            {/* ── Paso 1 ── */}
+            <li className="flex flex-col items-center flex-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentStep > 1) {
+                    if (currentStep === 3) handleBackToStep1();
+                    else { setCurrentStep(1); setServiceSubStep('service'); }
+                  }
+                }}
+                disabled={currentStep <= 1}
+                aria-current={currentStep === 1 ? 'step' : undefined}
+                className="flex flex-col items-center gap-1.5 group disabled:cursor-default"
+              >
+                {/* Círculo */}
+                <span
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+                    currentStep > 1
+                      ? 'bg-brand-600 text-white shadow-sm ring-4 ring-brand-100'
+                      : currentStep === 1
+                      ? 'bg-brand-600 text-white shadow-sm ring-4 ring-brand-100'
+                      : 'bg-gray-100 text-gray-400 border-2 border-gray-200'
+                  }`}
+                >
+                  {currentStep > 1 ? (
+                    <Check size={16} weight="bold" />
+                  ) : (
+                    <span className="text-sm font-bold">1</span>
+                  )}
+                </span>
+                {/* Label */}
+                <span
+                  className={`text-[11px] font-semibold leading-none text-center ${
+                    currentStep === 1 ? 'text-brand-700' : currentStep > 1 ? 'text-gray-600' : 'text-gray-400'
+                  }`}
+                >
+                  {currentStep === 1 && serviceSubStep === 'specialist' ? 'Especialista' : 'Servicio'}
+                </span>
+              </button>
+            </li>
 
-          {/* Paso 3 */}
-          <div
-            className={`flex items-center gap-2 p-2.5 rounded-2xl border text-xs shadow-xs ${
-              currentStep === 3
-                ? 'bg-emerald-50/80 border-brand-500 text-brand-900 font-bold ring-1 ring-brand-500/20'
-                : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'
-            }`}
-          >
-            <span
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
-                currentStep === 3
-                  ? 'bg-brand-600 text-white font-bold'
-                  : 'bg-gray-200 text-gray-500 font-semibold'
-              }`}
-            >
-              3
-            </span>
-            <span className="truncate">Tus Datos</span>
-          </div>
-        </div>
+            {/* ── Línea 1→2 ── */}
+            <li className="flex-1 px-2 -mt-4" aria-hidden="true">
+              <div className="h-0.5 w-full rounded-full overflow-hidden bg-gray-200">
+                <div
+                  className="h-full bg-brand-500 transition-all duration-500 ease-out"
+                  style={{ width: currentStep >= 2 ? '100%' : '0%' }}
+                />
+              </div>
+            </li>
+
+            {/* ── Paso 2 ── */}
+            <li className="flex flex-col items-center flex-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedService && currentStep > 2) handleBackFromStep3();
+                }}
+                disabled={!selectedService || currentStep <= 2}
+                aria-current={currentStep === 2 ? 'step' : undefined}
+                className="flex flex-col items-center gap-1.5 group disabled:cursor-default"
+              >
+                <span
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+                    currentStep > 2
+                      ? 'bg-brand-600 text-white shadow-sm ring-4 ring-brand-100'
+                      : currentStep === 2
+                      ? 'bg-brand-600 text-white shadow-sm ring-4 ring-brand-100'
+                      : 'bg-gray-100 text-gray-400 border-2 border-gray-200'
+                  }`}
+                >
+                  {currentStep > 2 ? (
+                    <Check size={16} weight="bold" />
+                  ) : (
+                    <span className="text-sm font-bold">2</span>
+                  )}
+                </span>
+                <span
+                  className={`text-[11px] font-semibold leading-none text-center ${
+                    currentStep === 2 ? 'text-brand-700' : currentStep > 2 ? 'text-gray-600' : 'text-gray-400'
+                  }`}
+                >
+                  Fecha y Hora
+                </span>
+              </button>
+            </li>
+
+            {/* ── Línea 2→3 ── */}
+            <li className="flex-1 px-2 -mt-4" aria-hidden="true">
+              <div className="h-0.5 w-full rounded-full overflow-hidden bg-gray-200">
+                <div
+                  className="h-full bg-brand-500 transition-all duration-500 ease-out"
+                  style={{ width: currentStep >= 3 ? '100%' : '0%' }}
+                />
+              </div>
+            </li>
+
+            {/* ── Paso 3 ── */}
+            <li className="flex flex-col items-center flex-1">
+              <div
+                aria-current={currentStep === 3 ? 'step' : undefined}
+                className="flex flex-col items-center gap-1.5"
+              >
+                <span
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+                    currentStep === 3
+                      ? 'bg-brand-600 text-white shadow-sm ring-4 ring-brand-100'
+                      : 'bg-gray-100 text-gray-400 border-2 border-gray-200'
+                  }`}
+                >
+                  <span className="text-sm font-bold">3</span>
+                </span>
+                <span
+                  className={`text-[11px] font-semibold leading-none text-center ${
+                    currentStep === 3 ? 'text-brand-700' : 'text-gray-400'
+                  }`}
+                >
+                  Tus Datos
+                </span>
+              </div>
+            </li>
+
+          </ol>
+        </nav>
 
         {/* STEP 1: Selección de Servicio o Especialista */}
         {currentStep === 1 && (
