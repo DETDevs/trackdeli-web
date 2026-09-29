@@ -67,7 +67,8 @@ export const searchCustomers = async (
   businessId?: string
 ): Promise<Customer[]> => {
   if (!query || query.trim().length < 1) return [];
-  const q = encodeURIComponent(query.trim());
+  const trimmed = query.trim();
+  const q = encodeURIComponent(trimmed);
 
   if (businessId) {
     try {
@@ -79,10 +80,29 @@ export const searchCustomers = async (
 
   try {
     const res = await apiClient.get(`/customers/search?q=${q}`);
-    return Array.isArray(res.data) ? res.data : [];
+    if (Array.isArray(res.data)) return res.data;
   } catch {
-    return [];
   }
+
+  // Fallback de resiliencia: consulta el endpoint general de clientes con filtro de búsqueda
+  try {
+    const url = businessId
+      ? `/businesses/${businessId}/customers`
+      : '/businesses/me/customers';
+    const res = await apiClient.get(url, { params: { q: trimmed, limit: 10 } });
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.data?.items)) return res.data.items;
+  } catch {
+  }
+
+  try {
+    const res = await apiClient.get('/customers', { params: { q: trimmed, limit: 10 } });
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.data?.items)) return res.data.items;
+  } catch {
+  }
+
+  return [];
 };
 
 export const createLocationConfirmationLink = async (params: {
