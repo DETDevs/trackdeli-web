@@ -13,11 +13,12 @@ import { toast } from 'react-hot-toast';
 
 export const ADMIN_USERS_QUERY_KEY = ['admin-users'];
 
-export const useAdminUsers = () => {
+export const useAdminUsers = (enabled: boolean = true) => {
   return useQuery<AdminUser[]>({
     queryKey: ADMIN_USERS_QUERY_KEY,
     queryFn: () => getAdminUsers(),
     staleTime: 30000,
+    enabled,
   });
 };
 

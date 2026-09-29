@@ -207,10 +207,12 @@ export const AppLayout = () => {
                 <User size={18} weight="regular" />
                 Clientes
               </NavLink>
-              <NavLink to="/team" className={navLinkClass}>
-                <Users size={18} weight="regular" />
-                Mi Equipo
-              </NavLink>
+              {business?.businessType !== 'EMPRESA_RIDERS' && (
+                <NavLink to="/team" className={navLinkClass}>
+                  <Users size={18} weight="regular" />
+                  Mi Equipo
+                </NavLink>
+              )}
               <NavLink to="/staff" className={navLinkClass}>
                 <Motorcycle size={18} weight="regular" />
                 Repartidores

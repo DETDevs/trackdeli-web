@@ -1,4 +1,7 @@
 import { useState, useMemo } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { getMyBusiness } from 'api-client';
 import {
   Plus,
   Users,
@@ -11,6 +14,7 @@ import {
   Phone,
   EnvelopeSimple,
   Circle,
+  CircleNotch,
 } from '@phosphor-icons/react';
 import { useAdminUsers } from '../hooks/useAdminUsers';
 import { type AdminUser } from 'api-client';
@@ -30,7 +34,14 @@ const initials = (name: string) =>
     .toUpperCase() || 'U';
 
 export const TeamPage = () => {
-  const { data: users = [], isLoading, isError, refetch } = useAdminUsers();
+  const { data: business, isLoading: isLoadingBusiness } = useQuery({
+    queryKey: ['business', 'me'],
+    queryFn: getMyBusiness,
+    staleTime: 60000,
+  });
+
+  const isEmpresaRiders = business?.businessType === 'EMPRESA_RIDERS';
+  const { data: users = [], isLoading, isError, refetch } = useAdminUsers(!isEmpresaRiders);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
@@ -40,6 +51,18 @@ export const TeamPage = () => {
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
   const [passwordTargetUser, setPasswordTargetUser] = useState<AdminUser | null>(null);
   const [statusTargetUser, setStatusTargetUser] = useState<AdminUser | null>(null);
+
+  if (isLoadingBusiness) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <CircleNotch size={24} className="animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (isEmpresaRiders) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const cajeros = useMemo(() => {
     return users.filter((u) => u.role === 'CAJERO');
