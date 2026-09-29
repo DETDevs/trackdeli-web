@@ -113,20 +113,16 @@ const normalizeClient = (raw: any): BusinessClient => {
     businessId: raw.businessId,
     name: raw.name || '',
     phone: raw.phone || null,
-    address: raw.address || raw.lastAddressText || null,
+    address: raw.address || null,
     latitude:
       raw.latitude !== undefined && raw.latitude !== null
         ? Number(raw.latitude)
-        : raw.lastLatitude !== undefined && raw.lastLatitude !== null
-        ? Number(raw.lastLatitude)
         : null,
     longitude:
       raw.longitude !== undefined && raw.longitude !== null
         ? Number(raw.longitude)
-        : raw.lastLongitude !== undefined && raw.lastLongitude !== null
-        ? Number(raw.lastLongitude)
         : null,
-    isActive: raw.isActive !== undefined ? Boolean(raw.isActive) : !raw.isBlocked,
+    isActive: raw.isActive !== undefined ? Boolean(raw.isActive) : true,
     createdAt: raw.createdAt,
     _count: raw._count,
   };
@@ -138,7 +134,7 @@ export const getBusinessClients = async (params?: { search?: string; isActive?: 
     if (params?.search) {
       queryParams.q = params.search;
     }
-    const res = await apiClient.get('/businesses/me/clients', { params: queryParams });
+    const res = await apiClient.get('/businesses/me/business-clients', { params: queryParams });
     const rawList = Array.isArray(res.data)
       ? res.data
       : Array.isArray(res.data?.items)
@@ -148,7 +144,11 @@ export const getBusinessClients = async (params?: { search?: string; isActive?: 
   } catch (err: any) {
     if (err?.response?.status === 404) {
       try {
-        const res2 = await apiClient.get('/business-clients', { params });
+        const queryParams2: Record<string, any> = { ...params };
+        if (params?.search) {
+          queryParams2.q = params.search;
+        }
+        const res2 = await apiClient.get('/business-clients', { params: queryParams2 });
         const rawList2 = Array.isArray(res2.data)
           ? res2.data
           : Array.isArray(res2.data?.items)
@@ -164,12 +164,8 @@ export const getBusinessClients = async (params?: { search?: string; isActive?: 
 };
 
 export const createBusinessClient = async (data: CreateBusinessClientDto): Promise<BusinessClient> => {
-  const payload = {
-    ...data,
-    ...(data.isActive !== undefined ? { isBlocked: !data.isActive } : {}),
-  };
   try {
-    const res = await apiClient.post('/businesses/me/clients', payload);
+    const res = await apiClient.post('/businesses/me/business-clients', data);
     return normalizeClient(res.data);
   } catch (err: any) {
     if (err?.response?.status === 404) {
@@ -181,12 +177,8 @@ export const createBusinessClient = async (data: CreateBusinessClientDto): Promi
 };
 
 export const updateBusinessClient = async (id: string, data: UpdateBusinessClientDto): Promise<BusinessClient> => {
-  const payload = {
-    ...data,
-    ...(data.isActive !== undefined ? { isBlocked: !data.isActive } : {}),
-  };
   try {
-    const res = await apiClient.patch(`/businesses/me/clients/${id}`, payload);
+    const res = await apiClient.patch(`/businesses/me/business-clients/${id}`, data);
     return normalizeClient(res.data);
   } catch (err: any) {
     if (err?.response?.status === 404) {
@@ -199,17 +191,12 @@ export const updateBusinessClient = async (id: string, data: UpdateBusinessClien
 
 export const deleteBusinessClient = async (id: string): Promise<{ success: boolean }> => {
   try {
-    const res = await apiClient.delete(`/businesses/me/clients/${id}`);
+    const res = await apiClient.delete(`/businesses/me/business-clients/${id}`);
     return res.data || { success: true };
   } catch (err: any) {
     if (err?.response?.status === 404 || err?.response?.status === 405) {
-      try {
-        const res2 = await apiClient.delete(`/businesses/me/business-clients/${id}`);
-        return res2.data || { success: true };
-      } catch {
-        const res3 = await apiClient.delete(`/business-clients/${id}`);
-        return res3.data || { success: true };
-      }
+      const res2 = await apiClient.delete(`/business-clients/${id}`);
+      return res2.data || { success: true };
     }
     throw err;
   }

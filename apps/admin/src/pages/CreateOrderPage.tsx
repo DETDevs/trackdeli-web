@@ -371,9 +371,12 @@ export const CreateOrderPage = () => {
           }));
         } catch {
           let distKm = 0;
-          if (business?.latitude && business?.longitude) {
-            const bLat = Number(business.latitude);
-            const bLng = Number(business.longitude);
+          const selectedOrigin = clients.find((c) => c.id === originBusinessClientId);
+          const originLat = selectedOrigin?.latitude ? Number(selectedOrigin.latitude) : (business?.latitude ? Number(business.latitude) : null);
+          const originLng = selectedOrigin?.longitude ? Number(selectedOrigin.longitude) : (business?.longitude ? Number(business.longitude) : null);
+          if (originLat && originLng) {
+            const bLat = originLat;
+            const bLng = originLng;
             const R = 6371;
             const dLat = ((lat - bLat) * Math.PI) / 180;
             const dLon = ((lng - bLng) * Math.PI) / 180;
@@ -420,7 +423,7 @@ export const CreateOrderPage = () => {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [form.destinationLat, form.destinationLng, selectedZoneId, business]);
+  }, [form.destinationLat, form.destinationLng, selectedZoneId, business, originBusinessClientId, clients]);
 
   const handleMapConfirm = (lat: number, lng: number, address?: string) => {
     setForm((prev) => ({
@@ -554,6 +557,27 @@ export const CreateOrderPage = () => {
                       ))}
                     </select>
                   </Field>
+                  {(() => {
+                    const selected = clients.find((c) => c.id === originBusinessClientId);
+                    if (!selected) return null;
+                    return (
+                      <div className="mt-2 p-3 bg-gray-50 border border-gray-200/80 rounded-lg text-xs space-y-1">
+                        <div className="flex items-start gap-1.5 text-gray-700">
+                          <MapPin size={14} className="text-brand-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-semibold text-gray-900">Origen / Punto de recogida: </span>
+                            <span>{selected.address || 'Sin dirección registrada'}</span>
+                          </div>
+                        </div>
+                        {selected.phone && (
+                          <div className="flex items-center gap-1.5 text-gray-600 pl-5">
+                            <span className="font-medium text-gray-500">Teléfono:</span>
+                            <span>{selected.phone}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <p className="text-xs text-gray-400 mt-1 flex items-center justify-between">
                     <span>¿No encontrás el negocio en la lista?</span>
                     <button
