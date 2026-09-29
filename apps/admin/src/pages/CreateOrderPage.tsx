@@ -27,6 +27,9 @@ import {
   Clock,
   Check,
   ArrowsClockwise,
+  PaperPlaneTilt,
+  ArrowSquareOut,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import { PinPicker } from 'map';
 import { useSocketStore } from '../store/socket.store';
@@ -92,6 +95,8 @@ export const CreateOrderPage = () => {
   const [liveLocationConfirmed, setLiveLocationConfirmed] = useState(false);
   const [liveLocationUpdated, setLiveLocationUpdated] = useState(false);
   const [waitingSocket, setWaitingSocket] = useState(false);
+  const [autoSendStatus, setAutoSendStatus] = useState<'idle' | 'sent_auto' | 'failed'>('idle');
+  const [manualWaUrl, setManualWaUrl] = useState('');
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -137,6 +142,7 @@ export const CreateOrderPage = () => {
       if (isTarget) {
         setLiveLocationConfirmed(true);
         setWaitingSocket(false);
+        setAutoSendStatus('idle');
         if (data.customerId) {
           setCustomerId(data.customerId);
         }
@@ -170,6 +176,7 @@ export const CreateOrderPage = () => {
       if (isTarget) {
         setLiveLocationUpdated(true);
         setWaitingSocket(false);
+        setAutoSendStatus('idle');
         if (data.customerId) {
           setCustomerId(data.customerId);
         }
@@ -225,6 +232,9 @@ export const CreateOrderPage = () => {
     setIsDropdownOpen(false);
     setLiveLocationConfirmed(false);
     setLiveLocationUpdated(false);
+    setWaitingSocket(false);
+    setAutoSendStatus('idle');
+    setManualWaUrl('');
 
     setForm((prev) => ({
       ...prev,
@@ -242,6 +252,12 @@ export const CreateOrderPage = () => {
     const phoneTrimmed = form.customerPhone.trim();
     if (!phoneTrimmed) {
       toast.error('Ingresá el WhatsApp del cliente');
+      return;
+    }
+
+    const cleanDigits = phoneTrimmed.replace(/\D/g, '');
+    if (cleanDigits.length !== 8) {
+      toast.error('WhatsApp debe tener 8 dígitos');
       return;
     }
 
@@ -272,15 +288,38 @@ export const CreateOrderPage = () => {
         `${confirmationUrl}\n\n` +
         `— TrackDeli`;
 
-      const cleanDigits = phoneTrimmed.replace(/\D/g, '');
       const fullPhone = cleanDigits.length === 8 ? `505${cleanDigits}` : cleanDigits;
-      const waUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
+      const waUrl = res.whatsappUrl || `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
 
-      window.open(waUrl, '_blank');
+      setManualWaUrl(waUrl);
+      setAutoSendStatus('sent_auto');
       setWaitingSocket(true);
-      toast.success('Enlace abierto en WhatsApp');
+      toast.success('Solicitud enviada automáticamente por WhatsApp');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Error al generar enlace');
+      console.warn('Error al enviar automáticamente confirmación de ubicación:', err);
+      const trackingBaseUrl =
+        (import.meta as any).env.VITE_TRACKING_URL || window.location.origin;
+      const cleanBase = trackingBaseUrl.replace(/\/+$/, '');
+      const clientName = form.customerName.trim();
+      const greeting = clientName ? `¡Hola ${clientName}!` : '¡Hola!';
+      const businessDisplay = business?.name ? ` de *${business.name}*` : '';
+      const fallbackUrl = `${cleanBase}/confirm-location`;
+      const message =
+        `${greeting} Para coordinar la entrega de tu pedido${businessDisplay}, ` +
+        `por favor confirmá tu ubicación exacta en este enlace:\n\n` +
+        `${fallbackUrl}\n\n` +
+        `— TrackDeli`;
+      const fullPhone = cleanDigits.length === 8 ? `505${cleanDigits}` : cleanDigits;
+      const fallbackWaUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
+
+      setManualWaUrl(fallbackWaUrl);
+      setAutoSendStatus('failed');
+      setWaitingSocket(true);
+      toast.error(
+        err?.response?.data?.message ||
+          'No se pudo enviar automáticamente. Usá el botón de WhatsApp como respaldo.',
+        { duration: 5000 }
+      );
     } finally {
       setIsGeneratingLink(false);
     }
@@ -457,6 +496,11 @@ export const CreateOrderPage = () => {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (field === 'customerName' || field === 'customerPhone') {
       handleCustomerSearch(value);
+      if (field === 'customerPhone') {
+        setAutoSendStatus('idle');
+        setManualWaUrl('');
+        setWaitingSocket(false);
+      }
     }
   };
 
@@ -729,42 +773,101 @@ export const CreateOrderPage = () => {
             </div>
           )}
 
-          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleShareLocationConfirmation}
-                disabled={isGeneratingLink || !form.customerPhone.trim()}
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                {isGeneratingLink ? (
-                  <CircleNotch size={14} className="animate-spin text-emerald-700" />
-                ) : (
-                  <WhatsappLogo size={16} weight="fill" className="text-emerald-600" />
-                )}
-                <span>Compartir ubicación con el cliente</span>
-              </button>
+          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleShareLocationConfirmation}
+                  disabled={isGeneratingLink || !form.customerPhone.trim()}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {isGeneratingLink ? (
+                    <>
+                      <CircleNotch size={14} className="animate-spin text-emerald-700" />
+                      <span>Enviando solicitud...</span>
+                    </>
+                  ) : autoSendStatus === 'sent_auto' ? (
+                    <>
+                      <PaperPlaneTilt size={15} weight="bold" className="text-emerald-700" />
+                      <span>Reenviar solicitud automática</span>
+                    </>
+                  ) : autoSendStatus === 'failed' ? (
+                    <>
+                      <ArrowsClockwise size={14} weight="bold" className="text-emerald-700" />
+                      <span>Reintentar envío automático</span>
+                    </>
+                  ) : (
+                    <>
+                      <WhatsappLogo size={16} weight="fill" className="text-emerald-600" />
+                      <span>Compartir ubicación con el cliente</span>
+                    </>
+                  )}
+                </button>
 
-              {waitingSocket && (
-                <span className="text-[11px] text-amber-700 flex items-center gap-1 font-medium animate-pulse">
-                  <ArrowsClockwise size={12} className="animate-spin" />
-                  <span>Esperando respuesta del cliente...</span>
-                </span>
+                {waitingSocket && autoSendStatus === 'sent_auto' && (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-emerald-800 font-medium bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span>Enviado automático por WhatsApp · Esperando respuesta...</span>
+                  </span>
+                )}
+
+                {waitingSocket && autoSendStatus === 'failed' && (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-amber-800 font-medium bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                    <WarningCircle size={15} weight="bold" className="text-amber-600 shrink-0" />
+                    <span>Envío automático falló · Usá el enlace manual de respaldo</span>
+                  </span>
+                )}
+
+                {/* Respaldo manual si falló el envío automático */}
+                {autoSendStatus === 'failed' && manualWaUrl && (
+                  <a
+                    href={manualWaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                  >
+                    <WhatsappLogo size={15} weight="fill" />
+                    <span>Abrir WhatsApp manual (respaldo)</span>
+                    <ArrowSquareOut size={13} weight="bold" />
+                  </a>
+                )}
+
+                {/* Opción manual discreta si se envió automático pero se desea abrir WhatsApp */}
+                {autoSendStatus === 'sent_auto' && manualWaUrl && (
+                  <a
+                    href={manualWaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-emerald-700 transition-colors font-medium ml-1 cursor-pointer"
+                    title="Abrir WhatsApp manualmente si el cliente no recibió la notificación automática"
+                  >
+                    <WhatsappLogo size={14} weight="fill" className="text-emerald-600" />
+                    <span>¿No le llegó? Abrir manual</span>
+                    <ArrowSquareOut size={12} />
+                  </a>
+                )}
+              </div>
+
+              {selectedCustomer && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomer(null);
+                    setCustomerId(null);
+                    setAutoSendStatus('idle');
+                    setManualWaUrl('');
+                    setWaitingSocket(false);
+                  }}
+                  className="text-[11px] text-gray-400 hover:text-gray-600 self-start sm:self-auto cursor-pointer"
+                >
+                  Desvincular cliente
+                </button>
               )}
             </div>
-
-            {selectedCustomer && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCustomer(null);
-                  setCustomerId(null);
-                }}
-                className="text-[11px] text-gray-400 hover:text-gray-600 self-start sm:self-auto cursor-pointer"
-              >
-                Desvincular cliente
-              </button>
-            )}
           </div>
         </div>
 

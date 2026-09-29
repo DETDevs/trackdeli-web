@@ -57,6 +57,7 @@ export interface LocationConfirmationLinkResponse {
   token: string;
   expiresAt?: string;
   link?: string;
+  whatsappUrl?: string;
 }
 
 export const searchCustomers = async (
@@ -87,11 +88,13 @@ export const createLocationConfirmationLink = async (params: {
   businessId?: string;
   phone: string;
   name?: string;
+  orderId?: string;
 }): Promise<LocationConfirmationLinkResponse> => {
   if (params.customerId) {
     try {
       const res = await apiClient.post(`/customers/${params.customerId}/location-confirmation-link`, {
         businessId: params.businessId,
+        orderId: params.orderId,
       });
       if (res.data) {
         return {
@@ -99,6 +102,7 @@ export const createLocationConfirmationLink = async (params: {
           confirmationUrl: res.data.confirmationUrl || res.data.url || res.data.link,
           token: res.data.token,
           expiresAt: res.data.expiresAt,
+          whatsappUrl: res.data.whatsappUrl,
           ...res.data,
         };
       }
@@ -111,12 +115,14 @@ export const createLocationConfirmationLink = async (params: {
       businessId: params.businessId,
       phone: params.phone,
       name: params.name || 'Cliente',
+      orderId: params.orderId,
     });
     return {
       customerId: res.data.customerId,
       confirmationUrl: res.data.confirmationUrl || res.data.url || res.data.link,
       token: res.data.token,
       expiresAt: res.data.expiresAt,
+      whatsappUrl: res.data.whatsappUrl,
       ...res.data,
     };
   } catch (err: any) {
@@ -124,12 +130,14 @@ export const createLocationConfirmationLink = async (params: {
       const res2 = await apiClient.post(`/businesses/${params.businessId}/customers/location-confirmation-link`, {
         phone: params.phone,
         name: params.name || 'Cliente',
+        orderId: params.orderId,
       });
       return {
         customerId: res2.data.customerId,
         confirmationUrl: res2.data.confirmationUrl || res2.data.url || res2.data.link,
         token: res2.data.token,
         expiresAt: res2.data.expiresAt,
+        whatsappUrl: res2.data.whatsappUrl,
         ...res2.data,
       };
     }
