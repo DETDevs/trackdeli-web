@@ -15,6 +15,7 @@ import {
   Motorcycle,
   Link as LinkIcon,
   Users,
+  User,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -115,7 +116,8 @@ export const AppLayout = () => {
     if (pathname === '/orders/new') return 'Nuevo Pedido';
     if (pathname.startsWith('/orders/')) return 'Detalle de Pedido';
     if (pathname.startsWith('/orders')) return 'Pedidos';
-    if (pathname.startsWith('/clients')) return 'Clientes del Negocio';
+    if (pathname.startsWith('/clients')) return 'Afiliados / Negocios';
+    if (pathname.startsWith('/customers')) return 'Clientes Finales';
     if (pathname.startsWith('/team')) return 'Mi Equipo';
     if (pathname.startsWith('/staff')) return 'Repartidores';
     if (pathname.startsWith('/reports')) return 'Reportes';
@@ -198,9 +200,13 @@ export const AppLayout = () => {
               {business?.businessType === 'EMPRESA_RIDERS' && (
                 <NavLink to="/clients" className={navLinkClass}>
                   <Buildings size={18} weight="regular" />
-                  Clientes
+                  Afiliados
                 </NavLink>
               )}
+              <NavLink to="/customers" className={navLinkClass}>
+                <User size={18} weight="regular" />
+                Clientes
+              </NavLink>
               <NavLink to="/team" className={navLinkClass}>
                 <Users size={18} weight="regular" />
                 Mi Equipo

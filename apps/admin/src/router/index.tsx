@@ -14,6 +14,7 @@ import { TeamPage } from "../pages/TeamPage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { ClientsPage } from "../pages/ClientsPage";
+import { CustomersPage } from "../pages/CustomersPage";
 import { CommissionsPage } from "../pages/CommissionsPage";
 import { InviteCodesPage } from "../pages/InviteCodesPage";
 
@@ -48,6 +49,8 @@ const router = createBrowserRouter([
       { path: "orders/new", element: <CreateOrderPage /> },
       { path: "orders/:id", element: <OrderDetailPage /> },
       { path: "clients", element: <ClientsPage /> },
+      { path: "customers", element: <CustomersPage /> },
+      { path: "customers/:id", element: <CustomersPage /> },
       { path: "team", element: <TeamPage /> },
       { path: "staff", element: <StaffPage /> },
       { path: "invites", element: <InviteCodesPage /> },

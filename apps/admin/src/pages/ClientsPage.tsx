@@ -48,11 +48,11 @@ export const ClientsPage = () => {
     mutationFn: createBusinessClient,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['business-clients'] });
-      toast.success('Cliente agregado correctamente');
+      toast.success('Afiliado agregado correctamente');
       handleCloseModal();
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Error al agregar el cliente');
+      toast.error(err?.response?.data?.message || 'Error al agregar el afiliado');
     },
   });
 
@@ -60,11 +60,11 @@ export const ClientsPage = () => {
     mutationFn: ({ id, data }: { id: string; data: any }) => updateBusinessClient(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['business-clients'] });
-      toast.success('Cliente actualizado');
+      toast.success('Afiliado actualizado');
       handleCloseModal();
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Error al actualizar el cliente');
+      toast.error(err?.response?.data?.message || 'Error al actualizar el afiliado');
     },
   });
 
@@ -72,10 +72,10 @@ export const ClientsPage = () => {
     mutationFn: deleteBusinessClient,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['business-clients'] });
-      toast.success('Cliente eliminado');
+      toast.success('Afiliado eliminado');
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Error al eliminar el cliente');
+      toast.error(err?.response?.data?.message || 'Error al eliminar el afiliado');
     },
   });
 
@@ -162,9 +162,9 @@ export const ClientsPage = () => {
     <div className="space-y-6 max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 leading-tight">Clientes del Negocio</h2>
+          <h2 className="text-xl font-semibold text-gray-900 leading-tight">Afiliados y Comercios Asociados</h2>
           <p className="text-xs text-gray-500 mt-1">
-            Negocios y comercios asociados que solicitan envíos a través de tu empresa de repartidores.
+            Negocios y comercios afiliados que solicitan envíos a través de tu empresa de repartidores.
           </p>
         </div>
 
@@ -173,7 +173,7 @@ export const ClientsPage = () => {
           className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
         >
           <Plus size={16} weight="bold" />
-          <span>Agregar cliente</span>
+          <span>Agregar afiliado</span>
         </button>
       </div>
 
@@ -200,7 +200,7 @@ export const ClientsPage = () => {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wider bg-gray-50/50">
-              <th className="py-3.5 px-5">Negocio / Cliente</th>
+              <th className="py-3.5 px-5">Negocio Afiliado</th>
               <th className="py-3.5 px-4">Teléfono</th>
               <th className="py-3.5 px-4">Dirección / Recogida</th>
               <th className="py-3.5 px-4 text-center">Estado</th>
@@ -212,14 +212,17 @@ export const ClientsPage = () => {
               <tr>
                 <td colSpan={5} className="py-12 text-center text-gray-400">
                   <CircleNotch size={24} className="animate-spin mx-auto mb-2 text-gray-300" />
-                  Cargando clientes del negocio...
+                  Cargando afiliados y comercios...
                 </td>
               </tr>
             ) : filteredClients.length === 0 ? (
               <tr>
                 <td colSpan={5} className="py-12 text-center text-gray-400 space-y-1">
-                  <p className="font-medium text-gray-600">No se encontraron clientes</p>
-                  <p className="text-[11px]">Agrega clientes asociados para seleccionarlos rápidamente al crear pedidos.</p>
+                  <Buildings size={32} className="mx-auto text-gray-300 mb-2" />
+                  <p className="font-medium text-gray-700">No hay negocios afiliados registrados</p>
+                  <p className="text-[11px] text-gray-400">
+                    {searchTerm ? 'No se encontraron resultados para la búsqueda' : 'Haz clic en "Agregar afiliado" para registrar el primero'}
+                  </p>
                 </td>
               </tr>
             ) : (
@@ -384,10 +387,10 @@ export const ClientsPage = () => {
             <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/60">
               <div>
                 <h3 className="text-sm sm:text-base font-semibold text-gray-900 leading-tight">
-                  {editingClient ? 'Editar Cliente' : 'Nuevo Cliente / Negocio Asociado'}
+                  {editingClient ? 'Editar Afiliado' : 'Nuevo Afiliado / Negocio Asociado'}
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {editingClient ? 'Modifica los datos del negocio' : 'Registra un comercio para asignarle envíos'}
+                  {editingClient ? 'Modifica los datos del negocio afiliado' : 'Registra un comercio asociado para asignarle envíos'}
                 </p>
               </div>
               <button

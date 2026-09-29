@@ -5,12 +5,22 @@ export interface Customer {
   businessId: string;
   phone: string;
   name: string;
+  email?: string | null;
+  notes?: string | null;
+  ruc?: string | null;
+  creditLimit?: number | null;
+  isBlocked?: boolean;
   lastLatitude?: number | null;
   lastLongitude?: number | null;
   lastAddressText?: string | null;
   lastConfirmedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  _count?: {
+    appointments?: number;
+    creditAccounts?: number;
+    sales?: number;
+  };
   business?: {
     id: string;
     name: string;
@@ -227,4 +237,154 @@ export const updateCustomerLocation = async (
 ): Promise<Customer> => {
   const res = await apiClient.patch(`/customers/${customerId}/location`, dto);
   return res.data;
+};
+
+export interface PaginatedCustomersResponse {
+  items: Customer[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface CustomerHistoryResponse {
+  customer: Customer & {
+    email?: string | null;
+    notes?: string | null;
+    creditLimit?: number | null;
+    ruc?: string | null;
+    isBlocked?: boolean;
+    consecutiveNoShows?: number;
+  };
+  products?: {
+    citas: boolean;
+    carteraCobro: boolean;
+  };
+  appointments?: any[];
+  creditAccounts?: any[];
+}
+
+export interface UpdateCustomerInput {
+  name?: string;
+  phone?: string;
+  address?: string;
+  email?: string;
+  notes?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  isBlocked?: boolean;
+}
+
+export const getCustomers = async (params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+  businessId?: string;
+}): Promise<PaginatedCustomersResponse> => {
+  const queryParams: Record<string, any> = {};
+  if (params?.search) queryParams.q = params.search;
+  if (params?.page) queryParams.page = params.page;
+  if (params?.limit) queryParams.limit = params.limit;
+
+  const url = params?.businessId
+    ? `/businesses/${params.businessId}/customers`
+    : '/businesses/me/customers';
+
+  try {
+    const res = await apiClient.get(url, { params: queryParams });
+    if (Array.isArray(res.data)) {
+      return {
+        items: res.data,
+        total: res.data.length,
+        page: 1,
+        limit: res.data.length,
+        totalPages: 1,
+      };
+    }
+    return {
+      items: res.data?.items || [],
+      total: res.data?.total || 0,
+      page: res.data?.page || 1,
+      limit: res.data?.limit || 50,
+      totalPages: res.data?.totalPages || 1,
+    };
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      try {
+        const res2 = await apiClient.get('/customers', { params: queryParams });
+        if (Array.isArray(res2.data)) {
+          return {
+            items: res2.data,
+            total: res2.data.length,
+            page: 1,
+            limit: res2.data.length,
+            totalPages: 1,
+          };
+        }
+        return {
+          items: res2.data?.items || [],
+          total: res2.data?.total || 0,
+          page: res2.data?.page || 1,
+          limit: res2.data?.limit || 50,
+          totalPages: res2.data?.totalPages || 1,
+        };
+      } catch {
+        return { items: [], total: 0, page: 1, limit: 50, totalPages: 1 };
+      }
+    }
+    throw err;
+  }
+};
+
+export const getCustomer = async (id: string, businessId?: string): Promise<Customer> => {
+  const url = businessId
+    ? `/businesses/${businessId}/customers/${id}`
+    : `/businesses/me/customers/${id}`;
+  try {
+    const res = await apiClient.get(url);
+    return res.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      const res2 = await apiClient.get(`/customers/${id}`);
+      return res2.data;
+    }
+    throw err;
+  }
+};
+
+export const getCustomerHistory = async (id: string, businessId?: string): Promise<CustomerHistoryResponse> => {
+  const url = businessId
+    ? `/businesses/${businessId}/customers/${id}/history`
+    : `/businesses/me/customers/${id}/history`;
+  try {
+    const res = await apiClient.get(url);
+    return res.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      const res2 = await apiClient.get(`/customers/${id}/history`);
+      return res2.data;
+    }
+    throw err;
+  }
+};
+
+export const updateCustomer = async (
+  id: string,
+  data: UpdateCustomerInput,
+  businessId?: string
+): Promise<Customer> => {
+  const url = businessId
+    ? `/businesses/${businessId}/customers/${id}`
+    : `/businesses/me/customers/${id}`;
+
+  try {
+    const res = await apiClient.patch(url, data);
+    return res.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      const res2 = await apiClient.patch(`/customers/${id}`, data);
+      return res2.data;
+    }
+    throw err;
+  }
 };
