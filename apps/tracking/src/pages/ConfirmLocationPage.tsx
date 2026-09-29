@@ -22,7 +22,8 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
 export const ConfirmLocationPage = () => {
-  const { token = '' } = useParams<{ token: string }>();
+  const { token: tokenParam, code: codeParam } = useParams<{ token?: string; code?: string }>();
+  const token = (codeParam || tokenParam || '').trim();
   const queryClient = useQueryClient();
 
   const [isLocating, setIsLocating] = useState(false);
@@ -68,7 +69,7 @@ export const ConfirmLocationPage = () => {
       addressText?: string;
       confirmedOnly?: boolean;
     }) =>
-      updateCustomerLocationByToken(token, data, customer?.id),
+      updateCustomerLocationByToken(session?.token || session?.shortCode || token, data, customer?.id),
     onSuccess: (_, variables) => {
       setIsSuccess(true);
       queryClient.invalidateQueries({ queryKey: ['customer-location-session', token] });
@@ -238,7 +239,7 @@ export const ConfirmLocationPage = () => {
             </div>
             <button
               onClick={() => window.location.reload()}
-              className="w-full h-11 bg-gray-900 text-white rounded-xl font-medium flex items-center justify-center gap-2"
+              className="w-full h-11 bg-gray-900 text-white rounded-xl font-medium flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-800 transition-colors"
             >
               <ArrowsClockwise size={18} weight="bold" />
               Reintentar
@@ -247,6 +248,10 @@ export const ConfirmLocationPage = () => {
         </div>
       );
     }
+
+    const errorMessage =
+      (error as any)?.response?.data?.message ||
+      'Este enlace de confirmación de ubicación ya fue utilizado o ha expirado. Si necesitás asistencia, comunicate con el negocio que envió tu pedido.';
 
     return (
       <div className="min-h-screen bg-[#FBFBFB] flex flex-col items-center justify-center p-4 sm:p-6 text-center">
@@ -257,7 +262,7 @@ export const ConfirmLocationPage = () => {
           <div className="space-y-1.5">
             <h2 className="text-base font-semibold text-gray-900">Enlace no disponible</h2>
             <p className="text-xs text-gray-500 leading-relaxed">
-              Este enlace de confirmación de ubicación ya fue utilizado o ha expirado. Si necesitás asistencia, comunicate con el negocio que envió tu pedido.
+              {errorMessage}
             </p>
           </div>
         </div>

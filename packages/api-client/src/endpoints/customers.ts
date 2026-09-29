@@ -36,6 +36,7 @@ export interface CustomerLocationSession {
   id: string;
   customerId: string;
   token: string;
+  shortCode?: string;
   isActive: boolean;
   status: 'PENDING' | 'RESPONDED' | string;
   sessionStatus: 'PENDING' | 'RESPONDED' | string;
@@ -55,6 +56,7 @@ export interface LocationConfirmationLinkResponse {
   customerId: string;
   confirmationUrl: string;
   token: string;
+  shortCode?: string;
   expiresAt?: string;
   link?: string;
   whatsappUrl?: string;
@@ -101,6 +103,7 @@ export const createLocationConfirmationLink = async (params: {
           customerId: res.data.customerId || params.customerId,
           confirmationUrl: res.data.confirmationUrl || res.data.url || res.data.link,
           token: res.data.token,
+          shortCode: res.data.shortCode,
           expiresAt: res.data.expiresAt,
           whatsappUrl: res.data.whatsappUrl,
           ...res.data,
@@ -121,6 +124,7 @@ export const createLocationConfirmationLink = async (params: {
       customerId: res.data.customerId,
       confirmationUrl: res.data.confirmationUrl || res.data.url || res.data.link,
       token: res.data.token,
+      shortCode: res.data.shortCode,
       expiresAt: res.data.expiresAt,
       whatsappUrl: res.data.whatsappUrl,
       ...res.data,
@@ -136,6 +140,7 @@ export const createLocationConfirmationLink = async (params: {
         customerId: res2.data.customerId,
         confirmationUrl: res2.data.confirmationUrl || res2.data.url || res2.data.link,
         token: res2.data.token,
+        shortCode: res2.data.shortCode,
         expiresAt: res2.data.expiresAt,
         whatsappUrl: res2.data.whatsappUrl,
         ...res2.data,
@@ -147,22 +152,28 @@ export const createLocationConfirmationLink = async (params: {
 
 export const getCustomerLocationSession = async (token: string): Promise<CustomerLocationSession> => {
   let data: any = null;
+  const cleanToken = (token || '').trim();
 
   try {
-    const res = await apiClient.get(`/customers/confirm-location/${token}`);
+    const res = await apiClient.get(`/c/${cleanToken}`);
     data = res.data;
   } catch (err: any) {
     if (err?.response?.status === 404) {
       try {
-        const res2 = await apiClient.get(`/customers/location-sessions/${token}`);
+        const res2 = await apiClient.get(`/customers/confirm-location/${cleanToken}`);
         data = res2.data;
       } catch {
         try {
-          const res3 = await apiClient.get(`/customers/location-session/${token}`);
+          const res3 = await apiClient.get(`/customers/c/${cleanToken}`);
           data = res3.data;
         } catch {
-          const res4 = await apiClient.get(`/customers/session/${token}`);
-          data = res4.data;
+          try {
+            const res4 = await apiClient.get(`/confirm-location/${cleanToken}`);
+            data = res4.data;
+          } catch {
+            const res5 = await apiClient.get(`/customers/location-session/${cleanToken}`);
+            data = res5.data;
+          }
         }
       }
     } else {
@@ -193,7 +204,8 @@ export const getCustomerLocationSession = async (token: string): Promise<Custome
   return {
     id: data.id || data.customerId || customer.id,
     customerId: customer.id || data.customerId,
-    token: data.token || token,
+    token: data.token || data.shortCode || cleanToken,
+    shortCode: data.shortCode,
     isActive: data.isActive !== undefined ? data.isActive : true,
     status: sessionStatus,
     sessionStatus,
@@ -208,11 +220,13 @@ export const updateCustomerLocationByToken = async (
   dto: UpdateCustomerLocationDto,
   customerId?: string
 ): Promise<any> => {
+  const cleanToken = (token || '').trim();
+
   if (customerId) {
     try {
       const res = await apiClient.patch(`/customers/${customerId}/location`, {
         ...dto,
-        token,
+        token: cleanToken,
       });
       return res.data;
     } catch (err: any) {
@@ -223,16 +237,21 @@ export const updateCustomerLocationByToken = async (
   }
 
   try {
-    const res = await apiClient.patch(`/customers/confirm-location/${token}`, dto);
+    const res = await apiClient.patch(`/customers/confirm-location/${cleanToken}`, dto);
     return res.data;
   } catch (err: any) {
     if (err?.response?.status === 404) {
       try {
-        const res2 = await apiClient.patch(`/customers/location-sessions/${token}`, dto);
+        const res2 = await apiClient.patch(`/customers/c/${cleanToken}`, dto);
         return res2.data;
       } catch {
-        const res3 = await apiClient.patch(`/customers/location-session/${token}`, dto);
-        return res3.data;
+        try {
+          const res3 = await apiClient.patch(`/c/${cleanToken}`, dto);
+          return res3.data;
+        } catch {
+          const res4 = await apiClient.patch(`/customers/location-session/${cleanToken}`, dto);
+          return res4.data;
+        }
       }
     }
     throw err;

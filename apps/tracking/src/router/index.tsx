@@ -7,11 +7,15 @@ import { ConfirmLocationPage } from '../pages/ConfirmLocationPage';
 
 export const router = createBrowserRouter([
   {
-    path: '/confirmar-ubicacion/:token',
+    path: '/c/:code',
     element: <ConfirmLocationPage />,
   },
   {
-    path: '/confirm-location/:token',
+    path: '/confirmar-ubicacion/:code',
+    element: <ConfirmLocationPage />,
+  },
+  {
+    path: '/confirm-location/:code',
     element: <ConfirmLocationPage />,
   },
   {

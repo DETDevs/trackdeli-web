@@ -277,7 +277,8 @@ export const CreateOrderPage = () => {
       const trackingBaseUrl =
         (import.meta as any).env.VITE_TRACKING_URL || window.location.origin;
       const cleanBase = trackingBaseUrl.replace(/\/+$/, '');
-      const confirmationUrl = res.confirmationUrl || `${cleanBase}/confirm-location/${res.token}`;
+      const confirmationUrl =
+        res.confirmationUrl || `${cleanBase}/c/${res.shortCode || res.token}`;
 
       const clientName = form.customerName.trim();
       const greeting = clientName ? `¡Hola ${clientName}!` : '¡Hola!';
