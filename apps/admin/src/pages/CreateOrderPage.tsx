@@ -95,7 +95,7 @@ export const CreateOrderPage = () => {
   const [liveLocationConfirmed, setLiveLocationConfirmed] = useState(false);
   const [liveLocationUpdated, setLiveLocationUpdated] = useState(false);
   const [waitingSocket, setWaitingSocket] = useState(false);
-  const [autoSendStatus, setAutoSendStatus] = useState<'idle' | 'sent_auto' | 'failed'>('idle');
+  const [autoSendStatus, setAutoSendStatus] = useState<'idle' | 'sent_auto' | 'manual' | 'failed'>('idle');
   const [manualWaUrl, setManualWaUrl] = useState('');
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -293,9 +293,26 @@ export const CreateOrderPage = () => {
       const waUrl = res.whatsappUrl || `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
 
       setManualWaUrl(waUrl);
-      setAutoSendStatus('sent_auto');
-      setWaitingSocket(true);
-      toast.success('Solicitud enviada automáticamente por WhatsApp');
+
+      // Verificamos si Meta Cloud API envió automáticamente el mensaje
+      if (res.autoSent === true) {
+        setAutoSendStatus('sent_auto');
+        setWaitingSocket(true);
+        toast.success('Enviado automáticamente por WhatsApp');
+      } else if (res.autoSent === false) {
+        setAutoSendStatus('failed');
+        setWaitingSocket(true);
+        toast('Envío automático no disponible. Usá el botón manual para contactar al cliente.', {
+          icon: '📱',
+          duration: 4500,
+        });
+      } else {
+        // Retrocompatible: si autoSent no viene en la respuesta, mantenemos el comportamiento previo (abrir WhatsApp manual)
+        setAutoSendStatus('manual');
+        setWaitingSocket(true);
+        window.open(waUrl, '_blank');
+        toast.success('Enlace generado para WhatsApp');
+      }
     } catch (err: any) {
       console.warn('Error al enviar automáticamente confirmación de ubicación:', err);
       const trackingBaseUrl =
@@ -812,19 +829,26 @@ export const CreateOrderPage = () => {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                     </span>
-                    <span>Enviado automático por WhatsApp · Esperando respuesta...</span>
+                    <span>Enviado automáticamente por WhatsApp</span>
                   </span>
                 )}
 
                 {waitingSocket && autoSendStatus === 'failed' && (
                   <span className="inline-flex items-center gap-1.5 text-xs text-amber-800 font-medium bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
                     <WarningCircle size={15} weight="bold" className="text-amber-600 shrink-0" />
-                    <span>Envío automático falló · Usá el enlace manual de respaldo</span>
+                    <span>Envío automático falló</span>
                   </span>
                 )}
 
-                {/* Respaldo manual si falló el envío automático */}
-                {autoSendStatus === 'failed' && manualWaUrl && (
+                {waitingSocket && autoSendStatus === 'manual' && (
+                  <span className="text-[11px] text-amber-700 flex items-center gap-1 font-medium animate-pulse">
+                    <ArrowsClockwise size={12} className="animate-spin" />
+                    <span>Esperando respuesta del cliente...</span>
+                  </span>
+                )}
+
+                {/* Acción manual principal si falló o no vino autoSent (retrocompatible) */}
+                {(autoSendStatus === 'failed' || autoSendStatus === 'manual') && manualWaUrl && (
                   <a
                     href={manualWaUrl}
                     target="_blank"
@@ -832,22 +856,22 @@ export const CreateOrderPage = () => {
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
                   >
                     <WhatsappLogo size={15} weight="fill" />
-                    <span>Abrir WhatsApp manual (respaldo)</span>
+                    <span>{autoSendStatus === 'failed' ? 'Abrir WhatsApp manual (respaldo)' : 'Abrir WhatsApp'}</span>
                     <ArrowSquareOut size={13} weight="bold" />
                   </a>
                 )}
 
-                {/* Opción manual discreta si se envió automático pero se desea abrir WhatsApp */}
+                {/* Acción secundaria cuando se envió automáticamente por WhatsApp */}
                 {autoSendStatus === 'sent_auto' && manualWaUrl && (
                   <a
                     href={manualWaUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-emerald-700 transition-colors font-medium ml-1 cursor-pointer"
-                    title="Abrir WhatsApp manualmente si el cliente no recibió la notificación automática"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium shadow-xs transition-colors cursor-pointer"
+                    title="Reenviar mensaje por WhatsApp manualmente si el cliente no recibió la notificación automática"
                   >
                     <WhatsappLogo size={14} weight="fill" className="text-emerald-600" />
-                    <span>¿No le llegó? Abrir manual</span>
+                    <span>Reenviar manualmente</span>
                     <ArrowSquareOut size={12} />
                   </a>
                 )}

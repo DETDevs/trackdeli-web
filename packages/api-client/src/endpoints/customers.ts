@@ -60,6 +60,7 @@ export interface LocationConfirmationLinkResponse {
   expiresAt?: string;
   link?: string;
   whatsappUrl?: string;
+  autoSent?: boolean;
 }
 
 export const searchCustomers = async (
@@ -126,6 +127,7 @@ export const createLocationConfirmationLink = async (params: {
           shortCode: res.data.shortCode,
           expiresAt: res.data.expiresAt,
           whatsappUrl: res.data.whatsappUrl,
+          autoSent: res.data.autoSent,
           ...res.data,
         };
       }
@@ -147,6 +149,7 @@ export const createLocationConfirmationLink = async (params: {
       shortCode: res.data.shortCode,
       expiresAt: res.data.expiresAt,
       whatsappUrl: res.data.whatsappUrl,
+      autoSent: res.data.autoSent,
       ...res.data,
     };
   } catch (err: any) {
@@ -163,6 +166,7 @@ export const createLocationConfirmationLink = async (params: {
         shortCode: res2.data.shortCode,
         expiresAt: res2.data.expiresAt,
         whatsappUrl: res2.data.whatsappUrl,
+        autoSent: res2.data.autoSent,
         ...res2.data,
       };
     }

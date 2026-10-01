@@ -29,10 +29,20 @@ export const RescheduleModal: React.FC<RescheduleModalProps> = ({
   });
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
 
+  const serviceName =
+    appointment.items && appointment.items.length > 0
+      ? appointment.items.map((i) => i.serviceName).join(' + ')
+      : (appointment.service?.name || 'Servicio');
+
+  const resolvedServiceIds =
+    appointment.items && appointment.items.length > 0
+      ? appointment.items.map((i) => i.serviceId)
+      : [appointment.serviceId].filter(Boolean);
+
   // Consultar disponibilidad del servicio para la fecha elegida (respetando el especialista si ya tenía uno)
   const { data: availabilityData, isLoading: isLoadingSlots } = useAvailability(
     appointment.businessId,
-    appointment.serviceId,
+    resolvedServiceIds,
     selectedDate,
     appointment.specialistId || undefined
   );
@@ -69,7 +79,7 @@ export const RescheduleModal: React.FC<RescheduleModalProps> = ({
               Reagendar turno
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Servicio: <strong className="text-gray-900">{appointment.service.name}</strong>
+              Servicio: <strong className="text-gray-900">{serviceName}</strong>
               {appointment.specialist?.name && (
                 <span> • Con {appointment.specialist.name}</span>
               )}

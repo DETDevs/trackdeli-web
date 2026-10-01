@@ -29,6 +29,11 @@ export const CancelConfirmModal: React.FC<CancelConfirmModalProps> = ({
     hour12: false,
   }).format(dateObj);
 
+  const serviceName =
+    appointment.items && appointment.items.length > 0
+      ? appointment.items.map((i) => i.serviceName).join(' + ')
+      : (appointment.service?.name || 'Servicio');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
       <div className="w-full max-w-sm bg-white border border-gray-200 rounded-3xl shadow-xl p-5 space-y-4">
@@ -52,7 +57,7 @@ export const CancelConfirmModal: React.FC<CancelConfirmModalProps> = ({
           </h3>
           <p className="text-xs text-gray-600 mt-1 leading-relaxed">
             Se liberará tu turno para{' '}
-            <strong className="text-gray-900">{appointment.service.name}</strong> programado para el{' '}
+            <strong className="text-gray-900">{serviceName}</strong> programado para el{' '}
             <strong className="text-gray-900">{formattedDate}</strong>.
           </p>
         </div>

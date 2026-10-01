@@ -92,9 +92,14 @@ export const ManageAppointmentPage: React.FC = () => {
     hour12: false,
   }).format(dateObj);
 
+  const serviceName =
+    appointment.items && appointment.items.length > 0
+      ? appointment.items.map((i) => i.serviceName).join(' + ')
+      : (appointment.service?.name || 'Servicio');
+
   const whatsappUrl = appointment.business?.whatsappNumber
     ? `https://wa.me/${appointment.business.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(
-        `Hola, me contacto respecto a mi cita para "${appointment.service.name}" el día ${formattedDate}.`
+        `Hola, me contacto respecto a mi cita para "${serviceName}" el día ${formattedDate}.`
       )}`
     : null;
 
@@ -160,7 +165,7 @@ export const ManageAppointmentPage: React.FC = () => {
                 Detalle de tu turno
               </span>
               <h2 className="text-lg font-bold text-gray-900 mt-0.5">
-                {appointment.service.name}
+                {serviceName}
               </h2>
               {appointment.specialist?.name && (
                 <p className="text-xs text-brand-700 font-semibold mt-0.5">
@@ -171,6 +176,25 @@ export const ManageAppointmentPage: React.FC = () => {
             </div>
             <AppointmentStatusBadge status={appointment.status} />
           </div>
+
+          {/* Si tiene múltiples servicios, mostrar el desglose */}
+          {appointment.items && appointment.items.length > 1 && (
+            <div className="bg-slate-50 border border-gray-100 rounded-2xl p-3 space-y-1.5 text-xs">
+              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">
+                Servicios incluidos ({appointment.items.length})
+              </span>
+              <div className="space-y-1">
+                {appointment.items.map((item, idx) => (
+                  <div key={item.id || idx} className="flex items-center justify-between text-gray-700">
+                    <span className="font-medium text-gray-900">{item.serviceName}</span>
+                    <span className="text-gray-500 font-mono text-[11px]">
+                      {item.durationMinutes} min • C$ {Number(item.price).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Mensaje de estado PENDIENTE */}
           {appointment.status === 'PENDING' && (
