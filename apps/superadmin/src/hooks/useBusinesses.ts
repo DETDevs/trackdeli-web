@@ -42,6 +42,10 @@ export interface BusinessItem {
     carteraMonthlyFee?: number | null;
     citasMonthlyFee?: number | null;
   }>;
+  industry?: {
+    id: string;
+    name: string;
+  };
   hasPOS?: boolean;
   hasTrackDeli?: boolean;
   hasCarteraCobro?: boolean;
@@ -100,6 +104,7 @@ export interface CreateBusinessInput {
   altCommissionRate?: number;
   altCommissionDistanceKm?: number;
   dispatchTimeoutMin?: number;
+  industryId?: string;
   hasDelivery?: boolean;
   deliveryMonthlyFee?: number;
   hasPOS?: boolean;

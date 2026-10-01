@@ -8,6 +8,8 @@ import { BusinessDetailPage } from './pages/BusinessDetailPage';
 import { UsersPage } from './pages/UsersPage';
 import { RidersPage } from './pages/RidersPage';
 import { LogsPage } from './pages/LogsPage';
+import { IndustriesPage } from './pages/IndustriesPage';
+import { IndustryDetailPage } from './pages/IndustryDetailPage';
 
 const ProtectedRoute = () => {
   const { isAuthenticated, user } = useAuthStore();
@@ -68,6 +70,14 @@ export const router = createBrowserRouter([
           {
             path: '/logs',
             element: <LogsPage />,
+          },
+          {
+            path: '/industries',
+            element: <IndustriesPage />,
+          },
+          {
+            path: '/industries/:id',
+            element: <IndustryDetailPage />,
           },
         ],
       },

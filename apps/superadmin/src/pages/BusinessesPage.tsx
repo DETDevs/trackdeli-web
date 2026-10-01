@@ -31,9 +31,10 @@ import {
   CreateBusinessResult,
   type BusinessType,
 } from '../hooks/useBusinesses';
-import { type PosVertical } from '../hooks/useBusinessProducts';
+
 import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
 import { BusinessCredentialsModal } from '../components/modals/BusinessCredentialsModal';
+import { useIndustries } from '../hooks/useIndustries';
 
 export const BusinessesPage = () => {
   const navigate = useNavigate();
@@ -48,13 +49,15 @@ export const BusinessesPage = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState('');
-  const [type, setType] = useState('');
+  const [industryId, setIndustryId] = useState('');
+
+  const { data: industries = [] } = useIndustries();
+  const activeIndustries = industries.filter((i) => i.isActive);
 
   const [hasDelivery, setHasDelivery] = useState(true);
   const [hasPOS, setHasPOS] = useState(false);
   const [hasCarteraCobro, setHasCarteraCobro] = useState(false);
   const [hasCitas, setHasCitas] = useState(false);
-
   const [businessType, setBusinessType] = useState<BusinessType>('NEGOCIO');
   const [deliveryMonthlyFee, setDeliveryMonthlyFee] = useState('');
   const [commissionRate, setCommissionRate] = useState('15');
@@ -62,7 +65,6 @@ export const BusinessesPage = () => {
   const [altCommissionDistanceKm, setAltCommissionDistanceKm] = useState('40');
   const [dispatchTimeoutMin, setDispatchTimeoutMin] = useState('3');
 
-  const [posVertical, setPosVertical] = useState<PosVertical>('RESTAURANTE');
   const [posMonthlyFee, setPosMonthlyFee] = useState('');
   const [carteraMonthlyFee, setCarteraMonthlyFee] = useState('');
   const [citasMonthlyFee, setCitasMonthlyFee] = useState('');
@@ -113,7 +115,10 @@ export const BusinessesPage = () => {
 
   const handleCreateBusiness = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !encargadoName || !encargadoEmail || !encargadoPassword) return;
+    if (!name || !encargadoName || !encargadoEmail || !encargadoPassword || !industryId) return;
+
+    const selectedIndustry = activeIndustries.find((i) => i.id === industryId);
+    const derivedPosVertical = selectedIndustry?.posVertical || 'RESTAURANTE';
 
     if (!hasDelivery && !hasPOS && !hasCarteraCobro && !hasCitas) {
       toast.error('Debes seleccionar al menos un producto contratado');
@@ -123,7 +128,7 @@ export const BusinessesPage = () => {
     createMutation.mutate(
       {
         name: name.trim(),
-        type: type.trim() || undefined,
+        industryId,
         businessType: hasDelivery ? businessType : 'NEGOCIO',
         commissionRate:
           hasDelivery && businessType === 'EMPRESA_RIDERS'
@@ -147,7 +152,7 @@ export const BusinessesPage = () => {
             ? Number(deliveryMonthlyFee)
             : undefined,
         hasPOS,
-        posVertical: hasPOS ? posVertical : undefined,
+        posVertical: hasPOS ? derivedPosVertical : undefined,
         posMonthlyFee: hasPOS && posMonthlyFee ? Number(posMonthlyFee) : undefined,
         hasCarteraCobro,
         carteraMonthlyFee:
@@ -199,7 +204,7 @@ export const BusinessesPage = () => {
             if (hasPOS) {
               activationPromises.push(
                 apiClient.post(`/businesses/${bizId}/products/POS/activate`, {
-                  posVertical,
+                  posVertical: derivedPosVertical,
                   posMonthlyFee: posMonthlyFee ? Number(posMonthlyFee) : undefined,
                   reason: 'Activación inicial al crear negocio',
                 })
@@ -239,7 +244,7 @@ export const BusinessesPage = () => {
 
           setIsModalOpen(false);
           setName('');
-          setType('');
+          setIndustryId('');
           setHasDelivery(true);
           setHasPOS(false);
           setHasCarteraCobro(false);
@@ -250,7 +255,6 @@ export const BusinessesPage = () => {
           setAltCommissionRate('12');
           setAltCommissionDistanceKm('40');
           setDispatchTimeoutMin('3');
-          setPosVertical('RESTAURANTE');
           setPosMonthlyFee('');
           setCarteraMonthlyFee('');
           setCitasMonthlyFee('');
@@ -309,13 +313,18 @@ export const BusinessesPage = () => {
                     Riders
                   </span>
                 )}
+                {row.industry && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200/80">
+                    {row.industry.name}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-400 capitalize">
                 {isRiders
-                  ? row.type || 'Empresa de Riders'
+                  ? 'Empresa de Riders'
                   : isPosActive && !isDeliveryActive
-                  ? row.type || 'Comercio POS'
-                  : row.type || 'Comercio'}
+                  ? 'Comercio POS'
+                  : 'Comercio'}
               </p>
             </div>
           </div>
@@ -594,15 +603,21 @@ export const BusinessesPage = () => {
 
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Categoría descriptiva (opcional)
+                Tipo de Negocio *
               </label>
-              <input
-                type="text"
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                placeholder="Ej: Restaurante, cafetería, tienda de conveniencia..."
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
-              />
+              <select
+                value={industryId}
+                onChange={(e) => setIndustryId(e.target.value)}
+                required
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+              >
+                <option value="" disabled>Selecciona un tipo de negocio</option>
+                {activeIndustries.map((ind) => (
+                  <option key={ind.id} value={ind.id}>
+                    {ind.name} (POS: {ind.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -915,38 +930,22 @@ export const BusinessesPage = () => {
 
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
-                  Vertical de Punto de Venta *
+                  Vertical de Punto de Venta
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div
-                    onClick={() => setPosVertical('RESTAURANTE')}
-                    className={`p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between ${
-                      posVertical === 'RESTAURANTE'
-                        ? 'border-gray-900 bg-white shadow-2xs'
-                        : 'border-gray-200 hover:border-gray-300 bg-white/70'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <ForkKnife size={15} />
-                      <span className="font-semibold text-xs text-gray-900">Restaurante</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500">Comandas, mesas y cocina</p>
-                  </div>
-
-                  <div
-                    onClick={() => setPosVertical('RETAIL')}
-                    className={`p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between ${
-                      posVertical === 'RETAIL'
-                        ? 'border-gray-900 bg-white shadow-2xs'
-                        : 'border-gray-200 hover:border-gray-300 bg-white/70'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
+                <div className="p-3 rounded-lg border border-gray-200 bg-white/50">
+                  <div className="flex items-center gap-2 mb-1">
+                    {activeIndustries.find(i => i.id === industryId)?.posVertical === 'RETAIL' ? (
                       <ShoppingBag size={15} />
-                      <span className="font-semibold text-xs text-gray-900">Retail / Comercio</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500">Venta rápida y control de stock</p>
+                    ) : (
+                      <ForkKnife size={15} />
+                    )}
+                    <span className="font-semibold text-xs text-gray-900">
+                      {activeIndustries.find(i => i.id === industryId)?.posVertical === 'RETAIL' ? 'Retail / Comercio' : 'Restaurante'}
+                    </span>
                   </div>
+                  <p className="text-[10px] text-gray-500">
+                    Derivado del Tipo de Negocio seleccionado
+                  </p>
                 </div>
               </div>
 

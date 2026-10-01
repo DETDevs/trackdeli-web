@@ -9,12 +9,14 @@ import {
   SignOut,
   ShieldCheck,
   X,
+  Tag,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../../lib/auth';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: SquaresFour },
   { to: '/businesses', label: 'Negocios', icon: Storefront },
+  { to: '/industries', label: 'Tipos de negocio', icon: Tag },
   { to: '/users', label: 'Usuarios', icon: Users },
   { to: '/riders', label: 'Repartidores', icon: Motorcycle },
   { to: '/logs', label: 'Logs', icon: ClockCounterClockwise },
