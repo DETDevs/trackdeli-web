@@ -43,6 +43,7 @@ import { RegisterMembershipModal } from '../components/modals/RegisterMembership
 import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
 import { ImageViewerModal } from '../components/modals/ImageViewerModal';
 import { BusinessProductsSection } from '../components/business/BusinessProductsSection';
+import { BusinessProductFieldsSection } from '../components/business/BusinessProductFieldsSection';
 import { useBusinessProducts, type BusinessProductType } from '../hooks/useBusinessProducts';
 import { useSuperAdminUsers } from '../hooks/useSuperAdminUsers';
 import { type AdminUser } from 'api-client';
@@ -356,6 +357,12 @@ export const BusinessDetailPage = () => {
           businessAltCommissionDistanceKm={business.altCommissionDistanceKm}
           businessDispatchTimeoutMin={business.dispatchTimeoutMin}
           onRegisterPaymentClick={handleOpenRegisterPayment}
+        />
+
+        <BusinessProductFieldsSection
+          businessId={business.id}
+          industryName={business.industry?.name}
+          posVertical={productsData?.products?.POS?.posVertical || undefined}
         />
 
         {business.businessType === 'EMPRESA_RIDERS' ? (

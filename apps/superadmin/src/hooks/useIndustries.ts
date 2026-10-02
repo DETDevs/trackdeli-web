@@ -5,7 +5,8 @@ export interface IndustryField {
   id: string;
   industryId: string;
   label: string;
-  type: 'TEXT' | 'NUMBER' | 'LIST' | 'BOOLEAN' | 'DATE';
+  key: string;
+  dataType: 'TEXT' | 'NUMBER' | 'SELECT' | 'BOOLEAN' | 'DATE';
   options?: string[];
   isRequired: boolean;
   isSearchable: boolean;
@@ -28,7 +29,7 @@ export const useIndustries = () => {
   return useQuery<Industry[]>({
     queryKey: ['superadmin-industries'],
     queryFn: async () => {
-      const { data } = await apiClient.get('/industries');
+      const { data } = await apiClient.get('/superadmin/industries');
       return data;
     },
   });
@@ -38,7 +39,7 @@ export const useIndustry = (id: string) => {
   return useQuery<Industry>({
     queryKey: ['superadmin-industries', id],
     queryFn: async () => {
-      const { data } = await apiClient.get(`/industries/${id}`);
+      const { data } = await apiClient.get(`/superadmin/industries/${id}`);
       return data;
     },
     enabled: !!id,
@@ -49,7 +50,7 @@ export const useCreateIndustry = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Partial<Industry>) => {
-      const { data } = await apiClient.post('/industries', payload);
+      const { data } = await apiClient.post('/superadmin/industries', payload);
       return data;
     },
     onSuccess: () => {
@@ -62,7 +63,7 @@ export const useUpdateIndustry = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Partial<Industry> }) => {
-      const { data } = await apiClient.put(`/industries/${id}`, payload);
+      const { data } = await apiClient.patch(`/superadmin/industries/${id}`, payload);
       return data;
     },
     onSuccess: (_, variables) => {
@@ -76,7 +77,7 @@ export const useCreateIndustryField = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ industryId, payload }: { industryId: string; payload: Partial<IndustryField> }) => {
-      const { data } = await apiClient.post(`/industries/${industryId}/fields`, payload);
+      const { data } = await apiClient.post(`/superadmin/industries/${industryId}/fields`, payload);
       return data;
     },
     onSuccess: (_, variables) => {
@@ -89,7 +90,20 @@ export const useUpdateIndustryField = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ industryId, fieldId, payload }: { industryId: string; fieldId: string; payload: Partial<IndustryField> }) => {
-      const { data } = await apiClient.put(`/industries/${industryId}/fields/${fieldId}`, payload);
+      const { data } = await apiClient.patch(`/superadmin/industries/${industryId}/fields/${fieldId}`, payload);
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['superadmin-industries', variables.industryId] });
+    },
+  });
+};
+
+export const useReorderIndustryFields = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ industryId, fieldIds }: { industryId: string; fieldIds: string[] }) => {
+      const { data } = await apiClient.patch(`/superadmin/industries/${industryId}/fields/reorder`, { fieldIds });
       return data;
     },
     onSuccess: (_, variables) => {
