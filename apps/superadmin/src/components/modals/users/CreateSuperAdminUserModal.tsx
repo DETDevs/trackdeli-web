@@ -111,8 +111,15 @@ export const CreateSuperAdminUserModal: React.FC<CreateSuperAdminUserModalProps>
 
       onSuccess(createdUser, trimmedPassword);
     } catch (err: any) {
-      const serverMsg = err?.response?.data?.message || 'Error al crear el usuario';
-      setErrorMessage(serverMsg);
+      const code = err?.response?.data?.code || err?.response?.data?.message?.code;
+      
+      if (code === 'USER_LIMIT_REACHED') {
+        const customMsg = err?.response?.data?.message?.message || 'Este negocio supera su cupo. No se pueden crear más usuarios hasta ampliarlo.';
+        setErrorMessage(customMsg);
+      } else {
+        const serverMsg = err?.response?.data?.message;
+        setErrorMessage(typeof serverMsg === 'string' ? serverMsg : 'Error al crear el usuario');
+      }
     }
   };
 

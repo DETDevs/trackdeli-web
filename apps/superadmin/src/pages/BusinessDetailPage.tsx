@@ -32,6 +32,7 @@ import {
   useBusinessDetail,
   useToggleBusiness,
   useUpdateBusiness,
+  useUpdateUserQuota,
   type BusinessType,
 } from '../hooks/useBusinesses';
 import {
@@ -62,6 +63,15 @@ export const BusinessDetailPage = () => {
   const { data: productsData } = useBusinessProducts(id!);
   const toggleMutation = useToggleBusiness();
   const updateMutation = useUpdateBusiness();
+  const updateQuotaMutation = useUpdateUserQuota();
+
+  const [extraSlotsInput, setExtraSlotsInput] = useState<string>('');
+  
+  useEffect(() => {
+    if (business?.userUsage) {
+      setExtraSlotsInput(String(business.userUsage.extra));
+    }
+  }, [business?.userUsage?.extra]);
 
   const isDeliveryActive = productsData
     ? productsData.products.DELIVERY.status === 'ACTIVE'
@@ -749,21 +759,72 @@ export const BusinessDetailPage = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Users size={18} className="text-gray-500" />
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Usuarios del Negocio ({businessUsers.length})
-                </h3>
+            <div className="flex flex-col gap-4 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users size={18} className="text-gray-500" />
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Usuarios y cupo
+                  </h3>
+                </div>
+                <button
+                  id="btn-add-biz-user"
+                  onClick={() => setIsAddUserModalOpen(true)}
+                  disabled={business?.userUsage && business.userUsage.used >= business.userUsage.limit}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
+                  title={business?.userUsage && business.userUsage.used >= business.userUsage.limit ? "Límite de usuarios alcanzado" : ""}
+                >
+                  <Plus size={14} weight="bold" />
+                  <span>Agregar Usuario</span>
+                </button>
               </div>
-              <button
-                id="btn-add-biz-user"
-                onClick={() => setIsAddUserModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
-              >
-                <Plus size={14} weight="bold" />
-                <span>Agregar Usuario</span>
-              </button>
+
+              {business?.userUsage && (
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold ${business.userUsage.used >= business.userUsage.limit ? 'text-red-600' : 'text-gray-800'}`}>
+                          {business.userUsage.used} de {business.userUsage.limit} usuarios activos
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        El cupo base es de {business.userUsage.base} usuarios. Cada usuario extra se cobra aparte.
+                      </p>
+                      {business.userUsage.used >= business.userUsage.limit && (
+                        <p className="text-[11px] text-red-600 mt-1 font-medium">
+                          Este negocio supera su cupo. No se pueden crear más usuarios hasta ampliarlo.
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-600 font-medium">Extras:</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        className="w-16 h-7 px-2 border border-gray-300 rounded text-xs focus:border-gray-900 focus:outline-none"
+                        value={extraSlotsInput}
+                        onChange={(e) => setExtraSlotsInput(e.target.value)}
+                      />
+                      <button
+                        onClick={() => {
+                          const extra = parseInt(extraSlotsInput, 10);
+                          if (!isNaN(extra) && extra >= 0) {
+                            if (window.confirm(`¿Actualizar los cupos extra a ${extra}?`)) {
+                              updateQuotaMutation.mutate({ id: business.id, extraUserSlots: extra });
+                            }
+                          }
+                        }}
+                        disabled={updateQuotaMutation.isPending || parseInt(extraSlotsInput, 10) === business.userUsage.extra}
+                        className="text-[11px] px-2 py-1 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 text-gray-800 rounded font-medium transition-colors"
+                      >
+                        Aplicar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="divide-y divide-gray-100">

@@ -94,6 +94,13 @@ export interface BusinessDetail extends BusinessItem {
     ordersCancelled: number;
     deliveryRate: number;
   };
+  userUsage?: {
+    used: number;
+    base: number;
+    extra: number;
+    limit: number;
+    remaining: number;
+  };
 }
 
 export interface CreateBusinessInput {
@@ -237,6 +244,24 @@ export function useUpdateBusiness() {
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al actualizar el negocio');
+    },
+  });
+}
+
+export function useUpdateUserQuota() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, extraUserSlots }: { id: string; extraUserSlots: number }) => {
+      const { data } = await apiClient.patch(`/superadmin/businesses/${id}/user-quota`, { extraUserSlots });
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success('Cupo de usuarios actualizado');
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business', variables.id] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Error al actualizar cupo');
     },
   });
 }
