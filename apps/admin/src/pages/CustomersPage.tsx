@@ -90,11 +90,12 @@ export const CustomersPage = () => {
     }
   }, [routeCustomerId, customers]);
 
-  // Query orders for order history matching
+  // Query orders for order history matching (only when history is open to avoid massive payload on load)
   const { data: allOrders = [] } = useQuery({
     queryKey: ['orders'],
     queryFn: () => getOrders(),
     staleTime: 30000,
+    enabled: Boolean(selectedCustomer && isHistoryOpen),
   });
 
   // Query history for selected customer
