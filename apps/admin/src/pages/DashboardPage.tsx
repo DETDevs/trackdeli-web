@@ -10,6 +10,8 @@ import LiveMap from '../components/LiveMap';
 import { useMapStore } from '../store/map.store';
 import { useSocketStore } from '../store/socket.store';
 import { useEffect, useState, useRef, useMemo } from 'react';
+import { useAuthStore } from '../store/auth.store';
+import { useMyProducts } from '../hooks/useMyProducts';
 
 const CompactStatusBadge = ({ status }: { status: string }) => {
   switch (status) {
@@ -91,6 +93,19 @@ export const DashboardPage = () => {
     queryKey: ['business'],
     queryFn: () => getMyBusiness(),
   });
+
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = user?.role === 'SUPERADMIN';
+  const { data: productsData } = useMyProducts(!isSuperAdmin);
+
+  const isDeliveryActive = isSuperAdmin || productsData?.products?.DELIVERY?.status === 'ACTIVE';
+  const isPosActive = isSuperAdmin || productsData?.products?.POS?.status === 'ACTIVE';
+
+  useEffect(() => {
+    if (!isSuperAdmin && productsData && !isDeliveryActive && isPosActive) {
+      navigate('/pos/dashboard', { replace: true });
+    }
+  }, [productsData, isDeliveryActive, isPosActive, isSuperAdmin, navigate]);
 
   const pendientes = orders.filter(o => o.status === 'PENDIENTE').length;
   const enCamino = orders.filter(o => ['ACEPTADO', 'EN_CAMINO_AL_NEGOCIO', 'EN_EL_NEGOCIO', 'EN_CAMINO', 'CERCA_DEL_DESTINO', 'VERIFICANDO_ENTREGA'].includes(o.status)).length;

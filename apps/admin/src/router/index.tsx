@@ -18,12 +18,36 @@ import { CustomersPage } from "../pages/CustomersPage";
 import { CommissionsPage } from "../pages/CommissionsPage";
 import { InviteCodesPage } from "../pages/InviteCodesPage";
 
+import { PosDashboardPage } from "../pages/pos/PosDashboardPage";
+import { PosSalesPage } from "../pages/pos/PosSalesPage";
+import { PosAnalyticsPage } from "../pages/pos/PosAnalyticsPage";
+import { PosInventoryPage } from "../pages/pos/PosInventoryPage";
+import { PosCashRegistersPage } from "../pages/pos/PosCashRegistersPage";
+import { useMyProducts } from "../hooks/useMyProducts";
+
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
   return <>{children}</>;
+};
+
+const RootIndex = () => {
+  const { data: productsData, isLoading } = useMyProducts();
+
+  if (isLoading) {
+    return null;
+  }
+
+  const isDeliveryActive = productsData?.products?.DELIVERY?.status === 'ACTIVE';
+  const isPosActive = productsData?.products?.POS?.status === 'ACTIVE';
+
+  if (!isDeliveryActive && isPosActive) {
+    return <Navigate to="/pos/dashboard" replace />;
+  }
+
+  return <Navigate to="/dashboard" replace />;
 };
 
 const router = createBrowserRouter([
@@ -43,7 +67,7 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { index: true, element: <RootIndex /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "orders", element: <OrdersPage /> },
       { path: "orders/new", element: <CreateOrderPage /> },
@@ -57,11 +81,17 @@ const router = createBrowserRouter([
       { path: "reports", element: <ReportsPage /> },
       { path: "commissions", element: <CommissionsPage /> },
       { path: "settings", element: <SettingsPage /> },
+      // Módulos POS (Backoffice de consulta - Ticket 144b)
+      { path: "pos/dashboard", element: <PosDashboardPage /> },
+      { path: "pos/sales", element: <PosSalesPage /> },
+      { path: "pos/analytics", element: <PosAnalyticsPage /> },
+      { path: "pos/inventory", element: <PosInventoryPage /> },
+      { path: "pos/cash-registers", element: <PosCashRegistersPage /> },
     ],
   },
   {
     path: "*",
-    element: <Navigate to="/dashboard" replace />,
+    element: <RootIndex />,
   },
 ], {
   future: {

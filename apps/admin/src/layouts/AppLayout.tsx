@@ -16,6 +16,10 @@ import {
   Link as LinkIcon,
   Users,
   User,
+  Storefront,
+  Receipt,
+  TrendUp,
+  CashRegister,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -76,6 +80,11 @@ export const AppLayout = () => {
     isSuperAdmin ||
     productsData?.products?.DELIVERY?.status === 'ACTIVE';
 
+  const isPosActive =
+    isSuperAdmin ||
+    productsData?.products?.POS?.status === 'ACTIVE' ||
+    (business as any)?.hasPOS === true;
+
   useOrderNotifications(isDeliveryActive);
 
   const roleLabels: Record<string, string> = {
@@ -102,7 +111,8 @@ export const AppLayout = () => {
     );
   }
 
-  if (!isDeliveryActive) {
+  // Si no tiene activo ni Delivery ni POS, bloquear acceso
+  if (!isDeliveryActive && !isPosActive) {
     return (
       <DeliveryAccessBlocked
         businessName={business?.name || productsData?.businessName}
@@ -112,6 +122,11 @@ export const AppLayout = () => {
   }
 
   const getPageTitle = (pathname: string) => {
+    if (pathname.startsWith('/pos/dashboard')) return 'Resumen POS';
+    if (pathname.startsWith('/pos/sales')) return 'Ventas POS';
+    if (pathname.startsWith('/pos/analytics')) return 'Más Vendidos y Categorías';
+    if (pathname.startsWith('/pos/inventory')) return 'Inventario POS';
+    if (pathname.startsWith('/pos/cash-registers')) return 'Cierres de Caja';
     if (pathname.startsWith('/dashboard')) return 'Dashboard';
     if (pathname === '/orders/new') return 'Nuevo Pedido';
     if (pathname.startsWith('/orders/')) return 'Detalle de Pedido';
@@ -124,7 +139,7 @@ export const AppLayout = () => {
     if (pathname.startsWith('/commissions')) return 'Comisiones';
     if (pathname.startsWith('/invites')) return 'Invitaciones';
     if (pathname.startsWith('/settings')) return 'Configuración';
-    return '';
+    return 'Panel';
   };
 
   const pageTitle = getPageTitle(location.pathname);
@@ -171,63 +186,104 @@ export const AppLayout = () => {
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-2 space-y-6 overflow-y-auto">
-          <div>
-            <div className="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 mb-2 mt-4">
-              OPERACIONES
+        <nav className="flex-1 px-3 py-2 space-y-5 overflow-y-auto">
+          {/* SECCIÓN PUNTO DE VENTA (POS) - Solo visible si POS está activo */}
+          {isPosActive && (
+            <div>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 mt-2">
+                PUNTO DE VENTA (POS)
+              </div>
+              <div className="space-y-1">
+                <NavLink to="/pos/dashboard" className={navLinkClass}>
+                  <Storefront size={18} weight="regular" />
+                  Resumen
+                </NavLink>
+                <NavLink to="/pos/sales" className={navLinkClass}>
+                  <Receipt size={18} weight="regular" />
+                  Ventas
+                </NavLink>
+                <NavLink to="/pos/analytics" className={navLinkClass}>
+                  <TrendUp size={18} weight="regular" />
+                  Más Vendidos
+                </NavLink>
+                <NavLink to="/pos/inventory" className={navLinkClass}>
+                  <Package size={18} weight="regular" />
+                  Inventario
+                </NavLink>
+                <NavLink to="/pos/cash-registers" className={navLinkClass}>
+                  <CashRegister size={18} weight="regular" />
+                  Cierres de Caja
+                </NavLink>
+              </div>
             </div>
-            <div className="space-y-1">
-              <NavLink to="/dashboard" className={navLinkClass}>
-                <Package size={18} weight="regular" />
-                Dashboard
-              </NavLink>
-              <NavLink to="/orders" end className={navLinkClass}>
-                <ListChecks size={18} weight="regular" />
-                Pedidos
-              </NavLink>
-              <NavLink to="/orders/new" className={navLinkClass}>
-                <Plus size={18} weight="regular" />
-                Nuevo pedido
-              </NavLink>
-            </div>
-          </div>
+          )}
 
+          {/* SECCIÓN OPERACIONES DELIVERY - Solo visible si Delivery está activo */}
+          {isDeliveryActive && (
+            <div>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 mt-4">
+                OPERACIONES DELIVERY
+              </div>
+              <div className="space-y-1">
+                <NavLink to="/dashboard" className={navLinkClass}>
+                  <Package size={18} weight="regular" />
+                  Dashboard
+                </NavLink>
+                <NavLink to="/orders" end className={navLinkClass}>
+                  <ListChecks size={18} weight="regular" />
+                  Pedidos
+                </NavLink>
+                <NavLink to="/orders/new" className={navLinkClass}>
+                  <Plus size={18} weight="regular" />
+                  Nuevo pedido
+                </NavLink>
+              </div>
+            </div>
+          )}
+
+          {/* SECCIÓN GESTIÓN */}
           <div>
-            <div className="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 mb-2 mt-4">
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 mt-4">
               GESTIÓN
             </div>
             <div className="space-y-1">
-              {business?.businessType === 'EMPRESA_RIDERS' && (
+              {isDeliveryActive && business?.businessType === 'EMPRESA_RIDERS' && (
                 <NavLink to="/clients" className={navLinkClass}>
                   <Buildings size={18} weight="regular" />
                   Afiliados
                 </NavLink>
               )}
-              <NavLink to="/customers" className={navLinkClass}>
-                <User size={18} weight="regular" />
-                Clientes
-              </NavLink>
-              {business?.businessType !== 'EMPRESA_RIDERS' && (
+              {isDeliveryActive && (
+                <NavLink to="/customers" className={navLinkClass}>
+                  <User size={18} weight="regular" />
+                  Clientes
+                </NavLink>
+              )}
+              {isDeliveryActive && business?.businessType !== 'EMPRESA_RIDERS' && (
                 <NavLink to="/team" className={navLinkClass}>
                   <Users size={18} weight="regular" />
                   Mi Equipo
                 </NavLink>
               )}
-              <NavLink to="/staff" className={navLinkClass}>
-                <Motorcycle size={18} weight="regular" />
-                Repartidores
-              </NavLink>
-              {business?.businessType === 'EMPRESA_RIDERS' && (
+              {isDeliveryActive && (
+                <NavLink to="/staff" className={navLinkClass}>
+                  <Motorcycle size={18} weight="regular" />
+                  Repartidores
+                </NavLink>
+              )}
+              {isDeliveryActive && business?.businessType === 'EMPRESA_RIDERS' && (
                 <NavLink to="/invites" className={navLinkClass}>
                   <LinkIcon size={18} weight="regular" />
                   Invitaciones
                 </NavLink>
               )}
-              <NavLink to="/reports" className={navLinkClass}>
-                <ChartBar size={18} weight="regular" />
-                Reportes
-              </NavLink>
-              {business?.businessType === 'EMPRESA_RIDERS' && (
+              {isDeliveryActive && (
+                <NavLink to="/reports" className={navLinkClass}>
+                  <ChartBar size={18} weight="regular" />
+                  Reportes
+                </NavLink>
+              )}
+              {isDeliveryActive && business?.businessType === 'EMPRESA_RIDERS' && (
                 <NavLink to="/commissions" className={navLinkClass}>
                   <Coins size={18} weight="regular" />
                   Comisiones
