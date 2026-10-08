@@ -4,6 +4,7 @@ import type {
   BusinessPublicInfo,
   WaiterAuthData,
   TableStatusSummary,
+  TableZone,
   Category,
   Product,
   ActiveTableOrder,
@@ -40,7 +41,7 @@ export const meseroApi = {
   },
 
   /**
-   * Obtiene el estado actual de todas las mesas (libre/ocupada, total, ítems).
+   * Obtiene el estado actual de todas las mesas (libre/ocupada, total, ítems, zonas).
    */
   async getTablesStatus(): Promise<TableStatusSummary[]> {
     const res = await apiClient.get<any[]>('/pos/tables/status');
@@ -51,6 +52,9 @@ export const meseroApi = {
           ? Boolean(t.isOccupied)
           : t.status === 'OCCUPIED' || Boolean(order);
 
+      const zoneId = t.zoneId || t.zone?.id || null;
+      const zoneName = t.zoneName || t.zone?.name || null;
+
       return {
         id: t.id,
         number: t.number,
@@ -59,6 +63,8 @@ export const meseroApi = {
         shape: t.shape,
         status: isOccupied ? 'OCCUPIED' : 'FREE',
         isOccupied,
+        zoneId: zoneId || undefined,
+        zoneName: zoneName || undefined,
         activeOrder: order
           ? {
               id: order.id,
@@ -70,6 +76,25 @@ export const meseroApi = {
           : null,
       };
     });
+  },
+
+  /**
+   * Obtiene las zonas configuradas del salón si están disponibles en el API.
+   */
+  async getZones(): Promise<TableZone[]> {
+    try {
+      const res = await apiClient.get<any[]>('/pos/salon/zones');
+      if (Array.isArray(res.data)) {
+        return res.data.map((z) => ({
+          id: z.id,
+          name: z.name,
+          sortOrder: z.sortOrder ?? z.order ?? 0,
+        }));
+      }
+      return [];
+    } catch {
+      return [];
+    }
   },
 
   /**

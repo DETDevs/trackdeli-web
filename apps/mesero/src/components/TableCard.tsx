@@ -7,7 +7,7 @@ interface TableCardProps {
   onClick: () => void;
 }
 
-export const TableCard: React.FC<TableCardProps> = ({ table, onClick }) => {
+export const TableCard: React.FC<TableCardProps> = React.memo(({ table, onClick }) => {
   const isOccupied = table.isOccupied && Boolean(table.activeOrder);
 
   const handleClick = () => {
@@ -93,4 +93,4 @@ export const TableCard: React.FC<TableCardProps> = ({ table, onClick }) => {
       </div>
     </button>
   );
-};
+});

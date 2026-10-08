@@ -3,6 +3,7 @@ import { ShoppingCart, CaretUp } from '@phosphor-icons/react';
 
 interface FloatingCartBarProps {
   tableNumber: string | number;
+  tableDisplayName?: string;
   newItemsCount: number;
   totalPendingAmount: number;
   existingItemsCount?: number;
@@ -11,6 +12,7 @@ interface FloatingCartBarProps {
 
 export const FloatingCartBar: React.FC<FloatingCartBarProps> = ({
   tableNumber,
+  tableDisplayName,
   newItemsCount,
   totalPendingAmount,
   existingItemsCount = 0,
@@ -18,6 +20,8 @@ export const FloatingCartBar: React.FC<FloatingCartBarProps> = ({
 }) => {
   const hasItems = newItemsCount > 0 || existingItemsCount > 0;
   if (!hasItems) return null;
+
+  const displayTitle = tableDisplayName || `Mesa ${tableNumber}`;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 p-4 pb-6 pointer-events-none">
@@ -41,7 +45,7 @@ export const FloatingCartBar: React.FC<FloatingCartBarProps> = ({
             <div className="text-left">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  Mesa {tableNumber}
+                  {displayTitle}
                 </span>
                 {newItemsCount > 0 && (
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-1.5 py-0.5 rounded">

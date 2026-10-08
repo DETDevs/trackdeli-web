@@ -16,6 +16,7 @@ interface ComandaBottomSheetProps {
   isOpen: boolean;
   onClose: () => void;
   tableNumber: string | number;
+  tableDisplayName?: string;
   newItems: CartItem[];
   onUpdateQuantity: (productId: string, delta: number) => void;
   onUpdateNotes: (productId: string, notes: string) => void;
@@ -40,6 +41,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
   isOpen,
   onClose,
   tableNumber,
+  tableDisplayName,
   newItems,
   onUpdateQuantity,
   onUpdateNotes,
@@ -51,6 +53,8 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
   const [editingNotesProductId, setEditingNotesProductId] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const displayTitle = tableDisplayName || `Mesa ${tableNumber}`;
 
   const newTotal = newItems.reduce(
     (acc, item) => acc + item.quantity * item.unitPrice,
@@ -72,7 +76,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
           <div className="w-full flex items-center justify-between">
             <div>
               <h2 className="text-base font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
-                <span>Comanda • Mesa {tableNumber}</span>
+                <span>Comanda • {displayTitle}</span>
               </h2>
               <p className="text-xs text-gray-500">
                 {newItems.length} {newItems.length === 1 ? 'nuevo ítem' : 'nuevos ítems'} listos para cocina

@@ -24,13 +24,22 @@ export interface WaiterAuthData {
 
 export type TableShape = 'SQUARE' | 'ROUND' | 'RECTANGLE';
 
+export interface TableZone {
+  id: string;
+  name: string;
+  sortOrder?: number;
+}
+
 export interface TableStatusSummary {
   id: string;
   number: number | string;
+  name?: string;
   capacity: number;
   shape: TableShape;
   gridX?: number;
   gridY?: number;
+  zoneId?: string | null;
+  zoneName?: string | null;
   isOccupied: boolean;
   status: 'FREE' | 'OCCUPIED';
   activeOrder: {

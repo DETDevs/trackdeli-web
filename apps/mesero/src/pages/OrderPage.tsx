@@ -32,10 +32,14 @@ export const OrderPage: React.FC = () => {
     return <Navigate to={`/mesas/${businessSlug || 'default'}/login`} replace />;
   }
 
-  // Cargar mesas para saber el número de mesa actual
-  const { data: tables = [] } = useTablesStatus();
+  // Cargar mesas sin refresco periódico mientras la comanda está abierta
+  const { data: tables = [] } = useTablesStatus({ enabledPolling: false });
   const currentTable = tables.find((t) => t.id === tableId);
   const tableNumber = currentTable?.number || '?';
+  const zoneName = currentTable?.zoneName;
+  const tableDisplayName = zoneName
+    ? `${zoneName} · Mesa ${tableNumber}`
+    : `Mesa ${tableNumber}`;
 
   // Pedido activo de la mesa
   const { data: activeOrder } = useActiveOrder(tableId || '');
@@ -146,7 +150,7 @@ export const OrderPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col pb-28">
       {/* Header Fijo */}
       <Header
-        title={`Mesa ${tableNumber}`}
+        title={tableDisplayName}
         subtitle={
           activeOrder
             ? `Comanda abierta • C$ ${activeOrder.total.toFixed(2)}`
@@ -254,6 +258,7 @@ export const OrderPage: React.FC = () => {
       {/* Barra Flotante Inferior de Comanda */}
       <FloatingCartBar
         tableNumber={tableNumber}
+        tableDisplayName={tableDisplayName}
         newItemsCount={newItemsCount}
         totalPendingAmount={totalPendingAmount}
         existingItemsCount={existingItemsCount}
@@ -265,6 +270,7 @@ export const OrderPage: React.FC = () => {
         isOpen={isBottomSheetOpen}
         onClose={() => setIsBottomSheetOpen(false)}
         tableNumber={tableNumber}
+        tableDisplayName={tableDisplayName}
         newItems={newCartItems}
         onUpdateQuantity={handleUpdateQuantity}
         onUpdateNotes={handleUpdateNotes}

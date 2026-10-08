@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { meseroApi } from '../services/meseroApi';
+import { POLLING_CONFIG, getTablesRefetchInterval } from '../config/polling';
 import toast from 'react-hot-toast';
 
 export const useWaiters = (slugOrId: string) => {
@@ -18,12 +19,28 @@ export const useLoginWithPin = (slugOrId: string) => {
   });
 };
 
-export const useTablesStatus = () => {
+export interface UseTablesStatusOptions {
+  enabledPolling?: boolean;
+}
+
+export const useTablesStatus = (options: UseTablesStatusOptions = {}) => {
+  const { enabledPolling = true } = options;
+
   return useQuery({
     queryKey: ['mesero', 'tables'],
     queryFn: () => meseroApi.getTablesStatus(),
-    refetchInterval: 8000, // Sincronización automática periódica
+    refetchInterval: enabledPolling ? getTablesRefetchInterval : false,
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useZones = () => {
+  return useQuery({
+    queryKey: ['mesero', 'zones'],
+    queryFn: () => meseroApi.getZones(),
+    staleTime: 300000,
+    refetchInterval: false,
   });
 };
 
@@ -48,8 +65,14 @@ export const useActiveOrder = (tableId: string) => {
     queryKey: ['mesero', 'order', tableId],
     queryFn: () => meseroApi.getActiveOrder(tableId),
     enabled: Boolean(tableId),
-    refetchInterval: 6000, // Polling liviano mientras la comanda está abierta
+    refetchInterval: () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return false;
+      }
+      return POLLING_CONFIG.ACTIVE_ORDER_INTERVAL_MS;
+    },
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 };
 
