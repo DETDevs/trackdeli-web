@@ -296,30 +296,73 @@ export const PosCashRegistersPage: React.FC = () => {
           </div>
 
           {/* Paginación */}
-          {pagination && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-gray-200/80 shadow-2xs text-xs">
-              <span className="text-gray-500">
-                Página <span className="font-semibold text-gray-900">{pagination.page}</span> de{' '}
-                <span className="font-semibold text-gray-900">{pagination.totalPages}</span>{' '}
-                ({pagination.total} cajas)
-              </span>
+          {pagination && pagination.total > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white px-4 py-3.5 rounded-2xl border border-gray-200/80 shadow-2xs text-xs">
+              <div className="text-gray-500 text-center sm:text-left">
+                Mostrando{' '}
+                <span className="font-semibold text-gray-900">
+                  {Math.min((pagination.page - 1) * pagination.limit + 1, pagination.total)}
+                </span>{' '}
+                a{' '}
+                <span className="font-semibold text-gray-900">
+                  {Math.min(pagination.page * pagination.limit, pagination.total)}
+                </span>{' '}
+                de <span className="font-semibold text-gray-900">{pagination.total}</span> cajas totales
+              </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   disabled={pagination.page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="p-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs font-medium shadow-2xs"
+                  title="Página anterior"
                 >
-                  <CaretLeft size={16} />
+                  <CaretLeft size={14} weight="bold" />
+                  <span className="hidden sm:inline">Anterior</span>
                 </button>
+
+                {/* Números de página */}
+                <div className="flex items-center gap-1 px-1">
+                  {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
+                    .filter((p) => {
+                      return (
+                        p === 1 ||
+                        p === pagination.totalPages ||
+                        Math.abs(p - pagination.page) <= 1
+                      );
+                    })
+                    .map((p, idx, arr) => {
+                      const prev = arr[idx - 1];
+                      const showEllipsis = prev && p - prev > 1;
+                      return (
+                        <React.Fragment key={p}>
+                          {showEllipsis && <span className="text-gray-400 px-1">…</span>}
+                          <button
+                            type="button"
+                            onClick={() => setPage(p)}
+                            className={`w-7 h-7 rounded-xl text-xs font-semibold transition-colors ${
+                              pagination.page === p
+                                ? 'bg-gray-900 text-white shadow-xs'
+                                : 'text-gray-600 hover:bg-gray-100'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        </React.Fragment>
+                      );
+                    })}
+                </div>
+
                 <button
                   type="button"
                   disabled={pagination.page >= pagination.totalPages}
                   onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-                  className="p-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs font-medium shadow-2xs"
+                  title="Página siguiente"
                 >
-                  <CaretRight size={16} />
+                  <span className="hidden sm:inline">Siguiente</span>
+                  <CaretRight size={14} weight="bold" />
                 </button>
               </div>
             </div>
