@@ -8,6 +8,7 @@ import {
   Wallet,
   CreditCard,
   CalendarBlank,
+  Wrench,
 } from '@phosphor-icons/react';
 import {
   useBusinessProducts,
@@ -30,6 +31,9 @@ interface BusinessProductsSectionProps {
   businessAltCommissionRate?: number;
   businessAltCommissionDistanceKm?: number;
   businessDispatchTimeoutMin?: number;
+  salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
+  maxDevices?: number | null;
+  activeDevices?: number;
   onRegisterPaymentClick?: (productType: BusinessProductType) => void;
 }
 
@@ -41,6 +45,9 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
   businessAltCommissionRate,
   businessAltCommissionDistanceKm,
   businessDispatchTimeoutMin,
+  salonProfile,
+  maxDevices,
+  activeDevices,
   onRegisterPaymentClick,
 }) => {
   const { data: productsData, isLoading } = useBusinessProducts(businessId);
@@ -280,6 +287,33 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                     <span>Restaurante / Mesas</span>
                   </>
                 )}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+              <span className="text-xs text-gray-500 font-medium">Perfil del Salón</span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs">
+                {salonProfile === 'TALLER' || posSub?.salonProfile === 'TALLER' ? (
+                  <>
+                    <Wrench size={14} className="text-amber-600" />
+                    <span>Taller Automotriz</span>
+                  </>
+                ) : (
+                  <>
+                    <ForkKnife size={14} className="text-purple-600" />
+                    <span>Restaurante</span>
+                  </>
+                )}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+              <span className="text-xs text-gray-500 font-medium">Computadoras</span>
+              <span className="font-semibold text-gray-900">
+                {activeDevices !== undefined ? `${activeDevices} activa${activeDevices === 1 ? '' : 's'} / ` : ''}
+                {maxDevices === null || (maxDevices === undefined && posSub?.maxDevices === null)
+                  ? 'Sin límite'
+                  : `${maxDevices ?? posSub?.maxDevices ?? 1} permitida${(maxDevices ?? posSub?.maxDevices ?? 1) === 1 ? '' : 's'}`}
               </span>
             </div>
 

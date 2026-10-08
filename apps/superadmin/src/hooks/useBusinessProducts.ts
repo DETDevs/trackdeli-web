@@ -54,6 +54,8 @@ export interface BusinessProductPosSub {
   autoRenew?: boolean;
   renewalCanceledAt?: string | null;
   posVertical?: PosVertical | null;
+  salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
+  maxDevices?: number | null;
   posMonthlyFee?: number | null;
   activatedAt?: string | null;
   activatedBy?: string | null;

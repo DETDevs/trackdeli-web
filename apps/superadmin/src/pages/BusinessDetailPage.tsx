@@ -45,6 +45,7 @@ import { DeactivateBusinessModal } from '../components/modals/DeactivateBusiness
 import { ImageViewerModal } from '../components/modals/ImageViewerModal';
 import { BusinessProductsSection } from '../components/business/BusinessProductsSection';
 import { BusinessProductFieldsSection } from '../components/business/BusinessProductFieldsSection';
+import { BusinessPosDevicesSection } from '../components/business/BusinessPosDevicesSection';
 import { useBusinessProducts, type BusinessProductType } from '../hooks/useBusinessProducts';
 import { useSuperAdminUsers } from '../hooks/useSuperAdminUsers';
 import { type AdminUser } from 'api-client';
@@ -366,8 +367,15 @@ export const BusinessDetailPage = () => {
           businessAltCommissionRate={business.altCommissionRate}
           businessAltCommissionDistanceKm={business.altCommissionDistanceKm}
           businessDispatchTimeoutMin={business.dispatchTimeoutMin}
+          salonProfile={business.salonProfile}
+          maxDevices={business.maxDevices}
+          activeDevices={business.activeDevices}
           onRegisterPaymentClick={handleOpenRegisterPayment}
         />
+
+        {(business.hasPOS || productsData?.products?.POS?.status === 'ACTIVE') && (
+          <BusinessPosDevicesSection business={business} />
+        )}
 
         <BusinessProductFieldsSection
           businessId={business.id}

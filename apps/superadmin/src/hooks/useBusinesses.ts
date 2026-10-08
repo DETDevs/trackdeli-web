@@ -38,6 +38,8 @@ export interface BusinessItem {
     status: 'ACTIVE' | 'INACTIVE';
     deliveryMonthlyFee?: number | null;
     posVertical?: 'RESTAURANTE' | 'RETAIL' | null;
+    salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
+    maxDevices?: number | null;
     posMonthlyFee?: number | null;
     carteraMonthlyFee?: number | null;
     citasMonthlyFee?: number | null;
@@ -50,6 +52,9 @@ export interface BusinessItem {
   hasTrackDeli?: boolean;
   hasCarteraCobro?: boolean;
   hasCitas?: boolean;
+  salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
+  maxDevices?: number | null;
+  activeDevices?: number;
 }
 
 export interface BusinessDetail extends BusinessItem {
@@ -116,6 +121,8 @@ export interface CreateBusinessInput {
   deliveryMonthlyFee?: number;
   hasPOS?: boolean;
   posVertical?: string;
+  salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
+  maxDevices?: number | null;
   posMonthlyFee?: number;
   hasCarteraCobro?: boolean;
   carteraMonthlyFee?: number;
@@ -205,7 +212,9 @@ export function useCreateBusiness() {
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Error al crear el negocio');
+      const msg = err.response?.data?.message;
+      const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al crear el negocio';
+      toast.error(errorText);
     },
   });
 }
@@ -295,6 +304,104 @@ export function useBusinessStatements(businessId: string) {
       }
     },
     enabled: !!businessId,
+  });
+}
+
+export interface PosDeviceItem {
+  id: string;
+  businessId: string;
+  deviceId: string;
+  name: string;
+  status: 'ACTIVE' | 'REVOKED';
+  lastSeenAt: string | null;
+  createdAt: string;
+  revokedAt?: string | null;
+}
+
+export interface UpdatePosSubscriptionInput {
+  salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
+  maxDevices?: number | null;
+}
+
+export function useUpdatePosSubscription() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      businessId,
+      data,
+    }: {
+      businessId: string;
+      data: UpdatePosSubscriptionInput;
+    }) => {
+      const res = await apiClient.patch(
+        `/superadmin/businesses/${businessId}/pos-subscription`,
+        data
+      );
+      return res.data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success('Configuración POS actualizada');
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-products', variables.businessId] });
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message;
+      const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al actualizar configuración POS';
+      toast.error(errorText);
+    },
+  });
+}
+
+export function useBusinessDevices(businessId: string) {
+  return useQuery<PosDeviceItem[]>({
+    queryKey: ['superadmin-business-devices', businessId],
+    queryFn: async () => {
+      try {
+        const { data } = await apiClient.get(`/superadmin/businesses/${businessId}/devices`);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!businessId,
+    refetchInterval: 15000,
+  });
+}
+
+export function useUpdateBusinessDevice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      businessId,
+      deviceId,
+      data,
+    }: {
+      businessId: string;
+      deviceId: string;
+      data: { status?: 'ACTIVE' | 'REVOKED'; name?: string };
+    }) => {
+      const res = await apiClient.patch(
+        `/superadmin/businesses/${businessId}/devices/${deviceId}`,
+        data
+      );
+      return res.data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.data.status === 'REVOKED'
+          ? 'Computadora revocada exitosamente'
+          : 'Computadora reactivada exitosamente'
+      );
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-devices', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message;
+      const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al actualizar dispositivo';
+      toast.error(errorText);
+    },
   });
 }
 

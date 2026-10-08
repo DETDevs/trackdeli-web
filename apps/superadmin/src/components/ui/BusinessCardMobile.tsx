@@ -135,7 +135,8 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
             // 2. POS
             if (isPosActive) {
               const posSub = business.productSubscriptions?.find((s) => s.productType === 'POS');
-              const vertical = posSub?.posVertical === 'RETAIL' ? 'Retail' : 'Rest.';
+              const isTaller = business.salonProfile === 'TALLER' || posSub?.salonProfile === 'TALLER';
+              const vertical = isTaller ? 'Taller' : (posSub?.posVertical === 'RETAIL' ? 'Retail' : 'Rest.');
               badges.push(
                 <span key="pos" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-800 border border-purple-200/80">
                   <Receipt size={11} className="text-purple-700" />

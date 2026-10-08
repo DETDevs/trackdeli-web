@@ -15,6 +15,7 @@ import {
   Check,
   Wallet,
   CalendarBlank,
+  Wrench,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 import apiClient from '../lib/apiClient';
@@ -56,6 +57,9 @@ export const BusinessesPage = () => {
 
   const [hasDelivery, setHasDelivery] = useState(true);
   const [hasPOS, setHasPOS] = useState(false);
+  const [salonProfile, setSalonProfile] = useState<'RESTAURANTE' | 'TALLER'>('RESTAURANTE');
+  const [maxDevices, setMaxDevices] = useState('1');
+  const [isUnlimitedDevices, setIsUnlimitedDevices] = useState(false);
   const [hasCarteraCobro, setHasCarteraCobro] = useState(false);
   const [hasCitas, setHasCitas] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('NEGOCIO');
@@ -72,6 +76,19 @@ export const BusinessesPage = () => {
   const [encargadoName, setEncargadoName] = useState('');
   const [encargadoEmail, setEncargadoEmail] = useState('');
   const [encargadoPassword, setEncargadoPassword] = useState('');
+
+  const handleIndustryChange = (selectedId: string) => {
+    setIndustryId(selectedId);
+    const ind = activeIndustries.find((i) => i.id === selectedId);
+    const isTaller =
+      ind?.code === 'taller' ||
+      ind?.name?.toLowerCase().includes('taller');
+    if (isTaller) {
+      setSalonProfile('TALLER');
+    } else {
+      setSalonProfile('RESTAURANTE');
+    }
+  };
 
   const [createdCredentials, setCreatedCredentials] = useState<{
     businessName: string;
@@ -153,6 +170,8 @@ export const BusinessesPage = () => {
             : undefined,
         hasPOS,
         posVertical: hasPOS ? derivedPosVertical : undefined,
+        salonProfile: hasPOS ? salonProfile : undefined,
+        maxDevices: hasPOS ? (isUnlimitedDevices ? null : (parseInt(maxDevices, 10) || 1)) : undefined,
         posMonthlyFee: hasPOS && posMonthlyFee ? Number(posMonthlyFee) : undefined,
         hasCarteraCobro,
         carteraMonthlyFee:
@@ -209,6 +228,12 @@ export const BusinessesPage = () => {
                   reason: 'Activación inicial al crear negocio',
                 })
               );
+              activationPromises.push(
+                apiClient.patch(`/superadmin/businesses/${bizId}/pos-subscription`, {
+                  salonProfile,
+                  maxDevices: isUnlimitedDevices ? null : (parseInt(maxDevices, 10) || 1),
+                })
+              );
             }
 
             if (hasCarteraCobro) {
@@ -247,6 +272,9 @@ export const BusinessesPage = () => {
           setIndustryId('');
           setHasDelivery(true);
           setHasPOS(false);
+          setSalonProfile('RESTAURANTE');
+          setMaxDevices('1');
+          setIsUnlimitedDevices(false);
           setHasCarteraCobro(false);
           setHasCitas(false);
           setBusinessType('NEGOCIO');
@@ -414,7 +442,8 @@ export const BusinessesPage = () => {
         // 2. Badge POS
         if (isPosActive) {
           const posSub = row.productSubscriptions?.find((s) => s.productType === 'POS');
-          const vertical = posSub?.posVertical === 'RETAIL' ? 'Retail' : 'Rest.';
+          const isTaller = row.salonProfile === 'TALLER' || posSub?.salonProfile === 'TALLER';
+          const vertical = isTaller ? 'Taller' : (posSub?.posVertical === 'RETAIL' ? 'Retail' : 'Rest.');
           badges.push(
             <span key="pos" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-800 border border-purple-200/80">
               <Receipt size={12} className="text-purple-700" />
@@ -607,14 +636,16 @@ export const BusinessesPage = () => {
               </label>
               <select
                 value={industryId}
-                onChange={(e) => setIndustryId(e.target.value)}
+                onChange={(e) => handleIndustryChange(e.target.value)}
                 required
                 className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
               >
                 <option value="" disabled>Selecciona un tipo de negocio</option>
                 {activeIndustries.map((ind) => (
                   <option key={ind.id} value={ind.id}>
-                    {ind.name} (POS: {ind.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'})
+                    {ind.name.includes('(POS:')
+                      ? ind.name
+                      : `${ind.name} (POS: ${ind.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'})`}
                   </option>
                 ))}
               </select>
@@ -947,6 +978,91 @@ export const BusinessesPage = () => {
                     Derivado del Tipo de Negocio seleccionado
                   </p>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Perfil del salón *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSalonProfile('RESTAURANTE')}
+                    className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                      salonProfile === 'RESTAURANTE'
+                        ? 'border-purple-600 bg-purple-50/80 shadow-2xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <ForkKnife size={14} className={salonProfile === 'RESTAURANTE' ? 'text-purple-700' : 'text-gray-400'} />
+                      <span className={`text-xs ${salonProfile === 'RESTAURANTE' ? 'font-semibold text-purple-950' : 'text-gray-700'}`}>
+                        Restaurante
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Mesas, comandas y salón comedor</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSalonProfile('TALLER')}
+                    className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                      salonProfile === 'TALLER'
+                        ? 'border-purple-600 bg-purple-50/80 shadow-2xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Wrench size={14} className={salonProfile === 'TALLER' ? 'text-purple-700' : 'text-gray-400'} />
+                      <span className={`text-xs ${salonProfile === 'TALLER' ? 'font-semibold text-purple-950' : 'text-gray-700'}`}>
+                        Taller
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Bahías de servicio y órdenes automotrices</p>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-medium text-gray-700">
+                    Computadoras permitidas
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600 select-none">
+                    <input
+                      type="checkbox"
+                      checked={isUnlimitedDevices}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsUnlimitedDevices(checked);
+                        if (checked) {
+                          setMaxDevices('');
+                        } else {
+                          setMaxDevices('1');
+                        }
+                      }}
+                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
+                    />
+                    <span className="text-[11px] font-medium text-gray-700">Sin límite</span>
+                  </label>
+                </div>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  disabled={isUnlimitedDevices}
+                  value={isUnlimitedDevices ? '' : maxDevices}
+                  onChange={(e) => setMaxDevices(e.target.value)}
+                  placeholder={isUnlimitedDevices ? 'Sin límite de computadoras' : '1'}
+                  className={`w-full h-8 px-2.5 rounded-lg border text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900 ${
+                    isUnlimitedDevices
+                      ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                      : 'border-gray-200'
+                  }`}
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Cantidad de computadoras que pueden iniciar sesión con este negocio
+                </p>
               </div>
 
               <div>
