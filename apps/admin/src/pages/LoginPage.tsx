@@ -25,7 +25,7 @@ export const LoginPage = () => {
     try {
       await login(email, password);
       toast.success('¡Bienvenido de vuelta!');
-      navigate('/dashboard');
+      navigate('/');
     } catch (err) {
       setError('Credenciales incorrectas.');
     }
@@ -43,21 +43,21 @@ export const LoginPage = () => {
 
         <div>
           <h2 className="text-3xl font-display font-medium leading-tight mb-8">
-            Cada entrega, <br />
+            Tu negocio, <br />
             en tiempo real.
           </h2>
           <div className="space-y-4">
             <div className="flex items-center gap-3 text-gray-300">
               <CheckCircle size={20} weight="fill" className="text-brand-500" />
-              <span>Panel de control</span>
+              <span>Ventas e inventario al día</span>
             </div>
             <div className="flex items-center gap-3 text-gray-300">
               <CheckCircle size={20} weight="fill" className="text-brand-500" />
-              <span>Tracking en vivo</span>
+              <span>Cierres de caja y reportes</span>
             </div>
             <div className="flex items-center gap-3 text-gray-300">
               <CheckCircle size={20} weight="fill" className="text-brand-500" />
-              <span>Gestión de repartidores</span>
+              <span>Delivery y repartidores en vivo</span>
             </div>
           </div>
         </div>

@@ -25,6 +25,7 @@ import {
   Lightbulb,
 } from '@phosphor-icons/react';
 import { calculateFeeClient, getPricingBreakdownClient } from '../lib/pricing';
+import { useMyProducts } from '../hooks/useMyProducts';
 
 const mapboxToken = (import.meta as any).env.VITE_MAPBOX_TOKEN;
 
@@ -160,6 +161,11 @@ export const SettingsPage = () => {
     queryKey: ['business', 'me'],
     queryFn: getMyBusiness,
   });
+
+  const { data: productsData } = useMyProducts();
+  const isDeliveryActive = productsData
+    ? productsData.products?.DELIVERY?.status === 'ACTIVE'
+    : true;
 
   const [pricingModel, setPricingModel] = useState<PricingModel>('FIXED');
   const [baseRate, setBaseRate] = useState<string>('50.00');
@@ -335,7 +341,7 @@ export const SettingsPage = () => {
       <div>
         <h2 className="text-xl font-semibold text-gray-900 mb-1">Configuración del Negocio</h2>
         <p className="text-sm text-gray-500">
-          Personaliza la ubicación geográfica, contacto y la política de tarifas de entrega de{' '}
+          Personaliza la ubicación geográfica, contacto y la configuración de{' '}
           <strong className="font-semibold text-gray-900">{business?.name}</strong>.
         </p>
       </div>
@@ -348,7 +354,7 @@ export const SettingsPage = () => {
           </h3>
         </div>
         <p className="text-xs text-gray-500 mb-4">
-          Este será el punto de partida (Origen) para trazar las rutas y calcular la distancia de entrega al cliente.
+          Ubicación del establecimiento para referencia en el sistema y cálculo de entregas.
         </p>
 
         <PinPicker
@@ -439,8 +445,9 @@ export const SettingsPage = () => {
         </form>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-2">
+      {isDeliveryActive && (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-2">
           <CurrencyDollar size={20} className="text-brand-600" />
           <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
             Configuración de Entrega y Tarifas
@@ -769,6 +776,7 @@ export const SettingsPage = () => {
           </div>
         </form>
       </div>
+      )}
     </div>
   );
 };

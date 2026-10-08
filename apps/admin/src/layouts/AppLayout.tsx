@@ -85,6 +85,8 @@ export const AppLayout = () => {
     productsData?.products?.POS?.status === 'ACTIVE' ||
     (business as any)?.hasPOS === true;
 
+  const businessName = business?.name || productsData?.businessName;
+
   useOrderNotifications(isDeliveryActive);
 
   const roleLabels: Record<string, string> = {
@@ -170,11 +172,18 @@ export const AppLayout = () => {
         }`}
       >
         <div className="px-6 py-5 flex items-center justify-between border-b border-gray-50 lg:border-none">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gray-900 text-white rounded-md flex items-center justify-center font-bold text-sm">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 bg-gray-900 text-white rounded-md flex items-center justify-center font-bold text-sm shrink-0">
               TD
             </div>
-            <div className="font-semibold text-sm text-gray-900">TrackDeli</div>
+            <div className="min-w-0">
+              <div className="font-semibold text-sm text-gray-900 truncate">
+                {businessName || 'TrackDeli'}
+              </div>
+              {businessName && (
+                <div className="text-[10px] text-gray-400 font-normal leading-none mt-0.5">TrackDeli</div>
+              )}
+            </div>
           </div>
 
           <button
@@ -259,7 +268,7 @@ export const AppLayout = () => {
                   Clientes
                 </NavLink>
               )}
-              {isDeliveryActive && business?.businessType !== 'EMPRESA_RIDERS' && (
+              {business?.businessType !== 'EMPRESA_RIDERS' && (
                 <NavLink to="/team" className={navLinkClass}>
                   <Users size={18} weight="regular" />
                   Mi Equipo
@@ -342,20 +351,34 @@ export const AppLayout = () => {
         )}
 
         <header className="bg-white border-b border-gray-100 px-4 lg:px-6 py-3.5 lg:py-4 flex items-center justify-between z-10 shrink-0">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 -ml-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+              className="lg:hidden p-2 -ml-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer shrink-0"
               aria-label="Abrir menú"
             >
               <List size={20} weight="bold" />
             </button>
-            <div>
-              <h1 className="text-base lg:text-lg font-semibold text-gray-900 leading-tight">{pageTitle}</h1>
-              <div className="text-xs text-gray-400 mt-0.5 hidden sm:block">TrackDeli / {pageTitle}</div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-base lg:text-lg font-semibold text-gray-900 leading-tight truncate">{pageTitle}</h1>
+                {businessName && (
+                  <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 text-gray-700 truncate max-w-[160px] lg:max-w-[220px]" title={businessName}>
+                    {businessName}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5 hidden sm:block truncate">
+                {businessName ? `${businessName} · ${pageTitle}` : `TrackDeli / ${pageTitle}`}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
+            {businessName && (
+              <span className="sm:hidden text-[11px] font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded-md truncate max-w-[130px]" title={businessName}>
+                {businessName}
+              </span>
+            )}
             <span className="text-xs text-gray-500 hidden sm:inline">{user?.name || 'Usuario'}</span>
           </div>
         </header>

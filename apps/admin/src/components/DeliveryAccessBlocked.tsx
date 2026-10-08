@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Motorcycle,
+  Storefront,
   SignOut,
   WhatsappLogo,
   LockKey,
@@ -16,7 +16,7 @@ export const DeliveryAccessBlocked: React.FC<DeliveryAccessBlockedProps> = ({
   onLogout,
 }) => {
   const whatsappUrl = `https://wa.me/50588068133?text=${encodeURIComponent(
-    `Hola, deseo activar el servicio de Delivery para mi negocio (${businessName || 'mi negocio'}) en TrackDeli.`
+    `Hola, deseo activar los servicios de mi negocio (${businessName || 'mi negocio'}) en TrackDeli.`
   )}`;
 
   return (
@@ -34,7 +34,7 @@ export const DeliveryAccessBlocked: React.FC<DeliveryAccessBlockedProps> = ({
         {/* Icon & Status Badge */}
         <div className="relative inline-flex items-center justify-center mx-auto">
           <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-600 shadow-xs">
-            <Motorcycle size={34} weight="duotone" />
+            <Storefront size={34} weight="duotone" />
           </div>
           <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gray-900 text-white flex items-center justify-center text-xs shadow-xs border-2 border-white">
             <LockKey size={12} weight="bold" />
@@ -46,7 +46,7 @@ export const DeliveryAccessBlocked: React.FC<DeliveryAccessBlockedProps> = ({
             Panel restringido
           </span>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">
-            Servicio de Delivery no activo
+            Servicio no habilitado
           </h2>
           {businessName && (
             <p className="text-xs text-gray-500 font-medium mt-1">
@@ -57,7 +57,7 @@ export const DeliveryAccessBlocked: React.FC<DeliveryAccessBlockedProps> = ({
 
         {/* Informative message */}
         <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 text-xs text-gray-600 leading-relaxed text-left">
-          Tu negocio no tiene el servicio de Delivery activo. Gestiona tus otros servicios (POS, Citas, Cartera de Cobro) desde la aplicación de escritorio TrackDeli POS.
+          Tu negocio no tiene un servicio activo (Delivery o POS) en esta plataforma web. Contacta a soporte para activar o renovar la membresía de tu negocio.
         </div>
 
         {/* Actions */}
@@ -69,7 +69,7 @@ export const DeliveryAccessBlocked: React.FC<DeliveryAccessBlockedProps> = ({
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-xs"
           >
             <WhatsappLogo size={16} weight="fill" />
-            <span>Solicitar activación de Delivery</span>
+            <span>Solicitar activación de servicios</span>
           </a>
 
           <button
@@ -85,7 +85,7 @@ export const DeliveryAccessBlocked: React.FC<DeliveryAccessBlockedProps> = ({
 
       {/* Footer */}
       <p className="text-[11px] text-gray-400 mt-8">
-        TrackDeli · Plataforma de Envíos y Logística
+        TrackDeli · Plataforma para Negocios
       </p>
     </div>
   );
