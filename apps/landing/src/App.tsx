@@ -1319,13 +1319,13 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-      setPrefersReducedMotion(motionQuery.matches);
+      setPrefersReducedMotion(false); // Forzado a false para asegurar que las animaciones siempre corran
       const pointerQuery = window.matchMedia('(hover: hover) and (pointer: fine)');
       setIsFinePointer(pointerQuery.matches);
       const desktopQuery = window.matchMedia('(min-width: 1024px)');
       setIsDesktopW(desktopQuery.matches);
 
-      const handleMotionChange = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+      const handleMotionChange = (e: MediaQueryListEvent) => setPrefersReducedMotion(false); // e.matches
       const handleDesktopChange = (e: MediaQueryListEvent) => setIsDesktopW(e.matches);
       motionQuery.addEventListener('change', handleMotionChange);
       desktopQuery.addEventListener('change', handleDesktopChange);
