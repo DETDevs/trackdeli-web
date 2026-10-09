@@ -656,38 +656,58 @@ const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinne
       gsap.to('.inv-fill-amber', { opacity: 1, duration: 0.15, delay: 1.65, scrollTrigger: invTrig });
       gsap.to('.inv-warn', { opacity: 1, duration: 0.3, delay: 1.8, scrollTrigger: invTrig });
 
-      // Reportes: el gráfico va atado al scroll (scrub), así se ve crecer siempre que lo recorrés
-      // y retrocede si volvés hacia arriba. El total cuenta junto con las barras.
-      repObj.v = 0;
-      writeRep();
-      labels.forEach((el) => {
-        el.textContent = 'C$0';
-      });
-      const repTl = gsap.timeline({
-        defaults: { ease: 'none' },
-        scrollTrigger: { trigger: chart, start: 'top 95%', end: 'bottom 85%', scrub: 0.6 }
-      });
-      repTl.to(repObj, { v: 9770, duration: 2.1, ease: 'power1.out', onUpdate: writeRep }, 0);
+      // Reportes: las barras crecen desde abajo, así que la animación arranca recién cuando el gráfico
+      // entra COMPLETO en pantalla (antes corría con el borde inferior fuera de vista y no se veía).
+      // Se repite cada vez que volvés al gráfico y se reinicia cuando sale del todo de la pantalla.
+      const repTl = gsap.timeline({ paused: true });
+      repTl.fromTo(repObj, { v: 0 }, { v: 9770, duration: 1.9, ease: 'power2.out', onUpdate: writeRep }, 0);
       bars.forEach((bar, i) => {
-        const s = i * 0.2;
-        repTl.fromTo(bar, { scaleY: 0 }, { scaleY: 1, duration: 0.7, ease: 'back.out(1.3)' }, s);
-        repTl.fromTo(labels[i], { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' }, s + 0.35);
-        repTl.to(
+        const s = 0.1 + i * 0.12;
+        repTl.fromTo(bar, { scaleY: 0 }, { scaleY: 1, duration: 0.75, ease: 'back.out(1.4)' }, s);
+        repTl.fromTo(labels[i], { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' }, s + 0.4);
+        repTl.fromTo(
           labelObjs[i],
+          { v: 0 },
           {
             v: REPORT_BARS[i].amount,
-            duration: 0.55,
+            duration: 0.6,
             ease: 'power1.out',
             onUpdate: () => {
               labels[i].textContent = formatCaja(labelObjs[i].v);
             }
           },
-          s + 0.2
+          s + 0.3
         );
       });
-      repTl.fromTo('.rep-line', { clipPath: 'inset(0% 100% 0% 0%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.5, ease: 'power1.inOut' }, 0.3);
-      repTl.fromTo('.rep-bar-lima', { opacity: 0 }, { opacity: 1, duration: 0.25 }, 1.5);
-      repTl.fromTo('.rep-peak-tag', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(1.7)' }, 1.65);
+      repTl.fromTo('.rep-line', { clipPath: 'inset(0% 100% 0% 0%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.2, ease: 'power1.inOut' }, 0.35);
+      repTl.fromTo('.rep-bar-lima', { opacity: 0 }, { opacity: 1, duration: 0.25 }, 1.3);
+      repTl.fromTo('.rep-peak-tag', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: 'back.out(1.7)' }, 1.4);
+      repTl.progress(0).pause();
+      labels.forEach((el) => {
+        el.textContent = 'C$0';
+      });
+
+      // Gráfico completo a la vista (bajando: su borde inferior llega al fondo; subiendo: su borde superior llega arriba)
+      ScrollTrigger.create({
+        trigger: chart,
+        start: 'bottom bottom',
+        end: 'top top',
+        onEnter: () => repTl.restart(),
+        onEnterBack: () => repTl.restart()
+      });
+      // Gráfico fuera de la pantalla: se deja en cero para que se vuelva a ver la próxima vez
+      ScrollTrigger.create({
+        trigger: chart,
+        start: 'top bottom',
+        end: 'bottom top',
+        onLeave: () => repTl.pause(0),
+        onLeaveBack: () => repTl.pause(0)
+      });
+
+      // En celular no hay Lenis: recalcular posiciones cuando cargan las fuentes (cambian la altura de los títulos)
+      if (typeof document !== 'undefined' && document.fonts) {
+        document.fonts.ready.then(() => ScrollTrigger.refresh());
+      }
       return restore;
     },
     { scope: rootRef, dependencies: [pinned, reduced], revertOnUpdate: true }
