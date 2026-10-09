@@ -24,6 +24,29 @@
   }
 }
 
+/* Lenis recommended smooth scroll support */
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* Subtle dot texture pattern */
+.bg-dots-pattern {
+  background-image: radial-gradient(#141414 0.85px, transparent 0.85px);
+  background-size: 24px 24px;
+}
+
 /* Unique page animation: thermal receipt printing from slot */
 @keyframes printTicket {
   0% {
