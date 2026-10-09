@@ -4,8 +4,7 @@ import {
   WhatsappLogo,
   CheckCircle,
   WindowsLogo,
-  Info,
-  CaretDown
+  Info
 } from '@phosphor-icons/react';
 import {
   motion,
@@ -146,34 +145,32 @@ const TICKETS: Record<RubroKey, TicketRubro> = {
   }
 };
 
-const RUBROS_LIST = [
+interface RubroItem {
+  id: RubroKey;
+  name: string;
+  desc: string;
+}
+
+const RUBROS_SHOWCASE: RubroItem[] = [
   {
-    id: 'comercios',
+    id: 'ferreteria',
     name: 'Comercios y ferreterías',
-    desc: 'Venta rápida con lector de código de barras, cobro fraccionado, control de inventario por unidad o medida y alertas oportunas de existencias bajas.',
-    snippetItem: 'Clavos 2½ pulg · 3 LB — C$105.00',
-    snippetInventory: 'Inventario: Clavos −3 LB'
+    desc: 'Vendé rápido con código de barras, controlá el inventario por unidad, litro, galón, kilo o libra, y enterate cuando un producto baja de su mínimo.'
   },
   {
-    id: 'restaurantes',
+    id: 'restaurante',
     name: 'Restaurantes y cafeterías',
-    desc: 'Salón con mapa de mesas en tiempo real, comandas enviadas directo a cocina o barra, división de cuentas y pedidos para llevar.',
-    snippetItem: 'Mesa 4 · Hamburguesa clásica ×2 — C$480.00',
-    snippetInventory: 'Receta: Pan −2 UND · Carne −2 UND · Queso −2 UND'
+    desc: 'Mesas y comandas con tu equipo de meseros. Cada plato puede descontar sus ingredientes del inventario al venderse.'
   },
   {
-    id: 'talleres',
+    id: 'taller',
     name: 'Talleres',
-    desc: 'Recepción de vehículos por placa y cliente, seguimiento por áreas de trabajo, técnicos asignados y servicios que descuentan repuestos del inventario.',
-    snippetItem: 'M123456 · Cambio de aceite — C$1,100.00',
-    snippetInventory: 'Inventario: Aceite 15W40 −5 LT · Filtro −1 UND'
+    desc: 'Recibí cada vehículo por placa, con cliente y técnico, y cobrá servicios que descuentan los repuestos del inventario.'
   },
   {
-    id: 'farmacias',
+    id: 'farmacia',
     name: 'Farmacias',
-    desc: 'Búsqueda inmediata por nombre comercial o principio activo, control de lotes y fechas de vencimiento, y facturación ágil de mostrador.',
-    snippetItem: 'Acetaminofén 500 mg ×2 — C$40.00',
-    snippetInventory: 'Inventario: Acetaminofén −2 UND (Lote A24)'
+    desc: 'Vendé en mostrador con inventario por producto, existencias en tiempo real y compras de mercadería registradas.'
   }
 ];
 
@@ -249,6 +246,350 @@ const InventoryCountdownRow: React.FC<{
   );
 };
 
+// Reusable Thermal Receipt Ticket Body
+const TicketReceiptBody: React.FC<{
+  ticket: TicketRubro;
+  rubroKey: RubroKey;
+  reducedMotion: boolean;
+  activeAnimation?: boolean;
+}> = ({ ticket, rubroKey, reducedMotion, activeAnimation = true }) => {
+  return (
+    <div className="bg-[#FFFFFF] border-x border-[#E8E8E4] text-[#141414] font-mono text-xs p-5 shadow-sm space-y-3 select-none relative">
+      {/* Header */}
+      <div className="text-center space-y-0.5 border-b border-dashed border-[#141414]/30 pb-3">
+        <div className="font-bold text-sm tracking-tight text-[#141414]">
+          {ticket.businessName}
+        </div>
+        <div className="text-[11px] text-[#6B6B6B]">{ticket.location}</div>
+        <div className="text-[11px] text-[#6B6B6B]">{ticket.dateTime}</div>
+        <div className="text-[11px] font-semibold text-[#141414] pt-1">
+          {ticket.ticketNumber}
+        </div>
+      </div>
+
+      {/* Metadata */}
+      <div className="space-y-1 text-[11px] border-b border-dashed border-[#141414]/30 pb-3">
+        {ticket.metadata.map((meta, idx) => (
+          <div key={idx} className="flex justify-between">
+            <span className="text-[#6B6B6B]">{meta.label}</span>
+            <span className="font-semibold text-[#141414]">{meta.value}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Items */}
+      <div className="space-y-1.5 py-1 text-[11px]">
+        {ticket.lines.map((line, idx) => (
+          <div key={idx} className="flex justify-between items-start">
+            <span className="text-[#141414]">{line.name}</span>
+            <span className="font-semibold text-[#141414]">{line.price}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Total */}
+      <div className="border-t-2 border-[#141414] pt-2 flex justify-between items-baseline">
+        <span className="font-bold text-xs uppercase tracking-wider text-[#141414]">
+          TOTAL
+        </span>
+        <span className="font-bold text-sm text-[#141414]">{ticket.total}</span>
+      </div>
+
+      {/* Inventory Block */}
+      <div className="mt-4 pt-3 border-t border-dashed border-[#141414]/30 space-y-2">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="font-bold text-[#141414] uppercase tracking-wide">
+            Inventario
+          </span>
+          <motion.span
+            initial={reducedMotion ? false : { scale: 2.2, opacity: 0, rotate: -8 }}
+            animate={
+              reducedMotion
+                ? { scale: 1, opacity: 1, rotate: 0 }
+                : activeAnimation
+                ? { scale: 1, opacity: 1, rotate: 0 }
+                : { scale: 2.2, opacity: 0, rotate: -8 }
+            }
+            transition={
+              reducedMotion
+                ? { duration: 0 }
+                : {
+                    type: 'spring',
+                    stiffness: 420,
+                    damping: 18,
+                    delay: 0.8
+                  }
+            }
+            className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#8FD14F] text-[#141414] uppercase tracking-wider"
+          >
+            descontado
+          </motion.span>
+        </div>
+
+        <div className="space-y-1 text-[11px]">
+          {ticket.inventory.map((inv, idx) => (
+            <InventoryCountdownRow
+              key={`${rubroKey}-${inv.name}`}
+              item={inv}
+              delayMs={idx * 140}
+              reducedMotion={reducedMotion}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="text-center pt-3 text-[10px] text-[#6B6B6B]">
+        Gracias por su preferencia
+      </div>
+    </div>
+  );
+};
+
+// Section 3: Desktop Sticky Scroll Showcase (>= 1024px)
+const DesktopStickyRubros: React.FC<{
+  rubros: RubroItem[];
+  tickets: Record<RubroKey, TicketRubro>;
+  lenisRef: React.MutableRefObject<Lenis | null>;
+  prefersReducedMotion: boolean;
+}> = ({ rubros, tickets, lenisRef, prefersReducedMotion }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // 1. Scroll progress for 4-rubros pagination (offset: start start -> end end)
+  const { scrollYProgress: rubroProgress } = useScroll({
+    target: containerRef,
+    offset: ['start start', 'end end']
+  });
+
+  // 2. Scroll progress for dark background transition (offset: start end -> end start)
+  const { scrollYProgress: bgProgress } = useScroll({
+    target: containerRef,
+    offset: ['start end', 'end start']
+  });
+
+  // Dark overlay opacity: enters smoothly and leaves smoothly
+  const darkBgOpacity = useTransform(
+    bgProgress,
+    [0.08, 0.18, 0.82, 0.92],
+    [0, 1, 1, 0]
+  );
+
+  // Active rubro index: floor(progress * 4) clamped to 0..3
+  const [activeIdx, setActiveIdx] = useState<number>(0);
+  const [progressNumber, setProgressNumber] = useState<number>(0);
+
+  useEffect(() => {
+    const unsub = rubroProgress.on('change', (latest) => {
+      setProgressNumber(latest);
+      const raw = Math.floor(latest * 4);
+      setActiveIdx(Math.max(0, Math.min(3, raw)));
+    });
+    return () => unsub();
+  }, [rubroProgress]);
+
+  // Ticket subtle vertical parallax <= 24px
+  const ticketParallax = useTransform(rubroProgress, [0, 1], [-14, 14]);
+
+  // Click handler to slide scroll to a rubro
+  const handleRubroClick = (index: number) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const sectionTop = rect.top + scrollTop;
+    const sectionHeight = containerRef.current.offsetHeight;
+    const viewportHeight = window.innerHeight;
+    const scrollableDistance = sectionHeight - viewportHeight;
+
+    const progressTargets = [0.03, 0.32, 0.60, 0.88];
+    const targetProgress = progressTargets[index];
+    const targetScrollY = sectionTop + targetProgress * scrollableDistance;
+
+    if (lenisRef.current) {
+      lenisRef.current.scrollTo(targetScrollY, { duration: 1.15 });
+    } else {
+      window.scrollTo({
+        top: targetScrollY,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const currentRubro = rubros[activeIdx];
+  const currentTicket = tickets[currentRubro.id];
+
+  return (
+    <section ref={containerRef} className="relative h-[400vh]">
+      <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col justify-between py-10 lg:py-14 select-none">
+        {/* Layer for background transition to dark ink (#141414) */}
+        <motion.div
+          className="absolute inset-0 bg-[#141414] pointer-events-none z-0"
+          style={{ opacity: darkBgOpacity }}
+          aria-hidden="true"
+        />
+
+        {/* Top Header */}
+        <div className="max-w-[1120px] w-full mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-left">
+          <h2 className="font-serif text-[32px] lg:text-[40px] leading-[1.1] text-[#FAFAF8]">
+            Hecho para cómo trabaja tu negocio
+          </h2>
+          <p className="mt-2 text-[16px] lg:text-[18px] text-[#A3A3A3] max-w-[70ch] font-sans">
+            Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.
+          </p>
+        </div>
+
+        {/* Main 2-column showcase */}
+        <div className="max-w-[1120px] w-full mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex-1 grid grid-cols-12 gap-8 lg:gap-12 items-center my-auto">
+          {/* Left Column: Vertical lime line + 4 rubro buttons */}
+          <div className="col-span-7 flex gap-6 lg:gap-8 items-stretch">
+            {/* Fine vertical lime line marking scroll progress */}
+            <div className="w-[3px] bg-white/10 rounded-full relative overflow-hidden shrink-0 self-stretch my-2">
+              <motion.div
+                className="w-full bg-[#8FD14F] rounded-full origin-top"
+                style={{
+                  height: `${Math.max(6, Math.min(100, progressNumber * 100))}%`
+                }}
+              />
+            </div>
+
+            {/* Rubro buttons */}
+            <div className="flex flex-col justify-center space-y-3 lg:space-y-5 flex-1">
+              {rubros.map((rubro, idx) => {
+                const isActive = activeIdx === idx;
+                return (
+                  <div key={rubro.id} className="relative text-left">
+                    <button
+                      type="button"
+                      onClick={() => handleRubroClick(idx)}
+                      aria-current={isActive ? 'true' : 'false'}
+                      className={`group text-left transition-all duration-300 focus-visible:ring-2 focus-visible:ring-[#8FD14F] focus-visible:outline-none rounded-lg p-1 block w-full cursor-pointer ${
+                        isActive ? 'opacity-100' : 'opacity-25 hover:opacity-50'
+                      }`}
+                    >
+                      <h3
+                        style={{ fontSize: 'clamp(40px, 5vw, 72px)' }}
+                        className="font-serif leading-[1.06] tracking-tight text-[#FAFAF8]"
+                      >
+                        {rubro.name}
+                      </h3>
+                      <span className="sr-only">: {rubro.desc}</span>
+                    </button>
+
+                    {/* Active description with short fade */}
+                    <AnimatePresence mode="wait">
+                      {isActive && (
+                        <motion.p
+                          key={rubro.id}
+                          initial={prefersReducedMotion ? false : { opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                          transition={{ duration: 0.22, ease: 'easeOut' }}
+                          className="text-[17px] lg:text-[18px] text-[#A3A3A3] leading-[1.45] max-w-[48ch] mt-2 mb-2 font-sans text-left"
+                        >
+                          {rubro.desc}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right Column: Ticket with printer slot and vertical parallax */}
+          <div className="col-span-5 flex justify-end">
+            <div className="w-full max-w-[340px] relative">
+              {/* Printer Slot */}
+              <div className="w-full h-3.5 bg-[#262626] rounded-t-md border-t border-x border-[#3a3a3a] flex items-center justify-center px-6 relative z-20 shadow-inner">
+                <div className="w-full h-[2px] bg-[#141414]" />
+              </div>
+
+              {/* Ticket Container */}
+              <div className="overflow-hidden relative z-10 pt-0.5">
+                <motion.div style={{ y: ticketParallax }}>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={currentRubro.id}
+                      initial={prefersReducedMotion ? false : { y: -320, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { y: -320, opacity: 0 }}
+                      transition={{
+                        y: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
+                        opacity: { duration: 0.25 }
+                      }}
+                    >
+                      <TicketReceiptBody
+                        ticket={currentTicket}
+                        rubroKey={currentRubro.id}
+                        reducedMotion={prefersReducedMotion}
+                        activeAnimation={true}
+                      />
+                    </motion.div>
+                  </AnimatePresence>
+                </motion.div>
+              </div>
+
+              <SawtoothDivider flip className="text-[#FFFFFF] relative z-20 -mt-0.5 drop-shadow-xs" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// Section 3: Mobile & Tablet Column Block (< 1024px)
+const MobileRubroBlock: React.FC<{
+  rubro: RubroItem;
+  ticket: TicketRubro;
+  reducedMotion: boolean;
+}> = ({ rubro, ticket, reducedMotion }) => {
+  const blockRef = useRef<HTMLDivElement>(null);
+  const isInView = useInView(blockRef, { once: true, amount: 0.25 });
+
+  return (
+    <div ref={blockRef} className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start text-left">
+      <div className="md:col-span-6 space-y-3">
+        <h3 className="font-serif text-[28px] sm:text-[34px] leading-tight text-[#141414]">
+          {rubro.name}
+        </h3>
+        <p className="text-[16px] sm:text-[17px] leading-[1.6] text-[#6B6B6B]">
+          {rubro.desc}
+        </p>
+      </div>
+
+      <div className="md:col-span-6 flex justify-start md:justify-end">
+        <div className="w-full max-w-[320px]">
+          {/* Slot */}
+          <div className="w-full h-3 bg-[#141414] rounded-t-md flex items-center justify-center px-4 relative z-20">
+            <div className="w-full h-[1.5px] bg-[#292929]" />
+          </div>
+
+          <div className="overflow-hidden relative z-10 pt-0.5">
+            <motion.div
+              initial={reducedMotion ? false : { y: -260, opacity: 0 }}
+              animate={
+                reducedMotion
+                  ? { y: 0, opacity: 1 }
+                  : isInView
+                  ? { y: 0, opacity: 1 }
+                  : { y: -260, opacity: 0 }
+              }
+              transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <TicketReceiptBody
+                ticket={ticket}
+                rubroKey={rubro.id}
+                reducedMotion={reducedMotion}
+                activeAnimation={isInView}
+              />
+            </motion.div>
+          </div>
+          <SawtoothDivider flip className="text-[#FFFFFF] relative z-20 -mt-0.5 drop-shadow-xs" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const App: React.FC = () => {
   const [selectedRubro, setSelectedRubro] = useState<RubroKey>('ferreteria');
   const [release, setRelease] = useState<ReleaseInfo>(FALLBACK_RELEASE);
@@ -256,7 +597,7 @@ export const App: React.FC = () => {
   const [apiError, setApiError] = useState<boolean>(false);
   const [loadingRelease, setLoadingRelease] = useState<boolean>(true);
   const [downloadState, setDownloadState] = useState<'idle' | 'downloading' | 'started'>('idle');
-  const [expandedRubro, setExpandedRubro] = useState<number>(0);
+  const lenisRef = useRef<Lenis | null>(null);
 
   // Preference for reduced motion
   const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
@@ -353,6 +694,7 @@ export const App: React.FC = () => {
       wheelMultiplier: 1,
       touchMultiplier: 1.5
     });
+    lenisRef.current = lenis;
 
     let rafId: number;
     function raf(time: number) {
@@ -380,6 +722,7 @@ export const App: React.FC = () => {
     return () => {
       cancelAnimationFrame(rafId);
       document.removeEventListener('click', handleAnchorClick);
+      lenisRef.current = null;
       lenis.destroy();
     };
   }, [prefersReducedMotion]);
@@ -666,12 +1009,12 @@ export const App: React.FC = () => {
                           rotateX: { duration: 0.15, ease: 'easeOut' },
                           rotateY: { duration: 0.15, ease: 'easeOut' }
                         }}
-                        className="bg-[#FFFFFF] border-x border-[#E8E8E4] text-[#141414] font-mono text-xs p-5 shadow-sm space-y-3 select-none relative"
+                        className="relative"
                       >
                         {/* Thermal Paper Sheen Layer (Desktop only) */}
                         {isFinePointer && !prefersReducedMotion && (
                           <div
-                            className="pointer-events-none absolute inset-0 opacity-15"
+                            className="pointer-events-none absolute inset-0 z-30 opacity-15"
                             style={{
                               background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(255,255,255,0.9), transparent 60%)`
                             }}
@@ -679,93 +1022,12 @@ export const App: React.FC = () => {
                           />
                         )}
 
-                        {/* Ticket Header */}
-                        <div className="text-center space-y-0.5 border-b border-dashed border-[#141414]/30 pb-3">
-                          <div className="font-bold text-sm tracking-tight text-[#141414]">
-                            {activeTicket.businessName}
-                          </div>
-                          <div className="text-[11px] text-[#6B6B6B]">
-                            {activeTicket.location}
-                          </div>
-                          <div className="text-[11px] text-[#6B6B6B]">
-                            {activeTicket.dateTime}
-                          </div>
-                          <div className="text-[11px] font-semibold text-[#141414] pt-1">
-                            {activeTicket.ticketNumber}
-                          </div>
-                        </div>
-
-                        {/* Ticket Metadata */}
-                        <div className="space-y-1 text-[11px] border-b border-dashed border-[#141414]/30 pb-3">
-                          {activeTicket.metadata.map((meta, idx) => (
-                            <div key={idx} className="flex justify-between">
-                              <span className="text-[#6B6B6B]">{meta.label}</span>
-                              <span className="font-semibold text-[#141414]">{meta.value}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Ticket Items */}
-                        <div className="space-y-1.5 py-1 text-[11px]">
-                          {activeTicket.lines.map((line, idx) => (
-                            <div key={idx} className="flex justify-between items-start">
-                              <span className="text-[#141414]">{line.name}</span>
-                              <span className="font-semibold text-[#141414]">{line.price}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Total */}
-                        <div className="border-t-2 border-[#141414] pt-2 flex justify-between items-baseline">
-                          <span className="font-bold text-xs uppercase tracking-wider text-[#141414]">
-                            TOTAL
-                          </span>
-                          <span className="font-bold text-sm text-[#141414]">
-                            {activeTicket.total}
-                          </span>
-                        </div>
-
-                        {/* Animated Inventory Block with Countdown & Bouncing Seal */}
-                        <div className="mt-4 pt-3 border-t border-dashed border-[#141414]/30 space-y-2">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-bold text-[#141414] uppercase tracking-wide">
-                              Inventario
-                            </span>
-                            {/* Green Bouncing Seal */}
-                            <motion.span
-                              initial={prefersReducedMotion ? false : { scale: 2.2, opacity: 0, rotate: -8 }}
-                              animate={{ scale: 1, opacity: 1, rotate: 0 }}
-                              transition={
-                                prefersReducedMotion
-                                  ? { duration: 0 }
-                                  : {
-                                      type: 'spring',
-                                      stiffness: 420,
-                                      damping: 18,
-                                      delay: 0.85
-                                    }
-                              }
-                              className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#8FD14F] text-[#141414] uppercase tracking-wider"
-                            >
-                              descontado
-                            </motion.span>
-                          </div>
-
-                          <div className="space-y-1 text-[11px]">
-                            {activeTicket.inventory.map((inv, idx) => (
-                              <InventoryCountdownRow
-                                key={`${selectedRubro}-${inv.name}`}
-                                item={inv}
-                                delayMs={idx * 140}
-                                reducedMotion={prefersReducedMotion}
-                              />
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="text-center pt-3 text-[10px] text-[#6B6B6B]">
-                          Gracias por su preferencia
-                        </div>
+                        <TicketReceiptBody
+                          ticket={activeTicket}
+                          rubroKey={selectedRubro}
+                          reducedMotion={prefersReducedMotion}
+                          activeAnimation={true}
+                        />
                       </motion.div>
                     </AnimatePresence>
 
@@ -981,83 +1243,69 @@ export const App: React.FC = () => {
           </div>
         </section>
 
-        {/* 3. Section: Hecho para cómo trabaja tu negocio (Interactive Accordion) */}
-        <section className="py-16 sm:py-24 border-b border-[#E8E8E4]">
-          <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 text-left">
-            <h2 className="font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414] text-left">
-              Hecho para cómo trabaja tu negocio
-            </h2>
-            <p className="mt-3 text-[18px] text-[#6B6B6B] max-w-[70ch] text-left font-sans">
-              Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.
-            </p>
+        {/* 3. Section: Hecho para cómo trabaja tu negocio */}
+        {prefersReducedMotion ? (
+          /* Static stacked view for reduced motion users */
+          <section className="py-16 sm:py-24 border-b border-[#E8E8E4]">
+            <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 text-left">
+              <h2 className="font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414]">
+                Hecho para cómo trabaja tu negocio
+              </h2>
+              <p className="mt-3 text-[18px] text-[#6B6B6B] max-w-[70ch] font-sans">
+                Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.
+              </p>
 
-            {/* List with 4 expandable rows with sliding indicator */}
-            <div className="mt-12 divide-y divide-[#E8E8E4] border-y border-[#E8E8E4]">
-              {RUBROS_LIST.map((rubro, index) => {
-                const isExpanded = expandedRubro === index;
-
-                return (
-                  <div
+              <div className="mt-12 space-y-16">
+                {RUBROS_SHOWCASE.map((rubro) => (
+                  <MobileRubroBlock
                     key={rubro.id}
-                    onMouseEnter={() => setExpandedRubro(index)}
-                    onClick={() => setExpandedRubro(index)}
-                    className={`py-6 transition-colors duration-200 cursor-pointer ${
-                      isExpanded ? 'bg-[#F2F2EF]/40' : 'hover:bg-[#F2F2EF]/20'
-                    }`}
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-8 items-start text-left">
-                      <div className="md:col-span-5 flex items-center justify-between">
-                        <div className="font-serif text-2xl sm:text-[26px] text-[#141414]">
-                          {rubro.name}
-                        </div>
-                        {/* Sliding Indicator */}
-                        <motion.div
-                          animate={{
-                            x: isExpanded ? 4 : 0,
-                            rotate: isExpanded ? 90 : 0
-                          }}
-                          transition={{ duration: 0.2 }}
-                          className="text-[#141414] md:hidden pr-2"
-                        >
-                          <CaretDown size={18} weight="bold" />
-                        </motion.div>
-                      </div>
-
-                      <div className="md:col-span-7 space-y-3">
-                        <p className="text-[16px] sm:text-[17px] leading-[1.6] text-[#6B6B6B]">
-                          {rubro.desc}
-                        </p>
-
-                        {/* Smooth Expanded Thermal Receipt Line */}
-                        <AnimatePresence initial={false}>
-                          {isExpanded && (
-                            <motion.div
-                              initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-                              transition={{ duration: 0.3, ease: 'easeOut' }}
-                              className="overflow-hidden pt-1"
-                            >
-                              <div className="p-3 bg-[#FFFFFF] border border-[#E8E8E4] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono shadow-2xs">
-                                <div className="text-[#141414] font-medium">
-                                  {rubro.snippetItem}
-                                </div>
-                                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#8FD14F]/20 text-[#5FA22B] font-bold text-[11px] self-start sm:self-auto">
-                                  <CheckCircle size={13} weight="fill" />
-                                  <span>{rubro.snippetInventory}</span>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    rubro={rubro}
+                    ticket={TICKETS[rubro.id]}
+                    reducedMotion={true}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : (
+          <>
+            {/* Desktop (>= 1024px, fine pointer): 400vh sticky scroll showcase */}
+            <div className="hidden lg:block border-b border-[#E8E8E4]">
+              <DesktopStickyRubros
+                rubros={RUBROS_SHOWCASE}
+                tickets={TICKETS}
+                lenisRef={lenisRef}
+                prefersReducedMotion={false}
+              />
+            </div>
+
+            {/* Mobile & Tablet (< 1024px): Stacked column blocks with in-view print */}
+            <div className="block lg:hidden">
+              <section className="py-16 sm:py-24 border-b border-[#E8E8E4]">
+                <div className="max-w-[1120px] mx-auto px-4 sm:px-6 text-left">
+                  <h2 className="font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414]">
+                    Hecho para cómo trabaja tu negocio
+                  </h2>
+                  <p className="mt-3 text-[17px] sm:text-[18px] text-[#6B6B6B] max-w-[70ch] font-sans">
+                    Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.
+                  </p>
+
+                  <div className="mt-12 space-y-16">
+                    {RUBROS_SHOWCASE.map((rubro) => (
+                      <MobileRubroBlock
+                        key={rubro.id}
+                        rubro={rubro}
+                        ticket={TICKETS[rubro.id]}
+                        reducedMotion={false}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </section>
+            </div>
+          </>
+        )}
+
 
         {/* 4. Section: Precio ($45 Animated Counter + Staggered List) */}
         <section className="py-16 sm:py-24 border-b border-[#E8E8E4]">
