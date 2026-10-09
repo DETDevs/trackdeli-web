@@ -9,7 +9,9 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
     "@phosphor-icons/react": "^2.1.10",
+    "gsap": "^3.15.0",
     "lenis": "^1.1.20",
     "motion": "^12.4.7",
     "react": "^18.3.1",

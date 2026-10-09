@@ -11,10 +11,14 @@ import {
   AnimatePresence,
   useScroll,
   useTransform,
-  useInView,
   animate
 } from 'motion/react';
 import Lenis from 'lenis';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useGSAP } from '@gsap/react';
+
+gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 interface ReleaseInfo {
   version: string;
@@ -148,29 +152,55 @@ const TICKETS: Record<RubroKey, TicketRubro> = {
 interface RubroItem {
   id: RubroKey;
   name: string;
-  desc: string;
+  titleLines: string[];
+  descLines: string[];
+  fullDesc: string;
 }
 
-const RUBROS_SHOWCASE: RubroItem[] = [
+const RUBROS_DATA: RubroItem[] = [
   {
     id: 'ferreteria',
     name: 'Comercios y ferreterías',
-    desc: 'Vendé rápido con código de barras, controlá el inventario por unidad, litro, galón, kilo o libra, y enterate cuando un producto baja de su mínimo.'
+    titleLines: ['Comercios y', 'ferreterías'],
+    descLines: [
+      'Vendé rápido con código de barras, controlá el inventario',
+      'por unidad, litro, galón, kilo o libra, y enterate cuando un producto baja de su mínimo.'
+    ],
+    fullDesc:
+      'Vendé rápido con código de barras, controlá el inventario por unidad, litro, galón, kilo o libra, y enterate cuando un producto baja de su mínimo.'
   },
   {
     id: 'restaurante',
     name: 'Restaurantes y cafeterías',
-    desc: 'Mesas y comandas con tu equipo de meseros. Cada plato puede descontar sus ingredientes del inventario al venderse.'
+    titleLines: ['Restaurantes y', 'cafeterías'],
+    descLines: [
+      'Mesas y comandas con tu equipo de meseros.',
+      'Cada plato puede descontar sus ingredientes del inventario al venderse.'
+    ],
+    fullDesc:
+      'Mesas y comandas con tu equipo de meseros. Cada plato puede descontar sus ingredientes del inventario al venderse.'
   },
   {
     id: 'taller',
     name: 'Talleres',
-    desc: 'Recibí cada vehículo por placa, con cliente y técnico, y cobrá servicios que descuentan los repuestos del inventario.'
+    titleLines: ['Talleres'],
+    descLines: [
+      'Recibí cada vehículo por placa, con cliente y técnico,',
+      'y cobrá servicios que descuentan los repuestos del inventario.'
+    ],
+    fullDesc:
+      'Recibí cada vehículo por placa, con cliente y técnico, y cobrá servicios que descuentan los repuestos del inventario.'
   },
   {
     id: 'farmacia',
     name: 'Farmacias',
-    desc: 'Vendé en mostrador con inventario por producto, existencias en tiempo real y compras de mercadería registradas.'
+    titleLines: ['Farmacias'],
+    descLines: [
+      'Vendé en mostrador con inventario por producto,',
+      'existencias en tiempo real y compras de mercadería registradas.'
+    ],
+    fullDesc:
+      'Vendé en mostrador con inventario por producto, existencias en tiempo real y compras de mercadería registradas.'
   }
 ];
 
@@ -345,247 +375,759 @@ const TicketReceiptBody: React.FC<{
   );
 };
 
-// Section 3: Desktop Sticky Scroll Showcase (>= 1024px)
-const DesktopStickyRubros: React.FC<{
-  rubros: RubroItem[];
+// Section 3: Rubros Showcase with GSAP + ScrollTrigger (Zara / Lenis style)
+const RubrosSectionGSAP: React.FC<{
   tickets: Record<RubroKey, TicketRubro>;
   lenisRef: React.MutableRefObject<Lenis | null>;
   prefersReducedMotion: boolean;
-}> = ({ rubros, tickets, lenisRef, prefersReducedMotion }) => {
+}> = ({ tickets, lenisRef, prefersReducedMotion }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const textColRef = useRef<HTMLDivElement>(null);
+  const ticketColRef = useRef<HTMLDivElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const masterTlRef = useRef<gsap.core.Timeline | null>(null);
 
-  // 1. Scroll progress for 4-rubros pagination (offset: start start -> end end)
-  const { scrollYProgress: rubroProgress } = useScroll({
-    target: containerRef,
-    offset: ['start start', 'end end']
-  });
+  const [activeRubroIdx, setActiveRubroIdx] = useState<number>(0);
 
-  // 2. Scroll progress for dark background transition (offset: start end -> end start)
-  const { scrollYProgress: bgProgress } = useScroll({
-    target: containerRef,
-    offset: ['start end', 'end start']
-  });
-
-  // Dark overlay opacity: enters smoothly and leaves smoothly
-  const darkBgOpacity = useTransform(
-    bgProgress,
-    [0.08, 0.18, 0.82, 0.92],
-    [0, 1, 1, 0]
-  );
-
-  // Active rubro index: floor(progress * 4) clamped to 0..3
-  const [activeIdx, setActiveIdx] = useState<number>(0);
-  const [progressNumber, setProgressNumber] = useState<number>(0);
-
-  useEffect(() => {
-    const unsub = rubroProgress.on('change', (latest) => {
-      setProgressNumber(latest);
-      const raw = Math.floor(latest * 4);
-      setActiveIdx(Math.max(0, Math.min(3, raw)));
-    });
-    return () => unsub();
-  }, [rubroProgress]);
-
-  // Ticket subtle vertical parallax <= 24px
-  const ticketParallax = useTransform(rubroProgress, [0, 1], [-14, 14]);
-
-  // Click handler to slide scroll to a rubro
-  const handleRubroClick = (index: number) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const scrollTop = window.scrollY || document.documentElement.scrollTop;
-    const sectionTop = rect.top + scrollTop;
-    const sectionHeight = containerRef.current.offsetHeight;
-    const viewportHeight = window.innerHeight;
-    const scrollableDistance = sectionHeight - viewportHeight;
-
-    const progressTargets = [0.03, 0.32, 0.60, 0.88];
-    const targetProgress = progressTargets[index];
-    const targetScrollY = sectionTop + targetProgress * scrollableDistance;
-
+  // Jump to specific rubro using lenis
+  const scrollToRubro = (index: number) => {
+    const st = masterTlRef.current?.scrollTrigger;
+    if (!st) return;
+    const progressTargets = [0.08, 0.375, 0.625, 0.875];
+    const targetY = st.start + progressTargets[index] * (st.end - st.start);
     if (lenisRef.current) {
-      lenisRef.current.scrollTo(targetScrollY, { duration: 1.15 });
+      lenisRef.current.scrollTo(targetY, { duration: 1.1 });
     } else {
-      window.scrollTo({
-        top: targetScrollY,
-        behavior: 'smooth'
-      });
+      window.scrollTo({ top: targetY, behavior: 'smooth' });
     }
   };
 
-  const currentRubro = rubros[activeIdx];
-  const currentTicket = tickets[currentRubro.id];
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+
+      // 1. DESKTOP (>= 1024px with fine pointer) & NOT reduced motion
+      mm.add(
+        '(min-width: 1024px) and (pointer: fine) and (prefers-reduced-motion: no-preference)',
+        () => {
+          if (!sectionRef.current) return;
+
+          const masterTl = gsap.timeline({
+            scrollTrigger: {
+              trigger: sectionRef.current,
+              pin: true,
+              start: 'top top',
+              end: '+=400%',
+              scrub: 1,
+              anticipatePin: 1,
+              onUpdate: (self) => {
+                const p = self.progress;
+                const idx = p < 0.25 ? 0 : p < 0.5 ? 1 : p < 0.75 ? 2 : 3;
+                setActiveRubroIdx(idx);
+              }
+            }
+          });
+          masterTlRef.current = masterTl;
+
+          // Background color interpolation: #FAFAF8 -> #141414 -> #FAFAF8
+          masterTl.to(
+            sectionRef.current,
+            {
+              backgroundColor: '#141414',
+              color: '#FAFAF8',
+              duration: 0.35,
+              ease: 'power1.inOut'
+            },
+            0
+          );
+          masterTl.to(
+            '.gsap-section-sub',
+            {
+              color: '#A3A3A3',
+              duration: 0.35,
+              ease: 'power1.inOut'
+            },
+            0
+          );
+          masterTl.to(
+            sectionRef.current,
+            {
+              backgroundColor: '#FAFAF8',
+              color: '#141414',
+              duration: 0.35,
+              ease: 'power1.inOut'
+            },
+            3.65
+          );
+          masterTl.to(
+            '.gsap-section-sub',
+            {
+              color: '#6B6B6B',
+              duration: 0.35,
+              ease: 'power1.inOut'
+            },
+            3.65
+          );
+
+          // Parallax depth: text column moves slightly faster (28 -> -28), ticket column moves slightly slower (-28 -> 28)
+          if (textColRef.current && ticketColRef.current) {
+            masterTl.fromTo(textColRef.current, { y: 28 }, { y: -28, ease: 'none', duration: 4 }, 0);
+            masterTl.fromTo(ticketColRef.current, { y: -28 }, { y: 28, ease: 'none', duration: 4 }, 0);
+          }
+
+          // Progress bar line: scaleY 0 -> 1 over 0 -> 4
+          if (progressBarRef.current) {
+            masterTl.fromTo(progressBarRef.current, { scaleY: 0 }, { scaleY: 1, ease: 'none', duration: 4 }, 0);
+          }
+
+          // Inventory countdown helper for the timeline
+          const setupInventoryCountdown = (rubroIdx: number, ticketKey: RubroKey, timeAt: number) => {
+            const ticket = tickets[ticketKey];
+            ticket.inventory.forEach((inv, invIdx) => {
+              const el = containerRef.current?.querySelector(`.gsap-stock-${rubroIdx}-${invIdx}`);
+              if (!el) return;
+              const stockObj = { val: inv.fromStock };
+              masterTl.to(
+                stockObj,
+                {
+                  val: inv.toStock,
+                  duration: 0.35,
+                  ease: 'power1.out',
+                  snap: inv.decimals ? { val: 0.01 } : { val: 1 },
+                  onUpdate: () => {
+                    el.textContent = inv.decimals
+                      ? stockObj.val.toFixed(inv.decimals)
+                      : Math.round(stockObj.val).toString();
+                  }
+                },
+                timeAt
+              );
+            });
+          };
+
+          // Initial stock setup & stamp for Rubro 0
+          setupInventoryCountdown(0, 'ferreteria', 0.2);
+          masterTl.fromTo(
+            '.gsap-stamp-0',
+            { scale: 0, rotation: -12, opacity: 0 },
+            { scale: 1, rotation: 0, opacity: 1, duration: 0.35, ease: 'back.out(1.7)' },
+            0.25
+          );
+
+          // Transition 0 -> 1 (t = 1.0)
+          masterTl.to('.gsap-title-line-0', { yPercent: -110, duration: 0.3, ease: 'power2.in' }, 0.85);
+          masterTl.to('.gsap-desc-line-0', { yPercent: -110, duration: 0.25, ease: 'power2.in' }, 0.85);
+          masterTl.to('.gsap-rubro-btn-0', { opacity: 0.25, duration: 0.25 }, 0.85);
+          masterTl.set('.gsap-desc-wrap-0', { display: 'none' }, 1.1);
+          masterTl.to('.gsap-ticket-0', { y: -160, rotation: -2.5, opacity: 0, duration: 0.4, ease: 'power2.in' }, 0.85);
+
+          masterTl.to('.gsap-rubro-btn-1', { opacity: 1, duration: 0.25 }, 1.0);
+          masterTl.set('.gsap-desc-wrap-1', { display: 'block', opacity: 1 }, 1.0);
+          masterTl.fromTo(
+            '.gsap-title-line-1',
+            { yPercent: 110 },
+            { yPercent: 0, duration: 0.45, ease: 'power2.out', stagger: 0.04 },
+            1.0
+          );
+          masterTl.fromTo(
+            '.gsap-desc-line-1',
+            { yPercent: 110 },
+            { yPercent: 0, duration: 0.4, ease: 'power2.out', stagger: 0.04 },
+            1.08
+          );
+          masterTl.fromTo(
+            '.gsap-ticket-1',
+            { y: 160, clipPath: 'inset(100% 0 0 0)', opacity: 0 },
+            { y: 0, clipPath: 'inset(0% 0 0 0)', opacity: 1, duration: 0.55, ease: 'power2.out' },
+            1.0
+          );
+          setupInventoryCountdown(1, 'restaurante', 1.15);
+          masterTl.fromTo(
+            '.gsap-stamp-1',
+            { scale: 0, rotation: -12, opacity: 0 },
+            { scale: 1, rotation: 0, opacity: 1, duration: 0.35, ease: 'back.out(1.7)' },
+            1.2
+          );
+
+          // Transition 1 -> 2 (t = 2.0)
+          masterTl.to('.gsap-title-line-1', { yPercent: -110, duration: 0.3, ease: 'power2.in' }, 1.85);
+          masterTl.to('.gsap-desc-line-1', { yPercent: -110, duration: 0.25, ease: 'power2.in' }, 1.85);
+          masterTl.to('.gsap-rubro-btn-1', { opacity: 0.25, duration: 0.25 }, 1.85);
+          masterTl.set('.gsap-desc-wrap-1', { display: 'none' }, 2.1);
+          masterTl.to('.gsap-ticket-1', { y: -160, rotation: -2.5, opacity: 0, duration: 0.4, ease: 'power2.in' }, 1.85);
+
+          masterTl.to('.gsap-rubro-btn-2', { opacity: 1, duration: 0.25 }, 2.0);
+          masterTl.set('.gsap-desc-wrap-2', { display: 'block', opacity: 1 }, 2.0);
+          masterTl.fromTo(
+            '.gsap-title-line-2',
+            { yPercent: 110 },
+            { yPercent: 0, duration: 0.45, ease: 'power2.out', stagger: 0.04 },
+            2.0
+          );
+          masterTl.fromTo(
+            '.gsap-desc-line-2',
+            { yPercent: 110 },
+            { yPercent: 0, duration: 0.4, ease: 'power2.out', stagger: 0.04 },
+            2.08
+          );
+          masterTl.fromTo(
+            '.gsap-ticket-2',
+            { y: 160, clipPath: 'inset(100% 0 0 0)', opacity: 0 },
+            { y: 0, clipPath: 'inset(0% 0 0 0)', opacity: 1, duration: 0.55, ease: 'power2.out' },
+            2.0
+          );
+          setupInventoryCountdown(2, 'taller', 2.15);
+          masterTl.fromTo(
+            '.gsap-stamp-2',
+            { scale: 0, rotation: -12, opacity: 0 },
+            { scale: 1, rotation: 0, opacity: 1, duration: 0.35, ease: 'back.out(1.7)' },
+            2.2
+          );
+
+          // Transition 2 -> 3 (t = 3.0)
+          masterTl.to('.gsap-title-line-2', { yPercent: -110, duration: 0.3, ease: 'power2.in' }, 2.85);
+          masterTl.to('.gsap-desc-line-2', { yPercent: -110, duration: 0.25, ease: 'power2.in' }, 2.85);
+          masterTl.to('.gsap-rubro-btn-2', { opacity: 0.25, duration: 0.25 }, 2.85);
+          masterTl.set('.gsap-desc-wrap-2', { display: 'none' }, 3.1);
+          masterTl.to('.gsap-ticket-2', { y: -160, rotation: -2.5, opacity: 0, duration: 0.4, ease: 'power2.in' }, 2.85);
+
+          masterTl.to('.gsap-rubro-btn-3', { opacity: 1, duration: 0.25 }, 3.0);
+          masterTl.set('.gsap-desc-wrap-3', { display: 'block', opacity: 1 }, 3.0);
+          masterTl.fromTo(
+            '.gsap-title-line-3',
+            { yPercent: 110 },
+            { yPercent: 0, duration: 0.45, ease: 'power2.out', stagger: 0.04 },
+            3.0
+          );
+          masterTl.fromTo(
+            '.gsap-desc-line-3',
+            { yPercent: 110 },
+            { yPercent: 0, duration: 0.4, ease: 'power2.out', stagger: 0.04 },
+            3.08
+          );
+          masterTl.fromTo(
+            '.gsap-ticket-3',
+            { y: 160, clipPath: 'inset(100% 0 0 0)', opacity: 0 },
+            { y: 0, clipPath: 'inset(0% 0 0 0)', opacity: 1, duration: 0.55, ease: 'power2.out' },
+            3.0
+          );
+          setupInventoryCountdown(3, 'farmacia', 3.15);
+          masterTl.fromTo(
+            '.gsap-stamp-3',
+            { scale: 0, rotation: -12, opacity: 0 },
+            { scale: 1, rotation: 0, opacity: 1, duration: 0.35, ease: 'back.out(1.7)' },
+            3.2
+          );
+        }
+      );
+
+      // 2. MOBILE / TABLET (< 1024px) & NOT reduced motion
+      mm.add(
+        '(max-width: 1023px) and (prefers-reduced-motion: no-preference)',
+        () => {
+          const blocks = gsap.utils.toArray<HTMLElement>('.mobile-rubro-block');
+          blocks.forEach((block, bIdx) => {
+            const titleLine = block.querySelector('.mobile-title-line');
+            const ticket = block.querySelector('.mobile-ticket-wrap');
+            const stamp = block.querySelector('.mobile-stamp');
+
+            const tl = gsap.timeline({
+              scrollTrigger: {
+                trigger: block,
+                start: 'top 85%',
+                once: true
+              }
+            });
+
+            if (titleLine) {
+              tl.from(titleLine, {
+                yPercent: 110,
+                duration: 0.65,
+                ease: 'power3.out'
+              });
+            }
+
+            if (ticket) {
+              tl.fromTo(
+                ticket,
+                { y: 80, clipPath: 'inset(100% 0 0 0)', opacity: 0 },
+                { y: 0, clipPath: 'inset(0% 0 0 0)', opacity: 1, duration: 0.7, ease: 'power2.out' },
+                '-=0.25'
+              );
+            }
+
+            const rubroData = RUBROS_DATA[bIdx];
+            if (rubroData) {
+              const ticketData = tickets[rubroData.id];
+              ticketData.inventory.forEach((inv, invIdx) => {
+                const el = block.querySelector(`.mobile-stock-${bIdx}-${invIdx}`);
+                if (!el) return;
+                const stockObj = { val: inv.fromStock };
+                tl.to(
+                  stockObj,
+                  {
+                    val: inv.toStock,
+                    duration: 0.45,
+                    ease: 'power1.out',
+                    snap: inv.decimals ? { val: 0.01 } : { val: 1 },
+                    onUpdate: () => {
+                      el.textContent = inv.decimals
+                        ? stockObj.val.toFixed(inv.decimals)
+                        : Math.round(stockObj.val).toString();
+                    }
+                  },
+                  '-=0.3'
+                );
+              });
+            }
+
+            if (stamp) {
+              tl.fromTo(
+                stamp,
+                { scale: 0, rotation: -12, opacity: 0 },
+                { scale: 1, rotation: 0, opacity: 1, duration: 0.4, ease: 'back.out(1.7)' },
+                '-=0.2'
+              );
+            }
+          });
+        }
+      );
+    },
+    { scope: containerRef, dependencies: [prefersReducedMotion, tickets] }
+  );
 
   return (
-    <section ref={containerRef} className="relative h-[400vh]">
-      <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col justify-between py-10 lg:py-14 select-none">
-        {/* Layer for background transition to dark ink (#141414) */}
-        <motion.div
-          className="absolute inset-0 bg-[#141414] pointer-events-none z-0"
-          style={{ opacity: darkBgOpacity }}
-          aria-hidden="true"
-        />
+    <div ref={containerRef}>
+      {/* 1. Desktop pinned section (>= 1024px) */}
+      {!prefersReducedMotion && (
+        <div className="hidden lg:block">
+          <section
+            id="rubros-showcase"
+            ref={sectionRef}
+            className="relative w-full overflow-hidden bg-[#FAFAF8] will-change-transform border-b border-[#E8E8E4]"
+          >
+            <div className="w-full h-screen flex flex-col justify-between py-8 lg:py-10 px-4 sm:px-6 lg:px-8 max-w-[1120px] mx-auto relative select-none">
+              {/* Header */}
+              <div className="text-left w-full pt-2">
+                <div className="overflow-hidden pb-1">
+                  <h2 className="zara-reveal-h2 font-serif text-[32px] lg:text-[40px] leading-[1.1] text-inherit">
+                    Hecho para cómo trabaja tu negocio
+                  </h2>
+                </div>
+                <p className="gsap-section-sub mt-2 text-[16px] lg:text-[18px] text-[#A3A3A3] max-w-[70ch] font-sans">
+                  Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.
+                </p>
+              </div>
 
-        {/* Top Header */}
-        <div className="max-w-[1120px] w-full mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-left">
-          <h2 className="font-serif text-[32px] lg:text-[40px] leading-[1.1] text-[#FAFAF8]">
-            Hecho para cómo trabaja tu negocio
-          </h2>
-          <p className="mt-2 text-[16px] lg:text-[18px] text-[#A3A3A3] max-w-[70ch] font-sans">
-            Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.
-          </p>
-        </div>
+              {/* Center 2-column showcase */}
+              <div className="w-full flex-1 grid grid-cols-12 gap-8 lg:gap-12 items-center my-auto">
+                {/* Left Column: Titles */}
+                <div ref={textColRef} className="col-span-7 flex gap-6 lg:gap-8 items-stretch will-change-transform">
+                  {/* Vertical lime line */}
+                  <div className="w-[3px] bg-white/10 rounded-full relative overflow-hidden shrink-0 self-stretch my-2">
+                    <div
+                      ref={progressBarRef}
+                      className="w-full bg-[#8FD14F] rounded-full origin-top"
+                      style={{ height: '100%', transform: 'scaleY(0)', transformOrigin: 'top' }}
+                    />
+                  </div>
 
-        {/* Main 2-column showcase */}
-        <div className="max-w-[1120px] w-full mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex-1 grid grid-cols-12 gap-8 lg:gap-12 items-center my-auto">
-          {/* Left Column: Vertical lime line + 4 rubro buttons */}
-          <div className="col-span-7 flex gap-6 lg:gap-8 items-stretch">
-            {/* Fine vertical lime line marking scroll progress */}
-            <div className="w-[3px] bg-white/10 rounded-full relative overflow-hidden shrink-0 self-stretch my-2">
-              <motion.div
-                className="w-full bg-[#8FD14F] rounded-full origin-top"
-                style={{
-                  height: `${Math.max(6, Math.min(100, progressNumber * 100))}%`
-                }}
-              />
+                  {/* Rubro buttons column */}
+                  <div className="flex flex-col justify-center space-y-3 lg:space-y-5 flex-1">
+                    {RUBROS_DATA.map((rubro, idx) => {
+                      const isActive = activeRubroIdx === idx;
+                      return (
+                        <div key={rubro.id} className="relative text-left">
+                          <button
+                            type="button"
+                            onClick={() => scrollToRubro(idx)}
+                            aria-current={isActive ? 'true' : 'false'}
+                            className={`gsap-rubro-btn-${idx} group text-left transition-opacity duration-300 focus-visible:ring-2 focus-visible:ring-[#8FD14F] focus-visible:outline-none rounded-lg p-1 block w-full cursor-pointer ${
+                              idx === 0 ? 'opacity-100' : 'opacity-25 hover:opacity-50'
+                            }`}
+                          >
+                            <h3
+                              style={{ fontSize: 'clamp(40px, 5vw, 72px)' }}
+                              className="font-serif leading-[1.06] tracking-tight text-[#FAFAF8]"
+                            >
+                              {rubro.titleLines.map((line, lIdx) => (
+                                <span key={lIdx} className="block overflow-hidden pb-0.5">
+                                  <span
+                                    className={`gsap-title-line-${idx} block will-change-transform`}
+                                    style={{
+                                      transform: idx === 0 ? 'translateY(0%)' : 'translateY(110%)'
+                                    }}
+                                  >
+                                    {line}
+                                  </span>
+                                </span>
+                              ))}
+                            </h3>
+                            <span className="sr-only">: {rubro.fullDesc}</span>
+                          </button>
+
+                          {/* Description lines in overflow-hidden masks */}
+                          <div
+                            className={`gsap-desc-wrap-${idx} overflow-hidden font-sans text-left mt-1 mb-2`}
+                            style={{
+                              display: idx === 0 ? 'block' : 'none',
+                              opacity: idx === 0 ? 1 : 0
+                            }}
+                          >
+                            {rubro.descLines.map((line, dIdx) => (
+                              <div key={dIdx} className="overflow-hidden pb-0.5">
+                                <span
+                                  className={`gsap-desc-line-${idx} block text-[17px] lg:text-[18px] text-[#A3A3A3] leading-[1.45] max-w-[48ch] will-change-transform`}
+                                  style={{
+                                    transform: idx === 0 ? 'translateY(0%)' : 'translateY(110%)'
+                                  }}
+                                >
+                                  {line}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Right Column: Ticket */}
+                <div ref={ticketColRef} className="col-span-5 flex justify-end will-change-transform">
+                  <div className="w-full max-w-[340px] relative">
+                    {/* Printer Slot */}
+                    <div className="w-full h-3.5 bg-[#262626] rounded-t-md border-t border-x border-[#3a3a3a] flex items-center justify-center px-6 relative z-20 shadow-inner">
+                      <div className="w-full h-[2px] bg-[#141414]" />
+                    </div>
+
+                    {/* Ticket Viewport */}
+                    <div className="relative overflow-hidden z-10 pt-0.5" style={{ height: '440px' }}>
+                      {RUBROS_DATA.map((rubro, idx) => {
+                        const ticket = tickets[rubro.id];
+                        return (
+                          <div
+                            key={rubro.id}
+                            className={`gsap-ticket-${idx} absolute inset-x-0 top-0 will-change-transform`}
+                            style={{
+                              zIndex: 10 + idx,
+                              clipPath: idx === 0 ? 'inset(0% 0 0 0)' : 'inset(100% 0 0 0)',
+                              opacity: idx === 0 ? 1 : 0,
+                              transform: idx === 0 ? 'none' : 'translateY(160px)'
+                            }}
+                          >
+                            <div className="bg-[#FFFFFF] border-x border-[#E8E8E4] text-[#141414] font-mono text-xs p-5 shadow-sm space-y-3 select-none relative">
+                              {/* Header */}
+                              <div className="text-center space-y-0.5 border-b border-dashed border-[#141414]/30 pb-3">
+                                <div className="font-bold text-sm tracking-tight text-[#141414]">
+                                  {ticket.businessName}
+                                </div>
+                                <div className="text-[11px] text-[#6B6B6B]">{ticket.location}</div>
+                                <div className="text-[11px] text-[#6B6B6B]">{ticket.dateTime}</div>
+                                <div className="text-[11px] font-semibold text-[#141414] pt-1">
+                                  {ticket.ticketNumber}
+                                </div>
+                              </div>
+
+                              {/* Metadata */}
+                              <div className="space-y-1 text-[11px] border-b border-dashed border-[#141414]/30 pb-3">
+                                {ticket.metadata.map((meta, mIdx) => (
+                                  <div key={mIdx} className="flex justify-between">
+                                    <span className="text-[#6B6B6B]">{meta.label}</span>
+                                    <span className="font-semibold text-[#141414]">{meta.value}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Items */}
+                              <div className="space-y-1.5 py-1 text-[11px]">
+                                {ticket.lines.map((line, lIdx) => (
+                                  <div key={lIdx} className="flex justify-between items-start">
+                                    <span className="text-[#141414]">{line.name}</span>
+                                    <span className="font-semibold text-[#141414]">{line.price}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Total */}
+                              <div className="border-t-2 border-[#141414] pt-2 flex justify-between items-baseline">
+                                <span className="font-bold text-xs uppercase tracking-wider text-[#141414]">
+                                  TOTAL
+                                </span>
+                                <span className="font-bold text-sm text-[#141414]">{ticket.total}</span>
+                              </div>
+
+                              {/* Inventory block */}
+                              <div className="mt-4 pt-3 border-t border-dashed border-[#141414]/30 space-y-2">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="font-bold text-[#141414] uppercase tracking-wide">
+                                    Inventario
+                                  </span>
+                                  <span
+                                    className={`gsap-stamp-${idx} inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#8FD14F] text-[#141414] uppercase tracking-wider origin-center`}
+                                    style={{
+                                      transform: 'scale(0)',
+                                      opacity: 0
+                                    }}
+                                  >
+                                    descontado
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1 text-[11px]">
+                                  {ticket.inventory.map((inv, invIdx) => (
+                                    <div key={invIdx} className="flex justify-between items-baseline text-[#141414]">
+                                      <span className="truncate pr-2">{inv.name}</span>
+                                      <span className="font-bold shrink-0 font-mono tracking-tight text-[11px]">
+                                        <span className="text-[#6B6B6B] font-normal mr-1">
+                                          {inv.decimals ? inv.fromStock.toFixed(inv.decimals) : inv.fromStock} →
+                                        </span>
+                                        <span className="text-[#141414]">
+                                          <span className={`gsap-stock-${idx}-${invIdx}`}>
+                                            {inv.decimals ? inv.fromStock.toFixed(inv.decimals) : inv.fromStock}
+                                          </span>{' '}
+                                          {inv.unit}
+                                        </span>
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="text-center pt-2 text-[10px] text-[#6B6B6B]">
+                                Gracias por su preferencia
+                              </div>
+                            </div>
+                            {/* Jagged / Sawtooth torn paper bottom */}
+                            <div className="w-full h-3 bg-[#FFFFFF] border-x border-[#E8E8E4] relative overflow-hidden">
+                              <svg
+                                className="w-full h-full text-[#141414] fill-current"
+                                viewBox="0 0 340 12"
+                                preserveAspectRatio="none"
+                              >
+                                <path d="M0,12 L10,0 L20,12 L30,0 L40,12 L50,0 L60,12 L70,0 L80,12 L90,0 L100,12 L110,0 L120,12 L130,0 L140,12 L150,0 L160,12 L170,0 L180,12 L190,0 L200,12 L210,0 L220,12 L230,0 L240,12 L250,0 L260,12 L270,0 L280,12 L290,0 L300,12 L310,0 L320,12 L330,0 L340,12 L340,12 L0,12 Z" />
+                              </svg>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom clickable dots */}
+              <div className="flex items-center gap-2.5 pb-2">
+                <span className="text-xs text-[#A3A3A3] font-medium mr-2">Rubros:</span>
+                {RUBROS_DATA.map((rubro, idx) => (
+                  <button
+                    key={rubro.id}
+                    type="button"
+                    onClick={() => scrollToRubro(idx)}
+                    aria-label={`Ir a ${rubro.name}`}
+                    className={`h-2.5 rounded-full transition-all duration-300 focus-visible:ring-2 focus-visible:ring-[#8FD14F] focus-visible:outline-none cursor-pointer ${
+                      activeRubroIdx === idx ? 'w-8 bg-[#8FD14F]' : 'w-2.5 bg-white/30 hover:bg-white/50'
+                    }`}
+                  />
+                ))}
+              </div>
             </div>
+          </section>
+        </div>
+      )}
 
-            {/* Rubro buttons */}
-            <div className="flex flex-col justify-center space-y-3 lg:space-y-5 flex-1">
-              {rubros.map((rubro, idx) => {
-                const isActive = activeIdx === idx;
-                return (
-                  <div key={rubro.id} className="relative text-left">
-                    <button
-                      type="button"
-                      onClick={() => handleRubroClick(idx)}
-                      aria-current={isActive ? 'true' : 'false'}
-                      className={`group text-left transition-all duration-300 focus-visible:ring-2 focus-visible:ring-[#8FD14F] focus-visible:outline-none rounded-lg p-1 block w-full cursor-pointer ${
-                        isActive ? 'opacity-100' : 'opacity-25 hover:opacity-50'
-                      }`}
+      {/* 2. Mobile & Tablet view (< 1024px) */}
+      {!prefersReducedMotion && (
+        <div className="block lg:hidden">
+          <section className="py-16 sm:py-24 border-b border-[#E8E8E4]">
+            <div className="max-w-[1120px] mx-auto px-4 sm:px-6 text-left">
+              <div className="overflow-hidden pb-1">
+                <h2 className="zara-reveal-h2 font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414]">
+                  Hecho para cómo trabaja tu negocio
+                </h2>
+              </div>
+              <p className="mt-3 text-[17px] sm:text-[18px] text-[#6B6B6B] max-w-[70ch] font-sans">
+                Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.
+              </p>
+
+              <div className="mt-12 space-y-16">
+                {RUBROS_DATA.map((rubro, bIdx) => {
+                  const ticket = tickets[rubro.id];
+                  return (
+                    <div
+                      key={rubro.id}
+                      className="mobile-rubro-block grid grid-cols-1 md:grid-cols-12 gap-8 items-start text-left"
                     >
-                      <h3
-                        style={{ fontSize: 'clamp(40px, 5vw, 72px)' }}
-                        className="font-serif leading-[1.06] tracking-tight text-[#FAFAF8]"
-                      >
+                      <div className="md:col-span-6 space-y-3">
+                        <div className="overflow-hidden pb-1">
+                          <h3 className="mobile-title-line font-serif text-[28px] sm:text-[34px] leading-tight text-[#141414] will-change-transform">
+                            {rubro.name}
+                          </h3>
+                        </div>
+                        <p className="text-[16px] sm:text-[17px] leading-[1.6] text-[#6B6B6B]">
+                          {rubro.fullDesc}
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-6 flex justify-start md:justify-end">
+                        <div className="mobile-ticket-wrap w-full max-w-[320px] will-change-transform">
+                          {/* Slot */}
+                          <div className="w-full h-3 bg-[#141414] rounded-t-md flex items-center justify-center px-4 relative z-20">
+                            <div className="w-full h-[1.5px] bg-[#292929]" />
+                          </div>
+
+                          <div className="overflow-hidden relative z-10 pt-0.5">
+                            <div className="bg-[#FFFFFF] border-x border-[#E8E8E4] text-[#141414] font-mono text-xs p-5 shadow-sm space-y-3 select-none relative">
+                              {/* Header */}
+                              <div className="text-center space-y-0.5 border-b border-dashed border-[#141414]/30 pb-3">
+                                <div className="font-bold text-sm tracking-tight text-[#141414]">
+                                  {ticket.businessName}
+                                </div>
+                                <div className="text-[11px] text-[#6B6B6B]">{ticket.location}</div>
+                                <div className="text-[11px] text-[#6B6B6B]">{ticket.dateTime}</div>
+                                <div className="text-[11px] font-semibold text-[#141414] pt-1">
+                                  {ticket.ticketNumber}
+                                </div>
+                              </div>
+
+                              {/* Metadata */}
+                              <div className="space-y-1 text-[11px] border-b border-dashed border-[#141414]/30 pb-3">
+                                {ticket.metadata.map((meta, mIdx) => (
+                                  <div key={mIdx} className="flex justify-between">
+                                    <span className="text-[#6B6B6B]">{meta.label}</span>
+                                    <span className="font-semibold text-[#141414]">{meta.value}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Items */}
+                              <div className="space-y-1.5 py-1 text-[11px]">
+                                {ticket.lines.map((line, lIdx) => (
+                                  <div key={lIdx} className="flex justify-between items-start">
+                                    <span className="text-[#141414]">{line.name}</span>
+                                    <span className="font-semibold text-[#141414]">{line.price}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Total */}
+                              <div className="border-t-2 border-[#141414] pt-2 flex justify-between items-baseline">
+                                <span className="font-bold text-xs uppercase tracking-wider text-[#141414]">
+                                  TOTAL
+                                </span>
+                                <span className="font-bold text-sm text-[#141414]">{ticket.total}</span>
+                              </div>
+
+                              {/* Inventory block */}
+                              <div className="mt-4 pt-3 border-t border-dashed border-[#141414]/30 space-y-2">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="font-bold text-[#141414] uppercase tracking-wide">
+                                    Inventario
+                                  </span>
+                                  <span className="mobile-stamp inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#8FD14F] text-[#141414] uppercase tracking-wider origin-center">
+                                    descontado
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1 text-[11px]">
+                                  {ticket.inventory.map((inv, invIdx) => (
+                                    <div key={invIdx} className="flex justify-between items-baseline text-[#141414]">
+                                      <span className="truncate pr-2">{inv.name}</span>
+                                      <span className="font-bold shrink-0 font-mono tracking-tight text-[11px]">
+                                        <span className="text-[#6B6B6B] font-normal mr-1">
+                                          {inv.decimals ? inv.fromStock.toFixed(inv.decimals) : inv.fromStock} →
+                                        </span>
+                                        <span className="text-[#141414]">
+                                          <span className={`mobile-stock-${bIdx}-${invIdx}`}>
+                                            {inv.decimals ? inv.fromStock.toFixed(inv.decimals) : inv.fromStock}
+                                          </span>{' '}
+                                          {inv.unit}
+                                        </span>
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="text-center pt-2 text-[10px] text-[#6B6B6B]">
+                                Gracias por su preferencia
+                              </div>
+                            </div>
+                          </div>
+                          {/* Jagged / Sawtooth torn paper bottom */}
+                          <div className="w-full h-3 bg-[#FFFFFF] border-x border-[#E8E8E4] relative overflow-hidden">
+                            <svg
+                              className="w-full h-full text-[#FAFAF8] fill-current"
+                              viewBox="0 0 340 12"
+                              preserveAspectRatio="none"
+                            >
+                              <path d="M0,12 L10,0 L20,12 L30,0 L40,12 L50,0 L60,12 L70,0 L80,12 L90,0 L100,12 L110,0 L120,12 L130,0 L140,12 L150,0 L160,12 L170,0 L180,12 L190,0 L200,12 L210,0 L220,12 L230,0 L240,12 L250,0 L260,12 L270,0 L280,12 L290,0 L300,12 L310,0 L320,12 L330,0 L340,12 L340,12 L0,12 Z" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* 3. Prefers Reduced Motion view */}
+      {prefersReducedMotion && (
+        <section className="py-16 sm:py-24 border-b border-[#E8E8E4]">
+          <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 text-left">
+            <h2 className="font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414]">
+              Hecho para cómo trabaja tu negocio
+            </h2>
+            <p className="mt-3 text-[18px] text-[#6B6B6B] max-w-[70ch] font-sans">
+              Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.
+            </p>
+
+            <div className="mt-12 space-y-16">
+              {RUBROS_DATA.map((rubro) => {
+                const ticket = tickets[rubro.id];
+                return (
+                  <div
+                    key={rubro.id}
+                    className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start text-left"
+                  >
+                    <div className="md:col-span-6 space-y-3">
+                      <h3 className="font-serif text-[28px] sm:text-[34px] leading-tight text-[#141414]">
                         {rubro.name}
                       </h3>
-                      <span className="sr-only">: {rubro.desc}</span>
-                    </button>
+                      <p className="text-[16px] sm:text-[17px] leading-[1.6] text-[#6B6B6B]">
+                        {rubro.fullDesc}
+                      </p>
+                    </div>
 
-                    {/* Active description with short fade */}
-                    <AnimatePresence mode="wait">
-                      {isActive && (
-                        <motion.p
-                          key={rubro.id}
-                          initial={prefersReducedMotion ? false : { opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-                          transition={{ duration: 0.22, ease: 'easeOut' }}
-                          className="text-[17px] lg:text-[18px] text-[#A3A3A3] leading-[1.45] max-w-[48ch] mt-2 mb-2 font-sans text-left"
-                        >
-                          {rubro.desc}
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
+                    <div className="md:col-span-6 flex justify-start md:justify-end">
+                      <div className="w-full max-w-[320px]">
+                        <div className="w-full h-3 bg-[#141414] rounded-t-md flex items-center justify-center px-4 relative z-20">
+                          <div className="w-full h-[1.5px] bg-[#292929]" />
+                        </div>
+
+                        <div className="overflow-hidden relative z-10 pt-0.5">
+                          <TicketReceiptBody
+                            ticket={ticket}
+                            rubroKey={rubro.id}
+                            reducedMotion={true}
+                            activeAnimation={false}
+                          />
+                        </div>
+                        <SawtoothDivider flip className="text-[#FFFFFF] relative z-20 -mt-0.5 drop-shadow-xs" />
+                      </div>
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
-
-          {/* Right Column: Ticket with printer slot and vertical parallax */}
-          <div className="col-span-5 flex justify-end">
-            <div className="w-full max-w-[340px] relative">
-              {/* Printer Slot */}
-              <div className="w-full h-3.5 bg-[#262626] rounded-t-md border-t border-x border-[#3a3a3a] flex items-center justify-center px-6 relative z-20 shadow-inner">
-                <div className="w-full h-[2px] bg-[#141414]" />
-              </div>
-
-              {/* Ticket Container */}
-              <div className="overflow-hidden relative z-10 pt-0.5">
-                <motion.div style={{ y: ticketParallax }}>
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={currentRubro.id}
-                      initial={prefersReducedMotion ? false : { y: -320, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      exit={prefersReducedMotion ? { opacity: 0 } : { y: -320, opacity: 0 }}
-                      transition={{
-                        y: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
-                        opacity: { duration: 0.25 }
-                      }}
-                    >
-                      <TicketReceiptBody
-                        ticket={currentTicket}
-                        rubroKey={currentRubro.id}
-                        reducedMotion={prefersReducedMotion}
-                        activeAnimation={true}
-                      />
-                    </motion.div>
-                  </AnimatePresence>
-                </motion.div>
-              </div>
-
-              <SawtoothDivider flip className="text-[#FFFFFF] relative z-20 -mt-0.5 drop-shadow-xs" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-};
-
-// Section 3: Mobile & Tablet Column Block (< 1024px)
-const MobileRubroBlock: React.FC<{
-  rubro: RubroItem;
-  ticket: TicketRubro;
-  reducedMotion: boolean;
-}> = ({ rubro, ticket, reducedMotion }) => {
-  const blockRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(blockRef, { once: true, amount: 0.25 });
-
-  return (
-    <div ref={blockRef} className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start text-left">
-      <div className="md:col-span-6 space-y-3">
-        <h3 className="font-serif text-[28px] sm:text-[34px] leading-tight text-[#141414]">
-          {rubro.name}
-        </h3>
-        <p className="text-[16px] sm:text-[17px] leading-[1.6] text-[#6B6B6B]">
-          {rubro.desc}
-        </p>
-      </div>
-
-      <div className="md:col-span-6 flex justify-start md:justify-end">
-        <div className="w-full max-w-[320px]">
-          {/* Slot */}
-          <div className="w-full h-3 bg-[#141414] rounded-t-md flex items-center justify-center px-4 relative z-20">
-            <div className="w-full h-[1.5px] bg-[#292929]" />
-          </div>
-
-          <div className="overflow-hidden relative z-10 pt-0.5">
-            <motion.div
-              initial={reducedMotion ? false : { y: -260, opacity: 0 }}
-              animate={
-                reducedMotion
-                  ? { y: 0, opacity: 1 }
-                  : isInView
-                  ? { y: 0, opacity: 1 }
-                  : { y: -260, opacity: 0 }
-              }
-              transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <TicketReceiptBody
-                ticket={ticket}
-                rubroKey={rubro.id}
-                reducedMotion={reducedMotion}
-                activeAnimation={isInView}
-              />
-            </motion.div>
-          </div>
-          <SawtoothDivider flip className="text-[#FFFFFF] relative z-20 -mt-0.5 drop-shadow-xs" />
-        </div>
-      </div>
+        </section>
+      )}
     </div>
   );
 };
@@ -619,10 +1161,9 @@ export const App: React.FC = () => {
     offset: ['start 85%', 'end 30%']
   });
 
-  // Section 4 Price animated counter
+  // Section 4 Price element refs for GSAP
   const priceRef = useRef<HTMLDivElement>(null);
-  const isPriceInView = useInView(priceRef, { once: true, amount: 0.3 });
-  const [displayPrice, setDisplayPrice] = useState<number>(0);
+  const priceNumberRef = useRef<HTMLSpanElement>(null);
 
   // Texture Parallax
   const { scrollY } = useScroll();
@@ -676,7 +1217,7 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Smooth scroll via Lenis (desktop only, disabled with prefers-reduced-motion)
+  // Smooth scroll via Lenis + ScrollTrigger (official integration pattern)
   useEffect(() => {
     if (prefersReducedMotion) return;
     const isDesktop =
@@ -696,12 +1237,24 @@ export const App: React.FC = () => {
     });
     lenisRef.current = lenis;
 
-    let rafId: number;
-    function raf(time: number) {
-      lenis.raf(time);
-      rafId = requestAnimationFrame(raf);
+    // 1. lenis.on('scroll', ScrollTrigger.update)
+    lenis.on('scroll', ScrollTrigger.update);
+
+    // 2. gsap.ticker.add((t) => lenis.raf(t * 1000)); gsap.ticker.lagSmoothing(0)
+    const tickerUpdate = (time: number) => {
+      lenis.raf(time * 1000);
+    };
+    gsap.ticker.add(tickerUpdate);
+    gsap.ticker.lagSmoothing(0);
+
+    // 3. ScrollTrigger.refresh() on fonts ready and window resize
+    const refreshST = () => {
+      ScrollTrigger.refresh();
+    };
+    if (typeof document !== 'undefined' && document.fonts) {
+      document.fonts.ready.then(refreshST);
     }
-    rafId = requestAnimationFrame(raf);
+    window.addEventListener('resize', refreshST);
 
     // Intercept anchor clicks
     const handleAnchorClick = (e: MouseEvent) => {
@@ -720,28 +1273,71 @@ export const App: React.FC = () => {
     document.addEventListener('click', handleAnchorClick);
 
     return () => {
-      cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', refreshST);
       document.removeEventListener('click', handleAnchorClick);
+      gsap.ticker.remove(tickerUpdate);
       lenisRef.current = null;
       lenis.destroy();
     };
   }, [prefersReducedMotion]);
 
-  // Animate price counter when entering viewport
-  useEffect(() => {
-    if (prefersReducedMotion) {
-      setDisplayPrice(45);
-      return;
-    }
-    if (isPriceInView) {
-      const controls = animate(0, 45, {
-        duration: 1.1,
-        ease: [0.16, 1, 0.3, 1],
-        onUpdate: (latest) => setDisplayPrice(Math.round(latest))
+  // General Zara-style entrances (section h2s + $45 price block)
+  useGSAP(
+    () => {
+      if (prefersReducedMotion) return;
+
+      // 1. Zara-style masked line entrance for all section h2s once (start: "top 85%")
+      const h2Elements = gsap.utils.toArray<HTMLElement>('.zara-reveal-h2');
+      h2Elements.forEach((h2) => {
+        gsap.from(h2, {
+          yPercent: 110,
+          duration: 0.75,
+          ease: 'power3.out',
+          scrollTrigger: {
+            trigger: h2,
+            start: 'top 85%',
+            once: true
+          }
+        });
       });
-      return () => controls.stop();
-    }
-  }, [isPriceInView, prefersReducedMotion]);
+
+      // 2. Price block: scale 1.15 -> 1 (700 ms) and count 0 -> 45
+      if (priceRef.current && priceNumberRef.current) {
+        const priceObj = { val: 0 };
+        const priceTl = gsap.timeline({
+          scrollTrigger: {
+            trigger: priceRef.current,
+            start: 'top 85%',
+            once: true
+          }
+        });
+
+        priceTl.fromTo(
+          priceNumberRef.current,
+          { scale: 1.15 },
+          { scale: 1, duration: 0.7, ease: 'power2.out' },
+          0
+        );
+
+        priceTl.to(
+          priceObj,
+          {
+            val: 45,
+            duration: 0.7,
+            ease: 'power2.out',
+            snap: { val: 1 },
+            onUpdate: () => {
+              if (priceNumberRef.current) {
+                priceNumberRef.current.textContent = `$${Math.round(priceObj.val)}`;
+              }
+            }
+          },
+          0
+        );
+      }
+    },
+    { dependencies: [prefersReducedMotion] }
+  );
 
   // Detect OS & fetch release
   useEffect(() => {
@@ -1084,9 +1680,11 @@ export const App: React.FC = () => {
           className="py-16 sm:py-24 border-b border-[#E8E8E4] relative overflow-hidden"
         >
           <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 text-left">
-            <h2 className="font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414] text-left">
-              Una venta, tres cosas que se actualizan
-            </h2>
+            <div className="overflow-hidden pb-1">
+              <h2 className="zara-reveal-h2 font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414] text-left">
+                Una venta, tres cosas que se actualizan
+              </h2>
+            </div>
             <p className="mt-3 text-[18px] text-[#6B6B6B] max-w-[70ch] text-left font-sans">
               El sistema vincula cada cobro con tus existencias y los números del día en una sola acción.
             </p>
@@ -1243,76 +1841,22 @@ export const App: React.FC = () => {
           </div>
         </section>
 
-        {/* 3. Section: Hecho para cómo trabaja tu negocio */}
-        {prefersReducedMotion ? (
-          /* Static stacked view for reduced motion users */
-          <section className="py-16 sm:py-24 border-b border-[#E8E8E4]">
-            <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 text-left">
-              <h2 className="font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414]">
-                Hecho para cómo trabaja tu negocio
-              </h2>
-              <p className="mt-3 text-[18px] text-[#6B6B6B] max-w-[70ch] font-sans">
-                Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.
-              </p>
-
-              <div className="mt-12 space-y-16">
-                {RUBROS_SHOWCASE.map((rubro) => (
-                  <MobileRubroBlock
-                    key={rubro.id}
-                    rubro={rubro}
-                    ticket={TICKETS[rubro.id]}
-                    reducedMotion={true}
-                  />
-                ))}
-              </div>
-            </div>
-          </section>
-        ) : (
-          <>
-            {/* Desktop (>= 1024px, fine pointer): 400vh sticky scroll showcase */}
-            <div className="hidden lg:block border-b border-[#E8E8E4]">
-              <DesktopStickyRubros
-                rubros={RUBROS_SHOWCASE}
-                tickets={TICKETS}
-                lenisRef={lenisRef}
-                prefersReducedMotion={false}
-              />
-            </div>
-
-            {/* Mobile & Tablet (< 1024px): Stacked column blocks with in-view print */}
-            <div className="block lg:hidden">
-              <section className="py-16 sm:py-24 border-b border-[#E8E8E4]">
-                <div className="max-w-[1120px] mx-auto px-4 sm:px-6 text-left">
-                  <h2 className="font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414]">
-                    Hecho para cómo trabaja tu negocio
-                  </h2>
-                  <p className="mt-3 text-[17px] sm:text-[18px] text-[#6B6B6B] max-w-[70ch] font-sans">
-                    Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.
-                  </p>
-
-                  <div className="mt-12 space-y-16">
-                    {RUBROS_SHOWCASE.map((rubro) => (
-                      <MobileRubroBlock
-                        key={rubro.id}
-                        rubro={rubro}
-                        ticket={TICKETS[rubro.id]}
-                        reducedMotion={false}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </div>
-          </>
-        )}
+        {/* 3. Section: Hecho para cómo trabaja tu negocio (GSAP + ScrollTrigger) */}
+        <RubrosSectionGSAP
+          tickets={TICKETS}
+          lenisRef={lenisRef}
+          prefersReducedMotion={prefersReducedMotion}
+        />
 
 
         {/* 4. Section: Precio ($45 Animated Counter + Staggered List) */}
         <section className="py-16 sm:py-24 border-b border-[#E8E8E4]">
           <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 text-left">
-            <h2 className="font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414] text-left">
-              Precio claro y sin sorpresas
-            </h2>
+            <div className="overflow-hidden pb-1">
+              <h2 className="zara-reveal-h2 font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414] text-left">
+                Precio claro y sin sorpresas
+              </h2>
+            </div>
 
             <div
               ref={priceRef}
@@ -1322,7 +1866,10 @@ export const App: React.FC = () => {
                 {/* Left: Price in big serif counting 0 -> 45 once */}
                 <div className="lg:col-span-5 space-y-2 text-left">
                   <div className="font-serif text-[44px] sm:text-[56px] leading-[1.05] text-[#141414] tracking-tight">
-                    ${displayPrice} al mes
+                    <span ref={priceNumberRef} className="inline-block origin-left will-change-transform">
+                      {prefersReducedMotion ? '$45' : '$0'}
+                    </span>{' '}
+                    al mes
                   </div>
                   <div className="text-sm font-medium text-[#6B6B6B]">
                     por negocio · facturación mensual en córdobas o dólares
@@ -1342,16 +1889,10 @@ export const App: React.FC = () => {
                       'Soporte directo por WhatsApp en Nicaragua',
                       'Actualizaciones continuas automáticas'
                     ].map((item, idx) => (
-                      <motion.li
-                        key={idx}
-                        initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
-                        animate={isPriceInView ? { opacity: 1, y: 0 } : {}}
-                        transition={{ duration: 0.35, delay: 0.25 + idx * 0.09 }}
-                        className="flex items-center gap-2.5"
-                      >
+                      <li key={idx} className="flex items-center gap-2.5">
                         <CheckCircle size={18} weight="fill" className="text-[#5FA22B] shrink-0" />
                         <span>{item}</span>
-                      </motion.li>
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -1381,9 +1922,11 @@ export const App: React.FC = () => {
         {/* 5. Section: Descarga */}
         <section id="descargar" className="py-16 sm:py-24 border-b border-[#E8E8E4] scroll-mt-10">
           <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 text-left">
-            <h2 className="font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414] text-left">
-              Descargá TrackDeli POS para Windows
-            </h2>
+            <div className="overflow-hidden pb-1">
+              <h2 className="zara-reveal-h2 font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414] text-left">
+                Descargá TrackDeli POS para Windows
+              </h2>
+            </div>
             <p className="mt-3 text-[18px] text-[#6B6B6B] max-w-[70ch] text-left font-sans">
               Instalá la aplicación en la computadora de tu negocio y comenzá a facturar.
             </p>
