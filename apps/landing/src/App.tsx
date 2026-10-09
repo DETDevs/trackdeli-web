@@ -457,14 +457,27 @@ const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinne
       };
       writeTotal();
       writeStock();
-      writeRep();
 
       const labels = Array.from(root.querySelectorAll<HTMLElement>('.rep-label'));
       const bars = Array.from(root.querySelectorAll<HTMLElement>('.rep-bar'));
       const labelObjs = REPORT_BARS.map(() => ({ v: 0 }));
-      labels.forEach((el) => {
-        el.textContent = 'C$0';
-      });
+      // En escritorio el scrub controla las cifras desde cero; en celular se quedan en su valor final
+      // hasta que arranca la animación (así nunca se quedan pegadas en "C$0")
+      if (pinned) {
+        writeRep();
+        labels.forEach((el) => {
+          el.textContent = 'C$0';
+        });
+      }
+      // Al desmontar o cambiar de modo (escritorio ↔ celular) se dejan los valores finales
+      const restore = () => {
+        if (totalEl) totalEl.textContent = formatCaja(9770);
+        if (stockEl) stockEl.textContent = '19 / 30 LT';
+        if (repTotalEl) repTotalEl.textContent = formatCaja(9770);
+        labels.forEach((el, i) => {
+          el.textContent = formatCaja(REPORT_BARS[i].amount);
+        });
+      };
 
       // Entrada de la escena 0 (una sola vez): frase y texto suben desde la máscara; la línea del ticket se "escribe"
       gsap.from(ins(sc0), {
@@ -600,11 +613,13 @@ const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinne
           tl.fromTo('.screen-photo-img', { yPercent: 0 }, { yPercent: -12, duration: tl.duration() }, 0);
         }
         tl.to({}, { duration: 0.35 }, tl.duration());
-        return;
+        return restore;
       }
 
       // Celular / tablet: sin pin, cada escena se revela con recorte una sola vez
-      const once = (el: Element) => ({ trigger: el, start: 'top 80%', once: true });
+      const once = (el: Element, start = 'top 80%') => ({ trigger: el, start, once: true });
+      const invBar = root.querySelector('.inv-bar') ?? sc2;
+      const chart = root.querySelector('.rep-chart') ?? sc3;
       [sc0, sc1, sc2, sc3].forEach((scene) => {
         gsap.fromTo(
           scene,
@@ -613,7 +628,7 @@ const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinne
             clipPath: 'inset(0% 0% 0% 0%)',
             duration: 0.9,
             ease: 'power3.inOut',
-            scrollTrigger: once(scene)
+            scrollTrigger: once(scene, 'top 85%')
           }
         );
       });
@@ -624,58 +639,66 @@ const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinne
           ease: 'power3.out',
           stagger: 0.08,
           delay: 0.35,
-          scrollTrigger: once(scene)
+          scrollTrigger: once(scene, 'top 85%')
         });
       });
 
-      gsap.to(cajaObj, { v: 9770, duration: 1.2, ease: 'power1.out', delay: 0.5, onUpdate: writeTotal, scrollTrigger: once(sc1) });
-      gsap.fromTo(
-        '.inv-bar',
-        { clipPath: 'inset(0% 100% 0% 0%)' },
-        { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.6, delay: 0.4, scrollTrigger: once(sc2) }
-      );
-      gsap.fromTo('.inv-row', { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.4, scrollTrigger: once(sc2) });
-      gsap.fromTo(
-        '.inv-fill',
-        { scaleX: 24 / 30 },
-        { scaleX: 19 / 30, duration: 0.9, delay: 1, ease: 'power1.inOut', scrollTrigger: once(sc2) }
-      );
-      gsap.to(stockObj, { v: 19, duration: 0.9, delay: 1, ease: 'power1.inOut', onUpdate: writeStock, scrollTrigger: once(sc2) });
-      gsap.fromTo('.inv-fill-amber', { opacity: 0 }, { opacity: 1, duration: 0.15, delay: 1.75, scrollTrigger: once(sc2) });
-      gsap.fromTo('.inv-warn', { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1.9, scrollTrigger: once(sc2) });
+      gsap.to(cajaObj, { v: 9770, duration: 1.2, ease: 'power1.out', delay: 0.6, onUpdate: writeTotal, scrollTrigger: once(sc1, 'top 70%') });
 
-      gsap.to(repObj, { v: 9770, duration: 1.4, delay: 0.6, ease: 'power1.out', onUpdate: writeRep, scrollTrigger: once(sc3) });
+      // Inventario: arranca cuando la barra entra en pantalla (24 → 19, se pone ámbar al cruzar el mínimo)
+      const invTrig = once(invBar, 'top 85%');
+      gsap.set('.inv-fill', { scaleX: 24 / 30 });
+      gsap.set(['.inv-fill-amber', '.inv-warn'], { opacity: 0 });
+      gsap.fromTo('.inv-bar', { clipPath: 'inset(0% 100% 0% 0%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.6, delay: 0.2, scrollTrigger: invTrig });
+      gsap.fromTo('.inv-row', { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.2, scrollTrigger: invTrig });
+      gsap.to('.inv-fill', { scaleX: 19 / 30, duration: 0.9, delay: 0.9, ease: 'power1.inOut', scrollTrigger: invTrig });
+      gsap.fromTo(stockObj, { v: 24 }, { v: 19, duration: 0.9, delay: 0.9, ease: 'power1.inOut', immediateRender: false, onUpdate: writeStock, scrollTrigger: invTrig });
+      gsap.to('.inv-fill-amber', { opacity: 1, duration: 0.15, delay: 1.65, scrollTrigger: invTrig });
+      gsap.to('.inv-warn', { opacity: 1, duration: 0.3, delay: 1.8, scrollTrigger: invTrig });
+
+      // Reportes: el total y las barras arrancan cuando el gráfico entra en pantalla
+      const chartTrig = once(chart, 'top 85%');
+      gsap.fromTo(repObj, { v: 0 }, { v: 9770, duration: 1.4, delay: 0.2, ease: 'power1.out', immediateRender: false, onUpdate: writeRep, scrollTrigger: chartTrig });
       bars.forEach((bar, i) => {
-        const d = 0.6 + i * 0.09;
-        gsap.fromTo(bar, { scaleY: 0 }, { scaleY: 1, duration: 0.5, delay: d, ease: 'back.out(1.4)', scrollTrigger: once(sc3) });
-        gsap.fromTo(labels[i], { opacity: 0 }, { opacity: 1, duration: 0.25, delay: d + 0.35, scrollTrigger: once(sc3) });
-        gsap.to(labelObjs[i], {
-          v: REPORT_BARS[i].amount,
-          duration: 0.5,
-          delay: d + 0.3,
-          ease: 'power1.out',
-          onUpdate: () => {
-            labels[i].textContent = formatCaja(labelObjs[i].v);
-          },
-          scrollTrigger: once(sc3)
-        });
+        const d = 0.2 + i * 0.09;
+        gsap.fromTo(bar, { scaleY: 0 }, { scaleY: 1, duration: 0.5, delay: d, ease: 'back.out(1.4)', scrollTrigger: chartTrig });
+        gsap.fromTo(labels[i], { opacity: 0 }, { opacity: 1, duration: 0.25, delay: d + 0.35, scrollTrigger: chartTrig });
+        gsap.fromTo(
+          labelObjs[i],
+          { v: 0 },
+          {
+            v: REPORT_BARS[i].amount,
+            duration: 0.5,
+            delay: d + 0.3,
+            ease: 'power1.out',
+            immediateRender: false,
+            onUpdate: () => {
+              labels[i].textContent = formatCaja(labelObjs[i].v);
+            },
+            scrollTrigger: chartTrig
+          }
+        );
       });
       gsap.fromTo(
         '.rep-line',
         { clipPath: 'inset(0% 100% 0% 0%)' },
-        { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.95, delay: 0.7, ease: 'power1.inOut', scrollTrigger: once(sc3) }
+        { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.95, delay: 0.3, ease: 'power1.inOut', scrollTrigger: chartTrig }
       );
-      gsap.fromTo('.rep-bar-lima', { opacity: 0 }, { opacity: 1, duration: 0.2, delay: 1.7, scrollTrigger: once(sc3) });
+      gsap.fromTo('.rep-bar-lima', { opacity: 0 }, { opacity: 1, duration: 0.2, delay: 1.3, scrollTrigger: chartTrig });
       gsap.fromTo(
         '.rep-peak-tag',
         { scale: 0, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 0.35, delay: 1.75, ease: 'back.out(1.7)', scrollTrigger: once(sc3) }
+        { scale: 1, opacity: 1, duration: 0.35, delay: 1.35, ease: 'back.out(1.7)', scrollTrigger: chartTrig }
       );
+      return restore;
     },
     { scope: rootRef, dependencies: [pinned, reduced], revertOnUpdate: true }
   );
 
-  const sceneBase = pinned ? 'absolute inset-0' : 'relative min-h-[100svh]';
+  // Escritorio fijado: posiciones absolutas por escena. Celular/tablet: flujo normal (título → cifra → texto), sin huecos
+  const sceneBase = pinned ? 'absolute inset-0' : 'relative flex flex-col gap-8 px-[5vw] pt-16 pb-14 sm:pt-24 sm:pb-20';
+  const P = (pinnedCls: string, flowCls = '') => (pinned ? pinnedCls : flowCls);
+  const bigWord = 'font-serif leading-[1] tracking-[-0.03em] will-change-transform';
 
   return (
     <section
@@ -686,21 +709,21 @@ const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinne
     >
       {/* Escena 0: Una venta. */}
       <div className={`escena escena-0 ${sceneBase} overflow-hidden bg-[#FAFAF8] text-[#141414]`}>
-        <div className="absolute inset-x-0 top-[20vh] px-[4vw]">
+        <div className={P('absolute inset-x-0 top-[20vh] px-[4vw]')}>
           <h2
             id="una-venta-titulo"
-            className="una-phrase origin-left font-serif text-[16vw] leading-[1] tracking-[-0.03em] will-change-transform"
+            className={`una-phrase origin-left ${bigWord} ${P('text-[16vw]', 'text-[clamp(64px,20vw,200px)]')}`}
           >
             <MaskLine>Una venta.</MaskLine>
           </h2>
-          <p className="una-ticket mt-[3vh] font-mono text-[clamp(12px,1.25vw,18px)] text-[#141414] will-change-transform">
-            <span className="una-ticket-in flex items-center gap-2.5">
-              <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[#5FA22B]" aria-hidden="true" />
+          <p className="una-ticket mt-[3vh] font-mono text-[clamp(11px,1.25vw,18px)] text-[#141414] will-change-transform">
+            <span className="una-ticket-in flex items-start gap-2.5">
+              <span className="mt-[0.45em] inline-block h-2 w-2 shrink-0 rounded-full bg-[#5FA22B]" aria-hidden="true" />
               <span>Cobro registrado · Ticket #00428 · +C$1,320.00</span>
             </span>
           </p>
         </div>
-        <div className="una-cap absolute bottom-[6vh] left-[4vw] max-w-[34ch] text-sm sm:text-base text-[#4A4A4A]">
+        <div className={`una-cap max-w-[34ch] text-sm sm:text-base text-[#4A4A4A] ${P('absolute bottom-[6vh] left-[4vw]')}`}>
           <MaskLine>Una sola venta mueve tu caja, tu inventario y tus reportes.</MaskLine>
         </div>
       </div>
@@ -710,25 +733,27 @@ const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinne
         <ScreenPhoto
           file={AVAILABLE_SCREENS.caja}
           alt="Pantalla de caja del POS"
-          className="absolute bottom-[10vh] right-[4vw] h-[32vh] w-[34vw]"
+          className={P('absolute bottom-[10vh] right-[4vw] h-[32vh] w-[34vw]', 'relative order-last h-[36vh] w-full')}
         />
         <h3
-          className="escena-1-word absolute left-[4vw] top-[6vh] font-serif text-[20vw] leading-[1] tracking-[-0.03em] will-change-transform"
+          className={`escena-1-word ${bigWord} ${P('absolute left-[4vw] top-[6vh] text-[20vw]', 'text-[clamp(72px,24vw,220px)]')}`}
           style={blendStyle}
         >
           <MaskLine>Caja</MaskLine>
         </h3>
-        <div className="absolute right-[4vw] top-[34vh] text-right">
+        <div className={P('absolute right-[4vw] top-[34vh] text-right')}>
           <div className="overflow-hidden">
             <span data-in className="mb-2 block text-xs uppercase tracking-wider text-[#A3A3A3]">
               Total del día en caja
             </span>
           </div>
-          <MaskLine className="escena-total font-serif text-[14vw] leading-[1] tracking-[-0.03em] text-[#8FD14F]">
+          <MaskLine
+            className={`escena-total font-serif leading-[1] tracking-[-0.03em] text-[#8FD14F] ${P('text-[14vw]', 'text-[clamp(52px,17vw,160px)]')}`}
+          >
             C$9,770
           </MaskLine>
         </div>
-        <div className="absolute bottom-[6vh] left-[4vw] max-w-[34ch] text-sm sm:text-base text-[#D4D4D0]">
+        <div className={`max-w-[34ch] text-sm sm:text-base text-[#D4D4D0] ${P('absolute bottom-[6vh] left-[4vw]')}`}>
           <MaskLine>Cobrás en córdobas o dólares y el total del día se actualiza.</MaskLine>
         </div>
       </div>
@@ -738,65 +763,71 @@ const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinne
         <ScreenPhoto
           file={AVAILABLE_SCREENS.inventario}
           alt="Pantalla de inventario del POS"
-          className="absolute bottom-[8vh] right-[4vw] h-[26vh] w-[30vw]"
+          className={P('absolute bottom-[8vh] right-[4vw] h-[26vh] w-[30vw]', 'relative order-last h-[32vh] w-full')}
         />
         <h3
-          className="escena-2-word absolute left-[4vw] top-[6vh] font-serif text-[19vw] leading-[1] tracking-[-0.03em] will-change-transform"
+          className={`escena-2-word ${bigWord} ${P('absolute left-[4vw] top-[6vh] text-[19vw]', 'text-[clamp(56px,17.5vw,200px)]')}`}
           style={blendStyle}
         >
           <MaskLine>Inventario</MaskLine>
         </h3>
-        <div className="inv-row absolute inset-x-[4vw] top-[50vh] flex items-baseline justify-between">
-          <span className="text-sm font-medium">Aceite 15W40</span>
-          <span className="escena-stock font-mono text-sm font-bold">19 / 30 LT</span>
-        </div>
-        <div className="inv-bar absolute inset-x-0 top-[56vh] h-[8vh] bg-[#E8E8E4]">
-          <div
-            className="inv-fill absolute inset-0 origin-left will-change-transform"
-            style={{ transform: `scaleX(${19 / 30})` }}
-          >
-            <div className="absolute inset-0 bg-[#141414]" />
-            <div className="inv-fill-amber absolute inset-0 bg-[#F59E0B]" />
+        <div className={P('', 'flex flex-col')}>
+          <div className={`inv-row flex items-baseline justify-between ${P('absolute inset-x-[4vw] top-[50vh]', 'mb-3')}`}>
+            <span className="text-sm font-medium">Aceite 15W40</span>
+            <span className="escena-stock font-mono text-sm font-bold">19 / 30 LT</span>
           </div>
-          <div className="absolute -bottom-3 -top-3 w-0.5 bg-[#141414]" style={{ left: '66.667%' }} aria-hidden="true" />
+          <div className={`inv-bar bg-[#E8E8E4] ${P('absolute inset-x-0 top-[56vh] h-[8vh]', 'relative -mx-[5vw] h-14')}`}>
+            <div
+              className="inv-fill absolute inset-0 origin-left will-change-transform"
+              style={{ transform: `scaleX(${19 / 30})` }}
+            >
+              <div className="absolute inset-0 bg-[#141414]" />
+              <div className="inv-fill-amber absolute inset-0 bg-[#F59E0B]" />
+            </div>
+            <div className="absolute -bottom-2 -top-2 w-0.5 bg-[#141414]" style={{ left: '66.667%' }} aria-hidden="true" />
+          </div>
+          <p className={`inv-warn text-xs font-semibold text-[#B45309] ${P('absolute left-[4vw] top-[67vh]', 'mt-4')}`}>
+            Bajo el mínimo
+          </p>
         </div>
-        <p className="inv-warn absolute left-[4vw] top-[67vh] text-xs font-semibold text-[#B45309]">Bajo el mínimo</p>
-        <div className="absolute bottom-[6vh] left-[4vw] max-w-[34ch] text-sm sm:text-base text-[#4A4A4A]">
+        <div className={`max-w-[34ch] text-sm sm:text-base text-[#4A4A4A] ${P('absolute bottom-[6vh] left-[4vw]')}`}>
           <MaskLine>Cada venta descuenta lo que gastó y te avisa antes de quedarte sin stock.</MaskLine>
         </div>
       </div>
 
       {/* Escena 3: Reportes */}
-      <div className={`escena escena-3 ${sceneBase} overflow-hidden bg-[#141414] text-[#FAFAF8]`}>
+      <div className={`escena escena-3 ${sceneBase} overflow-hidden bg-[#141414] text-[#FAFAF8] ${P('', '!pb-0')}`}>
         <ScreenPhoto
           file={AVAILABLE_SCREENS.reportes}
           alt="Pantalla del backoffice de reportes"
-          className="absolute right-[4vw] top-[8vh] h-[24vh] w-[28vw]"
+          className={P('absolute right-[4vw] top-[8vh] h-[24vh] w-[28vw]', 'relative h-[30vh] w-full')}
         />
         <h3
-          className="escena-3-word absolute left-[4vw] top-[6vh] font-serif text-[19vw] leading-[1] tracking-[-0.03em] will-change-transform"
+          className={`escena-3-word ${bigWord} ${P('absolute left-[4vw] top-[6vh] text-[19vw]', 'text-[clamp(60px,19vw,200px)]')}`}
           style={blendStyle}
         >
           <MaskLine>Reportes</MaskLine>
         </h3>
-        <div className="absolute right-[4vw] top-[8vh] text-right">
+        <div className={P('absolute right-[4vw] top-[8vh] text-right', '-mt-4')}>
           <div className="overflow-hidden">
             <span data-in className="block text-xs uppercase tracking-wider text-[#A3A3A3]">
               Ventas de hoy
             </span>
           </div>
-          <MaskLine className="rep-total font-serif text-[clamp(32px,6vw,96px)] leading-[1] tracking-[-0.02em] text-[#8FD14F]">
+          <MaskLine
+            className={`rep-total font-serif leading-[1] tracking-[-0.02em] text-[#8FD14F] ${P('text-[clamp(32px,6vw,96px)]', 'text-[clamp(44px,12vw,96px)]')}`}
+          >
             C$9,770
           </MaskLine>
         </div>
-        <div className="absolute bottom-[calc(46vh+9vh)] left-[4vw] max-w-[34ch] text-sm sm:text-base text-[#D4D4D0]">
+        <div className={`max-w-[34ch] text-sm sm:text-base text-[#D4D4D0] ${P('absolute bottom-[calc(46vh+9vh)] left-[4vw]')}`}>
           <MaskLine>Mirá cómo va tu negocio desde el celular.</MaskLine>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 h-[46vh]">
-          <div className="flex h-full items-end gap-1">
+        <div className={P('absolute inset-x-0 bottom-0 h-[46vh]', 'rep-chart relative -mx-[5vw] mt-12 h-[clamp(240px,42svh,420px)]')}>
+          <div className={`flex h-full items-end ${P('gap-1', 'gap-[3px]')}`}>
             {REPORT_BARS.map((bar) => (
-              <div key={bar.hour} className="relative h-full flex-1">
+              <div key={bar.hour} className="relative h-full min-w-0 flex-1">
                 <div
                   className="absolute bottom-0 w-full"
                   style={{ height: `${(bar.amount / REPORT_MAX) * 100}%` }}
@@ -805,21 +836,34 @@ const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinne
                     <div className="absolute inset-0 bg-[#FAFAF8]/85" />
                     {bar.peak && <div className="rep-bar-lima absolute inset-0 bg-[#8FD14F]" />}
                   </div>
-                  <span className="rep-label absolute -top-6 left-0 right-0 text-center font-mono text-[11px] text-[#FAFAF8]">
+                  <span
+                    className={`rep-label absolute left-0 right-0 whitespace-nowrap text-center font-mono text-[#FAFAF8] ${P(
+                      '-top-6 text-[11px]',
+                      '-top-5 text-[9px] sm:text-[11px]'
+                    )}`}
+                  >
                     {formatCaja(bar.amount)}
                   </span>
                   {bar.peak && (
-                    <span className="rep-peak-tag absolute -top-12 left-0 right-0 text-center text-[11px] font-semibold uppercase tracking-wider text-[#8FD14F]">
+                    <span
+                      className={`rep-peak-tag absolute left-0 right-0 text-center font-semibold uppercase tracking-wider ${P(
+                        '-top-12 text-[11px] text-[#8FD14F]',
+                        'top-2 text-[9px] leading-tight text-[#141414] sm:text-[11px]'
+                      )}`}
+                    >
                       Hora pico
                     </span>
                   )}
                 </div>
-                <span className="absolute bottom-2 left-2 z-10 font-mono text-[10px] text-[#141414]">{bar.hour}</span>
+                <span className="absolute bottom-2 left-0 right-0 z-10 text-center font-mono text-[10px] text-[#141414] sm:left-2 sm:text-left">
+                  {bar.hour}
+                </span>
               </div>
             ))}
           </div>
+          {/* Línea de tendencia: en pantallas angostas chocaría con las cifras, así que solo va de sm para arriba */}
           <svg
-            className="rep-line pointer-events-none absolute inset-0 h-full w-full"
+            className={`rep-line pointer-events-none absolute inset-0 h-full w-full ${P('', 'hidden sm:block')}`}
             viewBox="0 -3 700 106"
             preserveAspectRatio="none"
             aria-hidden="true"
@@ -1121,8 +1165,8 @@ const RubrosSectionGSAP: React.FC<{
     { scope: rootRef, dependencies: [pinned, reduced, tickets], revertOnUpdate: true }
   );
 
-  const base = pinned ? 'absolute inset-0' : 'relative min-h-[100svh]';
-  const stackedCol = pinned ? '' : 'flex flex-col justify-center gap-8 px-4 sm:px-[4vw] py-16';
+  const base = pinned ? 'absolute inset-0' : 'relative';
+  const stackedCol = pinned ? '' : 'flex flex-col gap-8 px-[5vw] pt-16 pb-16 sm:pt-24 sm:pb-24';
 
   return (
     <section
