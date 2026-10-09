@@ -36,13 +36,13 @@ const FALLBACK_RELEASE: ReleaseInfo = {
 
 const WHATSAPP_PHONE = '50587140989';
 const WHATSAPP_TEST_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(
-  'Hola, quiero probar TrackDeli POS'
+  'Hola, quiero probar Nexol POS'
 )}`;
 const WHATSAPP_QUOTE_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(
-  'Hola, quiero cotizar TrackDeli POS para mi negocio'
+  'Hola, quiero cotizar Nexol POS para mi negocio'
 )}`;
 const WHATSAPP_SUPPORT_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(
-  'Hola, tengo una consulta sobre TrackDeli POS'
+  'Hola, tengo una consulta sobre Nexol POS'
 )}`;
 
 type RubroKey = 'ferreteria' | 'restaurante' | 'farmacia' | 'taller';
@@ -1661,7 +1661,7 @@ export const App: React.FC = () => {
         <div
           ref={wmFixedRef}
           aria-hidden="true"
-          className="pointer-events-none fixed left-0 top-0 z-[5] select-none whitespace-nowrap font-serif text-[19vw] leading-none"
+          className="pointer-events-none fixed left-0 top-0 z-[5] select-none whitespace-nowrap font-serif text-[28vw] leading-none"
           style={{
             color: '#FFFFFF',
             mixBlendMode: 'difference',
@@ -1670,7 +1670,7 @@ export const App: React.FC = () => {
             willChange: 'transform'
           }}
         >
-          TrackDeli
+          Nexol
         </div>
       )}
 
@@ -1678,15 +1678,15 @@ export const App: React.FC = () => {
       <header className="border-b border-[#E8E8E4] bg-[#FAFAF8]/95 backdrop-blur-xs sticky top-0 z-40">
         <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <a href="#" className="flex items-center gap-3 group text-[#141414]">
-            <div className="w-8 h-8 rounded-lg bg-[#141414] text-[#FAFAF8] flex items-center justify-center font-bold text-xs tracking-tight">
-              TD
+            <div className="w-8 h-8 rounded-lg bg-[#141414] text-[#FAFAF8] flex items-center justify-center font-serif text-xl leading-none">
+              N
             </div>
             <span className="flex items-baseline gap-1.5 text-[#141414]">
               <span
                 ref={brandWordRef}
                 className={`inline-block font-serif text-2xl leading-none tracking-tight ${pinned ? 'invisible' : ''}`}
               >
-                TrackDeli
+                Nexol
               </span>
               <span className="text-xs font-semibold tracking-wide text-[#4A4A4A]">POS</span>
             </span>
@@ -1717,20 +1717,20 @@ export const App: React.FC = () => {
         {/* 1. Hero Section */}
         <section
           ref={heroRef}
-          className="relative pt-12 sm:pt-16 pb-[24vw] sm:pb-[18vw] lg:pb-[11vw] border-b border-[#E8E8E4]"
+          className="relative pt-12 sm:pt-16 pb-[28vw] sm:pb-[25vw] lg:pb-[16vw] border-b border-[#E8E8E4]"
         >
           {/* Wordmark estático (celular/tablet/reduced motion): recortado a la mitad por el borde inferior */}
           {!pinned && (
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-[0.64em] overflow-hidden text-[22vw] leading-none select-none"
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-[0.64em] overflow-hidden text-[34vw] leading-none select-none"
             >
               <span
                 ref={wmStaticRef}
                 className="block whitespace-nowrap text-center font-serif leading-none"
                 style={{ color: '#FFFFFF', mixBlendMode: 'difference', willChange: 'transform' }}
               >
-                TrackDeli
+                Nexol
               </span>
             </div>
           )}
@@ -1778,7 +1778,7 @@ export const App: React.FC = () => {
                   transition={{ duration: 0.45, delay: 0.36, ease: 'easeOut' }}
                   className="mt-6 text-[18px] leading-[1.6] text-[#6B6B6B] max-w-[70ch] text-left font-sans"
                 >
-                  TrackDeli POS es la caja, el inventario y los reportes de tu comercio, restaurante, ferretería, farmacia o taller en Nicaragua.
+                  Nexol POS es la caja, el inventario y los reportes de tu comercio, restaurante, ferretería, farmacia o taller en Nicaragua.
                 </motion.p>
 
                 {/* CTAs */}
@@ -2019,7 +2019,7 @@ export const App: React.FC = () => {
           <div className="w-full px-4 sm:px-6 lg:px-[4vw] text-left">
             <div className="overflow-hidden pb-2">
               <h2 className="zara-reveal-h2 font-serif text-[clamp(40px,8vw,128px)] leading-[1] tracking-[-0.02em] text-[#FAFAF8]">
-                Descargá TrackDeli POS para Windows
+                Descargá Nexol POS para Windows
               </h2>
             </div>
             <p className="mt-4 text-[18px] text-[#A3A3A3] max-w-[50ch] font-sans">
@@ -2160,11 +2160,11 @@ export const App: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-8 border-b border-[#E8E8E4]">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#141414] text-[#FAFAF8] flex items-center justify-center font-bold text-xs">
-                  TD
+                <div className="w-8 h-8 rounded-lg bg-[#141414] text-[#FAFAF8] flex items-center justify-center font-serif text-xl leading-none">
+                  N
                 </div>
                 <span className="font-semibold text-base tracking-tight text-[#141414]">
-                  TrackDeli POS
+                  Nexol POS
                 </span>
               </div>
               <p className="text-xs text-[#6B6B6B]">NEXOL · Managua, Nicaragua</p>
