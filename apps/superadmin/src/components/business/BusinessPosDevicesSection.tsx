@@ -10,6 +10,12 @@ import {
   FloppyDisk,
   Prohibit,
   ArrowCounterClockwise,
+  Clock,
+  Hourglass,
+  PlusCircle,
+  StopCircle,
+  Trash,
+  X,
 } from '@phosphor-icons/react';
 import {
   useBusinessDevices,
@@ -40,8 +46,26 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
       ? String(business.maxDevices)
       : '1'
   );
+  const [formTrialHours, setFormTrialHours] = useState<string>(
+    business.trialHours ? String(business.trialHours) : ''
+  );
   const [isEditingConfig, setIsEditingConfig] = useState(false);
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
+
+  // Estados locales para la sección de Prueba
+  const [isEditingTrialHours, setIsEditingTrialHours] = useState(false);
+  const [trialHoursInput, setTrialHoursInput] = useState(
+    business.trialHours ? String(business.trialHours) : ''
+  );
+  const [extendHours, setExtendHours] = useState<number>(6);
+  const [isActionPending, setIsActionPending] = useState(false);
+
+  // Hora actual para cálculo dinámico del tiempo restante
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Sincronizar estado local al cambiar business
   useEffect(() => {
@@ -52,14 +76,71 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         ? String(business.maxDevices)
         : '1'
     );
-  }, [business.salonProfile, business.maxDevices]);
+    setFormTrialHours(business.trialHours ? String(business.trialHours) : '');
+    setTrialHoursInput(business.trialHours ? String(business.trialHours) : '');
+  }, [business.salonProfile, business.maxDevices, business.trialHours]);
 
   const activeDevicesCount = devices.filter((d) => d.status === 'ACTIVE').length;
   const effectiveActiveDevices = business.activeDevices ?? activeDevicesCount;
 
+  // Lógica de estado de la prueba
+  const trialHours = business.trialHours ?? null;
+  const trialStartedAt = business.trialStartedAt ?? null;
+  const trialEndsAt = business.trialEndsAt ?? null;
+
+  let trialState: 'SIN_PRUEBA' | 'SIN_INICIAR' | 'EN_CURSO' | 'VENCIDA' = 'SIN_PRUEBA';
+  let remainingText = '';
+
+  if (!trialHours || trialHours <= 0) {
+    trialState = 'SIN_PRUEBA';
+  } else if (!trialStartedAt) {
+    trialState = 'SIN_INICIAR';
+  } else {
+    const ends = trialEndsAt ? new Date(trialEndsAt) : null;
+    if (ends && ends.getTime() <= currentTime.getTime()) {
+      trialState = 'VENCIDA';
+    } else if (ends) {
+      trialState = 'EN_CURSO';
+      const diffMs = Math.max(0, ends.getTime() - currentTime.getTime());
+      const totalMinutes = Math.floor(diffMs / (1000 * 60));
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      remainingText = `${h} h ${m} min`;
+    } else {
+      trialState = 'SIN_PRUEBA';
+    }
+  }
+
+  // Formato de fecha y hora local de Nicaragua (America/Managua, UTC-6)
+  const formatNicaraguaDateTime = (dateStr?: string | null): string => {
+    if (!dateStr) return '—';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '—';
+      return new Intl.DateTimeFormat('es-NI', {
+        timeZone: 'America/Managua',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      }).format(d);
+    } catch {
+      return '—';
+    }
+  };
+
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalMaxDevices = isUnlimited ? null : Math.max(1, parseInt(maxDevicesInput, 10) || 1);
+    const parsedTrial = formTrialHours.trim() === '' ? null : parseInt(formTrialHours, 10);
+    const finalTrialHours =
+      parsedTrial === null
+        ? null
+        : !isNaN(parsedTrial) && parsedTrial >= 1
+        ? parsedTrial
+        : null;
 
     try {
       await updatePosSubMutation.mutateAsync({
@@ -67,6 +148,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         data: {
           salonProfile,
           maxDevices: finalMaxDevices,
+          trialHours: finalTrialHours,
         },
       });
       setIsEditingConfig(false);
@@ -75,8 +157,130 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     }
   };
 
+  // Acciones de prueba con confirmación
+  const handleSaveTrialHours = async () => {
+    const val = parseInt(trialHoursInput, 10);
+    if (isNaN(val) || val < 1) {
+      alert('Ingresa una cantidad de horas válida (número entero mayor o igual a 1).');
+      return;
+    }
+
+    const confirmMsg = trialHours
+      ? `¿Confirmas cambiar las horas de prueba a ${val} hora(s)?`
+      : `¿Confirmas establecer las horas de prueba en ${val} hora(s)?`;
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setIsActionPending(true);
+    try {
+      await updatePosSubMutation.mutateAsync({
+        businessId: business.id,
+        data: { trialHours: val },
+      });
+      setIsEditingTrialHours(false);
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const handleRemoveTrial = async () => {
+    if (
+      !window.confirm(
+        '¿Estás seguro de quitar la prueba de este negocio?\n\nSe restablecerá la configuración sin período de prueba.'
+      )
+    ) {
+      return;
+    }
+
+    setIsActionPending(true);
+    try {
+      await updatePosSubMutation.mutateAsync({
+        businessId: business.id,
+        data: { trialHours: null },
+      });
+      setIsEditingTrialHours(false);
+      setTrialHoursInput('');
+      setFormTrialHours('');
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const handleExtendTrial = async () => {
+    if (
+      !window.confirm(
+        `¿Confirmas extender la prueba por ${extendHours} hora(s) adicional(es)?`
+      )
+    ) {
+      return;
+    }
+
+    setIsActionPending(true);
+    try {
+      await updatePosSubMutation.mutateAsync({
+        businessId: business.id,
+        data: {
+          trialAction: 'extend',
+          extendHours,
+        },
+      });
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const handleResetTrial = async () => {
+    if (
+      !window.confirm(
+        '¿Estás seguro de reiniciar el reloj de prueba?\n\nEl tiempo volverá a contar desde el próximo inicio de sesión en la computadora.'
+      )
+    ) {
+      return;
+    }
+
+    setIsActionPending(true);
+    try {
+      await updatePosSubMutation.mutateAsync({
+        businessId: business.id,
+        data: {
+          trialAction: 'reset',
+        },
+      });
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const handleTerminateTrial = async () => {
+    if (
+      !window.confirm(
+        '¿Estás seguro de terminar la prueba inmediatamente?\n\nLa prueba quedará vencida y se bloqueará el acceso al POS en la computadora.'
+      )
+    ) {
+      return;
+    }
+
+    setIsActionPending(true);
+    try {
+      await updatePosSubMutation.mutateAsync({
+        businessId: business.id,
+        data: {
+          trialAction: 'terminate',
+        },
+      });
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
   const handleRevokeDevice = async (device: PosDeviceItem) => {
-    if (!window.confirm(`¿Estás seguro de revocar el acceso a "${device.name}" (${device.deviceId})?\n\nEsta computadora no podrá iniciar sesión en el POS hasta que sea reactivada.`)) {
+    if (
+      !window.confirm(
+        `¿Estás seguro de revocar el acceso a "${device.name}" (${device.deviceId})?\n\nEsta computadora no podrá iniciar sesión en el POS hasta que sea reactivada.`
+      )
+    ) {
       return;
     }
 
@@ -113,11 +317,11 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           <div className="flex items-center gap-2">
             <Desktop size={20} className="text-purple-700" weight="duotone" />
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-              Terminales POS y Perfil del Salón
+              Terminales POS y Configuración de Operación
             </h3>
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            Gestión de computadoras autorizadas para iniciar sesión y modo operativo del salón
+            Gestión de computadoras autorizadas, perfil del salón y período de prueba por horas
           </p>
         </div>
 
@@ -143,6 +347,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                     ? String(business.maxDevices)
                     : '1'
                 );
+                setFormTrialHours(business.trialHours ? String(business.trialHours) : '');
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
             >
@@ -155,7 +360,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
       {/* Modo Edición vs Modo Visualización de Configuración */}
       {isEditingConfig ? (
         <form onSubmit={handleSaveConfig} className="p-4 rounded-xl bg-purple-50/40 border border-purple-200/80 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Campo 1: Perfil del Salón */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
@@ -234,7 +439,40 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                 />
               </div>
               <p className="text-[11px] text-gray-500 mt-1">
-                Cantidad de computadoras que pueden iniciar sesión con este negocio
+                Cantidad de computadoras que pueden iniciar sesión simultáneamente
+              </p>
+            </div>
+
+            {/* Campo 3: Prueba (horas) */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Prueba (horas)
+                </label>
+                {formTrialHours && (
+                  <button
+                    type="button"
+                    onClick={() => setFormTrialHours('')}
+                    className="text-[11px] text-rose-600 hover:text-rose-800 font-medium cursor-pointer"
+                  >
+                    Quitar prueba
+                  </button>
+                )}
+              </div>
+
+              <div className="relative">
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={formTrialHours}
+                  onChange={(e) => setFormTrialHours(e.target.value)}
+                  placeholder="Opcional (ej. 24)"
+                  className="w-full h-10 px-3 rounded-lg border text-xs bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-purple-600"
+                />
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1">
+                El tiempo empieza a contar desde el primer inicio de sesión en la computadora. Vacío = no es prueba.
               </p>
             </div>
           </div>
@@ -311,6 +549,249 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           </div>
         </div>
       )}
+
+      {/* Sección Prueba */}
+      <div className="p-4 sm:p-5 rounded-xl bg-gray-50/80 border border-gray-200 space-y-4">
+        {/* Cabecera de la sección de Prueba */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-200/80">
+          <div className="flex items-center gap-2">
+            <Clock size={18} className="text-amber-600" weight="duotone" />
+            <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+              Prueba
+            </h4>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Estado Badge según los 4 estados especificados */}
+            {trialState === 'SIN_PRUEBA' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200">
+                <Prohibit size={13} weight="bold" />
+                <span>Sin prueba</span>
+              </span>
+            )}
+            {trialState === 'SIN_INICIAR' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                <Hourglass size={13} weight="bold" className="text-blue-600" />
+                <span>Prueba sin iniciar ({trialHours} h)</span>
+              </span>
+            )}
+            {trialState === 'EN_CURSO' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                <Clock size={13} weight="bold" className="text-amber-700 animate-pulse" />
+                <span>En curso · quedan {remainingText}</span>
+              </span>
+            )}
+            {trialState === 'VENCIDA' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                <WarningCircle size={13} weight="bold" className="text-rose-600" />
+                <span>Vencida</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Metadatos y Fechas (Hora local de Nicaragua) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-white p-3 rounded-lg border border-gray-200/80">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+              Horas de Prueba
+            </span>
+            <span className="text-sm font-bold text-gray-900">
+              {trialHours ? `${trialHours} horas` : 'No configuradas'}
+            </span>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {trialHours
+                ? 'Conteo por horas de uso en computadora'
+                : 'Sin período de prueba configurado'}
+            </p>
+          </div>
+
+          <div className="bg-white p-3 rounded-lg border border-gray-200/80">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+              Fecha de Inicio (Nicaragua)
+            </span>
+            <span className="text-xs font-semibold text-gray-900">
+              {trialStartedAt
+                ? formatNicaraguaDateTime(trialStartedAt)
+                : trialHours
+                ? 'Pendiente de inicio en PC'
+                : '—'}
+            </span>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {trialStartedAt
+                ? 'Primer inicio de sesión en computadora'
+                : trialHours
+                ? 'Empieza al primer inicio de sesión'
+                : 'Sin prueba'}
+            </p>
+          </div>
+
+          <div className="bg-white p-3 rounded-lg border border-gray-200/80">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+              Fecha de Fin (Nicaragua)
+            </span>
+            <span className="text-xs font-semibold text-gray-900">
+              {trialEndsAt
+                ? formatNicaraguaDateTime(trialEndsAt)
+                : trialHours
+                ? `Al iniciar + ${trialHours}h`
+                : '—'}
+            </span>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {trialEndsAt
+                ? trialState === 'VENCIDA'
+                  ? 'Prueba finalizada'
+                  : 'Límite de bloqueo automático en POS'
+                : '—'}
+            </p>
+          </div>
+        </div>
+
+        {/* Acciones de la Prueba */}
+        <div className="pt-2 border-t border-gray-200/80 space-y-3">
+          {/* Subformulario inline para Fijar / Cambiar horas */}
+          {isEditingTrialHours && (
+            <div className="p-3 bg-white rounded-lg border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="flex-1 max-w-sm">
+                <label className="block text-[11px] font-semibold text-gray-700 uppercase tracking-wider mb-1">
+                  {trialHours ? 'Cambiar Horas de Prueba' : 'Fijar Horas de Prueba'}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="Ej. 24"
+                    value={trialHoursInput}
+                    onChange={(e) => setTrialHoursInput(e.target.value)}
+                    className="w-28 h-8 px-2.5 rounded-lg border border-gray-300 text-xs focus:outline-none focus:border-purple-600 font-semibold"
+                  />
+                  <span className="text-xs text-gray-500">horas</span>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Número entero ≥ 1.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isActionPending}
+                  onClick={handleSaveTrialHours}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-700 text-white text-xs font-semibold hover:bg-purple-800 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <FloppyDisk size={14} />
+                  <span>Guardar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingTrialHours(false);
+                    setTrialHoursInput(trialHours ? String(trialHours) : '');
+                  }}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  <X size={14} />
+                  <span>Cancelar</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Barra de botones de acción */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Lado izquierdo: Fijar o cambiar horas y Quitar prueba */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {!isEditingTrialHours && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTrialHoursInput(trialHours ? String(trialHours) : '24');
+                    setIsEditingTrialHours(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  <PencilSimple size={13} />
+                  <span>{trialHours ? 'Cambiar horas' : 'Fijar horas de prueba'}</span>
+                </button>
+              )}
+
+              {trialHours && (
+                <button
+                  type="button"
+                  disabled={isActionPending}
+                  onClick={handleRemoveTrial}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-semibold text-rose-700 bg-rose-50/50 hover:bg-rose-100/60 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Eliminar período de prueba de este negocio"
+                >
+                  <Trash size={13} />
+                  <span>Quitar prueba</span>
+                </button>
+              )}
+            </div>
+
+            {/* Lado derecho: Extender, Reiniciar reloj, Terminar ahora */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Extender con selector 1 h / 6 h / 12 h / 24 h */}
+              {trialHours && (
+                <div className="inline-flex items-center gap-1.5 bg-white p-1 rounded-lg border border-gray-200 shadow-2xs">
+                  <span className="text-[11px] text-gray-500 font-medium pl-1.5">Extender:</span>
+                  <select
+                    value={extendHours}
+                    onChange={(e) => setExtendHours(Number(e.target.value))}
+                    disabled={isActionPending}
+                    aria-label="Horas para extender la prueba"
+                    className="h-7 px-2 bg-gray-50 border border-gray-200 rounded text-xs font-bold text-gray-800 focus:outline-none focus:border-purple-600"
+                  >
+                    <option value={1}>1 h</option>
+                    <option value={6}>6 h</option>
+                    <option value={12}>12 h</option>
+                    <option value={24}>24 h</option>
+                  </select>
+                  <button
+                    type="button"
+                    disabled={isActionPending}
+                    onClick={handleExtendTrial}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                    title="Extender tiempo de prueba"
+                  >
+                    <PlusCircle size={13} weight="bold" />
+                    <span>Extender</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Reiniciar reloj */}
+              {trialHours && (
+                <button
+                  type="button"
+                  disabled={isActionPending}
+                  onClick={handleResetTrial}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Reinicia el reloj para que vuelva a contar desde el próximo inicio de sesión"
+                >
+                  <ArrowCounterClockwise size={13} weight="bold" className="text-gray-500" />
+                  <span>Reiniciar reloj</span>
+                </button>
+              )}
+
+              {/* Terminar ahora */}
+              {trialHours && trialState === 'EN_CURSO' && (
+                <button
+                  type="button"
+                  disabled={isActionPending}
+                  onClick={handleTerminateTrial}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-300 bg-rose-50 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Terminar la prueba inmediatamente (marcar como vencida)"
+                >
+                  <StopCircle size={13} weight="bold" />
+                  <span>Terminar ahora</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Listado de Computadoras / Dispositivos Registrados */}
       <div className="space-y-3 pt-2">

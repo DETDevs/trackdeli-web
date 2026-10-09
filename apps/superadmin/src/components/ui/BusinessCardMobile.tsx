@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BusinessItem } from '../../hooks/useBusinesses';
 import { Badge } from './Badge';
-import { ArrowRight, Motorcycle, Coins, Receipt, Wallet, CalendarBlank } from '@phosphor-icons/react';
+import { ArrowRight, Motorcycle, Coins, Receipt, Wallet, CalendarBlank, Clock } from '@phosphor-icons/react';
 
 interface BusinessCardMobileProps {
   business: BusinessItem;
@@ -143,6 +143,26 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
                   <span>POS ({vertical})</span>
                 </span>
               );
+
+              // Insignia discreta "Prueba"
+              const trialHoursVal = (posSub as any)?.trialHours ?? business.trialHours;
+              const trialEndsAtVal = (posSub as any)?.trialEndsAt ?? business.trialEndsAt;
+              if (trialHoursVal) {
+                const isExpired = trialEndsAtVal && new Date(trialEndsAtVal).getTime() <= Date.now();
+                badges.push(
+                  <span
+                    key="pos-trial"
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                      isExpired
+                        ? 'bg-gray-100 text-gray-600 border border-gray-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200/80'
+                    }`}
+                  >
+                    <Clock size={11} weight="bold" className={isExpired ? 'text-gray-500' : 'text-amber-600'} />
+                    <span>Prueba</span>
+                  </span>
+                );
+              }
             }
 
             // 3. Cartera de Cobro

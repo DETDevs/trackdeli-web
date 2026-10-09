@@ -40,6 +40,9 @@ export interface BusinessItem {
     posVertical?: 'RESTAURANTE' | 'RETAIL' | null;
     salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
     maxDevices?: number | null;
+    trialHours?: number | null;
+    trialStartedAt?: string | null;
+    trialEndsAt?: string | null;
     posMonthlyFee?: number | null;
     carteraMonthlyFee?: number | null;
     citasMonthlyFee?: number | null;
@@ -54,6 +57,9 @@ export interface BusinessItem {
   hasCitas?: boolean;
   salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
   maxDevices?: number | null;
+  trialHours?: number | null;
+  trialStartedAt?: string | null;
+  trialEndsAt?: string | null;
   activeDevices?: number;
 }
 
@@ -123,6 +129,7 @@ export interface CreateBusinessInput {
   posVertical?: string;
   salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
   maxDevices?: number | null;
+  trialHours?: number | null;
   posMonthlyFee?: number;
   hasCarteraCobro?: boolean;
   carteraMonthlyFee?: number;
@@ -321,6 +328,10 @@ export interface PosDeviceItem {
 export interface UpdatePosSubscriptionInput {
   salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
   maxDevices?: number | null;
+  backofficeTier?: 'BASIC' | 'PRO' | null;
+  trialHours?: number | null;
+  trialAction?: 'extend' | 'reset' | 'terminate' | null;
+  extendHours?: number;
 }
 
 export function useUpdatePosSubscription() {

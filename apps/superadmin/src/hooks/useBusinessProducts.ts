@@ -56,6 +56,9 @@ export interface BusinessProductPosSub {
   posVertical?: PosVertical | null;
   salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
   maxDevices?: number | null;
+  trialHours?: number | null;
+  trialStartedAt?: string | null;
+  trialEndsAt?: string | null;
   posMonthlyFee?: number | null;
   activatedAt?: string | null;
   activatedBy?: string | null;

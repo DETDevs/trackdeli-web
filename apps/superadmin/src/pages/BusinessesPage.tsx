@@ -16,6 +16,7 @@ import {
   Wallet,
   CalendarBlank,
   Wrench,
+  Clock,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 import apiClient from '../lib/apiClient';
@@ -60,6 +61,7 @@ export const BusinessesPage = () => {
   const [salonProfile, setSalonProfile] = useState<'RESTAURANTE' | 'TALLER'>('RESTAURANTE');
   const [maxDevices, setMaxDevices] = useState('1');
   const [isUnlimitedDevices, setIsUnlimitedDevices] = useState(false);
+  const [trialHours, setTrialHours] = useState('');
   const [hasCarteraCobro, setHasCarteraCobro] = useState(false);
   const [hasCitas, setHasCitas] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('NEGOCIO');
@@ -172,6 +174,7 @@ export const BusinessesPage = () => {
         posVertical: hasPOS ? derivedPosVertical : undefined,
         salonProfile: hasPOS ? salonProfile : undefined,
         maxDevices: hasPOS ? (isUnlimitedDevices ? null : (parseInt(maxDevices, 10) || 1)) : undefined,
+        trialHours: hasPOS && trialHours.trim() ? (parseInt(trialHours, 10) || undefined) : undefined,
         posMonthlyFee: hasPOS && posMonthlyFee ? Number(posMonthlyFee) : undefined,
         hasCarteraCobro,
         carteraMonthlyFee:
@@ -232,6 +235,7 @@ export const BusinessesPage = () => {
                 apiClient.patch(`/superadmin/businesses/${bizId}/pos-subscription`, {
                   salonProfile,
                   maxDevices: isUnlimitedDevices ? null : (parseInt(maxDevices, 10) || 1),
+                  trialHours: trialHours.trim() ? (parseInt(trialHours, 10) || null) : null,
                 })
               );
             }
@@ -275,6 +279,7 @@ export const BusinessesPage = () => {
           setSalonProfile('RESTAURANTE');
           setMaxDevices('1');
           setIsUnlimitedDevices(false);
+          setTrialHours('');
           setHasCarteraCobro(false);
           setHasCitas(false);
           setBusinessType('NEGOCIO');
@@ -450,6 +455,27 @@ export const BusinessesPage = () => {
               <span>POS ({vertical})</span>
             </span>
           );
+
+          // Insignia discreta "Prueba" (ámbar si en curso, gris si venció)
+          const trialHoursVal = (posSub as any)?.trialHours ?? row.trialHours;
+          const trialEndsAtVal = (posSub as any)?.trialEndsAt ?? row.trialEndsAt;
+          if (trialHoursVal) {
+            const isExpired = trialEndsAtVal && new Date(trialEndsAtVal).getTime() <= Date.now();
+            badges.push(
+              <span
+                key="pos-trial"
+                title={isExpired ? 'Prueba POS vencida' : 'Prueba POS activa/en curso'}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  isExpired
+                    ? 'bg-gray-100 text-gray-600 border border-gray-200'
+                    : 'bg-amber-50 text-amber-800 border border-amber-200/80'
+                }`}
+              >
+                <Clock size={12} weight="bold" className={isExpired ? 'text-gray-500' : 'text-amber-600'} />
+                <span>Prueba</span>
+              </span>
+            );
+          }
         }
 
         // 3. Badge Cartera de Cobro
@@ -1062,6 +1088,24 @@ export const BusinessesPage = () => {
                 />
                 <p className="text-[10px] text-gray-500 mt-1">
                   Cantidad de computadoras que pueden iniciar sesión con este negocio
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-medium text-gray-700 mb-1">
+                  Prueba (horas)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={trialHours}
+                  onChange={(e) => setTrialHours(e.target.value)}
+                  placeholder="Ej: 24 (dejar vacío si no es prueba)"
+                  className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  El tiempo empieza a contar desde el primer inicio de sesión en la computadora
                 </p>
               </div>
 
