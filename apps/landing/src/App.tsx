@@ -656,40 +656,38 @@ const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinne
       gsap.to('.inv-fill-amber', { opacity: 1, duration: 0.15, delay: 1.65, scrollTrigger: invTrig });
       gsap.to('.inv-warn', { opacity: 1, duration: 0.3, delay: 1.8, scrollTrigger: invTrig });
 
-      // Reportes: el total y las barras arrancan cuando el gráfico entra en pantalla
-      const chartTrig = once(chart, 'top 85%');
-      gsap.fromTo(repObj, { v: 0 }, { v: 9770, duration: 1.4, delay: 0.2, ease: 'power1.out', immediateRender: false, onUpdate: writeRep, scrollTrigger: chartTrig });
+      // Reportes: el gráfico va atado al scroll (scrub), así se ve crecer siempre que lo recorrés
+      // y retrocede si volvés hacia arriba. El total cuenta junto con las barras.
+      repObj.v = 0;
+      writeRep();
+      labels.forEach((el) => {
+        el.textContent = 'C$0';
+      });
+      const repTl = gsap.timeline({
+        defaults: { ease: 'none' },
+        scrollTrigger: { trigger: chart, start: 'top 95%', end: 'bottom 85%', scrub: 0.6 }
+      });
+      repTl.to(repObj, { v: 9770, duration: 2.1, ease: 'power1.out', onUpdate: writeRep }, 0);
       bars.forEach((bar, i) => {
-        const d = 0.2 + i * 0.09;
-        gsap.fromTo(bar, { scaleY: 0 }, { scaleY: 1, duration: 0.5, delay: d, ease: 'back.out(1.4)', scrollTrigger: chartTrig });
-        gsap.fromTo(labels[i], { opacity: 0 }, { opacity: 1, duration: 0.25, delay: d + 0.35, scrollTrigger: chartTrig });
-        gsap.fromTo(
+        const s = i * 0.2;
+        repTl.fromTo(bar, { scaleY: 0 }, { scaleY: 1, duration: 0.7, ease: 'back.out(1.3)' }, s);
+        repTl.fromTo(labels[i], { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' }, s + 0.35);
+        repTl.to(
           labelObjs[i],
-          { v: 0 },
           {
             v: REPORT_BARS[i].amount,
-            duration: 0.5,
-            delay: d + 0.3,
+            duration: 0.55,
             ease: 'power1.out',
-            immediateRender: false,
             onUpdate: () => {
               labels[i].textContent = formatCaja(labelObjs[i].v);
-            },
-            scrollTrigger: chartTrig
-          }
+            }
+          },
+          s + 0.2
         );
       });
-      gsap.fromTo(
-        '.rep-line',
-        { clipPath: 'inset(0% 100% 0% 0%)' },
-        { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.95, delay: 0.3, ease: 'power1.inOut', scrollTrigger: chartTrig }
-      );
-      gsap.fromTo('.rep-bar-lima', { opacity: 0 }, { opacity: 1, duration: 0.2, delay: 1.3, scrollTrigger: chartTrig });
-      gsap.fromTo(
-        '.rep-peak-tag',
-        { scale: 0, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 0.35, delay: 1.35, ease: 'back.out(1.7)', scrollTrigger: chartTrig }
-      );
+      repTl.fromTo('.rep-line', { clipPath: 'inset(0% 100% 0% 0%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.5, ease: 'power1.inOut' }, 0.3);
+      repTl.fromTo('.rep-bar-lima', { opacity: 0 }, { opacity: 1, duration: 0.25 }, 1.5);
+      repTl.fromTo('.rep-peak-tag', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(1.7)' }, 1.65);
       return restore;
     },
     { scope: rootRef, dependencies: [pinned, reduced], revertOnUpdate: true }
