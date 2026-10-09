@@ -16,9 +16,9 @@ interface ReleaseInfo {
 
 const FALLBACK_RELEASE: ReleaseInfo = {
   version: '1.0.1',
-  sizeMB: 90,
+  sizeMB: 85,
   downloadUrl: 'https://github.com/edwin08torres/nexol-pos-releases/releases/latest',
-  publishedDate: 'octubre 2026'
+  publishedDate: ''
 };
 
 const WHATSAPP_PHONE = '50587140989';
@@ -122,7 +122,7 @@ export const App: React.FC = () => {
               href={WHATSAPP_TEST_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-[#8FD14F] text-[#141414] font-medium text-xs sm:text-sm hover:brightness-95 transition-all"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-[#141414] text-[#FAFAF8] font-medium text-xs sm:text-sm hover:bg-black transition-all"
             >
               <WhatsappLogo size={16} weight="fill" />
               <span>Pedir prueba</span>
@@ -495,23 +495,6 @@ export const App: React.FC = () => {
             {/* Download Card */}
             <div className="mt-8 p-6 sm:p-8 bg-[#FFFFFF] border border-[#E8E8E4] rounded-2xl max-w-xl text-left space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-[#141414]">
-                    <WindowsLogo size={18} weight="fill" className="text-[#141414]" />
-                    <span>Instalador oficial para Windows</span>
-                  </div>
-                  <div className="text-xs text-[#6B6B6B] mt-1">
-                    {loadingRelease ? (
-                      'Consultando última versión...'
-                    ) : (
-                      <>
-                        Versión {release.version} · {release.sizeMB} MB
-                        {release.publishedDate ? ` · ${release.publishedDate}` : ''}
-                      </>
-                    )}
-                  </div>
-                </div>
-
                 <a
                   href={isWindows ? release.downloadUrl : undefined}
                   download={isWindows ? true : undefined}
@@ -521,17 +504,29 @@ export const App: React.FC = () => {
                       alert('Esta descarga es exclusivamente para computadoras con Windows 10 u 11.');
                     }
                   }}
-                  className={`inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-medium text-sm transition-all ${
+                  className={`inline-flex items-center gap-3.5 px-6 py-4 rounded-xl font-medium transition-all ${
                     isWindows
-                      ? 'bg-[#141414] hover:bg-black text-[#FAFAF8] cursor-pointer shadow-sm active:scale-98'
+                      ? 'bg-[#141414] hover:bg-black text-[#FAFAF8] cursor-pointer shadow-sm active:scale-[0.99]'
                       : 'bg-[#E8E8E4] text-[#6B6B6B] cursor-not-allowed opacity-75'
                   }`}
                   aria-disabled={!isWindows}
                 >
-                  <DownloadSimple size={18} weight="bold" />
-                  <span>
-                    {isWindows ? 'Descargar instalador (.exe)' : 'Disponible solo para Windows'}
-                  </span>
+                  <WindowsLogo size={24} weight="fill" className="shrink-0" />
+                  <div className="text-left">
+                    <div className="text-base font-semibold leading-tight">
+                      {isWindows ? 'Descargar para Windows' : 'Disponible solo para Windows'}
+                    </div>
+                    <div className="text-xs text-[#FAFAF8]/80 font-normal mt-1">
+                      {loadingRelease ? (
+                        'Consultando versión...'
+                      ) : (
+                        <>
+                          Versión {release.version} · {release.sizeMB} MB
+                          {release.publishedDate ? ` · ${release.publishedDate}` : ''}
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </a>
               </div>
 
