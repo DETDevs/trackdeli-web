@@ -32,7 +32,108 @@ const WHATSAPP_SUPPORT_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURICo
   'Hola, tengo una consulta sobre TrackDeli POS'
 )}`;
 
+type RubroKey = 'ferreteria' | 'restaurante' | 'farmacia' | 'taller';
+
+interface TicketRubro {
+  label: string;
+  businessName: string;
+  location: string;
+  dateTime: string;
+  ticketNumber: string;
+  metadata: Array<{ label: string; value: string }>;
+  lines: Array<{ name: string; price: string }>;
+  total: string;
+  inventory: Array<{ name: string; deduction: string }>;
+}
+
+const TICKETS: Record<RubroKey, TicketRubro> = {
+  ferreteria: {
+    label: 'Ferretería',
+    businessName: 'FERRETERÍA EL MAESTRO',
+    location: 'Managua, Nicaragua',
+    dateTime: '08/10/2026 · 09:15 AM',
+    ticketNumber: 'Ticket #01842',
+    metadata: [
+      { label: 'Cliente:', value: 'Juan Carlos Ortiz' }
+    ],
+    lines: [
+      { name: 'Clavos 2½ pulg · 3 LB', price: 'C$105.00' },
+      { name: 'Pintura blanca · 1 GAL', price: 'C$680.00' },
+      { name: 'Cinta métrica · 1 UND', price: 'C$175.00' }
+    ],
+    total: 'C$960.00',
+    inventory: [
+      { name: 'Clavos', deduction: '−3 LB' },
+      { name: 'Pintura', deduction: '−1 GAL' },
+      { name: 'Cinta métrica', deduction: '−1 UND' }
+    ]
+  },
+  restaurante: {
+    label: 'Restaurante',
+    businessName: 'CAFETERÍA LA ESQUINA',
+    location: 'Managua, Nicaragua',
+    dateTime: '08/10/2026 · 01:30 PM',
+    ticketNumber: 'Ticket #00319',
+    metadata: [
+      { label: 'Mesa:', value: 'Mesa 4' },
+      { label: 'Mesero:', value: 'Sofía Navarro' }
+    ],
+    lines: [
+      { name: 'Hamburguesa clásica ×2', price: 'C$480.00' },
+      { name: 'Refresco natural ×2', price: 'C$110.00' }
+    ],
+    total: 'C$590.00',
+    inventory: [
+      { name: 'Pan', deduction: '−2 UND' },
+      { name: 'Carne', deduction: '−2 UND' },
+      { name: 'Queso', deduction: '−2 UND' },
+      { name: 'Fruta', deduction: '−0.40 KG' }
+    ]
+  },
+  farmacia: {
+    label: 'Farmacia',
+    businessName: 'FARMACIA SANTA LUCÍA',
+    location: 'Managua, Nicaragua',
+    dateTime: '08/10/2026 · 11:10 AM',
+    ticketNumber: 'Ticket #02105',
+    metadata: [
+      { label: 'Cliente:', value: 'Doña Martha Rivas' }
+    ],
+    lines: [
+      { name: 'Acetaminofén 500 mg ×2', price: 'C$40.00' },
+      { name: 'Alcohol 70% ×1', price: 'C$85.00' }
+    ],
+    total: 'C$125.00',
+    inventory: [
+      { name: 'Acetaminofén', deduction: '−2 UND' },
+      { name: 'Alcohol', deduction: '−1 UND' }
+    ]
+  },
+  taller: {
+    label: 'Taller',
+    businessName: 'TALLER LOS PINOS',
+    location: 'Managua, Nicaragua',
+    dateTime: '08/10/2026 · 10:45 AM',
+    ticketNumber: 'Ticket #00428',
+    metadata: [
+      { label: 'Cliente:', value: 'Carlos Mendoza' },
+      { label: 'Vehículo:', value: 'M123456 · Toyota Hilux' },
+      { label: 'Técnico:', value: 'Roberto Gómez' }
+    ],
+    lines: [
+      { name: 'Cambio de aceite', price: 'C$1,100.00' },
+      { name: 'Aceite extra 1 LT', price: 'C$220.00' }
+    ],
+    total: 'C$1,320.00',
+    inventory: [
+      { name: 'Aceite 15W40', deduction: '−5 LT' },
+      { name: 'Filtro de aceite', deduction: '−1 UND' }
+    ]
+  }
+};
+
 export const App: React.FC = () => {
+  const [selectedRubro, setSelectedRubro] = useState<RubroKey>('ferreteria');
   const [release, setRelease] = useState<ReleaseInfo>(FALLBACK_RELEASE);
   const [isWindows, setIsWindows] = useState<boolean>(true);
   const [apiError, setApiError] = useState<boolean>(false);
@@ -139,11 +240,11 @@ export const App: React.FC = () => {
               {/* Left Column: Headline and Actions */}
               <div className="lg:col-span-7 flex flex-col items-start text-left">
                 <h1 className="font-serif text-[36px] sm:text-[44px] md:text-[56px] lg:text-[68px] leading-[1.05] tracking-[-0.01em] text-[#141414] text-left">
-                  Vendés un cambio de aceite. El inventario descuenta 4 litros y un filtro.
+                  Cobrás una vez. Tu inventario, tu caja y tus reportes se enteran.
                 </h1>
 
                 <p className="mt-6 text-[18px] leading-[1.6] text-[#6B6B6B] max-w-[70ch] text-left font-sans">
-                  TrackDeli POS es la caja, el inventario y los reportes de tu comercio, restaurante o taller en Nicaragua.
+                  TrackDeli POS es la caja, el inventario y los reportes de tu comercio, restaurante, ferretería, farmacia o taller en Nicaragua.
                 </p>
 
                 {/* CTAs */}
@@ -169,7 +270,7 @@ export const App: React.FC = () => {
 
                 <div className="mt-6 flex items-center gap-2 text-xs text-[#6B6B6B]">
                   <CheckCircle size={15} weight="fill" className="text-[#5FA22B]" />
-                  <span>Prueba completa sin costo ni tarjeta de crédito</span>
+                  <span>Prueba de 6 horas, sin compromiso</span>
                 </div>
               </div>
 
@@ -183,49 +284,44 @@ export const App: React.FC = () => {
 
                   {/* Ticket Container with overflow hidden to emerge from slot */}
                   <div className="overflow-hidden relative z-10 pt-0.5">
-                    <div className="ticket-print-animation bg-[#FFFFFF] border-x border-[#E8E8E4] text-[#141414] font-mono text-xs p-5 shadow-sm space-y-3 select-none">
+                    <div
+                      key={selectedRubro}
+                      className="ticket-print-animation bg-[#FFFFFF] border-x border-[#E8E8E4] text-[#141414] font-mono text-xs p-5 shadow-sm space-y-3 select-none"
+                    >
                       {/* Ticket Header */}
                       <div className="text-center space-y-0.5 border-b border-dashed border-[#141414]/30 pb-3">
                         <div className="font-bold text-sm tracking-tight text-[#141414]">
-                          TALLER LOS PINOS
+                          {TICKETS[selectedRubro].businessName}
                         </div>
                         <div className="text-[11px] text-[#6B6B6B]">
-                          Managua, Nicaragua
+                          {TICKETS[selectedRubro].location}
                         </div>
                         <div className="text-[11px] text-[#6B6B6B]">
-                          08/10/2026 · 10:45 AM
+                          {TICKETS[selectedRubro].dateTime}
                         </div>
                         <div className="text-[11px] font-semibold text-[#141414] pt-1">
-                          Ticket #00428
+                          {TICKETS[selectedRubro].ticketNumber}
                         </div>
                       </div>
 
                       {/* Ticket Metadata */}
                       <div className="space-y-1 text-[11px] border-b border-dashed border-[#141414]/30 pb-3">
-                        <div className="flex justify-between">
-                          <span className="text-[#6B6B6B]">Cliente:</span>
-                          <span className="font-semibold text-[#141414]">Carlos Mendoza</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-[#6B6B6B]">Vehículo:</span>
-                          <span className="font-semibold text-[#141414]">M123456 · Toyota Hilux</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-[#6B6B6B]">Técnico:</span>
-                          <span className="font-semibold text-[#141414]">Roberto Gómez</span>
-                        </div>
+                        {TICKETS[selectedRubro].metadata.map((meta, idx) => (
+                          <div key={idx} className="flex justify-between">
+                            <span className="text-[#6B6B6B]">{meta.label}</span>
+                            <span className="font-semibold text-[#141414]">{meta.value}</span>
+                          </div>
+                        ))}
                       </div>
 
                       {/* Ticket Items */}
                       <div className="space-y-1.5 py-1 text-[11px]">
-                        <div className="flex justify-between items-start">
-                          <span className="text-[#141414]">Cambio de aceite</span>
-                          <span className="font-semibold text-[#141414]">C$1,100.00</span>
-                        </div>
-                        <div className="flex justify-between items-start">
-                          <span className="text-[#141414]">Aceite extra 1 LT</span>
-                          <span className="font-semibold text-[#141414]">C$220.00</span>
-                        </div>
+                        {TICKETS[selectedRubro].lines.map((line, idx) => (
+                          <div key={idx} className="flex justify-between items-start">
+                            <span className="text-[#141414]">{line.name}</span>
+                            <span className="font-semibold text-[#141414]">{line.price}</span>
+                          </div>
+                        ))}
                       </div>
 
                       {/* Total */}
@@ -234,7 +330,7 @@ export const App: React.FC = () => {
                           TOTAL
                         </span>
                         <span className="font-bold text-sm text-[#141414]">
-                          C$1,320.00
+                          {TICKETS[selectedRubro].total}
                         </span>
                       </div>
 
@@ -250,14 +346,12 @@ export const App: React.FC = () => {
                         </div>
 
                         <div className="space-y-1 text-[11px]">
-                          <div className="flex justify-between text-[#141414]">
-                            <span>Aceite 15W40</span>
-                            <span className="font-bold">−5 LT</span>
-                          </div>
-                          <div className="flex justify-between text-[#141414]">
-                            <span>Filtro de aceite</span>
-                            <span className="font-bold">−1 UND</span>
-                          </div>
+                          {TICKETS[selectedRubro].inventory.map((inv, idx) => (
+                            <div key={idx} className="flex justify-between text-[#141414]">
+                              <span>{inv.name}</span>
+                              <span className="font-bold">{inv.deduction}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
 
@@ -276,6 +370,32 @@ export const App: React.FC = () => {
                         <path d="M0,12 L10,0 L20,12 L30,0 L40,12 L50,0 L60,12 L70,0 L80,12 L90,0 L100,12 L110,0 L120,12 L130,0 L140,12 L150,0 L160,12 L170,0 L180,12 L190,0 L200,12 L210,0 L220,12 L230,0 L240,12 L250,0 L260,12 L270,0 L280,12 L290,0 L300,12 L310,0 L320,12 L330,0 L340,12 L340,12 L0,12 Z" />
                       </svg>
                     </div>
+                  </div>
+
+                  {/* Segmented Control Selector */}
+                  <div
+                    role="group"
+                    aria-label="Seleccionar rubro del ticket"
+                    className="mt-3 p-1 rounded-xl bg-[#F2F2EF] border border-[#E8E8E4] grid grid-cols-4 gap-1 w-full"
+                  >
+                    {(['ferreteria', 'restaurante', 'farmacia', 'taller'] as RubroKey[]).map((key) => {
+                      const isSelected = selectedRubro === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => setSelectedRubro(key)}
+                          className={`py-1.5 px-1 text-[11px] sm:text-xs rounded-lg transition-all font-medium text-center cursor-pointer select-none ${
+                            isSelected
+                              ? 'bg-[#141414] text-[#FAFAF8] shadow-xs font-semibold'
+                              : 'text-[#6B6B6B] hover:text-[#141414]'
+                          }`}
+                        >
+                          {TICKETS[key].label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
