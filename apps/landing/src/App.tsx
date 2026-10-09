@@ -430,26 +430,7 @@ const RubrosSectionGSAP: React.FC<{
           });
           masterTlRef.current = masterTl;
 
-          // Background color interpolation: #FAFAF8 -> #141414 -> #FAFAF8
-          masterTl.to(
-            sectionRef.current,
-            {
-              backgroundColor: '#141414',
-              color: '#FAFAF8',
-              duration: 0.35,
-              ease: 'power1.inOut'
-            },
-            0
-          );
-          masterTl.to(
-            '.gsap-section-sub',
-            {
-              color: '#A3A3A3',
-              duration: 0.35,
-              ease: 'power1.inOut'
-            },
-            0
-          );
+          // Stage starts dark (#141414, continues from the dark scenes) and hands off to paper (#FAFAF8) at the end
           masterTl.to(
             sectionRef.current,
             {
@@ -463,12 +444,14 @@ const RubrosSectionGSAP: React.FC<{
           masterTl.to(
             '.gsap-section-sub',
             {
-              color: '#6B6B6B',
+              color: '#4A4A4A',
               duration: 0.35,
               ease: 'power1.inOut'
             },
             3.65
           );
+          masterTl.to('.gsap-rubro-title', { color: '#141414', duration: 0.35, ease: 'power1.inOut' }, 3.65);
+          masterTl.to('.gsap-desc-line-3', { color: '#4A4A4A', duration: 0.35, ease: 'power1.inOut' }, 3.65);
 
           // Parallax depth: text column moves slightly faster (28 -> -28), ticket column moves slightly slower (-28 -> 28)
           if (textColRef.current && ticketColRef.current) {
@@ -705,7 +688,7 @@ const RubrosSectionGSAP: React.FC<{
           <section
             id="rubros-showcase"
             ref={sectionRef}
-            className="relative w-full overflow-hidden bg-[#FAFAF8] will-change-transform border-b border-[#E8E8E4]"
+            className="relative w-full overflow-hidden bg-[#141414] text-[#FAFAF8] will-change-transform"
           >
             <div className="w-full h-screen flex flex-col justify-between py-8 lg:py-10 px-4 sm:px-6 lg:px-8 max-w-[1120px] mx-auto relative select-none">
               {/* Header */}
@@ -723,7 +706,7 @@ const RubrosSectionGSAP: React.FC<{
               {/* Center 2-column showcase */}
               <div className="w-full flex-1 grid grid-cols-12 gap-8 lg:gap-12 items-center my-auto">
                 {/* Left Column: Titles */}
-                <div ref={textColRef} className="col-span-7 flex gap-6 lg:gap-8 items-stretch will-change-transform">
+                <div ref={textColRef} className="col-span-8 flex gap-6 lg:gap-8 items-stretch will-change-transform">
                   {/* Vertical lime line */}
                   <div className="w-[3px] bg-white/10 rounded-full relative overflow-hidden shrink-0 self-stretch my-2">
                     <div
@@ -748,8 +731,8 @@ const RubrosSectionGSAP: React.FC<{
                             }`}
                           >
                             <h3
-                              style={{ fontSize: 'clamp(40px, 5vw, 72px)' }}
-                              className="font-serif leading-[1.06] tracking-tight text-[#FAFAF8]"
+                              style={{ fontSize: 'clamp(44px, min(6.4vw, 9.5vh), 96px)' }}
+                              className="gsap-rubro-title font-serif leading-[1.02] tracking-[-0.025em] text-[#FAFAF8]"
                             >
                               {rubro.titleLines.map((line, lIdx) => (
                                 <span key={lIdx} className="block overflow-hidden pb-0.5">
@@ -795,7 +778,7 @@ const RubrosSectionGSAP: React.FC<{
                 </div>
 
                 {/* Right Column: Ticket */}
-                <div ref={ticketColRef} className="col-span-5 flex justify-end will-change-transform">
+                <div ref={ticketColRef} className="col-span-4 flex justify-end will-change-transform">
                   <div className="w-full max-w-[340px] relative">
                     {/* Printer Slot */}
                     <div className="w-full h-3.5 bg-[#262626] rounded-t-md border-t border-x border-[#3a3a3a] flex items-center justify-center px-6 relative z-20 shadow-inner">
@@ -1132,6 +1115,321 @@ const RubrosSectionGSAP: React.FC<{
   );
 };
 
+// Foto opcional de pantalla real del POS (archivos en apps/landing/public/screens/).
+// Mientras no haya archivo asignado aquí, no se renderiza nada (no se inventan capturas).
+// Ejemplo: caja: 'ventas.png', inventario: 'taller.png', reportes: 'backoffice.png'
+const AVAILABLE_SCREENS: Record<string, string | undefined> = {};
+
+const ScreenPhoto: React.FC<{ file?: string; alt: string; className?: string }> = ({
+  file,
+  alt,
+  className = ''
+}) => {
+  const [failed, setFailed] = useState(false);
+  if (!file || failed) return null;
+  return (
+    <div className={`screen-photo overflow-hidden ${className}`}>
+      <img
+        src={`/screens/${file}`}
+        alt={alt}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="screen-photo-img block w-full h-[115%] object-cover object-top will-change-transform"
+      />
+    </div>
+  );
+};
+
+const REPORT_BARS: Array<{ hour: string; value: number; peak?: boolean }> = [
+  { hour: '8a', value: 38 },
+  { hour: '9a', value: 52 },
+  { hour: '10a', value: 66 },
+  { hour: '12p', value: 100, peak: true },
+  { hour: '2p', value: 60 },
+  { hour: '4p', value: 74 },
+  { hour: '6p', value: 44 }
+];
+
+const formatCaja = (v: number) => `C$${Math.round(v).toLocaleString('en-US')}`;
+
+// Section 2: "Una venta" as full-screen scenes (pinned on desktop, stacked blocks elsewhere)
+const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = ({ pinned, reduced }) => {
+  const rootRef = useRef<HTMLElement>(null);
+
+  useGSAP(
+    () => {
+      const root = rootRef.current;
+      if (reduced || !root) return;
+
+      const totalEl = root.querySelector<HTMLElement>('.escena-total');
+      const stockEl = root.querySelector<HTMLElement>('.escena-stock');
+      const cajaObj = { v: 8450 };
+      const stockObj = { v: 24 };
+      const writeTotal = () => {
+        if (totalEl) totalEl.textContent = formatCaja(cajaObj.v);
+      };
+      const writeStock = () => {
+        if (stockEl) stockEl.textContent = `${Math.round(stockObj.v)} / 30 LT`;
+      };
+      writeTotal();
+      writeStock();
+
+      if (pinned) {
+        const dots = Array.from(root.querySelectorAll<HTMLElement>('.escena-dot'));
+        const D = 4.4;
+        let active = -2;
+        const setActive = (t: number) => {
+          const a = t >= 3 ? 2 : t >= 2 ? 1 : t >= 1 ? 0 : -1;
+          if (a === active) return;
+          active = a;
+          dots.forEach((d, i) =>
+            gsap.to(d, { opacity: i === a ? 1 : 0.3, scale: i === a ? 1.8 : 1, duration: 0.25, overwrite: true })
+          );
+        };
+
+        const tl = gsap.timeline({
+          defaults: { ease: 'none' },
+          scrollTrigger: {
+            trigger: root,
+            pin: true,
+            start: 'top top',
+            end: '+=350%',
+            scrub: 1,
+            anticipatePin: 1,
+            onUpdate: (self) => setActive(self.progress * D)
+          }
+        });
+
+        // Escena 0: la frase crece y sube; la línea del ticket "dispara" hacia las escenas
+        tl.to('.una-phrase', { scale: 1.35, yPercent: -30, duration: 1.2 }, 0);
+        tl.to('.una-ticket', { x: '110vw', ease: 'power2.in', duration: 0.9 }, 0.2);
+        tl.to('.una-ticket', { opacity: 0, duration: 0.3 }, 0.8);
+
+        // Escena 1: Caja (cortina desde abajo)
+        tl.fromTo(
+          '.escena-1',
+          { clipPath: 'inset(100% 0% 0% 0%)' },
+          { clipPath: 'inset(0% 0% 0% 0%)', ease: 'power2.inOut', duration: 0.8 },
+          1
+        );
+        tl.fromTo('.escena-1-word', { yPercent: 25 }, { yPercent: -10, duration: 1.8 }, 1);
+        tl.to(cajaObj, { v: 9770, duration: 0.7, ease: 'power1.out', onUpdate: writeTotal }, 1.4);
+
+        // Escena 2: Inventario (cortina desde la derecha)
+        tl.fromTo(
+          '.escena-2',
+          { clipPath: 'inset(0% 0% 0% 100%)' },
+          { clipPath: 'inset(0% 0% 0% 0%)', ease: 'power2.inOut', duration: 0.8 },
+          2
+        );
+        tl.fromTo('.escena-2-word', { yPercent: 25 }, { yPercent: -10, duration: 1.8 }, 2);
+        tl.fromTo('.inv-fill', { scaleX: 24 / 30 }, { scaleX: 19 / 30, duration: 0.6, ease: 'power1.inOut' }, 2.45);
+        tl.to(stockObj, { v: 19, duration: 0.6, ease: 'power1.inOut', onUpdate: writeStock }, 2.45);
+        tl.fromTo('.inv-fill-amber', { opacity: 0 }, { opacity: 1, duration: 0.08 }, 2.45 + 0.6 * 0.8);
+        tl.fromTo('.inv-warn', { opacity: 0 }, { opacity: 1, duration: 0.2 }, 2.95);
+
+        // Escena 3: Reportes (cortina desde arriba)
+        tl.fromTo(
+          '.escena-3',
+          { clipPath: 'inset(0% 0% 100% 0%)' },
+          { clipPath: 'inset(0% 0% 0% 0%)', ease: 'power2.inOut', duration: 0.8 },
+          3
+        );
+        tl.fromTo('.escena-3-word', { yPercent: 25 }, { yPercent: -10, duration: 1.4 }, 3);
+        tl.fromTo('.rep-bar', { scaleY: 0 }, { scaleY: 1, duration: 0.3, ease: 'power2.out', stagger: 0.05 }, 3.4);
+        tl.fromTo('.rep-bar-lima', { opacity: 0 }, { opacity: 1, duration: 0.2 }, 3.95);
+
+        // Fotos reales opcionales: parallax suave
+        if (root.querySelector('.screen-photo-img')) {
+          tl.fromTo('.screen-photo-img', { yPercent: 0 }, { yPercent: -12, duration: D }, 0);
+        }
+        tl.to({}, { duration: 0.25 }, 4.15);
+        return;
+      }
+
+      // Celular / tablet: sin pin, cada escena se revela con recorte una sola vez
+      const scenes = Array.from(root.querySelectorAll<HTMLElement>('.escena'));
+      scenes.forEach((scene) => {
+        gsap.fromTo(
+          scene,
+          { clipPath: 'inset(100% 0% 0% 0%)' },
+          {
+            clipPath: 'inset(0% 0% 0% 0%)',
+            duration: 0.9,
+            ease: 'power3.inOut',
+            scrollTrigger: { trigger: scene, start: 'top 85%', once: true }
+          }
+        );
+      });
+
+      const once = (el: Element | null) => ({ trigger: el ?? root, start: 'top 70%', once: true });
+      const scene1 = root.querySelector('.escena-1');
+      const scene2 = root.querySelector('.escena-2');
+      const scene3 = root.querySelector('.escena-3');
+
+      gsap.to(cajaObj, { v: 9770, duration: 1.2, ease: 'power1.out', onUpdate: writeTotal, scrollTrigger: once(scene1) });
+      gsap.fromTo(
+        '.inv-fill',
+        { scaleX: 24 / 30 },
+        { scaleX: 19 / 30, duration: 1, ease: 'power1.inOut', scrollTrigger: once(scene2) }
+      );
+      gsap.to(stockObj, { v: 19, duration: 1, ease: 'power1.inOut', onUpdate: writeStock, scrollTrigger: once(scene2) });
+      gsap.fromTo(
+        '.inv-fill-amber',
+        { opacity: 0 },
+        { opacity: 1, duration: 0.15, delay: 0.8, scrollTrigger: once(scene2) }
+      );
+      gsap.fromTo('.inv-warn', { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1, scrollTrigger: once(scene2) });
+      gsap.fromTo(
+        '.rep-bar',
+        { scaleY: 0 },
+        { scaleY: 1, duration: 0.5, ease: 'power2.out', stagger: 0.07, scrollTrigger: once(scene3) }
+      );
+      gsap.fromTo(
+        '.rep-bar-lima',
+        { opacity: 0 },
+        { opacity: 1, duration: 0.3, delay: 0.9, scrollTrigger: once(scene3) }
+      );
+    },
+    { scope: rootRef, dependencies: [pinned, reduced], revertOnUpdate: true }
+  );
+
+  const sceneBase = pinned ? 'absolute inset-0' : 'relative min-h-[100svh]';
+  const blendStyle: React.CSSProperties = { color: '#FFFFFF', mixBlendMode: 'difference' };
+
+  return (
+    <section
+      id="una-venta"
+      ref={rootRef}
+      aria-labelledby="una-venta-titulo"
+      className={`relative w-full overflow-hidden bg-[#FAFAF8] ${pinned ? 'h-screen' : ''}`}
+    >
+      {/* Escena 0: Una venta. */}
+      <div className={`escena escena-0 ${sceneBase} overflow-hidden bg-[#FAFAF8] text-[#141414]`}>
+        <div className="absolute inset-x-0 top-[22vh] px-[4vw]">
+          <h2
+            id="una-venta-titulo"
+            className="una-phrase origin-left font-serif text-[16vw] leading-[0.9] tracking-[-0.03em] will-change-transform"
+          >
+            Una venta.
+          </h2>
+          <p className="una-ticket mt-[3vh] flex items-center gap-2.5 font-mono text-[clamp(12px,1.25vw,18px)] text-[#141414] will-change-transform">
+            <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[#5FA22B]" aria-hidden="true" />
+            <span>Cobro registrado · Ticket #00428 · +C$1,320.00</span>
+          </p>
+        </div>
+        <p className="absolute bottom-[6vh] left-[4vw] max-w-[34ch] text-sm sm:text-base text-[#4A4A4A]">
+          Una sola venta mueve tu caja, tu inventario y tus reportes.
+        </p>
+      </div>
+
+      {/* Escena 1: Caja */}
+      <div className={`escena escena-1 ${sceneBase} overflow-hidden bg-[#141414] text-[#FAFAF8]`}>
+        <ScreenPhoto
+          file={AVAILABLE_SCREENS.caja}
+          alt="Pantalla de caja del POS"
+          className="absolute bottom-[10vh] right-[4vw] h-[32vh] w-[34vw]"
+        />
+        <h3
+          className="escena-1-word absolute left-[4vw] top-[6vh] font-serif text-[20vw] leading-[0.9] tracking-[-0.03em] will-change-transform"
+          style={blendStyle}
+        >
+          Caja
+        </h3>
+        <div className="absolute right-[4vw] top-[30vh] text-right">
+          <span className="mb-2 block text-xs uppercase tracking-wider text-[#A3A3A3]">Total del día en caja</span>
+          <span className="escena-total block font-serif text-[14vw] leading-none tracking-[-0.03em] text-[#8FD14F]">
+            C$9,770
+          </span>
+        </div>
+        <p className="absolute bottom-[6vh] left-[4vw] max-w-[34ch] text-sm sm:text-base text-[#D4D4D0]">
+          Cobrás en córdobas o dólares y el total del día se actualiza.
+        </p>
+      </div>
+
+      {/* Escena 2: Inventario */}
+      <div className={`escena escena-2 ${sceneBase} overflow-hidden bg-[#FAFAF8] text-[#141414]`}>
+        <ScreenPhoto
+          file={AVAILABLE_SCREENS.inventario}
+          alt="Pantalla de inventario del POS"
+          className="absolute bottom-[8vh] right-[4vw] h-[26vh] w-[30vw]"
+        />
+        <h3
+          className="escena-2-word absolute left-[4vw] top-[6vh] font-serif text-[19vw] leading-[0.9] tracking-[-0.03em] will-change-transform"
+          style={blendStyle}
+        >
+          Inventario
+        </h3>
+        <div className="absolute inset-x-[4vw] top-[50vh] flex items-baseline justify-between">
+          <span className="text-sm font-medium">Aceite 15W40</span>
+          <span className="escena-stock font-mono text-sm font-bold">19 / 30 LT</span>
+        </div>
+        <div className="absolute inset-x-0 top-[56vh] h-[8vh] bg-[#E8E8E4]">
+          <div
+            className="inv-fill absolute inset-0 origin-left will-change-transform"
+            style={{ transform: `scaleX(${19 / 30})` }}
+          >
+            <div className="absolute inset-0 bg-[#141414]" />
+            <div className="inv-fill-amber absolute inset-0 bg-[#F59E0B]" />
+          </div>
+          <div className="absolute -bottom-3 -top-3 w-0.5 bg-[#141414]" style={{ left: '66.667%' }} aria-hidden="true" />
+        </div>
+        <p className="inv-warn absolute left-[4vw] top-[67vh] text-xs font-semibold text-[#B45309]">
+          Bajo el mínimo
+        </p>
+        <p className="absolute bottom-[6vh] left-[4vw] max-w-[34ch] text-sm sm:text-base text-[#4A4A4A]">
+          Cada venta descuenta lo que gastó y te avisa antes de quedarte sin stock.
+        </p>
+      </div>
+
+      {/* Escena 3: Reportes */}
+      <div className={`escena escena-3 ${sceneBase} overflow-hidden bg-[#141414] text-[#FAFAF8]`}>
+        <ScreenPhoto
+          file={AVAILABLE_SCREENS.reportes}
+          alt="Pantalla del backoffice de reportes"
+          className="absolute right-[4vw] top-[8vh] h-[24vh] w-[28vw]"
+        />
+        <h3
+          className="escena-3-word absolute left-[4vw] top-[6vh] font-serif text-[19vw] leading-[0.9] tracking-[-0.03em] will-change-transform"
+          style={blendStyle}
+        >
+          Reportes
+        </h3>
+        <p className="absolute bottom-[calc(46vh+3vh)] left-[4vw] max-w-[34ch] text-sm sm:text-base text-[#D4D4D0]">
+          Mirá cómo va tu negocio desde el celular.
+        </p>
+        <div className="absolute inset-x-0 bottom-0 flex h-[46vh] items-end gap-1">
+          {REPORT_BARS.map((bar) => (
+            <div key={bar.hour} className="relative flex h-full flex-1 items-end">
+              <div
+                className="rep-bar relative w-full origin-bottom will-change-transform"
+                style={{ height: `${bar.value}%` }}
+              >
+                <div className="absolute inset-0 bg-[#FAFAF8]/85" />
+                {bar.peak && <div className="rep-bar-lima absolute inset-0 bg-[#8FD14F]" />}
+              </div>
+              <span className="absolute bottom-2 left-2 font-mono text-[10px] text-[#141414]">{bar.hour}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Progreso discreto: tres puntos (sin números) */}
+      {pinned && (
+        <div
+          className="pointer-events-none absolute right-4 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-3"
+          style={{ mixBlendMode: 'difference' }}
+          aria-hidden="true"
+        >
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="escena-dot block h-1.5 w-1.5 rounded-full bg-white" style={{ opacity: 0.3 }} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
 export const App: React.FC = () => {
   const [selectedRubro, setSelectedRubro] = useState<RubroKey>('ferreteria');
   const [release, setRelease] = useState<ReleaseInfo>(FALLBACK_RELEASE);
@@ -1154,54 +1452,25 @@ export const App: React.FC = () => {
     glareY: 50
   });
 
-  // Section 2 scroll animation tracking
-  const updateSectionRef = useRef<HTMLElement>(null);
-  const { scrollYProgress: section2Scroll } = useScroll({
-    target: updateSectionRef,
-    offset: ['start 85%', 'end 30%']
-  });
-
   // Section 4 Price element refs for GSAP
   const priceRef = useRef<HTMLDivElement>(null);
+  const priceBgRef = useRef<HTMLDivElement>(null);
   const priceNumberRef = useRef<HTMLSpanElement>(null);
+
+  // Hero wordmark refs
+  const heroRef = useRef<HTMLElement>(null);
+  const wmFixedRef = useRef<HTMLDivElement>(null);
+  const wmStaticRef = useRef<HTMLSpanElement>(null);
+  const brandWordRef = useRef<HTMLSpanElement>(null);
+
+  // Desktop width (>= 1024px)
+  const [isDesktopW, setIsDesktopW] = useState<boolean>(false);
+  // Pinned / scroll-driven layout only on desktop with fine pointer and no reduced motion
+  const pinned = !prefersReducedMotion && isDesktopW && isFinePointer;
 
   // Texture Parallax
   const { scrollY } = useScroll();
   const dotParallax = useTransform(scrollY, [0, 3000], [0, 24]);
-
-  // Animated values for Section 2 (Una venta, tres cosas que se actualizan)
-  const cajaTotal = useTransform(section2Scroll, [0.15, 0.75], [8450, 9770]);
-  const inventarioStock = useTransform(section2Scroll, [0.15, 0.75], [24, 19]);
-  const barProgress1 = useTransform(section2Scroll, [0.15, 0.35], [10, 40]);
-  const barProgress2 = useTransform(section2Scroll, [0.25, 0.5], [15, 65]);
-  const barProgress3 = useTransform(section2Scroll, [0.35, 0.65], [20, 95]);
-  const barProgress4 = useTransform(section2Scroll, [0.45, 0.75], [15, 55]);
-  const barProgress5 = useTransform(section2Scroll, [0.55, 0.85], [20, 75]);
-
-  // Reactive state for transformed scroll numbers
-  const [currentCaja, setCurrentCaja] = useState<number>(8450);
-  const [currentStock, setCurrentStock] = useState<number>(24);
-  const [barH, setBarH] = useState<number[]>([40, 65, 95, 55, 75]);
-
-  useEffect(() => {
-    const unsub1 = cajaTotal.on('change', (v) => setCurrentCaja(Math.round(v)));
-    const unsub2 = inventarioStock.on('change', (v) => setCurrentStock(Math.round(v)));
-    const unsubB1 = barProgress1.on('change', (v) => setBarH((prev) => [v, prev[1], prev[2], prev[3], prev[4]]));
-    const unsubB2 = barProgress2.on('change', (v) => setBarH((prev) => [prev[0], v, prev[2], prev[3], prev[4]]));
-    const unsubB3 = barProgress3.on('change', (v) => setBarH((prev) => [prev[0], prev[1], v, prev[3], prev[4]]));
-    const unsubB4 = barProgress4.on('change', (v) => setBarH((prev) => [prev[0], prev[1], prev[2], v, prev[4]]));
-    const unsubB5 = barProgress5.on('change', (v) => setBarH((prev) => [prev[0], prev[1], prev[2], prev[3], v]));
-
-    return () => {
-      unsub1();
-      unsub2();
-      unsubB1();
-      unsubB2();
-      unsubB3();
-      unsubB4();
-      unsubB5();
-    };
-  }, [cajaTotal, inventarioStock, barProgress1, barProgress2, barProgress3, barProgress4, barProgress5]);
 
   // Detect motion preferences & pointer type
   useEffect(() => {
@@ -1210,12 +1479,99 @@ export const App: React.FC = () => {
       setPrefersReducedMotion(motionQuery.matches);
       const pointerQuery = window.matchMedia('(hover: hover) and (pointer: fine)');
       setIsFinePointer(pointerQuery.matches);
+      const desktopQuery = window.matchMedia('(min-width: 1024px)');
+      setIsDesktopW(desktopQuery.matches);
 
       const handleMotionChange = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+      const handleDesktopChange = (e: MediaQueryListEvent) => setIsDesktopW(e.matches);
       motionQuery.addEventListener('change', handleMotionChange);
-      return () => motionQuery.removeEventListener('change', handleMotionChange);
+      desktopQuery.addEventListener('change', handleDesktopChange);
+      return () => {
+        motionQuery.removeEventListener('change', handleMotionChange);
+        desktopQuery.removeEventListener('change', handleDesktopChange);
+      };
     }
   }, []);
+
+  // Hero wordmark: desktop = settles into the header logo (scroll 0 -> 400px); mobile = light parallax only
+  useGSAP(
+    () => {
+      if (prefersReducedMotion) return;
+      const hero = heroRef.current;
+      if (!hero) return;
+
+      if (pinned) {
+        const wm = wmFixedRef.current;
+        const brand = brandWordRef.current;
+        if (!wm || !brand) return;
+
+        const SPAN = 400;
+        const ease = gsap.parseEase('power2.inOut');
+        const m = { x0: 0, y0: 0, tx: 0, ty: 0, k: 1 };
+
+        const render = () => {
+          const s = window.scrollY;
+          const p = Math.min(1, Math.max(0, s / SPAN));
+          const e = ease(p);
+          const yStart = m.y0 - s;
+          gsap.set(wm, {
+            x: m.x0 + (m.tx - m.x0) * e,
+            y: yStart + (m.ty - yStart) * e,
+            scale: 1 + (m.k - 1) * e,
+            clipPath: `inset(0% 0% ${50 * (1 - e)}% 0%)`,
+            zIndex: p >= 0.92 ? 50 : 5
+          });
+        };
+
+        const measure = () => {
+          const w = wm.offsetWidth;
+          const h = wm.offsetHeight;
+          if (!w || !h) return;
+          const heroBottom = hero.getBoundingClientRect().bottom + window.scrollY;
+          const br = brand.getBoundingClientRect();
+          m.x0 = (window.innerWidth - w) / 2;
+          m.y0 = heroBottom - h * 0.5;
+          m.k = br.height / h;
+          m.tx = br.left;
+          m.ty = br.top;
+          gsap.set(wm, { opacity: 1 });
+          render();
+        };
+
+        measure();
+        const st = ScrollTrigger.create({
+          start: 0,
+          end: SPAN,
+          onUpdate: render,
+          onLeave: render,
+          onLeaveBack: render
+        });
+        ScrollTrigger.addEventListener('refresh', measure);
+        if (typeof document !== 'undefined' && document.fonts) {
+          document.fonts.ready.then(measure);
+        }
+        return () => {
+          ScrollTrigger.removeEventListener('refresh', measure);
+          st.kill();
+        };
+      }
+
+      // Celular / tablet: sin acomodo en el logo, solo parallax leve
+      const inner = wmStaticRef.current;
+      if (inner) {
+        gsap.fromTo(
+          inner,
+          { yPercent: 18 },
+          {
+            yPercent: 0,
+            ease: 'none',
+            scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom bottom', scrub: true }
+          }
+        );
+      }
+    },
+    { dependencies: [pinned, prefersReducedMotion], revertOnUpdate: true }
+  );
 
   // Smooth scroll via Lenis + ScrollTrigger (official integration pattern)
   useEffect(() => {
@@ -1334,6 +1690,23 @@ export const App: React.FC = () => {
           },
           0
         );
+
+        if (priceBgRef.current) {
+          gsap.fromTo(
+            priceBgRef.current,
+            { y: 70 },
+            {
+              y: -70,
+              ease: 'none',
+              scrollTrigger: {
+                trigger: priceRef.current,
+                start: 'top bottom',
+                end: 'bottom top',
+                scrub: true
+              }
+            }
+          );
+        }
       }
     },
     { dependencies: [prefersReducedMotion] }
@@ -1440,6 +1813,24 @@ export const App: React.FC = () => {
         aria-hidden="true"
       />
 
+      {/* Giant wordmark (desktop): follows the hero edge, then settles into the header logo */}
+      {pinned && (
+        <div
+          ref={wmFixedRef}
+          aria-hidden="true"
+          className="pointer-events-none fixed left-0 top-0 z-[5] select-none whitespace-nowrap font-serif text-[19vw] leading-none"
+          style={{
+            color: '#FFFFFF',
+            mixBlendMode: 'difference',
+            opacity: 0,
+            transformOrigin: '0 0',
+            willChange: 'transform'
+          }}
+        >
+          TrackDeli
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b border-[#E8E8E4] bg-[#FAFAF8]/95 backdrop-blur-xs sticky top-0 z-40">
         <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -1447,8 +1838,14 @@ export const App: React.FC = () => {
             <div className="w-8 h-8 rounded-lg bg-[#141414] text-[#FAFAF8] flex items-center justify-center font-bold text-xs tracking-tight">
               TD
             </div>
-            <span className="font-semibold text-base tracking-tight text-[#141414]">
-              TrackDeli POS
+            <span className="flex items-baseline gap-1.5 text-[#141414]">
+              <span
+                ref={brandWordRef}
+                className={`inline-block font-serif text-2xl leading-none tracking-tight ${pinned ? 'invisible' : ''}`}
+              >
+                TrackDeli
+              </span>
+              <span className="text-xs font-semibold tracking-wide text-[#4A4A4A]">POS</span>
             </span>
           </a>
 
@@ -1473,10 +1870,28 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="relative z-10">
+      <main className="relative">
         {/* 1. Hero Section */}
-        <section className="pt-12 sm:pt-16 pb-16 sm:pb-24 border-b border-[#E8E8E4]">
-          <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8">
+        <section
+          ref={heroRef}
+          className="relative pt-12 sm:pt-16 pb-[24vw] sm:pb-[18vw] lg:pb-[11vw] border-b border-[#E8E8E4]"
+        >
+          {/* Wordmark estático (celular/tablet/reduced motion): recortado a la mitad por el borde inferior */}
+          {!pinned && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-[0.5em] overflow-hidden text-[22vw] leading-none select-none"
+            >
+              <span
+                ref={wmStaticRef}
+                className="block whitespace-nowrap text-center font-serif leading-none"
+                style={{ color: '#FFFFFF', mixBlendMode: 'difference', willChange: 'transform' }}
+              >
+                TrackDeli
+              </span>
+            </div>
+          )}
+          <div className="relative z-10 max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-start">
               {/* Left Column: Line-by-line Masked Title Reveal */}
               <div className="lg:col-span-7 flex flex-col items-start text-left">
@@ -1674,172 +2089,8 @@ export const App: React.FC = () => {
         {/* Tactile Sawtooth Transition Divider */}
         <SawtoothDivider />
 
-        {/* 2. Section: Una venta, tres cosas que se actualizan (Scroll-Linked) */}
-        <section
-          ref={updateSectionRef}
-          className="py-16 sm:py-24 border-b border-[#E8E8E4] relative overflow-hidden"
-        >
-          <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 text-left">
-            <div className="overflow-hidden pb-1">
-              <h2 className="zara-reveal-h2 font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414] text-left">
-                Una venta, tres cosas que se actualizan
-              </h2>
-            </div>
-            <p className="mt-3 text-[18px] text-[#6B6B6B] max-w-[70ch] text-left font-sans">
-              El sistema vincula cada cobro con tus existencias y los números del día en una sola acción.
-            </p>
-
-            {/* Connecting Ticket Sale Strip & Animated Path */}
-            <div className="mt-8 flex flex-col items-center">
-              <motion.div
-                initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-[#FFFFFF] border border-[#E8E8E4] shadow-2xs text-xs font-mono text-[#141414]"
-              >
-                <span className="w-2 h-2 rounded-full bg-[#5FA22B] animate-pulse" />
-                <span className="font-semibold">Cobro registrado:</span>
-                <span className="text-[#6B6B6B]">Ticket #00428</span>
-                <span className="font-bold text-[#141414]">+C$ 1,320.00</span>
-              </motion.div>
-
-              {/* Connecting animated dashed SVG line */}
-              <div className="w-full h-8 relative flex justify-center overflow-hidden">
-                <svg className="w-full h-full text-[#141414]" viewBox="0 0 400 32" fill="none">
-                  <motion.path
-                    d="M200,0 L200,16 M200,16 L65,32 M200,16 L200,32 M200,16 L335,32"
-                    stroke="#141414"
-                    strokeWidth="1.5"
-                    strokeDasharray="4 4"
-                    initial={prefersReducedMotion ? false : { pathLength: 0, opacity: 0 }}
-                    whileInView={{ pathLength: 1, opacity: 0.35 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.8, ease: 'easeInOut' }}
-                  />
-                </svg>
-              </div>
-            </div>
-
-            {/* Asymmetric blocks on #F2F2EF surface */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-              {/* Block 1: Caja (5 cols) */}
-              <div className="lg:col-span-5 bg-[#F2F2EF] border border-[#E8E8E4] rounded-2xl p-6 sm:p-8 flex flex-col justify-between text-left relative overflow-hidden">
-                <div className="space-y-3">
-                  <h3 className="font-serif text-2xl text-[#141414]">Caja</h3>
-                  <p className="text-[15px] sm:text-base leading-[1.6] text-[#6B6B6B]">
-                    Cobro ágil en córdobas o dólares con cálculo de vuelto al instante. Aceptá efectivo, transferencias y tarjetas. Al terminar el turno, realizá el arqueo con cierre ciego para evitar descuadres.
-                  </p>
-                </div>
-
-                {/* Animated Cash Counter */}
-                <div className="mt-6 pt-4 border-t border-[#E8E8E4] space-y-2">
-                  <span className="text-[11px] uppercase tracking-wider font-semibold text-[#6B6B6B] block">
-                    Total del día en caja
-                  </span>
-                  <div className="font-serif text-3xl sm:text-4xl text-[#141414] tracking-tight">
-                    C$ {prefersReducedMotion ? '9,770' : currentCaja.toLocaleString('en-US')}.00
-                  </div>
-                  <div className="flex items-center gap-2 text-xs font-medium text-[#141414]">
-                    <CheckCircle size={15} weight="fill" className="text-[#5FA22B]" />
-                    <span>Córdobas y dólares simultáneos</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Block 2: Inventario (4 cols) */}
-              <div className="lg:col-span-4 bg-[#F2F2EF] border border-[#E8E8E4] rounded-2xl p-6 sm:p-8 flex flex-col justify-between text-left relative overflow-hidden">
-                <div className="space-y-3">
-                  <h3 className="font-serif text-2xl text-[#141414]">Inventario</h3>
-                  <p className="text-[15px] sm:text-base leading-[1.6] text-[#6B6B6B]">
-                    Manejo exacto de decimales para libras, litros y metros. Configurá servicios y platos con receta que descuentan repuestos o ingredientes al vender. Alertas antes de quedarte sin stock.
-                  </p>
-                </div>
-
-                {/* Animated Stock Depletion Bar with Amber Alert */}
-                <div className="mt-6 pt-4 border-t border-[#E8E8E4] space-y-2">
-                  <div className="flex justify-between items-baseline text-xs">
-                    <span className="font-medium text-[#141414]">Aceite 15W40</span>
-                    <span className="font-mono font-bold text-[#141414]">
-                      {prefersReducedMotion ? '19' : currentStock} LT / 30 LT
-                    </span>
-                  </div>
-
-                  {/* Stock Bar */}
-                  <div className="w-full h-2.5 bg-[#E8E8E4] rounded-full overflow-hidden relative">
-                    <motion.div
-                      className={`h-full rounded-full transition-colors duration-300 ${
-                        (prefersReducedMotion ? 19 : currentStock) < 20 ? 'bg-amber-500' : 'bg-[#141414]'
-                      }`}
-                      style={{
-                        width: `${((prefersReducedMotion ? 19 : currentStock) / 30) * 100}%`
-                      }}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] pt-1">
-                    {(prefersReducedMotion ? 19 : currentStock) < 20 ? (
-                      <span className="text-amber-700 font-semibold flex items-center gap-1">
-                        <span>⚠️ Bajo mínimo (umbral: 20 LT)</span>
-                      </span>
-                    ) : (
-                      <span className="text-[#6B6B6B]">Mínimo sugerido: 20 LT</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs font-medium text-[#141414] pt-1">
-                    <CheckCircle size={15} weight="fill" className="text-[#5FA22B]" />
-                    <span>Recetas con descuento de insumos</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Block 3: Reportes (3 cols) */}
-              <div className="lg:col-span-3 bg-[#F2F2EF] border border-[#E8E8E4] rounded-2xl p-6 sm:p-8 flex flex-col justify-between text-left relative overflow-hidden">
-                <div className="space-y-3">
-                  <h3 className="font-serif text-2xl text-[#141414]">Reportes</h3>
-                  <p className="text-[15px] sm:text-base leading-[1.6] text-[#6B6B6B]">
-                    Ventas del día, productos con mayor rotación y totales en vivo. Consultá el estado de tu negocio desde tu celular en modo solo lectura sin interrumpir a los cajeros.
-                  </p>
-                </div>
-
-                {/* Animated Hourly Sales Bars */}
-                <div className="mt-6 pt-4 border-t border-[#E8E8E4] space-y-2">
-                  <span className="text-[11px] uppercase tracking-wider font-semibold text-[#6B6B6B] block">
-                    Ventas por hora
-                  </span>
-
-                  {/* 5 Rising Bars */}
-                  <div className="h-16 flex items-end justify-between gap-1.5 pt-2">
-                    {[
-                      { hour: '8a', val: barH[0] },
-                      { hour: '10a', val: barH[1] },
-                      { hour: '12p', val: barH[2], peak: true },
-                      { hour: '2p', val: barH[3] },
-                      { hour: '4p', val: barH[4] }
-                    ].map((slot, idx) => (
-                      <div key={idx} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-                        <div
-                          className={`w-full rounded-t-sm transition-all duration-200 ${
-                            slot.peak ? 'bg-[#5FA22B]' : 'bg-[#141414]/70'
-                          }`}
-                          style={{
-                            height: prefersReducedMotion ? (slot.peak ? '95%' : '55%') : `${slot.val}%`
-                          }}
-                        />
-                        <span className="text-[9px] text-[#6B6B6B] font-mono">{slot.hour}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs font-medium text-[#141414] pt-1">
-                    <CheckCircle size={15} weight="fill" className="text-[#5FA22B]" />
-                    <span>Consulta remota en celular</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* 2. Section: Una venta, tres cosas (escenas a pantalla completa) */}
+        <UnaVentaScenes pinned={pinned} reduced={prefersReducedMotion} />
 
         {/* 3. Section: Hecho para cómo trabaja tu negocio (GSAP + ScrollTrigger) */}
         <RubrosSectionGSAP
@@ -1849,85 +2100,85 @@ export const App: React.FC = () => {
         />
 
 
-        {/* 4. Section: Precio ($45 Animated Counter + Staggered List) */}
-        <section className="py-16 sm:py-24 border-b border-[#E8E8E4]">
-          <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 text-left">
-            <div className="overflow-hidden pb-1">
-              <h2 className="zara-reveal-h2 font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414] text-left">
+        {/* 4. Section: Precio ($45 gigante de fondo + contador) */}
+        <section className="relative overflow-hidden py-20 sm:py-32 bg-[#FAFAF8]">
+          <div
+            ref={priceBgRef}
+            aria-hidden="true"
+            className="pointer-events-none absolute right-[2vw] bottom-[-5vw] will-change-transform"
+          >
+            <span
+              ref={priceNumberRef}
+              className="block origin-right font-serif text-[28vw] leading-[0.8] tracking-[-0.04em] text-[#ECEDE5] select-none"
+            >
+              {prefersReducedMotion ? '$45' : '$0'}
+            </span>
+          </div>
+
+          <div ref={priceRef} className="relative z-10 w-full px-4 sm:px-6 lg:px-[4vw] text-left">
+            <div className="overflow-hidden pb-2">
+              <h2 className="zara-reveal-h2 font-serif text-[clamp(40px,7vw,112px)] leading-[1] tracking-[-0.02em] text-[#141414]">
                 Precio claro y sin sorpresas
               </h2>
             </div>
+            <p className="sr-only">$45 al mes por negocio</p>
 
-            <div
-              ref={priceRef}
-              className="mt-10 bg-[#F2F2EF] border border-[#E8E8E4] rounded-2xl p-8 sm:p-12"
-            >
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-                {/* Left: Price in big serif counting 0 -> 45 once */}
-                <div className="lg:col-span-5 space-y-2 text-left">
-                  <div className="font-serif text-[44px] sm:text-[56px] leading-[1.05] text-[#141414] tracking-tight">
-                    <span ref={priceNumberRef} className="inline-block origin-left will-change-transform">
-                      {prefersReducedMotion ? '$45' : '$0'}
-                    </span>{' '}
-                    al mes
-                  </div>
-                  <div className="text-sm font-medium text-[#6B6B6B]">
-                    por negocio · facturación mensual en córdobas o dólares
-                  </div>
-                </div>
-
-                {/* Right: What is included with short stagger */}
-                <div className="lg:col-span-7 space-y-3.5 text-left">
-                  <div className="text-xs uppercase tracking-wider font-semibold text-[#6B6B6B]">
-                    Tu suscripción incluye
-                  </div>
-
-                  <ul className="space-y-2.5 text-[15px] sm:text-base text-[#141414]">
-                    {[
-                      'POS en Windows para tu punto de venta',
-                      'Backoffice web de consulta y configuración',
-                      'Soporte directo por WhatsApp en Nicaragua',
-                      'Actualizaciones continuas automáticas'
-                    ].map((item, idx) => (
-                      <li key={idx} className="flex items-center gap-2.5">
-                        <CheckCircle size={18} weight="fill" className="text-[#5FA22B] shrink-0" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
+            <div className="mt-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
+              <div className="lg:col-span-5 space-y-2">
+                <div className="font-serif text-[clamp(28px,3vw,44px)] leading-tight text-[#141414]">al mes</div>
+                <div className="text-sm font-medium text-[#4A4A4A] max-w-[34ch]">
+                  por negocio · facturación mensual en córdobas o dólares
                 </div>
               </div>
 
-              {/* Bottom line and button */}
-              <div className="mt-8 pt-6 border-t border-[#E8E8E4] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <p className="text-xs sm:text-sm text-[#6B6B6B] text-left">
-                  Cartera de cobro, citas y equipo se cotizan aparte.
-                </p>
-
-                <motion.a
-                  href={WHATSAPP_QUOTE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileTap={{ scale: 0.98 }}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#141414] text-[#FAFAF8] font-medium text-sm hover:bg-black transition-colors self-start sm:self-auto cursor-pointer"
-                >
-                  <WhatsappLogo size={17} weight="fill" />
-                  <span>Pedir cotización</span>
-                </motion.a>
+              <div className="lg:col-span-6 lg:col-start-7 space-y-4">
+                <div className="text-xs uppercase tracking-wider font-semibold text-[#4A4A4A]">
+                  Tu suscripción incluye
+                </div>
+                <ul className="space-y-2.5 text-[15px] sm:text-base text-[#141414]">
+                  {[
+                    'POS en Windows para tu punto de venta',
+                    'Backoffice web de consulta y configuración',
+                    'Soporte directo por WhatsApp en Nicaragua',
+                    'Actualizaciones continuas automáticas'
+                  ].map((item, idx) => (
+                    <li key={idx} className="flex items-center gap-2.5">
+                      <CheckCircle size={18} weight="fill" className="text-[#5FA22B] shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
+            </div>
+
+            <div className="mt-12 pt-6 border-t border-[#141414]/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <p className="text-xs sm:text-sm text-[#4A4A4A] text-left">
+                Cartera de cobro, citas y equipo se cotizan aparte.
+              </p>
+
+              <motion.a
+                href={WHATSAPP_QUOTE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md bg-[#141414] text-[#FAFAF8] font-medium text-sm hover:bg-black transition-colors self-start sm:self-auto cursor-pointer"
+              >
+                <WhatsappLogo size={17} weight="fill" />
+                <span>Pedir cotización</span>
+              </motion.a>
             </div>
           </div>
         </section>
 
         {/* 5. Section: Descarga */}
-        <section id="descargar" className="py-16 sm:py-24 border-b border-[#E8E8E4] scroll-mt-10">
-          <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 text-left">
-            <div className="overflow-hidden pb-1">
-              <h2 className="zara-reveal-h2 font-serif text-[32px] sm:text-[40px] leading-[1.1] text-[#141414] text-left">
+        <section id="descargar" className="relative py-20 sm:py-32 bg-[#141414] text-[#FAFAF8] scroll-mt-10">
+          <div className="w-full px-4 sm:px-6 lg:px-[4vw] text-left">
+            <div className="overflow-hidden pb-2">
+              <h2 className="zara-reveal-h2 font-serif text-[clamp(40px,8vw,128px)] leading-[1] tracking-[-0.02em] text-[#FAFAF8]">
                 Descargá TrackDeli POS para Windows
               </h2>
             </div>
-            <p className="mt-3 text-[18px] text-[#6B6B6B] max-w-[70ch] text-left font-sans">
+            <p className="mt-4 text-[18px] text-[#A3A3A3] max-w-[50ch] font-sans">
               Instalá la aplicación en la computadora de tu negocio y comenzá a facturar.
             </p>
 
@@ -1946,46 +2197,44 @@ export const App: React.FC = () => {
               </div>
             )}
 
-            {/* Download Card with No-Layout-Shift Confirmation */}
-            <div className="mt-8 p-6 sm:p-8 bg-[#FFFFFF] border border-[#E8E8E4] rounded-2xl max-w-xl text-left space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <motion.a
-                  href={isWindows ? release.downloadUrl : undefined}
-                  download={isWindows ? true : undefined}
-                  onClick={handleDownloadClick}
-                  whileTap={isWindows ? { scale: 0.98 } : undefined}
-                  className={`inline-flex items-center gap-3.5 px-6 py-4 rounded-xl font-medium transition-all ${
-                    isWindows
-                      ? 'bg-[#141414] hover:bg-black text-[#FAFAF8] cursor-pointer shadow-sm'
-                      : 'bg-[#E8E8E4] text-[#6B6B6B] cursor-not-allowed opacity-75'
-                  }`}
-                  aria-disabled={!isWindows}
-                >
-                  <WindowsLogo size={24} weight="fill" className="shrink-0" />
-                  <div className="text-left">
-                    <div className="text-base font-semibold leading-tight">
-                      {downloadState === 'downloading'
-                        ? 'Iniciando descarga…'
-                        : isWindows
-                        ? 'Descargar para Windows'
-                        : 'Disponible solo para Windows'}
-                    </div>
-                    <div className="text-xs text-[#FAFAF8]/80 font-normal mt-1">
-                      {loadingRelease ? (
-                        'Consultando versión…'
-                      ) : (
-                        <>
-                          Versión {release.version} · {release.sizeMB} MB
-                          {release.publishedDate ? ` · ${release.publishedDate}` : ''}
-                        </>
-                      )}
-                    </div>
+            {/* Big download button with no-layout-shift confirmation */}
+            <div className="mt-10 w-full text-left space-y-4">
+              <motion.a
+                href={isWindows ? release.downloadUrl : undefined}
+                download={isWindows ? true : undefined}
+                onClick={handleDownloadClick}
+                whileTap={isWindows ? { scale: 0.99 } : undefined}
+                className={`inline-flex w-full sm:w-auto items-center justify-center sm:justify-start gap-5 px-8 sm:px-14 py-6 sm:py-8 rounded-none font-medium transition-all ${
+                  isWindows
+                    ? 'bg-[#8FD14F] hover:brightness-95 text-[#141414] cursor-pointer'
+                    : 'bg-[#2A2A2A] text-[#A3A3A3] cursor-not-allowed'
+                }`}
+                aria-disabled={!isWindows}
+              >
+                <WindowsLogo size={40} weight="fill" className="shrink-0" />
+                <div className="text-left">
+                  <div className="text-xl sm:text-3xl font-semibold leading-tight">
+                    {downloadState === 'downloading'
+                      ? 'Iniciando descarga…'
+                      : isWindows
+                      ? 'Descargar para Windows'
+                      : 'Disponible solo para Windows'}
                   </div>
-                </motion.a>
-              </div>
+                  <div className="text-sm font-normal mt-1 opacity-80">
+                    {loadingRelease ? (
+                      'Consultando versión…'
+                    ) : (
+                      <>
+                        Versión {release.version} · {release.sizeMB} MB
+                        {release.publishedDate ? ` · ${release.publishedDate}` : ''}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </motion.a>
 
               {/* Inline Download Confirmation (No Layout Shift) */}
-              <div className="min-h-[44px] flex items-center">
+              <div className="min-h-[44px] flex items-center max-w-2xl">
                 {downloadState === 'started' ? (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -1999,13 +2248,13 @@ export const App: React.FC = () => {
                   </motion.div>
                 ) : (
                   apiError && (
-                    <div className="text-xs text-[#6B6B6B] w-full">
+                    <div className="text-xs text-[#A3A3A3] w-full">
                       Si la descarga no inicia,{' '}
                       <a
                         href={WHATSAPP_SUPPORT_URL}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#5FA22B] font-semibold underline underline-offset-2"
+                        className="text-[#8FD14F] font-semibold underline underline-offset-2"
                       >
                         escribinos por WhatsApp
                       </a>{' '}
@@ -2015,40 +2264,40 @@ export const App: React.FC = () => {
                 )}
               </div>
 
-              <div className="pt-3 border-t border-[#E8E8E4] flex items-center gap-2 text-xs text-[#6B6B6B]">
-                <CheckCircle size={15} weight="fill" className="text-[#5FA22B]" />
+              <div className="pt-3 border-t border-white/15 flex items-center gap-2 text-xs text-[#A3A3A3] max-w-2xl">
+                <CheckCircle size={15} weight="fill" className="text-[#8FD14F]" />
                 <span>Requisitos: Windows 10 u 11 de 64 bits · internet para iniciar sesión</span>
               </div>
             </div>
 
             {/* 3 Numbered Steps */}
-            <div className="mt-14 space-y-6 max-w-2xl text-left">
-              <h3 className="font-serif text-2xl text-[#141414]">Pasos para instalar</h3>
+            <div className="mt-16 space-y-6 max-w-3xl text-left">
+              <h3 className="font-serif text-3xl text-[#FAFAF8]">Pasos para instalar</h3>
 
-              <div className="space-y-4">
-                <div className="flex items-start gap-4 p-4 rounded-xl bg-[#F2F2EF] border border-[#E8E8E4]">
-                  <div className="w-7 h-7 rounded-full bg-[#141414] text-[#FAFAF8] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+              <div className="space-y-0">
+                <div className="flex items-start gap-4 py-4 border-t border-white/15">
+                  <div className="w-7 h-7 rounded-full bg-[#8FD14F] text-[#141414] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
                     1
                   </div>
-                  <div className="text-sm leading-[1.6] text-[#141414]">
+                  <div className="text-sm leading-[1.6] text-[#FAFAF8]">
                     <strong>Descargá y abrí el instalador</strong> en tu computadora. La instalación se realiza en segundos.
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4 p-4 rounded-xl bg-[#F2F2EF] border border-[#E8E8E4]">
-                  <div className="w-7 h-7 rounded-full bg-[#141414] text-[#FAFAF8] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                <div className="flex items-start gap-4 py-4 border-t border-white/15">
+                  <div className="w-7 h-7 rounded-full bg-[#8FD14F] text-[#141414] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
                     2
                   </div>
-                  <div className="text-sm leading-[1.6] text-[#141414]">
+                  <div className="text-sm leading-[1.6] text-[#FAFAF8]">
                     Si Windows muestra la pantalla "Windows protegió su PC", tocá <strong>Más información</strong> y luego <strong>Ejecutar de todos modos</strong>. Es una verificación normal de Windows en versiones nuevas de software.
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4 p-4 rounded-xl bg-[#F2F2EF] border border-[#E8E8E4]">
-                  <div className="w-7 h-7 rounded-full bg-[#141414] text-[#FAFAF8] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                <div className="flex items-start gap-4 py-4 border-t border-white/15">
+                  <div className="w-7 h-7 rounded-full bg-[#8FD14F] text-[#141414] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
                     3
                   </div>
-                  <div className="text-sm leading-[1.6] text-[#141414]">
+                  <div className="text-sm leading-[1.6] text-[#FAFAF8]">
                     <strong>Iniciá sesión</strong> con el usuario y la clave que te dio NEXOL para comenzar a registrar tus ventas e inventario.
                   </div>
                 </div>
