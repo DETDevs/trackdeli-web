@@ -17,6 +17,21 @@ let failedQueue: Array<{
   reject: (reason?: unknown) => void;
 }> = [];
 
+let sendClientPlatformHeader = false;
+
+/**
+ * Habilita el envío de la cabecera X-Client-Platform (web-mobile / web-desktop).
+ * Por defecto está deshabilitada en api-client y debe activarse
+ * exclusivamente desde la app admin (Ticket 167b).
+ */
+export function setClientPlatformHeaderEnabled(enabled: boolean = true) {
+  sendClientPlatformHeader = enabled;
+}
+
+export function isClientPlatformHeaderEnabled(): boolean {
+  return sendClientPlatformHeader;
+}
+
 const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
@@ -36,7 +51,7 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    if (typeof window !== 'undefined') {
+    if (sendClientPlatformHeader && typeof window !== 'undefined') {
       const isNarrowScreen = window.innerWidth < 768;
       config.headers['X-Client-Platform'] = isNarrowScreen ? 'web-mobile' : 'web-desktop';
     }
@@ -60,6 +75,7 @@ apiClient.interceptors.response.use(
     }
 
     if (
+      sendClientPlatformHeader &&
       error.response?.status === 403 &&
       (error.response?.data?.code === 'WEB_ACCESS_DISABLED' ||
         String(error.response?.data?.message || '').toLowerCase().includes('web de administración está deshabilitado')) &&

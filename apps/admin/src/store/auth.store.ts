@@ -52,6 +52,9 @@ export const useAuthStore = create<AuthState>()(
         localStorage.removeItem('trackdeli_access_token');
         localStorage.removeItem('trackdeli_refresh_token');
         usePosCartStore.getState().clearCart();
+        // NOTA (Ticket 167b): NO eliminar 'trackdeli_pos_device_id' ni 'trackdeli_pos_device_secret'.
+        // El dispositivo web es persistente en el navegador y se reutiliza al volver a iniciar sesión o al cambiar de cajero.
+        // Solo se eliminan cuando el API responde DEVICE_REVOKED o DEVICE_INVALID.
         set({ user: null, accessToken: null, isAuthenticated: false });
       },
 

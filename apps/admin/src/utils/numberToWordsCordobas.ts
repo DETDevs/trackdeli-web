@@ -2,12 +2,17 @@
  * Convierte un monto numérico a su representación en letras en Córdobas (Nicaragua)
  * Formato requerido: "Son: [letras] córdoba(s) con xx/100"
  *
- * Ejemplos:
- * - 31,960.50 -> "Son: treinta y un mil novecientos sesenta córdobas con 50/100"
- * - 1,000.00 -> "Son: un mil córdobas con 00/100"
- * - 1,100.99 -> "Son: un mil cien córdobas con 99/100"
- * - 0.50     -> "Son: cero córdobas con 50/100"
- * - 1.00     -> "Son: un córdoba con 00/100"
+ * Ejemplos normativos (Ticket 167b):
+ * - 1,000.00     -> "Son: mil córdobas con 00/100"
+ * - 1,000,000.00 -> "Son: un millón de córdobas con 00/100"
+ * - 1.00         -> "Son: un córdoba con 00/100"
+ * - 21.00        -> "Son: veintiún córdobas con 00/100"
+ * - 31.00        -> "Son: treinta y un córdobas con 00/100"
+ * - 21,000.00    -> "Son: veintiún mil córdobas con 00/100"
+ * - 31,960.50    -> "Son: treinta y un mil novecientos sesenta córdobas con 50/100"
+ * - 1,100.99     -> "Son: mil cien córdobas con 99/100"
+ * - 0.50         -> "Son: cero córdobas con 50/100"
+ * - 101.00       -> "Son: ciento un córdobas con 00/100"
  */
 
 const UNITS = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'];
@@ -96,6 +101,8 @@ export function numberToWordsCordobas(amount: number): string {
   const centsStr = cents.toString().padStart(2, '0');
 
   let text = '';
+  let isExactMillion = false;
+
   if (intPart === 0) {
     text = 'cero';
   } else if (intPart === 1) {
@@ -108,10 +115,14 @@ export function numberToWordsCordobas(amount: number): string {
     if (millions > 0) {
       if (millions === 1) text += 'un millón ';
       else text += `${convertGroup(millions)} millones `;
+
+      if (thousands === 0 && rest === 0) {
+        isExactMillion = true;
+      }
     }
 
     if (thousands > 0) {
-      if (thousands === 1) text += 'un mil ';
+      if (thousands === 1) text += 'mil ';
       else text += `${convertGroup(thousands)} mil `;
     }
 
@@ -121,6 +132,11 @@ export function numberToWordsCordobas(amount: number): string {
     text = text.trim();
   }
 
-  const currencyWord = intPart === 1 ? 'córdoba' : 'córdobas';
+  const currencyWord = isExactMillion
+    ? 'de córdobas'
+    : intPart === 1
+    ? 'córdoba'
+    : 'córdobas';
+
   return `Son: ${text} ${currencyWord} con ${centsStr}/100`;
 }
