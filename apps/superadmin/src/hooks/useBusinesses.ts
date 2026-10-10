@@ -40,6 +40,8 @@ export interface BusinessItem {
     posVertical?: 'RESTAURANTE' | 'RETAIL' | null;
     salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
     maxDevices?: number | null;
+    webBillingEnabled?: boolean;
+    maxWebDevices?: number | null;
     trialHours?: number | null;
     trialStartedAt?: string | null;
     trialEndsAt?: string | null;
@@ -57,6 +59,8 @@ export interface BusinessItem {
   hasCitas?: boolean;
   salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
   maxDevices?: number | null;
+  webBillingEnabled?: boolean;
+  maxWebDevices?: number | null;
   trialHours?: number | null;
   trialStartedAt?: string | null;
   trialEndsAt?: string | null;
@@ -328,6 +332,8 @@ export interface PosDeviceItem {
 export interface UpdatePosSubscriptionInput {
   salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
   maxDevices?: number | null;
+  webBillingEnabled?: boolean;
+  maxWebDevices?: number | null;
   backofficeTier?: 'BASIC' | 'PRO' | null;
   trialHours?: number | null;
   trialAction?: 'extend' | 'reset' | 'terminate' | null;
@@ -415,4 +421,76 @@ export function useUpdateBusinessDevice() {
     },
   });
 }
+
+export interface PosWebDeviceItem {
+  id: string;
+  businessId: string;
+  deviceId: string;
+  name: string;
+  platform?: string | null;
+  appVersion?: string | null;
+  status: 'ACTIVE' | 'REVOKED';
+  category?: string;
+  userId?: string | null;
+  userAgent?: string | null;
+  ipAddress?: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+}
+
+export function useBusinessWebDevices(businessId: string) {
+  return useQuery<PosWebDeviceItem[]>({
+    queryKey: ['superadmin-business-web-devices', businessId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/superadmin/businesses/${businessId}/web-devices`);
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: !!businessId,
+    refetchInterval: 15000,
+  });
+}
+
+export function useUpdateBusinessWebDevice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      businessId,
+      deviceId,
+      data,
+    }: {
+      businessId: string;
+      deviceId: string;
+      data: { status?: 'ACTIVE' | 'REVOKED'; name?: string };
+    }) => {
+      const res = await apiClient.patch(
+        `/superadmin/businesses/${businessId}/web-devices/${deviceId}`,
+        data
+      );
+      return res.data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.data.status === 'REVOKED'
+          ? 'Dispositivo web revocado exitosamente'
+          : 'Dispositivo web reactivado exitosamente'
+      );
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-web-devices', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message;
+      const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al actualizar dispositivo web';
+      toast.error(errorText);
+    },
+  });
+}
+
 

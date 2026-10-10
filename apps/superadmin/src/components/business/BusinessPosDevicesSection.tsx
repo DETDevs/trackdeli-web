@@ -16,12 +16,18 @@ import {
   StopCircle,
   Trash,
   X,
+  Globe,
+  DeviceMobile,
+  Info,
 } from '@phosphor-icons/react';
 import {
   useBusinessDevices,
+  useBusinessWebDevices,
   useUpdatePosSubscription,
   useUpdateBusinessDevice,
+  useUpdateBusinessWebDevice,
   PosDeviceItem,
+  PosWebDeviceItem,
   BusinessDetail,
 } from '../../hooks/useBusinesses';
 import { formatDateTime, formatRelativeTime } from '../../utils/format';
@@ -37,6 +43,21 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
   const updatePosSubMutation = useUpdatePosSubscription();
   const updateDeviceMutation = useUpdateBusinessDevice();
 
+  const {
+    data: webDevices = [],
+    isLoading: isLoadingWebDevices,
+    isError: isErrorWebDevices,
+    error: webDevicesError,
+    refetch: refetchWebDevices,
+  } = useBusinessWebDevices(business.id);
+  const updateWebDeviceMutation = useUpdateBusinessWebDevice();
+
+  const posSub = business.productSubscriptions?.find((s) => s.productType === 'POS');
+  const currentWebBilling = (business as any).webBillingEnabled ?? posSub?.webBillingEnabled ?? false;
+  const currentMaxWebDevices = (business as any).maxWebDevices !== undefined
+    ? (business as any).maxWebDevices
+    : (posSub?.maxWebDevices !== undefined ? posSub?.maxWebDevices : 2);
+
   // Estados locales editables para perfil de salón y límite de computadoras
   const currentProfile = (business.salonProfile as 'RESTAURANTE' | 'TALLER') || 'RESTAURANTE';
   const [salonProfile, setSalonProfile] = useState<'RESTAURANTE' | 'TALLER'>(currentProfile);
@@ -51,6 +72,15 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
   );
   const [isEditingConfig, setIsEditingConfig] = useState(false);
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
+
+  // Estados locales para Facturación Web
+  const [webBillingEnabled, setWebBillingEnabled] = useState<boolean>(currentWebBilling);
+  const [isUnlimitedWeb, setIsUnlimitedWeb] = useState<boolean>(currentMaxWebDevices === null);
+  const [maxWebDevicesInput, setMaxWebDevicesInput] = useState<string>(
+    currentMaxWebDevices !== null ? String(currentMaxWebDevices ?? 2) : '2'
+  );
+  const [revokingWebDeviceId, setRevokingWebDeviceId] = useState<string | null>(null);
+  const [isTogglingWebBilling, setIsTogglingWebBilling] = useState(false);
 
   // Estados locales para la sección de Prueba
   const [isEditingTrialHours, setIsEditingTrialHours] = useState(false);
@@ -78,10 +108,27 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     );
     setFormTrialHours(business.trialHours ? String(business.trialHours) : '');
     setTrialHoursInput(business.trialHours ? String(business.trialHours) : '');
-  }, [business.salonProfile, business.maxDevices, business.trialHours]);
+
+    setWebBillingEnabled(currentWebBilling);
+    setIsUnlimitedWeb(currentMaxWebDevices === null);
+    setMaxWebDevicesInput(
+      currentMaxWebDevices !== null ? String(currentMaxWebDevices ?? 2) : '2'
+    );
+  }, [business.salonProfile, business.maxDevices, business.trialHours, currentWebBilling, currentMaxWebDevices]);
 
   const activeDevicesCount = devices.filter((d) => d.status === 'ACTIVE').length;
   const effectiveActiveDevices = business.activeDevices ?? activeDevicesCount;
+
+  // Contador de dispositivos web
+  const activeWebDevicesCount = webDevices.filter((d) => d.status === 'ACTIVE').length;
+  const isWebLimitLowerThanActive =
+    currentWebBilling && currentMaxWebDevices !== null && activeWebDevicesCount > currentMaxWebDevices;
+  const parsedEditWebLimit = isUnlimitedWeb ? null : parseInt(maxWebDevicesInput, 10);
+  const isEditWebLimitLowerThanActive =
+    webBillingEnabled &&
+    parsedEditWebLimit !== null &&
+    !isNaN(parsedEditWebLimit) &&
+    activeWebDevicesCount > parsedEditWebLimit;
 
   // Lógica de estado de la prueba
   const trialHours = business.trialHours ?? null;
@@ -131,6 +178,24 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     }
   };
 
+  const formatBrowserInfo = (userAgent?: string | null, platform?: string | null): string => {
+    if (platform && platform !== 'web' && platform !== 'web-mobile' && platform !== 'web-desktop') return platform;
+    if (!userAgent) return platform === 'web-mobile' ? 'Móvil' : 'Navegador Web';
+    if (/Android/i.test(userAgent)) {
+      if (/Chrome/i.test(userAgent)) return 'Chrome (Android)';
+      return 'Android Móvil';
+    }
+    if (/iPhone|iPad|iPod/i.test(userAgent)) {
+      if (/CriOS/i.test(userAgent)) return 'Chrome (iOS)';
+      return 'Safari (iOS)';
+    }
+    if (/Chrome/i.test(userAgent)) return 'Chrome';
+    if (/Firefox/i.test(userAgent)) return 'Firefox';
+    if (/Safari/i.test(userAgent)) return 'Safari';
+    if (/Edge/i.test(userAgent)) return 'Edge';
+    return 'Navegador Web';
+  };
+
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalMaxDevices = isUnlimited ? null : Math.max(1, parseInt(maxDevicesInput, 10) || 1);
@@ -142,6 +207,13 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         ? parsedTrial
         : null;
 
+    const parsedWeb = parseInt(maxWebDevicesInput, 10);
+    const finalMaxWebDevices = isUnlimitedWeb
+      ? null
+      : isNaN(parsedWeb) || parsedWeb < 0
+      ? 2
+      : parsedWeb;
+
     try {
       await updatePosSubMutation.mutateAsync({
         businessId: business.id,
@@ -149,12 +221,48 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           salonProfile,
           maxDevices: finalMaxDevices,
           trialHours: finalTrialHours,
+          webBillingEnabled,
+          maxWebDevices: finalMaxWebDevices,
         },
       });
       setIsEditingConfig(false);
     } catch {
       // Error is caught and notified by useUpdatePosSubscription
     }
+  };
+
+  const handleToggleWebBillingDirect = async () => {
+    const nextVal = !currentWebBilling;
+    const confirmMsg = nextVal
+      ? '¿Confirmas activar la facturación web para este negocio?\n\nLos cajeros de este negocio podrán cobrar desde el navegador y el teléfono.'
+      : '¿Confirmas desactivar la facturación web para este negocio?\n\nLos cajeros ya no podrán cobrar ventas desde el navegador ni desde teléfonos móviles.';
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setIsTogglingWebBilling(true);
+    try {
+      await updatePosSubMutation.mutateAsync({
+        businessId: business.id,
+        data: {
+          webBillingEnabled: nextVal,
+        },
+      });
+    } finally {
+      setIsTogglingWebBilling(false);
+    }
+  };
+
+  const handleToggleWebBillingInForm = (nextVal: boolean) => {
+    const confirmMsg = nextVal
+      ? '¿Confirmas habilitar la facturación web para este negocio?\n\nLos cajeros de este negocio podrán cobrar desde el navegador y el teléfono.'
+      : '¿Confirmas deshabilitar la facturación web para este negocio?\n\nLos cajeros ya no podrán cobrar ventas desde el navegador ni desde teléfonos móviles.';
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+    setWebBillingEnabled(nextVal);
   };
 
   // Acciones de prueba con confirmación
@@ -309,6 +417,48 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     }
   };
 
+  const handleRevokeWebDevice = async (device: PosWebDeviceItem) => {
+    if (
+      !window.confirm(
+        `¿Estás seguro de revocar el acceso a "${device.name || 'Dispositivo Web'}" (${device.deviceId})?\n\nEste dispositivo web no podrá registrar ventas ni acceder al módulo de facturación web hasta que sea reactivado.`
+      )
+    ) {
+      return;
+    }
+
+    setRevokingWebDeviceId(device.id);
+    try {
+      await updateWebDeviceMutation.mutateAsync({
+        businessId: business.id,
+        deviceId: device.id,
+        data: { status: 'REVOKED' },
+      });
+    } finally {
+      setRevokingWebDeviceId(null);
+    }
+  };
+
+  const handleReactivateWebDevice = async (device: PosWebDeviceItem) => {
+    if (
+      !window.confirm(
+        `¿Confirmas reactivar el acceso a "${device.name || 'Dispositivo Web'}" (${device.deviceId})?`
+      )
+    ) {
+      return;
+    }
+
+    setRevokingWebDeviceId(device.id);
+    try {
+      await updateWebDeviceMutation.mutateAsync({
+        businessId: business.id,
+        deviceId: device.id,
+        data: { status: 'ACTIVE' },
+      });
+    } finally {
+      setRevokingWebDeviceId(null);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-6">
       {/* Header de la sección */}
@@ -348,6 +498,11 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                     : '1'
                 );
                 setFormTrialHours(business.trialHours ? String(business.trialHours) : '');
+                setWebBillingEnabled(currentWebBilling);
+                setIsUnlimitedWeb(currentMaxWebDevices === null);
+                setMaxWebDevicesInput(
+                  currentMaxWebDevices !== null ? String(currentMaxWebDevices ?? 2) : '2'
+                );
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
             >
@@ -477,6 +632,98 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             </div>
           </div>
 
+          {/* Fila: Configuración de Facturación Web */}
+          <div className="pt-3 border-t border-purple-200/60 space-y-3">
+            <div className="flex items-center gap-2">
+              <Globe size={16} className="text-purple-700" weight="duotone" />
+              <h5 className="text-xs font-bold text-purple-950 uppercase tracking-wider">
+                Facturación Web y Dispositivos Móviles
+              </h5>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Campo: Interruptor Facturar desde la web */}
+              <div className="p-3.5 rounded-xl border bg-white border-purple-200/80 flex items-center justify-between gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-900 mb-0.5">
+                    Facturar desde la web
+                  </label>
+                  <p className="text-[11px] text-gray-500 leading-tight">
+                    Permite a los cajeros registrar ventas y emitir recibos desde el navegador y teléfonos móviles.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleWebBillingInForm(!webBillingEnabled)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    webBillingEnabled ? 'bg-purple-600' : 'bg-gray-200'
+                  }`}
+                  title={webBillingEnabled ? 'Desactivar facturación web' : 'Activar facturación web'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      webBillingEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Campo: Dispositivos web autorizados */}
+              <div className={`p-3.5 rounded-xl border bg-white ${webBillingEnabled ? 'border-purple-200/80' : 'border-gray-200 opacity-60'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <label className="block text-xs font-bold text-gray-900">
+                      Dispositivos web autorizados *
+                    </label>
+                    <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                      {activeWebDevicesCount} activos de {isUnlimitedWeb ? 'Ilimitado' : maxWebDevicesInput || '2'}
+                    </span>
+                  </div>
+
+                  <label className={`flex items-center gap-1.5 text-xs select-none ${!webBillingEnabled ? 'cursor-not-allowed text-gray-400' : 'cursor-pointer text-gray-700'}`}>
+                    <input
+                      type="checkbox"
+                      disabled={!webBillingEnabled}
+                      checked={isUnlimitedWeb}
+                      onChange={(e) => setIsUnlimitedWeb(e.target.checked)}
+                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
+                    />
+                    <span className="text-xs font-semibold text-purple-950">Ilimitado</span>
+                  </label>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    disabled={!webBillingEnabled || isUnlimitedWeb}
+                    value={isUnlimitedWeb ? '' : maxWebDevicesInput}
+                    onChange={(e) => setMaxWebDevicesInput(e.target.value)}
+                    placeholder={isUnlimitedWeb ? 'Sin límite de dispositivos' : '2'}
+                    className={`w-full h-10 px-3 rounded-lg border text-xs bg-white focus:outline-none focus:border-purple-600 ${
+                      !webBillingEnabled || isUnlimitedWeb
+                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                        : 'text-gray-900 border-gray-300'
+                    }`}
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Cantidad de teléfonos o navegadores que pueden cobrar simultáneamente (por defecto 2).
+                </p>
+
+                {/* Aviso informativo cuando el límite esté por debajo de los activos */}
+                {isEditWebLimitLowerThanActive && (
+                  <div className="mt-2.5 flex items-start gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px]">
+                    <Info size={15} className="text-amber-600 shrink-0 mt-0.5" weight="fill" />
+                    <span>Los dispositivos activos siguen funcionando; solo se impide registrar nuevos.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-purple-200/60">
             <button
               type="submit"
@@ -490,7 +737,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         </form>
       ) : (
         /* Tarjetas de Resumen de Configuración */
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
             <div>
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
@@ -545,6 +792,68 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                   ? 'Cualquier computadora autorizada puede iniciar sesión'
                   : `Máximo ${business.maxDevices} equipo(s) simultáneo(s)`}
               </p>
+            </div>
+          </div>
+
+          {/* Tarjeta 3: Facturación Web */}
+          <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Globe size={16} className="text-purple-700" weight="duotone" />
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                    Facturación Web
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isTogglingWebBilling || updatePosSubMutation.isPending}
+                  onClick={handleToggleWebBillingDirect}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    currentWebBilling ? 'bg-purple-600' : 'bg-gray-300'
+                  } ${isTogglingWebBilling ? 'opacity-50 cursor-wait' : ''}`}
+                  title={currentWebBilling ? 'Click para desactivar facturación web' : 'Click para activar facturación web'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      currentWebBilling ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                {currentWebBilling ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <CheckCircle size={11} weight="bold" />
+                    <span>Habilitada</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                    <Prohibit size={11} weight="bold" />
+                    <span>Desactivada</span>
+                  </span>
+                )}
+
+                <span className="text-xs font-semibold text-gray-800">
+                  {activeWebDevicesCount} activos de {currentMaxWebDevices === null ? 'Ilimitado' : currentMaxWebDevices}
+                </span>
+              </div>
+
+              <p className="text-[11px] text-gray-500 mt-1 leading-tight">
+                {currentWebBilling
+                  ? 'Los cajeros pueden cobrar desde el navegador y el teléfono.'
+                  : 'Cobro desde navegador y teléfono móvil deshabilitado.'}
+              </p>
+
+              {/* Aviso informativo cuando el límite esté por debajo de los activos */}
+              {isWebLimitLowerThanActive && (
+                <div className="mt-2.5 flex items-start gap-1.5 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[10px] leading-tight">
+                  <Info size={13} className="text-amber-600 shrink-0 mt-0.5" weight="fill" />
+                  <span>Los dispositivos activos siguen funcionando; solo se impide registrar nuevos.</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -908,6 +1217,195 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                             onClick={() => handleReactivateDevice(device)}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
                             title="Reactivar acceso a esta computadora"
+                          >
+                            <ArrowCounterClockwise size={13} weight="bold" />
+                            <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Listado de Dispositivos Web */}
+      <div className="space-y-3 pt-4 border-t border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Globe size={18} className="text-purple-600" weight="duotone" />
+            <h4 className="text-xs font-semibold text-gray-800 uppercase tracking-wider">
+              Dispositivos Web
+            </h4>
+            <span className="text-xs font-bold text-gray-400">
+              ({webDevices.length})
+            </span>
+            {!currentWebBilling && (
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-200">
+                Facturación web desactivada
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => refetchWebDevices()}
+              disabled={isLoadingWebDevices}
+              className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
+              title="Actualizar listado de dispositivos web"
+            >
+              <ArrowsClockwise size={15} className={isLoadingWebDevices ? 'animate-spin' : ''} />
+            </button>
+          </div>
+        </div>
+
+        {/* Error del API con reintento */}
+        {isErrorWebDevices && (
+          <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/70 text-rose-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <WarningCircle size={18} className="text-rose-600 shrink-0" weight="fill" />
+              <span>
+                {(webDevicesError as any)?.response?.data?.message ||
+                  (webDevicesError as Error)?.message ||
+                  'No se pudo cargar la lista de dispositivos web de este negocio.'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => refetchWebDevices()}
+              className="inline-flex items-center justify-center px-3 py-1 bg-white hover:bg-rose-100 border border-rose-300 rounded-lg text-xs font-semibold text-rose-700 transition-colors shrink-0 cursor-pointer"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {/* Estado de carga */}
+        {isLoadingWebDevices && webDevices.length === 0 ? (
+          <div className="p-8 text-center text-xs text-gray-400">
+            Cargando dispositivos web registrados...
+          </div>
+        ) : webDevices.length === 0 ? (
+          /* Estado vacío */
+          <div className="p-6 rounded-xl border border-dashed border-gray-200 text-center space-y-1 bg-gray-50/50">
+            <Globe size={28} className="mx-auto text-gray-300" weight="duotone" />
+            <p className="text-xs font-semibold text-gray-700">
+              Todavía no hay dispositivos web registrados
+            </p>
+            <p className="text-[11px] text-gray-400 max-w-sm mx-auto">
+              Cada usuario o cajero que abra el módulo de facturación web desde un navegador o teléfono móvil registrará su dispositivo automáticamente aquí.
+            </p>
+          </div>
+        ) : (
+          /* Tabla de dispositivos web */
+          <div className="overflow-x-auto rounded-xl border border-gray-100">
+            <table className="w-full text-left border-collapse min-w-[700px]">
+              <thead>
+                <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  <th className="py-2.5 px-3">Usuario</th>
+                  <th className="py-2.5 px-3">Nombre / Navegador</th>
+                  <th className="py-2.5 px-3">IP</th>
+                  <th className="py-2.5 px-3">Última Actividad</th>
+                  <th className="py-2.5 px-3">Estado</th>
+                  <th className="py-2.5 px-3 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
+                {webDevices.map((device) => {
+                  const isActive = device.status === 'ACTIVE';
+                  const isProcessing = revokingWebDeviceId === device.id;
+                  const browserDisplay = formatBrowserInfo(device.userAgent, device.platform);
+
+                  return (
+                    <tr key={device.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="py-2.5 px-3">
+                        <div className="font-semibold text-gray-900">
+                          {device.user?.name || 'Usuario desconocido'}
+                        </div>
+                        {device.user?.email && (
+                          <div className="text-[11px] text-gray-400">
+                            {device.user.email}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <DeviceMobile size={15} className={isActive ? 'text-purple-600' : 'text-gray-400'} />
+                          <span className="font-medium text-gray-900">
+                            {device.name || 'Dispositivo Web'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-gray-500 mt-0.5">
+                          {browserDisplay}
+                        </div>
+                        {device.deviceId && (
+                          <div className="font-mono text-[10px] text-gray-400 mt-0.5">
+                            ID: {device.deviceId.length > 16 ? `${device.deviceId.slice(0, 16)}...` : device.deviceId}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[11px] text-gray-600">
+                        {device.ipAddress || '—'}
+                      </td>
+                      <td className="py-2.5 px-3 text-gray-600">
+                        {device.lastSeenAt ? (
+                          <div>
+                            <span className="block text-[11px] text-gray-900">
+                              {formatDateTime(device.lastSeenAt)}
+                            </span>
+                            <span className="block text-[10px] text-gray-400">
+                              {formatRelativeTime(device.lastSeenAt)}
+                            </span>
+                          </div>
+                        ) : device.firstSeenAt ? (
+                          <div>
+                            <span className="block text-[11px] text-gray-900">
+                              {formatDateTime(device.firstSeenAt)}
+                            </span>
+                            <span className="block text-[10px] text-gray-400">
+                              Primera conexión
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {isActive ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle size={11} weight="bold" />
+                            <span>Activo</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <Prohibit size={11} weight="bold" />
+                            <span>Revocado</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        {isActive ? (
+                          <button
+                            type="button"
+                            disabled={isProcessing}
+                            onClick={() => handleRevokeWebDevice(device)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                            title="Revocar acceso a este dispositivo web"
+                          >
+                            <Prohibit size={13} weight="bold" />
+                            <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isProcessing}
+                            onClick={() => handleReactivateWebDevice(device)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                            title="Reactivar acceso a este dispositivo web"
                           >
                             <ArrowCounterClockwise size={13} weight="bold" />
                             <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
