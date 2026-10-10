@@ -1,185 +1,337 @@
-import { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import {
+  ChartBar,
+  TrendUp,
+  ShieldCheck,
+  Wrench,
+  WarningCircle,
+  ArrowsClockwise,
+} from '@phosphor-icons/react';
+import { useAuthStore } from '../store/auth.store';
+import { PeriodType } from '../types/reports';
+import { PeriodSelector } from '../components/reports/PeriodSelector';
+import { SalesOperationsTab } from '../components/reports/SalesOperationsTab';
+import { ProfitReportTab } from '../components/reports/ProfitReportTab';
+import { ControlReportTab } from '../components/reports/ControlReportTab';
+import { WorkshopReportTab } from '../components/reports/WorkshopReportTab';
+import {
+  useReportsOverview,
+  useSalesByTime,
+  useSalesByCategory,
+  useSalesByCashier,
+  useProfitReport,
+  useControlReport,
+  useWorkshopReport,
+} from '../hooks/useBackofficeReports';
 import { useQuery } from '@tanstack/react-query';
-import { getOrders, getUsers } from 'api-client';
-import { isToday, isThisMonth, differenceInMinutes } from 'date-fns';
-import { CheckCircle, Clock, Package } from '@phosphor-icons/react';
-import { StatCard } from '../components/StatCard';
-import { StatusBadge } from '../components/StatusBadge';
+import { getMyBusiness } from 'api-client';
 
-const BAR_COLORS: Record<string, string> = {
-  PENDIENTE: 'bg-amber-400',
-  EN_CAMINO: 'bg-indigo-400',
-  ENTREGADO: 'bg-green-500',
-  CANCELADO: 'bg-red-400',
-  TOMADO: 'bg-blue-400',
-  CERCA_DEL_DESTINO: 'bg-purple-400',
-  VERIFICANDO_ENTREGA: 'bg-orange-400',
-  INCIDENCIA: 'bg-red-500',
-  CERRADO: 'bg-gray-300',
-};
+export type ReportTabKey = 'sales' | 'profit' | 'control' | 'workshop';
 
-export const ReportsPage = () => {
-  const { data: orders = [], isLoading } = useQuery({
-    queryKey: ['orders'],
-    queryFn: () => getOrders(),
+export const ReportsPage: React.FC = () => {
+  const user = useAuthStore((state) => state.user);
+
+  // Verificación de rol: Solo Encargado y Superadmin pueden consultar reportes
+  const isAllowedRole = user?.role === 'ENCARGADO' || user?.role === 'SUPERADMIN';
+
+  // Perfil del negocio para saber si es Taller
+  const { data: business } = useQuery({
+    queryKey: ['business', 'me'],
+    queryFn: getMyBusiness,
+    staleTime: 60000,
   });
 
-  const { data: users = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => getUsers(),
-  });
+  // Estado del período (se preserva al alternar entre pestañas)
+  const [period, setPeriod] = useState<PeriodType>('today');
+  const [customFrom, setCustomFrom] = useState<string | undefined>();
+  const [customTo, setCustomTo] = useState<string | undefined>();
+  const [activeTab, setActiveTab] = useState<ReportTabKey>('sales');
 
-  const stats = useMemo(() => {
-    const entregadosHoy = orders.filter(o =>
-      o.status === 'ENTREGADO' && o.deliveredAt && isToday(new Date(o.deliveredAt))
-    );
-    const totalMes = orders.filter(o => isThisMonth(new Date(o.createdAt)));
+  const queryParams = useMemo(
+    () => ({
+      period,
+      from: customFrom,
+      to: customTo,
+    }),
+    [period, customFrom, customTo]
+  );
 
-    const tiempos = orders
-      .filter(o => o.status === 'ENTREGADO' && o.takenAt && o.deliveredAt)
-      .map(o => differenceInMinutes(new Date(o.deliveredAt!), new Date(o.takenAt!)))
-      .filter(t => t > 0);
+  // Hooks para cada pestaña
+  const {
+    data: reportsData,
+    isLoading: isLoadingOverview,
+    isError: isErrorOverview,
+    error: errorOverview,
+    refetch: refetchOverview,
+    isFetching: isFetchingOverview,
+  } = useReportsOverview(queryParams, isAllowedRole);
 
-    const avgMinutes = tiempos.length
-      ? Math.round(tiempos.reduce((a, b) => a + b, 0) / tiempos.length)
-      : null;
+  const {
+    data: timeData,
+    isLoading: isLoadingTime,
+    refetch: refetchTime,
+  } = useSalesByTime(queryParams, isAllowedRole && activeTab === 'sales');
 
-    const byStatus: Record<string, number> = {};
-    for (const o of orders) {
-      byStatus[o.status] = (byStatus[o.status] ?? 0) + 1;
+  const {
+    data: categoryData,
+    isLoading: isLoadingCategory,
+    refetch: refetchCategory,
+  } = useSalesByCategory(queryParams, isAllowedRole && activeTab === 'sales');
+
+  const {
+    data: cashierData,
+    isLoading: isLoadingCashier,
+    refetch: refetchCashier,
+  } = useSalesByCashier(queryParams, isAllowedRole && activeTab === 'sales');
+
+  const {
+    data: profitData,
+    isLoading: isLoadingProfit,
+    isError: isErrorProfit,
+    error: errorProfit,
+    refetch: refetchProfit,
+    isFetching: isFetchingProfit,
+  } = useProfitReport(queryParams, isAllowedRole && (activeTab === 'profit' || !reportsData));
+
+  const {
+    data: controlData,
+    isLoading: isLoadingControl,
+    isError: isErrorControl,
+    error: errorControl,
+    refetch: refetchControl,
+    isFetching: isFetchingControl,
+  } = useControlReport(queryParams, isAllowedRole && (activeTab === 'control' || !reportsData));
+
+  const {
+    data: workshopData,
+    isLoading: isLoadingWorkshop,
+    isError: isErrorWorkshop,
+    error: errorWorkshop,
+    refetch: refetchWorkshop,
+    isFetching: isFetchingWorkshop,
+  } = useWorkshopReport(queryParams, isAllowedRole);
+
+  // Determinar si el negocio es taller
+  const isWorkshop = Boolean(
+    workshopData?.isWorkshop || (business as any)?.salonProfile === 'TALLER'
+  );
+
+  // Si no es taller y estaba en la pestaña de taller, regresar a ventas
+  React.useEffect(() => {
+    if (!isWorkshop && activeTab === 'workshop') {
+      setActiveTab('sales');
     }
+  }, [isWorkshop, activeTab]);
 
-    return { entregadosHoy: entregadosHoy.length, totalMes: totalMes.length, avgMinutes, byStatus };
-  }, [orders]);
+  const handlePeriodChange = (p: PeriodType, f?: string, t?: string) => {
+    setPeriod(p);
+    setCustomFrom(f);
+    setCustomTo(t);
+  };
 
-  const staffPerformance = useMemo(() => {
-    return users.map(u => {
-      const myOrders = orders.filter(o => o.deliveryUserId === u.id);
-      const today = myOrders.filter(o =>
-        o.status === 'ENTREGADO' && o.deliveredAt && isToday(new Date(o.deliveredAt))
-      ).length;
-      const inProgress = myOrders.filter(o =>
-        ['TOMADO', 'EN_CAMINO', 'CERCA_DEL_DESTINO', 'VERIFICANDO_ENTREGA'].includes(o.status)
-      ).length;
-      return { ...u, entregadosHoy: today, enCurso: inProgress };
-    });
-  }, [users, orders]);
+  const handleRefresh = () => {
+    refetchOverview();
+    refetchTime();
+    refetchCategory();
+    refetchCashier();
+    refetchProfit();
+    refetchControl();
+    refetchWorkshop();
+  };
 
-  const maxStatusCount = Math.max(...Object.values(stats.byStatus), 1);
+  const isRefreshing =
+    isFetchingOverview || isFetchingProfit || isFetchingControl || isFetchingWorkshop;
+
+  // Validación de permiso de usuario
+  if (!isAllowedRole) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-200/80 p-8 max-w-lg mx-auto text-center space-y-3 mt-12 shadow-2xs">
+        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto">
+          <ShieldCheck size={26} weight="duotone" />
+        </div>
+        <h3 className="text-base font-bold text-gray-900">Acceso restringido</h3>
+        <p className="text-xs text-gray-500 leading-relaxed">
+          No tienes permisos para consultar los reportes del negocio. Esta sección es exclusiva
+          para el Encargado o Administrador.
+        </p>
+      </div>
+    );
+  }
+
+  // Captura de errores de API (ej: exceder 366 días)
+  const currentError =
+    (activeTab === 'sales' && isErrorOverview ? errorOverview : null) ||
+    (activeTab === 'profit' && isErrorProfit ? errorProfit : null) ||
+    (activeTab === 'control' && isErrorControl ? errorControl : null) ||
+    (activeTab === 'workshop' && isErrorWorkshop ? errorWorkshop : null);
+
+  const getErrorMessage = (err: any) => {
+    if (!err) return 'Ocurrió un error al cargar el reporte.';
+    return (
+      err?.response?.data?.message ||
+      err?.response?.data?.error ||
+      err?.message ||
+      'Error de comunicación con el servidor.'
+    );
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
-        {isLoading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />
-          ))
-        ) : (
-          <>
-            <StatCard
-              title="Entregas hoy"
-              value={stats.entregadosHoy}
-              subtitle="Pedidos entregados hoy"
-              icon={<CheckCircle size={16} />}
-            />
-            <StatCard
-              title="Tiempo promedio"
-              value={stats.avgMinutes != null ? `${stats.avgMinutes} min` : '—'}
-              subtitle="Promedio de entrega"
-              icon={<Clock size={16} />}
-            />
-            <StatCard
-              title="Total del mes"
-              value={stats.totalMes}
-              subtitle="Pedidos este mes"
-              icon={<Package size={16} />}
-            />
-          </>
-        )}
-      </div>
-
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
-        <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-5">Pedidos por estado</div>
-        {isLoading ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 mb-3">
-              <div className="w-32 h-4 bg-gray-100 rounded animate-pulse" />
-              <div className="flex-1 h-3 bg-gray-100 rounded animate-pulse" />
-            </div>
-          ))
-        ) : Object.keys(stats.byStatus).length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">No hay datos aún.</p>
-        ) : (
-          <div className="space-y-3">
-            {Object.entries(stats.byStatus)
-              .sort(([, a], [, b]) => b - a)
-              .map(([status, count]) => (
-                <div key={status} className="flex items-center gap-4">
-                  <div className="w-36 shrink-0">
-                    <StatusBadge status={status} />
-                  </div>
-                  <div className="flex-1 flex items-center gap-3">
-                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${BAR_COLORS[status] ?? 'bg-gray-400'} transition-all`}
-                        style={{ width: `${(count / maxStatusCount) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium text-gray-700 w-6 text-right">{count}</span>
-                  </div>
-                </div>
-              ))}
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">Rendimiento por repartidor</div>
+    <div className="space-y-4 pb-12 max-w-7xl mx-auto">
+      {/* Header y Controladores Globales: Selector de Período y Refrescar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-2xs">
+        <div>
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">
+            Reportes y Analítica
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {activeTab === 'sales'
+              ? 'Rendimiento de ventas, cobros, horas pico, categorías y cajeros'
+              : activeTab === 'profit'
+              ? 'Margen operativo, costo de lo vendido y rentabilidad de ventas'
+              : activeTab === 'control'
+              ? 'Auditoría de anulaciones, devoluciones, descuentos y arqueos'
+              : 'Rendimiento de órdenes de taller, servicios y mecánicos'}
+          </p>
         </div>
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b border-gray-50">
-              <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Nombre</th>
-              <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Entregas hoy</th>
-              <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">En curso</th>
-              <th className="px-5 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Estado</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {staffPerformance.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-5 py-8 text-center text-sm text-gray-400">
-                  No hay repartidores registrados.
-                </td>
-              </tr>
-            ) : (
-              staffPerformance.map(u => (
-                <tr key={u.id}>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
-                        {u.name.split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase()}
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">{u.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-sm text-gray-700 font-medium">{u.entregadosHoy}</td>
-                  <td className="px-5 py-3 text-sm text-gray-700">{u.enCurso}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${u.isActive ? 'bg-green-400' : 'bg-gray-300'}`} />
-                      <span className={`text-xs ${u.isActive ? 'text-green-700' : 'text-gray-400'}`}>
-                        {u.isActive ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+
+        {/* Selector de Período Global */}
+        <PeriodSelector
+          period={period}
+          from={customFrom}
+          to={customTo}
+          onChange={handlePeriodChange}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+        />
       </div>
+
+      {/* Pestañas de Navegación (4 pestañas) */}
+      <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs px-2 pt-1.5 overflow-x-auto">
+        <div className="flex items-center gap-1 min-w-max border-b border-gray-100 pb-1">
+          {/* Pestaña 1: Ventas y Operaciones */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('sales')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'sales'
+                ? 'bg-gray-900 text-white shadow-2xs'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            <ChartBar size={16} weight={activeTab === 'sales' ? 'bold' : 'regular'} />
+            <span>Ventas y Operaciones</span>
+          </button>
+
+          {/* Pestaña 2: Ganancias */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('profit')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'profit'
+                ? 'bg-gray-900 text-white shadow-2xs'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            <TrendUp size={16} weight={activeTab === 'profit' ? 'bold' : 'regular'} />
+            <span>Ganancias</span>
+          </button>
+
+          {/* Pestaña 3: Control */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('control')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'control'
+                ? 'bg-gray-900 text-white shadow-2xs'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            <ShieldCheck size={16} weight={activeTab === 'control' ? 'bold' : 'regular'} />
+            <span>Control</span>
+          </button>
+
+          {/* Pestaña 4: Taller (solo aparece si isWorkshop es true) */}
+          {isWorkshop && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('workshop')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'workshop'
+                  ? 'bg-gray-900 text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <Wrench size={16} weight={activeTab === 'workshop' ? 'bold' : 'regular'} />
+              <span>Taller</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Manejo de Error Global con botón de reintentar */}
+      {currentError ? (
+        <div className="bg-white rounded-2xl border border-red-200 p-8 shadow-2xs text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+            <WarningCircle size={26} weight="fill" />
+          </div>
+          <h3 className="text-base font-bold text-gray-900">No se pudieron cargar los datos</h3>
+          <p className="text-xs text-red-600 max-w-md mx-auto">
+            {getErrorMessage(currentError)}
+          </p>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-black text-white text-xs font-semibold rounded-xl transition-colors shadow-2xs cursor-pointer"
+            >
+              <ArrowsClockwise size={14} weight="bold" />
+              <span>Reintentar</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Pestaña 1: Ventas y Operaciones */}
+          {activeTab === 'sales' && (
+            <SalesOperationsTab
+              reportsData={reportsData}
+              timeData={timeData}
+              categoryData={categoryData}
+              cashierData={cashierData}
+              period={period}
+              isLoading={isLoadingOverview || isLoadingTime || isLoadingCategory || isLoadingCashier}
+            />
+          )}
+
+          {/* Pestaña 2: Ganancias */}
+          {activeTab === 'profit' && (
+            <ProfitReportTab
+              profitData={profitData}
+              period={period}
+              isLoading={isLoadingProfit}
+            />
+          )}
+
+          {/* Pestaña 3: Control */}
+          {activeTab === 'control' && (
+            <ControlReportTab
+              controlData={controlData}
+              period={period}
+              isLoading={isLoadingControl}
+            />
+          )}
+
+          {/* Pestaña 4: Taller */}
+          {activeTab === 'workshop' && isWorkshop && (
+            <WorkshopReportTab
+              workshopData={workshopData}
+              period={period}
+              isLoading={isLoadingWorkshop}
+            />
+          )}
+        </>
+      )}
     </div>
   );
 };
+export default ReportsPage;

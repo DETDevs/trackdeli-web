@@ -126,6 +126,7 @@ export const AppLayout = () => {
   const getPageTitle = (pathname: string) => {
     if (pathname.startsWith('/pos/dashboard')) return 'Resumen POS';
     if (pathname.startsWith('/pos/sales')) return 'Ventas POS';
+    if (pathname.startsWith('/pos/reports') || pathname.startsWith('/reports')) return 'Reportes';
     if (pathname.startsWith('/pos/analytics')) return 'Más Vendidos y Categorías';
     if (pathname.startsWith('/pos/inventory')) return 'Inventario POS';
     if (pathname.startsWith('/pos/cash-registers')) return 'Cierres de Caja';
@@ -223,6 +224,12 @@ export const AppLayout = () => {
                   <CashRegister size={18} weight="regular" />
                   Cierres de Caja
                 </NavLink>
+                {(user?.role === 'SUPERADMIN' || user?.role === 'ENCARGADO') && (
+                  <NavLink to="/pos/reports" className={navLinkClass}>
+                    <ChartBar size={18} weight="regular" />
+                    Reportes
+                  </NavLink>
+                )}
               </div>
             </div>
           )}

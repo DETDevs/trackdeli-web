@@ -87,6 +87,7 @@ const router = createBrowserRouter([
       { path: "pos/analytics", element: <PosAnalyticsPage /> },
       { path: "pos/inventory", element: <PosInventoryPage /> },
       { path: "pos/cash-registers", element: <PosCashRegistersPage /> },
+      { path: "pos/reports", element: <ReportsPage /> },
     ],
   },
   {
