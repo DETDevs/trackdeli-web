@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { login as apiLogin } from 'api-client';
+import { usePosCartStore } from './posCart.store';
 
 interface User {
   id: string;
@@ -50,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem('trackdeli_access_token');
         localStorage.removeItem('trackdeli_refresh_token');
+        usePosCartStore.getState().clearCart();
         set({ user: null, accessToken: null, isAuthenticated: false });
       },
 

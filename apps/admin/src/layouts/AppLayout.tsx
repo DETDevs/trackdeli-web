@@ -101,6 +101,7 @@ export const AppLayout = () => {
 
   const roleLabels: Record<string, string> = {
     ENCARGADO: 'Encargado',
+    CAJERO: 'Cajero',
     REPARTIDOR: 'Repartidor',
     SUPERADMIN: 'Super Admin',
   };
