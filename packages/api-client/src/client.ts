@@ -35,6 +35,12 @@ apiClient.interceptors.request.use(
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
+
+    if (typeof window !== 'undefined') {
+      const isNarrowScreen = window.innerWidth < 768;
+      config.headers['X-Client-Platform'] = isNarrowScreen ? 'web-mobile' : 'web-desktop';
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -48,6 +54,19 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 402 && typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('trackdeli:payment_required', {
+          detail: error.response?.data,
+        })
+      );
+    }
+
+    if (
+      error.response?.status === 403 &&
+      (error.response?.data?.code === 'WEB_ACCESS_DISABLED' ||
+        String(error.response?.data?.message || '').toLowerCase().includes('web de administración está deshabilitado')) &&
+      typeof window !== 'undefined'
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('trackdeli:web_access_disabled', {
           detail: error.response?.data,
         })
       );

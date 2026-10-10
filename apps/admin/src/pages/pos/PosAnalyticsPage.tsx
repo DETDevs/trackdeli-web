@@ -16,6 +16,7 @@ import {
 import { useBackofficeDateFilter } from '../../hooks/useBackofficeDateFilter';
 import { PosDateFilterPills } from '../../components/pos/PosDateFilterPills';
 import { ModuleNotEnabledAlert } from '../../components/pos/ModuleNotEnabledAlert';
+import { WebAccessDisabledView } from '../../components/pos/WebAccessDisabledView';
 import { formatCurrency } from '../../utils/formatters';
 
 export const PosAnalyticsPage: React.FC = () => {
@@ -64,6 +65,16 @@ export const PosAnalyticsPage: React.FC = () => {
     refetchProducts();
     refetchCategories();
   };
+
+  const isWebAccessDisabled =
+    (errorProducts as any)?.response?.data?.code === 'WEB_ACCESS_DISABLED' ||
+    (errorProducts as any)?.response?.status === 403 ||
+    (errorCategories as any)?.response?.data?.code === 'WEB_ACCESS_DISABLED' ||
+    (errorCategories as any)?.response?.status === 403;
+
+  if (isWebAccessDisabled) {
+    return <WebAccessDisabledView />;
+  }
 
   const isModuleNotEnabled =
     (errorProducts as any)?.response?.data?.code === 'MODULE_NOT_ENABLED' ||

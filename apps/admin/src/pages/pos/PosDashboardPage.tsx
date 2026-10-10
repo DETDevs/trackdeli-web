@@ -16,6 +16,7 @@ import {
 import { useBackofficeDashboard, useBackofficeSales } from '../../hooks/useBackoffice';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 import { ModuleNotEnabledAlert } from '../../components/pos/ModuleNotEnabledAlert';
+import { WebAccessDisabledView } from '../../components/pos/WebAccessDisabledView';
 import { subDays, format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -77,6 +78,13 @@ export const PosDashboardPage: React.FC = () => {
     const max = Math.max(...dailySales.map((d) => d.total), 0);
     return max > 0 ? max : 1000;
   }, [dailySales]);
+
+  if (
+    (error as any)?.response?.data?.code === 'WEB_ACCESS_DISABLED' ||
+    (error as any)?.response?.status === 403
+  ) {
+    return <WebAccessDisabledView />;
+  }
 
   if ((error as any)?.response?.data?.code === 'MODULE_NOT_ENABLED') {
     return <ModuleNotEnabledAlert message="El módulo de Punto de Venta no está habilitado para este negocio." />;

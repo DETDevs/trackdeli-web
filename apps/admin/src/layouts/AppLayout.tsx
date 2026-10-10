@@ -20,6 +20,7 @@ import {
   Receipt,
   TrendUp,
   CashRegister,
+  CreditCard,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,7 +29,9 @@ import { useQuery } from '@tanstack/react-query';
 import { getMyBusiness } from 'api-client';
 import { useState, useEffect } from 'react';
 import { useMyProducts } from '../hooks/useMyProducts';
+import { usePosWebAccess } from '../hooks/usePosWebAccess';
 import { DeliveryAccessBlocked } from '../components/DeliveryAccessBlocked';
+import { WebAccessDisabledView } from '../components/pos/WebAccessDisabledView';
 
 export const AppLayout = () => {
   const location = useLocation();
@@ -76,6 +79,13 @@ export const AppLayout = () => {
     isLoading: isLoadingProducts,
   } = useMyProducts(!isSuperAdmin);
 
+  const {
+    webAdminEnabled,
+    webBillingEnabled,
+    canCobrar,
+    isLoading: isLoadingPosAccess,
+  } = usePosWebAccess();
+
   const isDeliveryActive =
     isSuperAdmin ||
     productsData?.products?.DELIVERY?.status === 'ACTIVE';
@@ -102,7 +112,7 @@ export const AppLayout = () => {
     navigate('/login');
   };
 
-  if (!isSuperAdmin && isLoadingProducts) {
+  if (!isSuperAdmin && (isLoadingProducts || (isPosActive && isLoadingPosAccess))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#FAFAFA]">
         <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mb-3" />
@@ -123,7 +133,21 @@ export const AppLayout = () => {
     );
   }
 
+  const isPosRoute = location.pathname.startsWith('/pos');
+
+  // Si el negocio solo tiene POS y el acceso web básico está apagado
+  if (isPosActive && !isDeliveryActive && !webAdminEnabled) {
+    return (
+      <WebAccessDisabledView
+        isFullScreen={true}
+        hasDelivery={false}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
   const getPageTitle = (pathname: string) => {
+    if (pathname.startsWith('/pos/cobrar')) return 'Cobrar';
     if (pathname.startsWith('/pos/dashboard')) return 'Resumen POS';
     if (pathname.startsWith('/pos/sales')) return 'Ventas POS';
     if (pathname.startsWith('/pos/reports') || pathname.startsWith('/reports')) return 'Reportes';
@@ -197,8 +221,8 @@ export const AppLayout = () => {
         </div>
 
         <nav className="flex-1 px-3 py-2 space-y-5 overflow-y-auto">
-          {/* SECCIÓN PUNTO DE VENTA (POS) - Solo visible si POS está activo */}
-          {isPosActive && (
+          {/* SECCIÓN PUNTO DE VENTA (POS) - Solo visible si POS está activo Y webAdminEnabled */}
+          {isPosActive && webAdminEnabled && (
             <div>
               <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 mt-2">
                 PUNTO DE VENTA (POS)
@@ -228,6 +252,12 @@ export const AppLayout = () => {
                   <NavLink to="/pos/reports" className={navLinkClass}>
                     <ChartBar size={18} weight="regular" />
                     Reportes
+                  </NavLink>
+                )}
+                {canCobrar && webBillingEnabled && (
+                  <NavLink to="/pos/cobrar" className={navLinkClass}>
+                    <CreditCard size={18} weight="regular" />
+                    Cobrar
                   </NavLink>
                 )}
               </div>
@@ -401,7 +431,15 @@ export const AppLayout = () => {
               transition={{ duration: 0.15, ease: 'easeOut' }}
               className="p-4 lg:p-6 h-full"
             >
-              <Outlet />
+              {isPosRoute && !webAdminEnabled ? (
+                <WebAccessDisabledView
+                  isFullScreen={false}
+                  hasDelivery={isDeliveryActive}
+                  onLogout={handleLogout}
+                />
+              ) : (
+                <Outlet />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>

@@ -9,6 +9,7 @@ import {
 } from '@phosphor-icons/react';
 import { useBackofficeInventory, useBackofficeDashboard } from '../../hooks/useBackoffice';
 import { ModuleNotEnabledAlert } from '../../components/pos/ModuleNotEnabledAlert';
+import { WebAccessDisabledView } from '../../components/pos/WebAccessDisabledView';
 import { formatCurrency, formatQuantity } from '../../utils/formatters';
 
 export const PosInventoryPage: React.FC = () => {
@@ -35,6 +36,13 @@ export const PosInventoryPage: React.FC = () => {
 
   const products = inventoryResponse?.data || [];
   const pagination = inventoryResponse?.pagination;
+
+  if (
+    (error as any)?.response?.data?.code === 'WEB_ACCESS_DISABLED' ||
+    (error as any)?.response?.status === 403
+  ) {
+    return <WebAccessDisabledView />;
+  }
 
   if ((error as any)?.response?.data?.code === 'MODULE_NOT_ENABLED') {
     return <ModuleNotEnabledAlert message="El módulo de Punto de Venta no está habilitado para este negocio." />;

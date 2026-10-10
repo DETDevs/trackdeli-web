@@ -14,6 +14,7 @@ import { useBackofficeDateFilter } from '../../hooks/useBackofficeDateFilter';
 import { PosDateFilterPills } from '../../components/pos/PosDateFilterPills';
 import { SaleDetailModal } from '../../components/pos/SaleDetailModal';
 import { ModuleNotEnabledAlert } from '../../components/pos/ModuleNotEnabledAlert';
+import { WebAccessDisabledView } from '../../components/pos/WebAccessDisabledView';
 import { formatCurrency } from '../../utils/formatters';
 import { formatDateTime } from '../../utils/formatDate';
 
@@ -49,6 +50,13 @@ export const PosSalesPage: React.FC = () => {
 
   const sales = salesResponse?.data || [];
   const pagination = salesResponse?.pagination;
+
+  if (
+    (error as any)?.response?.data?.code === 'WEB_ACCESS_DISABLED' ||
+    (error as any)?.response?.status === 403
+  ) {
+    return <WebAccessDisabledView />;
+  }
 
   if ((error as any)?.response?.data?.code === 'MODULE_NOT_ENABLED') {
     return <ModuleNotEnabledAlert message="El módulo de Punto de Venta no está habilitado para este negocio." />;
