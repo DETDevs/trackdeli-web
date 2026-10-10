@@ -56,6 +56,10 @@ export interface BusinessProductPosSub {
   posVertical?: PosVertical | null;
   salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
   maxDevices?: number | null;
+  webAdminEnabled?: boolean;
+  webBillingEnabled?: boolean;
+  maxWebDevices?: number | null;
+  webBillingMonthlyUsd?: number | null;
   trialHours?: number | null;
   trialStartedAt?: string | null;
   trialEndsAt?: string | null;

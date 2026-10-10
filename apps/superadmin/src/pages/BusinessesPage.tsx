@@ -6,91 +6,37 @@ import {
   MagnifyingGlass,
   Storefront,
   ArrowRight,
-  ShieldCheck,
   Motorcycle,
   Coins,
   Receipt,
-  ForkKnife,
-  ShoppingBag,
-  Check,
   Wallet,
   CalendarBlank,
-  Wrench,
   Clock,
+  Globe,
 } from '@phosphor-icons/react';
-import toast from 'react-hot-toast';
-import apiClient from '../lib/apiClient';
 import { TopBar } from '../components/layout/TopBar';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { Badge } from '../components/ui/Badge';
-import { Modal } from '../components/ui/Modal';
 import { BusinessCardMobile } from '../components/ui/BusinessCardMobile';
 import {
   useBusinesses,
   useToggleBusiness,
-  useCreateBusiness,
   BusinessItem,
-  CreateBusinessResult,
-  type BusinessType,
 } from '../hooks/useBusinesses';
 
 import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
 import { BusinessCredentialsModal } from '../components/modals/BusinessCredentialsModal';
-import { useIndustries } from '../hooks/useIndustries';
+import { CreateBusinessWizardModal } from '../components/modals/CreateBusinessWizardModal';
 
 export const BusinessesPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: businesses = [], isLoading } = useBusinesses();
   const toggleMutation = useToggleBusiness();
-  const createMutation = useCreateBusiness();
 
-  const [isActivating, setIsActivating] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
-
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [industryId, setIndustryId] = useState('');
-
-  const { data: industries = [] } = useIndustries();
-  const activeIndustries = industries.filter((i) => i.isActive);
-
-  const [hasDelivery, setHasDelivery] = useState(true);
-  const [hasPOS, setHasPOS] = useState(false);
-  const [salonProfile, setSalonProfile] = useState<'RESTAURANTE' | 'TALLER'>('RESTAURANTE');
-  const [maxDevices, setMaxDevices] = useState('1');
-  const [isUnlimitedDevices, setIsUnlimitedDevices] = useState(false);
-  const [trialHours, setTrialHours] = useState('');
-  const [hasCarteraCobro, setHasCarteraCobro] = useState(false);
-  const [hasCitas, setHasCitas] = useState(false);
-  const [businessType, setBusinessType] = useState<BusinessType>('NEGOCIO');
-  const [deliveryMonthlyFee, setDeliveryMonthlyFee] = useState('');
-  const [commissionRate, setCommissionRate] = useState('15');
-  const [altCommissionRate, setAltCommissionRate] = useState('12');
-  const [altCommissionDistanceKm, setAltCommissionDistanceKm] = useState('40');
-  const [dispatchTimeoutMin, setDispatchTimeoutMin] = useState('3');
-
-  const [posMonthlyFee, setPosMonthlyFee] = useState('');
-  const [carteraMonthlyFee, setCarteraMonthlyFee] = useState('');
-  const [citasMonthlyFee, setCitasMonthlyFee] = useState('');
-
-  const [encargadoName, setEncargadoName] = useState('');
-  const [encargadoEmail, setEncargadoEmail] = useState('');
-  const [encargadoPassword, setEncargadoPassword] = useState('');
-
-  const handleIndustryChange = (selectedId: string) => {
-    setIndustryId(selectedId);
-    const ind = activeIndustries.find((i) => i.id === selectedId);
-    const isTaller =
-      ind?.code === 'taller' ||
-      ind?.name?.toLowerCase().includes('taller');
-    if (isTaller) {
-      setSalonProfile('TALLER');
-    } else {
-      setSalonProfile('RESTAURANTE');
-    }
-  };
 
   const [createdCredentials, setCreatedCredentials] = useState<{
     businessName: string;
@@ -130,179 +76,6 @@ export const BusinessesPage = () => {
         setDeactivatingBusiness(null);
       },
     });
-  };
-
-  const handleCreateBusiness = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !encargadoName || !encargadoEmail || !encargadoPassword || !industryId) return;
-
-    const selectedIndustry = activeIndustries.find((i) => i.id === industryId);
-    const derivedPosVertical = selectedIndustry?.posVertical || 'RESTAURANTE';
-
-    if (!hasDelivery && !hasPOS && !hasCarteraCobro && !hasCitas) {
-      toast.error('Debes seleccionar al menos un producto contratado');
-      return;
-    }
-
-    createMutation.mutate(
-      {
-        name: name.trim(),
-        industryId,
-        businessType: hasDelivery ? businessType : 'NEGOCIO',
-        commissionRate:
-          hasDelivery && businessType === 'EMPRESA_RIDERS'
-            ? Number(commissionRate) / 100 || 0.15
-            : undefined,
-        altCommissionRate:
-          hasDelivery && businessType === 'EMPRESA_RIDERS'
-            ? Number(altCommissionRate) / 100 || 0.12
-            : undefined,
-        altCommissionDistanceKm:
-          hasDelivery && businessType === 'EMPRESA_RIDERS'
-            ? Number(altCommissionDistanceKm) || 40
-            : undefined,
-        dispatchTimeoutMin:
-          hasDelivery && businessType === 'EMPRESA_RIDERS'
-            ? Number(dispatchTimeoutMin) || 3
-            : undefined,
-        hasDelivery,
-        deliveryMonthlyFee:
-          hasDelivery && businessType === 'NEGOCIO' && deliveryMonthlyFee
-            ? Number(deliveryMonthlyFee)
-            : undefined,
-        hasPOS,
-        posVertical: hasPOS ? derivedPosVertical : undefined,
-        salonProfile: hasPOS ? salonProfile : undefined,
-        maxDevices: hasPOS ? (isUnlimitedDevices ? null : (parseInt(maxDevices, 10) || 1)) : undefined,
-        trialHours: hasPOS && trialHours.trim() ? (parseInt(trialHours, 10) || undefined) : undefined,
-        posMonthlyFee: hasPOS && posMonthlyFee ? Number(posMonthlyFee) : undefined,
-        hasCarteraCobro,
-        carteraMonthlyFee:
-          hasCarteraCobro && carteraMonthlyFee ? Number(carteraMonthlyFee) : undefined,
-        hasCitas,
-        citasMonthlyFee: hasCitas && citasMonthlyFee ? Number(citasMonthlyFee) : undefined,
-        encargado: {
-          name: encargadoName.trim(),
-          email: encargadoEmail.trim(),
-          password: encargadoPassword,
-        },
-      },
-      {
-        onSuccess: async (data: CreateBusinessResult) => {
-          const bizId = data.business.id;
-          setIsActivating(true);
-
-          try {
-            const activationPromises: Promise<any>[] = [];
-
-            if (hasDelivery) {
-              activationPromises.push(
-                apiClient.post(`/businesses/${bizId}/products/DELIVERY/activate`, {
-                  deliveryMonthlyFee:
-                    businessType === 'NEGOCIO' && deliveryMonthlyFee
-                      ? Number(deliveryMonthlyFee)
-                      : undefined,
-                  commissionRate:
-                    businessType === 'EMPRESA_RIDERS'
-                      ? Number(commissionRate) / 100 || 0.15
-                      : 0.15,
-                  altCommissionRate:
-                    businessType === 'EMPRESA_RIDERS'
-                      ? Number(altCommissionRate) / 100 || 0.12
-                      : 0.12,
-                  altCommissionDistanceKm:
-                    businessType === 'EMPRESA_RIDERS'
-                      ? Number(altCommissionDistanceKm) || 40
-                      : 40,
-                  dispatchTimeoutMin:
-                    businessType === 'EMPRESA_RIDERS'
-                      ? Number(dispatchTimeoutMin) || 3
-                      : 3,
-                  reason: 'Activación inicial al crear negocio',
-                })
-              );
-            }
-
-            if (hasPOS) {
-              activationPromises.push(
-                apiClient.post(`/businesses/${bizId}/products/POS/activate`, {
-                  posVertical: derivedPosVertical,
-                  posMonthlyFee: posMonthlyFee ? Number(posMonthlyFee) : undefined,
-                  reason: 'Activación inicial al crear negocio',
-                })
-              );
-              activationPromises.push(
-                apiClient.patch(`/superadmin/businesses/${bizId}/pos-subscription`, {
-                  salonProfile,
-                  maxDevices: isUnlimitedDevices ? null : (parseInt(maxDevices, 10) || 1),
-                  trialHours: trialHours.trim() ? (parseInt(trialHours, 10) || null) : null,
-                })
-              );
-            }
-
-            if (hasCarteraCobro) {
-              activationPromises.push(
-                apiClient.post(`/businesses/${bizId}/products/CARTERA_COBRO/activate`, {
-                  carteraMonthlyFee: carteraMonthlyFee ? Number(carteraMonthlyFee) : undefined,
-                  reason: 'Activación inicial al crear negocio',
-                })
-              );
-            }
-
-            if (hasCitas) {
-              activationPromises.push(
-                apiClient.post(`/businesses/${bizId}/products/CITAS/activate`, {
-                  citasMonthlyFee: citasMonthlyFee ? Number(citasMonthlyFee) : undefined,
-                  reason: 'Activación inicial al crear negocio',
-                })
-              );
-            }
-
-            if (activationPromises.length > 0) {
-              await Promise.all(activationPromises);
-            }
-          } catch (activateErr) {
-            console.error('Error al activar productos tras crear negocio:', activateErr);
-          } finally {
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] }),
-              queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] }),
-            ]);
-            setIsActivating(false);
-          }
-
-          setIsModalOpen(false);
-          setName('');
-          setIndustryId('');
-          setHasDelivery(true);
-          setHasPOS(false);
-          setSalonProfile('RESTAURANTE');
-          setMaxDevices('1');
-          setIsUnlimitedDevices(false);
-          setTrialHours('');
-          setHasCarteraCobro(false);
-          setHasCitas(false);
-          setBusinessType('NEGOCIO');
-          setDeliveryMonthlyFee('');
-          setCommissionRate('15');
-          setAltCommissionRate('12');
-          setAltCommissionDistanceKm('40');
-          setDispatchTimeoutMin('3');
-          setPosMonthlyFee('');
-          setCarteraMonthlyFee('');
-          setCitasMonthlyFee('');
-          setEncargadoName('');
-          setEncargadoEmail('');
-          setEncargadoPassword('');
-
-          setCreatedCredentials({
-            businessName: data.business.name,
-            email: data.encargado.email,
-            password: data.encargado.temporaryPassword,
-          });
-        },
-      }
-    );
   };
 
   const columns: Column<BusinessItem>[] = [
@@ -476,6 +249,34 @@ export const BusinessesPage = () => {
               </span>
             );
           }
+
+          // Insignia discreta por nivel de acceso web (ticket 166b)
+          const hasWebAdmin = (posSub as any)?.webAdminEnabled ?? (row as any)?.webAdminEnabled ?? true;
+          const hasWebBilling = (posSub as any)?.webBillingEnabled ?? (row as any)?.webBillingEnabled ?? false;
+
+          if (hasWebAdmin && hasWebBilling) {
+            badges.push(
+              <span
+                key="pos-web-billing"
+                title="Acceso web y facturación web habilitados"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100/90 text-purple-900 border border-purple-300"
+              >
+                <Globe size={12} weight="duotone" className="text-purple-700" />
+                <span>Web + facturación</span>
+              </span>
+            );
+          } else if (hasWebAdmin) {
+            badges.push(
+              <span
+                key="pos-web-basic"
+                title="Acceso web admin básico (reportes y consulta)"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-800 border border-blue-200/80"
+              >
+                <Globe size={12} className="text-blue-600" />
+                <span>Web básico</span>
+              </span>
+            );
+          }
         }
 
         // 3. Badge Cartera de Cobro
@@ -633,638 +434,20 @@ export const BusinessesPage = () => {
         </div>
       </div>
 
-      <Modal
+      <CreateBusinessWizardModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Crear Nuevo Negocio"
-        subtitle="Registra la empresa y su usuario encargado inicial"
-        maxWidth="max-w-lg"
-      >
-        <form onSubmit={handleCreateBusiness} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Nombre del negocio *
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ej: Pollos El Buen Sabor"
-                required
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Tipo de Negocio *
-              </label>
-              <select
-                value={industryId}
-                onChange={(e) => handleIndustryChange(e.target.value)}
-                required
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-              >
-                <option value="" disabled>Selecciona un tipo de negocio</option>
-                {activeIndustries.map((ind) => (
-                  <option key={ind.id} value={ind.id}>
-                    {ind.name.includes('(POS:')
-                      ? ind.name
-                      : `${ind.name} (POS: ${ind.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'})`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Productos Contratados *
-              </label>
-              <span className="text-[10px] text-gray-400">Selecciona al menos uno</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div
-                onClick={() => setHasDelivery(!hasDelivery)}
-                className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start justify-between ${
-                  hasDelivery
-                    ? 'border-gray-900 bg-gray-50/80 shadow-2xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white opacity-60'
-                }`}
-              >
-                <div className="flex items-start gap-2.5">
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                      hasDelivery ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-400'
-                    }`}
-                  >
-                    <Motorcycle size={17} weight="duotone" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-xs text-gray-900 leading-tight">
-                      TrackDeli (Delivery)
-                    </p>
-                    <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
-                      Despacho y pedidos a domicilio
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 mt-0.5 ${
-                    hasDelivery
-                      ? 'bg-gray-900 border-gray-900 text-white'
-                      : 'border-gray-300 bg-white'
-                  }`}
-                >
-                  {hasDelivery && <Check size={12} weight="bold" />}
-                </div>
-              </div>
-
-              <div
-                onClick={() => setHasPOS(!hasPOS)}
-                className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start justify-between ${
-                  hasPOS
-                    ? 'border-gray-900 bg-gray-50/80 shadow-2xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white opacity-60'
-                }`}
-              >
-                <div className="flex items-start gap-2.5">
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                      hasPOS ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-400'
-                    }`}
-                  >
-                    <Receipt size={17} weight="duotone" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-xs text-gray-900 leading-tight">
-                      Sistema POS
-                    </p>
-                    <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
-                      Punto de venta, mesas y caja
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 mt-0.5 ${
-                    hasPOS
-                      ? 'bg-gray-900 border-gray-900 text-white'
-                      : 'border-gray-300 bg-white'
-                  }`}
-                >
-                  {hasPOS && <Check size={12} weight="bold" />}
-                </div>
-              </div>
-
-              <div
-                onClick={() => setHasCarteraCobro(!hasCarteraCobro)}
-                className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start justify-between ${
-                  hasCarteraCobro
-                    ? 'border-gray-900 bg-gray-50/80 shadow-2xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white opacity-60'
-                }`}
-              >
-                <div className="flex items-start gap-2.5">
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                      hasCarteraCobro ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-400'
-                    }`}
-                  >
-                    <Wallet size={17} weight="duotone" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-xs text-gray-900 leading-tight">
-                      Cartera de Cobro
-                    </p>
-                    <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
-                      Ventas a crédito y abonos
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 mt-0.5 ${
-                    hasCarteraCobro
-                      ? 'bg-gray-900 border-gray-900 text-white'
-                      : 'border-gray-300 bg-white'
-                  }`}
-                >
-                  {hasCarteraCobro && <Check size={12} weight="bold" />}
-                </div>
-              </div>
-
-              <div
-                onClick={() => setHasCitas(!hasCitas)}
-                className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start justify-between ${
-                  hasCitas
-                    ? 'border-gray-900 bg-gray-50/80 shadow-2xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white opacity-60'
-                }`}
-              >
-                <div className="flex items-start gap-2.5">
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                      hasCitas ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-400'
-                    }`}
-                  >
-                    <CalendarBlank size={17} weight="duotone" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-xs text-gray-900 leading-tight">
-                      Citas y Reservas
-                    </p>
-                    <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
-                      Agenda online y reservas
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 mt-0.5 ${
-                    hasCitas
-                      ? 'bg-gray-900 border-gray-900 text-white'
-                      : 'border-gray-300 bg-white'
-                  }`}
-                >
-                  {hasCitas && <Check size={12} weight="bold" />}
-                </div>
-              </div>
-            </div>
-
-            {!hasDelivery && !hasPOS && !hasCarteraCobro && !hasCitas && (
-              <p className="text-[11px] text-red-600 font-medium mt-2">
-                Debes seleccionar al menos un producto contratado para continuar.
-              </p>
-            )}
-          </div>
-
-          {hasDelivery && (
-            <div className="p-3.5 rounded-xl bg-amber-50/40 border border-amber-200/70 space-y-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
-                <Motorcycle size={16} className="text-amber-700" />
-                <span>Configuración de TrackDeli (Delivery)</span>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
-                  Modelo de Delivery *
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div
-                    onClick={() => setBusinessType('NEGOCIO')}
-                    className={`p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between ${
-                      businessType === 'NEGOCIO'
-                        ? 'border-gray-900 bg-white shadow-2xs'
-                        : 'border-gray-200 hover:border-gray-300 bg-white/70'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Storefront size={15} />
-                      <span className="font-semibold text-xs text-gray-900">Comercio Común</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500">Membresía mensual tradicional</p>
-                  </div>
-
-                  <div
-                    onClick={() => setBusinessType('EMPRESA_RIDERS')}
-                    className={`p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between ${
-                      businessType === 'EMPRESA_RIDERS'
-                        ? 'border-gray-900 bg-white shadow-2xs'
-                        : 'border-gray-200 hover:border-gray-300 bg-white/70'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Motorcycle size={15} />
-                      <span className="font-semibold text-xs text-gray-900">Empresa de Riders</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500">Comisión liquidada por carrera</p>
-                  </div>
-                </div>
-              </div>
-
-              {businessType === 'EMPRESA_RIDERS' && (
-                <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-amber-200/50">
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-700 mb-1">
-                      Comisión Base (%)
-                    </label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      max="100"
-                      value={commissionRate}
-                      onChange={(e) => setCommissionRate(e.target.value)}
-                      placeholder="15"
-                      className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-700 mb-1">
-                      Distancia Larga (%)
-                    </label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      max="100"
-                      value={altCommissionRate}
-                      onChange={(e) => setAltCommissionRate(e.target.value)}
-                      placeholder="12"
-                      className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-700 mb-1">
-                      Umbral Distancia (km)
-                    </label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      value={altCommissionDistanceKm}
-                      onChange={(e) => setAltCommissionDistanceKm(e.target.value)}
-                      placeholder="40"
-                      className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-700 mb-1">
-                      Timeout Despacho (min)
-                    </label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      max="60"
-                      value={dispatchTimeoutMin}
-                      onChange={(e) => setDispatchTimeoutMin(e.target.value)}
-                      placeholder="3"
-                      className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {businessType === 'NEGOCIO' && (
-                <div className="pt-2 border-t border-amber-200/50">
-                  <label className="block text-[10px] font-medium text-gray-700 mb-1">
-                    Tarifa Mensual Delivery en USD (opcional)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={deliveryMonthlyFee}
-                      onChange={(e) => setDeliveryMonthlyFee(e.target.value)}
-                      placeholder="35.00"
-                      className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {hasPOS && (
-            <div className="p-3.5 rounded-xl bg-purple-50/40 border border-purple-200/70 space-y-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-900">
-                <Receipt size={16} className="text-purple-700" />
-                <span>Configuración de Sistema POS</span>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
-                  Vertical de Punto de Venta
-                </label>
-                <div className="p-3 rounded-lg border border-gray-200 bg-white/50">
-                  <div className="flex items-center gap-2 mb-1">
-                    {activeIndustries.find(i => i.id === industryId)?.posVertical === 'RETAIL' ? (
-                      <ShoppingBag size={15} />
-                    ) : (
-                      <ForkKnife size={15} />
-                    )}
-                    <span className="font-semibold text-xs text-gray-900">
-                      {activeIndustries.find(i => i.id === industryId)?.posVertical === 'RETAIL' ? 'Retail / Comercio' : 'Restaurante'}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-gray-500">
-                    Derivado del Tipo de Negocio seleccionado
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
-                  Perfil del salón *
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSalonProfile('RESTAURANTE')}
-                    className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                      salonProfile === 'RESTAURANTE'
-                        ? 'border-purple-600 bg-purple-50/80 shadow-2xs'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <ForkKnife size={14} className={salonProfile === 'RESTAURANTE' ? 'text-purple-700' : 'text-gray-400'} />
-                      <span className={`text-xs ${salonProfile === 'RESTAURANTE' ? 'font-semibold text-purple-950' : 'text-gray-700'}`}>
-                        Restaurante
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-0.5">Mesas, comandas y salón comedor</p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSalonProfile('TALLER')}
-                    className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                      salonProfile === 'TALLER'
-                        ? 'border-purple-600 bg-purple-50/80 shadow-2xs'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Wrench size={14} className={salonProfile === 'TALLER' ? 'text-purple-700' : 'text-gray-400'} />
-                      <span className={`text-xs ${salonProfile === 'TALLER' ? 'font-semibold text-purple-950' : 'text-gray-700'}`}>
-                        Taller
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-0.5">Bahías de servicio y órdenes automotrices</p>
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[10px] font-medium text-gray-700">
-                    Computadoras permitidas
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600 select-none">
-                    <input
-                      type="checkbox"
-                      checked={isUnlimitedDevices}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setIsUnlimitedDevices(checked);
-                        if (checked) {
-                          setMaxDevices('');
-                        } else {
-                          setMaxDevices('1');
-                        }
-                      }}
-                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
-                    />
-                    <span className="text-[11px] font-medium text-gray-700">Sin límite</span>
-                  </label>
-                </div>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  disabled={isUnlimitedDevices}
-                  value={isUnlimitedDevices ? '' : maxDevices}
-                  onChange={(e) => setMaxDevices(e.target.value)}
-                  placeholder={isUnlimitedDevices ? 'Sin límite de computadoras' : '1'}
-                  className={`w-full h-8 px-2.5 rounded-lg border text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900 ${
-                    isUnlimitedDevices
-                      ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                      : 'border-gray-200'
-                  }`}
-                />
-                <p className="text-[10px] text-gray-500 mt-1">
-                  Cantidad de computadoras que pueden iniciar sesión con este negocio
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-medium text-gray-700 mb-1">
-                  Prueba (horas)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={trialHours}
-                  onChange={(e) => setTrialHours(e.target.value)}
-                  placeholder="Ej: 24 (dejar vacío si no es prueba)"
-                  className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                />
-                <p className="text-[10px] text-gray-500 mt-1">
-                  El tiempo empieza a contar desde el primer inicio de sesión en la computadora
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-medium text-gray-700 mb-1">
-                  Tarifa Mensual POS en USD (opcional)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={posMonthlyFee}
-                    onChange={(e) => setPosMonthlyFee(e.target.value)}
-                    placeholder="25.00"
-                    className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {hasCarteraCobro && (
-            <div className="p-3.5 rounded-xl bg-emerald-50/40 border border-emerald-200/70 space-y-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-900">
-                <Wallet size={16} className="text-emerald-700" />
-                <span>Configuración de Cartera de Cobro</span>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-medium text-gray-700 mb-1">
-                  Tarifa Mensual Cartera de Cobro en USD (opcional)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={carteraMonthlyFee}
-                    onChange={(e) => setCarteraMonthlyFee(e.target.value)}
-                    placeholder="29.99"
-                    className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {hasCitas && (
-            <div className="p-3.5 rounded-xl bg-sky-50/40 border border-sky-200/70 space-y-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-900">
-                <CalendarBlank size={16} className="text-sky-700" />
-                <span>Configuración de Citas</span>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-medium text-gray-700 mb-1">
-                  Tarifa Mensual Citas en USD (opcional)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={citasMonthlyFee}
-                    onChange={(e) => setCitasMonthlyFee(e.target.value)}
-                    placeholder="25.00"
-                    className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="pt-3 border-t border-gray-100">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-900 mb-3">
-              <ShieldCheck size={16} className="text-brand-600" />
-              <span>Primer Encargado del Negocio</span>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Nombre del encargado *
-                </label>
-                <input
-                  type="text"
-                  value={encargadoName}
-                  onChange={(e) => setEncargadoName(e.target.value)}
-                  placeholder="Ej: Carlos López"
-                  required
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Email del encargado *
-                </label>
-                <input
-                  type="email"
-                  value={encargadoEmail}
-                  onChange={(e) => setEncargadoEmail(e.target.value)}
-                  placeholder="carlos@demo.com"
-                  required
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Contraseña temporal *
-                </label>
-                <input
-                  type="password"
-                  value={encargadoPassword}
-                  onChange={(e) => setEncargadoPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  required
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900"
-                />
-                <p className="text-[11px] text-gray-400 mt-1">
-                  El usuario podrá ingresar tanto al panel web como al POS con estas credenciales.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={
-                (!hasDelivery && !hasPOS && !hasCarteraCobro && !hasCitas) ||
-                createMutation.isPending ||
-                isActivating
-              }
-              className="px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
-            >
-              {createMutation.isPending || isActivating ? 'Creando negocio...' : 'Crear Negocio'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+        onSuccess={(credentials) => {
+          setIsModalOpen(false);
+          setCreatedCredentials({
+            businessName: credentials.businessName,
+            email: credentials.email,
+            password: credentials.password,
+          });
+          queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+          queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
+        }}
+      />
 
       {createdCredentials && (
         <BusinessCredentialsModal

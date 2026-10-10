@@ -19,6 +19,7 @@ import {
   Globe,
   DeviceMobile,
   Info,
+  Receipt,
 } from '@phosphor-icons/react';
 import {
   useBusinessDevices,
@@ -30,6 +31,7 @@ import {
   PosWebDeviceItem,
   BusinessDetail,
 } from '../../hooks/useBusinesses';
+import toast from 'react-hot-toast';
 import { formatDateTime, formatRelativeTime } from '../../utils/format';
 
 interface BusinessPosDevicesSectionProps {
@@ -53,10 +55,14 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
   const updateWebDeviceMutation = useUpdateBusinessWebDevice();
 
   const posSub = business.productSubscriptions?.find((s) => s.productType === 'POS');
+  const currentWebAdmin = (business as any).webAdminEnabled ?? posSub?.webAdminEnabled ?? true;
   const currentWebBilling = (business as any).webBillingEnabled ?? posSub?.webBillingEnabled ?? false;
   const currentMaxWebDevices = (business as any).maxWebDevices !== undefined
     ? (business as any).maxWebDevices
     : (posSub?.maxWebDevices !== undefined ? posSub?.maxWebDevices : 2);
+  const currentWebBillingMonthlyUsd = (business as any).webBillingMonthlyUsd !== undefined
+    ? (business as any).webBillingMonthlyUsd
+    : ((posSub as any)?.webBillingMonthlyUsd !== undefined ? (posSub as any)?.webBillingMonthlyUsd : null);
 
   // Estados locales editables para perfil de salón y límite de computadoras
   const currentProfile = (business.salonProfile as 'RESTAURANTE' | 'TALLER') || 'RESTAURANTE';
@@ -73,11 +79,18 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
   const [isEditingConfig, setIsEditingConfig] = useState(false);
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
 
-  // Estados locales para Facturación Web
+  // Estados locales para Web Admin y Facturación Web
+  const [webAdminEnabled, setWebAdminEnabled] = useState<boolean>(currentWebAdmin);
+  const [isTogglingWebAdmin, setIsTogglingWebAdmin] = useState(false);
   const [webBillingEnabled, setWebBillingEnabled] = useState<boolean>(currentWebBilling);
   const [isUnlimitedWeb, setIsUnlimitedWeb] = useState<boolean>(currentMaxWebDevices === null);
   const [maxWebDevicesInput, setMaxWebDevicesInput] = useState<string>(
     currentMaxWebDevices !== null ? String(currentMaxWebDevices ?? 2) : '2'
+  );
+  const [webBillingMonthlyUsdInput, setWebBillingMonthlyUsdInput] = useState<string>(
+    currentWebBillingMonthlyUsd !== null && currentWebBillingMonthlyUsd !== undefined
+      ? String(currentWebBillingMonthlyUsd)
+      : ''
   );
   const [revokingWebDeviceId, setRevokingWebDeviceId] = useState<string | null>(null);
   const [isTogglingWebBilling, setIsTogglingWebBilling] = useState(false);
@@ -109,12 +122,26 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     setFormTrialHours(business.trialHours ? String(business.trialHours) : '');
     setTrialHoursInput(business.trialHours ? String(business.trialHours) : '');
 
+    setWebAdminEnabled(currentWebAdmin);
     setWebBillingEnabled(currentWebBilling);
     setIsUnlimitedWeb(currentMaxWebDevices === null);
     setMaxWebDevicesInput(
       currentMaxWebDevices !== null ? String(currentMaxWebDevices ?? 2) : '2'
     );
-  }, [business.salonProfile, business.maxDevices, business.trialHours, currentWebBilling, currentMaxWebDevices]);
+    setWebBillingMonthlyUsdInput(
+      currentWebBillingMonthlyUsd !== null && currentWebBillingMonthlyUsd !== undefined
+        ? String(currentWebBillingMonthlyUsd)
+        : ''
+    );
+  }, [
+    business.salonProfile,
+    business.maxDevices,
+    business.trialHours,
+    currentWebAdmin,
+    currentWebBilling,
+    currentMaxWebDevices,
+    currentWebBillingMonthlyUsd,
+  ]);
 
   const activeDevicesCount = devices.filter((d) => d.status === 'ACTIVE').length;
   const effectiveActiveDevices = business.activeDevices ?? activeDevicesCount;
@@ -214,6 +241,17 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
       ? 2
       : parsedWeb;
 
+    const parsedWebBillingMonthlyUsd =
+      webBillingMonthlyUsdInput.trim() === '' ? null : parseFloat(webBillingMonthlyUsdInput);
+    const finalWebBillingMonthlyUsd =
+      parsedWebBillingMonthlyUsd === null
+        ? null
+        : !isNaN(parsedWebBillingMonthlyUsd) && parsedWebBillingMonthlyUsd >= 0
+        ? parsedWebBillingMonthlyUsd
+        : null;
+
+    const finalWebBillingEnabled = webAdminEnabled ? webBillingEnabled : false;
+
     try {
       await updatePosSubMutation.mutateAsync({
         businessId: business.id,
@@ -221,8 +259,10 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           salonProfile,
           maxDevices: finalMaxDevices,
           trialHours: finalTrialHours,
-          webBillingEnabled,
+          webAdminEnabled,
+          webBillingEnabled: finalWebBillingEnabled,
           maxWebDevices: finalMaxWebDevices,
+          webBillingMonthlyUsd: finalWebBillingMonthlyUsd,
         },
       });
       setIsEditingConfig(false);
@@ -231,8 +271,71 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     }
   };
 
+  const handleToggleWebAdminDirect = async () => {
+    const nextVal = !currentWebAdmin;
+    if (!nextVal && currentWebBilling) {
+      const confirmMsg =
+        '¿Confirmas desactivar el acceso a la Web Admin?\n\nAl desactivar la Web Admin, también se desactivará la facturación web para este negocio.';
+      if (!window.confirm(confirmMsg)) {
+        return;
+      }
+      setIsTogglingWebAdmin(true);
+      try {
+        await updatePosSubMutation.mutateAsync({
+          businessId: business.id,
+          data: {
+            webAdminEnabled: false,
+            webBillingEnabled: false,
+          },
+        });
+      } finally {
+        setIsTogglingWebAdmin(false);
+      }
+      return;
+    }
+
+    const confirmMsg = nextVal
+      ? '¿Confirmas activar el acceso a la Web Admin para este negocio?\n\nLos administradores podrán consultar reportes y el panel web.'
+      : '¿Confirmas desactivar el acceso a la Web Admin para este negocio?\n\nLos administradores no podrán ingresar a la web admin.';
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setIsTogglingWebAdmin(true);
+    try {
+      await updatePosSubMutation.mutateAsync({
+        businessId: business.id,
+        data: {
+          webAdminEnabled: nextVal,
+        },
+      });
+    } finally {
+      setIsTogglingWebAdmin(false);
+    }
+  };
+
+  const handleToggleWebAdminInForm = (nextVal: boolean) => {
+    if (!nextVal && webBillingEnabled) {
+      const confirmMsg =
+        '¿Confirmas desactivar el acceso a la Web Admin?\n\nAl desactivar la Web Admin, se desactivará automáticamente la facturación web para este negocio.';
+      if (!window.confirm(confirmMsg)) {
+        return;
+      }
+      setWebAdminEnabled(false);
+      setWebBillingEnabled(false);
+      return;
+    }
+    setWebAdminEnabled(nextVal);
+  };
+
   const handleToggleWebBillingDirect = async () => {
     const nextVal = !currentWebBilling;
+    if (nextVal && !currentWebAdmin) {
+      toast.error('La facturación web requiere que el acceso a la Web Admin esté habilitado.');
+      return;
+    }
+
     const confirmMsg = nextVal
       ? '¿Confirmas activar la facturación web para este negocio?\n\nLos cajeros de este negocio podrán cobrar desde el navegador y el teléfono.'
       : '¿Confirmas desactivar la facturación web para este negocio?\n\nLos cajeros ya no podrán cobrar ventas desde el navegador ni desde teléfonos móviles.';
@@ -255,6 +358,11 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
   };
 
   const handleToggleWebBillingInForm = (nextVal: boolean) => {
+    if (nextVal && !webAdminEnabled) {
+      toast.error('La facturación web requiere que el acceso a la Web Admin esté habilitado.');
+      return;
+    }
+
     const confirmMsg = nextVal
       ? '¿Confirmas habilitar la facturación web para este negocio?\n\nLos cajeros de este negocio podrán cobrar desde el navegador y el teléfono.'
       : '¿Confirmas deshabilitar la facturación web para este negocio?\n\nLos cajeros ya no podrán cobrar ventas desde el navegador ni desde teléfonos móviles.';
@@ -498,10 +606,16 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                     : '1'
                 );
                 setFormTrialHours(business.trialHours ? String(business.trialHours) : '');
+                setWebAdminEnabled(currentWebAdmin);
                 setWebBillingEnabled(currentWebBilling);
                 setIsUnlimitedWeb(currentMaxWebDevices === null);
                 setMaxWebDevicesInput(
                   currentMaxWebDevices !== null ? String(currentMaxWebDevices ?? 2) : '2'
+                );
+                setWebBillingMonthlyUsdInput(
+                  currentWebBillingMonthlyUsd !== null && currentWebBillingMonthlyUsd !== undefined
+                    ? String(currentWebBillingMonthlyUsd)
+                    : ''
                 );
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
@@ -632,95 +746,183 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             </div>
           </div>
 
-          {/* Fila: Configuración de Facturación Web */}
+          {/* Fila: Configuración de Acceso Web y Facturación */}
           <div className="pt-3 border-t border-purple-200/60 space-y-3">
             <div className="flex items-center gap-2">
               <Globe size={16} className="text-purple-700" weight="duotone" />
               <h5 className="text-xs font-bold text-purple-950 uppercase tracking-wider">
-                Facturación Web y Dispositivos Móviles
+                Acceso Web y Facturación Móvil
               </h5>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Campo: Interruptor Facturar desde la web */}
+              {/* Campo: Interruptor Web Admin Básico */}
               <div className="p-3.5 rounded-xl border bg-white border-purple-200/80 flex items-center justify-between gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-900 mb-0.5">
-                    Facturar desde la web
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <label className="block text-xs font-bold text-gray-900">
+                      Web admin básico
+                    </label>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200/70">
+                      Incluido
+                    </span>
+                  </div>
                   <p className="text-[11px] text-gray-500 leading-tight">
-                    Permite a los cajeros registrar ventas y emitir recibos desde el navegador y teléfonos móviles.
+                    Permite consultar reportes y el estado del negocio desde cualquier navegador.
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => handleToggleWebBillingInForm(!webBillingEnabled)}
+                  onClick={() => handleToggleWebAdminInForm(!webAdminEnabled)}
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    webBillingEnabled ? 'bg-purple-600' : 'bg-gray-200'
+                    webAdminEnabled ? 'bg-purple-600' : 'bg-gray-200'
                   }`}
-                  title={webBillingEnabled ? 'Desactivar facturación web' : 'Activar facturación web'}
+                  title={webAdminEnabled ? 'Desactivar web admin' : 'Activar web admin'}
                 >
                   <span
                     className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      webBillingEnabled ? 'translate-x-5' : 'translate-x-0'
+                      webAdminEnabled ? 'translate-x-5' : 'translate-x-0'
                     }`}
                   />
                 </button>
               </div>
 
-              {/* Campo: Dispositivos web autorizados */}
-              <div className={`p-3.5 rounded-xl border bg-white ${webBillingEnabled ? 'border-purple-200/80' : 'border-gray-200 opacity-60'}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <label className="block text-xs font-bold text-gray-900">
-                      Dispositivos web autorizados *
+              {/* Campo: Interruptor Facturar desde la web */}
+              <div
+                className={`p-3.5 rounded-xl border bg-white flex items-center justify-between gap-4 transition-all ${
+                  !webAdminEnabled
+                    ? 'border-gray-200 opacity-60 bg-gray-50/50'
+                    : 'border-purple-200/80'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <label
+                      className={`block text-xs font-bold ${
+                        !webAdminEnabled ? 'text-gray-400' : 'text-gray-900'
+                      }`}
+                    >
+                      Facturar desde la web
                     </label>
-                    <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
-                      {activeWebDevicesCount} activos de {isUnlimitedWeb ? 'Ilimitado' : maxWebDevicesInput || '2'}
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-800 border border-purple-200/70">
+                      Módulo adicional
                     </span>
                   </div>
-
-                  <label className={`flex items-center gap-1.5 text-xs select-none ${!webBillingEnabled ? 'cursor-not-allowed text-gray-400' : 'cursor-pointer text-gray-700'}`}>
-                    <input
-                      type="checkbox"
-                      disabled={!webBillingEnabled}
-                      checked={isUnlimitedWeb}
-                      onChange={(e) => setIsUnlimitedWeb(e.target.checked)}
-                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
-                    />
-                    <span className="text-xs font-semibold text-purple-950">Ilimitado</span>
-                  </label>
+                  <p className="text-[11px] text-gray-500 leading-tight">
+                    {!webAdminEnabled
+                      ? 'Requiere activar el Web Admin básico primero.'
+                      : 'Permite a los cajeros registrar ventas y emitir recibos desde navegador y teléfonos.'}
+                  </p>
                 </div>
 
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    disabled={!webBillingEnabled || isUnlimitedWeb}
-                    value={isUnlimitedWeb ? '' : maxWebDevicesInput}
-                    onChange={(e) => setMaxWebDevicesInput(e.target.value)}
-                    placeholder={isUnlimitedWeb ? 'Sin límite de dispositivos' : '2'}
-                    className={`w-full h-10 px-3 rounded-lg border text-xs bg-white focus:outline-none focus:border-purple-600 ${
-                      !webBillingEnabled || isUnlimitedWeb
-                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                        : 'text-gray-900 border-gray-300'
+                <button
+                  type="button"
+                  disabled={!webAdminEnabled}
+                  onClick={() => handleToggleWebBillingInForm(!webBillingEnabled)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    !webAdminEnabled
+                      ? 'bg-gray-200 cursor-not-allowed opacity-50'
+                      : webBillingEnabled
+                      ? 'bg-purple-600 cursor-pointer'
+                      : 'bg-gray-200 cursor-pointer'
+                  }`}
+                  title={
+                    !webAdminEnabled
+                      ? 'Requiere Web admin básico activo'
+                      : webBillingEnabled
+                      ? 'Desactivar facturación web'
+                      : 'Activar facturación web'
+                  }
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      webBillingEnabled && webAdminEnabled ? 'translate-x-5' : 'translate-x-0'
                     }`}
                   />
-                </div>
-                <p className="text-[11px] text-gray-500 mt-1">
-                  Cantidad de teléfonos o navegadores que pueden cobrar simultáneamente (por defecto 2).
-                </p>
-
-                {/* Aviso informativo cuando el límite esté por debajo de los activos */}
-                {isEditWebLimitLowerThanActive && (
-                  <div className="mt-2.5 flex items-start gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px]">
-                    <Info size={15} className="text-amber-600 shrink-0 mt-0.5" weight="fill" />
-                    <span>Los dispositivos activos siguen funcionando; solo se impide registrar nuevos.</span>
-                  </div>
-                )}
+                </button>
               </div>
+
+              {/* Sub-fila: Opciones de Facturación Web cuando está activa */}
+              {webAdminEnabled && webBillingEnabled && (
+                <>
+                  {/* Dispositivos web autorizados */}
+                  <div className="p-3.5 rounded-xl border bg-white border-purple-200/80">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <label className="block text-xs font-bold text-gray-900">
+                          Dispositivos web autorizados *
+                        </label>
+                        <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                          {activeWebDevicesCount} activos de {isUnlimitedWeb ? 'Ilimitado' : maxWebDevicesInput || '2'}
+                        </span>
+                      </div>
+
+                      <label className="flex items-center gap-1.5 text-xs select-none cursor-pointer text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={isUnlimitedWeb}
+                          onChange={(e) => setIsUnlimitedWeb(e.target.checked)}
+                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
+                        />
+                        <span className="text-xs font-semibold text-purple-950">Ilimitado</span>
+                      </label>
+                    </div>
+
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        disabled={isUnlimitedWeb}
+                        value={isUnlimitedWeb ? '' : maxWebDevicesInput}
+                        onChange={(e) => setMaxWebDevicesInput(e.target.value)}
+                        placeholder={isUnlimitedWeb ? 'Sin límite de dispositivos' : '2'}
+                        className={`w-full h-10 px-3 rounded-lg border text-xs bg-white focus:outline-none focus:border-purple-600 ${
+                          isUnlimitedWeb
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                            : 'text-gray-900 border-gray-300'
+                        }`}
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Cantidad de teléfonos o navegadores que pueden cobrar simultáneamente (por defecto 2).
+                    </p>
+
+                    {isEditWebLimitLowerThanActive && (
+                      <div className="mt-2.5 flex items-start gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px]">
+                        <Info size={15} className="text-amber-600 shrink-0 mt-0.5" weight="fill" />
+                        <span>Los dispositivos activos siguen funcionando; solo se impide registrar nuevos.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tarifa mensual del módulo de facturación web */}
+                  <div className="p-3.5 rounded-xl border bg-white border-purple-200/80">
+                    <label className="block text-xs font-bold text-gray-900 mb-2">
+                      Tarifa mensual del módulo en USD (opcional)
+                    </label>
+
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={webBillingMonthlyUsdInput}
+                        onChange={(e) => setWebBillingMonthlyUsdInput(e.target.value)}
+                        placeholder="Ej: 15.00"
+                        className="w-full h-10 pl-7 pr-3 rounded-lg border text-xs bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Tarifa mensual adicional a la membresía base por el uso de facturación web.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -737,7 +939,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         </form>
       ) : (
         /* Tarjetas de Resumen de Configuración */
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
             <div>
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
@@ -795,12 +997,62 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             </div>
           </div>
 
-          {/* Tarjeta 3: Facturación Web */}
+          {/* Tarjeta 3: Web Admin Básico */}
           <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5">
-                  <Globe size={16} className="text-purple-700" weight="duotone" />
+                  <Globe size={16} className="text-blue-700" weight="duotone" />
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                    Web Admin Básico
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isTogglingWebAdmin || updatePosSubMutation.isPending}
+                  onClick={handleToggleWebAdminDirect}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    currentWebAdmin ? 'bg-blue-600' : 'bg-gray-300'
+                  } ${isTogglingWebAdmin ? 'opacity-50 cursor-wait' : ''}`}
+                  title={currentWebAdmin ? 'Click para desactivar acceso web admin' : 'Click para activar acceso web admin'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      currentWebAdmin ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                {currentWebAdmin ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                    <CheckCircle size={11} weight="bold" />
+                    <span>Activo (Incluido)</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                    <Prohibit size={11} weight="bold" />
+                    <span>Desactivado</span>
+                  </span>
+                )}
+              </div>
+
+              <p className="text-[11px] text-gray-500 mt-1 leading-tight">
+                {currentWebAdmin
+                  ? 'Consulta de reportes y catálogo en navegador habilitada.'
+                  : 'Acceso a la plataforma web para este negocio deshabilitado.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Tarjeta 4: Facturación Web */}
+          <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Receipt size={16} className="text-purple-700" weight="duotone" />
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
                     Facturación Web
                   </span>
@@ -808,16 +1060,26 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
 
                 <button
                   type="button"
-                  disabled={isTogglingWebBilling || updatePosSubMutation.isPending}
+                  disabled={!currentWebAdmin || isTogglingWebBilling || updatePosSubMutation.isPending}
                   onClick={handleToggleWebBillingDirect}
-                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    currentWebBilling ? 'bg-purple-600' : 'bg-gray-300'
+                  className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    !currentWebAdmin
+                      ? 'bg-gray-200 cursor-not-allowed opacity-50'
+                      : currentWebBilling
+                      ? 'bg-purple-600 cursor-pointer'
+                      : 'bg-gray-300 cursor-pointer'
                   } ${isTogglingWebBilling ? 'opacity-50 cursor-wait' : ''}`}
-                  title={currentWebBilling ? 'Click para desactivar facturación web' : 'Click para activar facturación web'}
+                  title={
+                    !currentWebAdmin
+                      ? 'Requiere Web admin básico activo'
+                      : currentWebBilling
+                      ? 'Click para desactivar facturación web'
+                      : 'Click para activar facturación web'
+                  }
                 >
                   <span
                     className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      currentWebBilling ? 'translate-x-4' : 'translate-x-0'
+                      currentWebBilling && currentWebAdmin ? 'translate-x-4' : 'translate-x-0'
                     }`}
                   />
                 </button>
@@ -837,14 +1099,20 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                 )}
 
                 <span className="text-xs font-semibold text-gray-800">
-                  {activeWebDevicesCount} activos de {currentMaxWebDevices === null ? 'Ilimitado' : currentMaxWebDevices}
+                  {activeWebDevicesCount} de {currentMaxWebDevices === null ? 'Ilimitado' : currentMaxWebDevices} disp.
                 </span>
+
+                {currentWebBilling && currentWebBillingMonthlyUsd !== null && Number(currentWebBillingMonthlyUsd) > 0 && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-800 border border-purple-200">
+                    ${Number(currentWebBillingMonthlyUsd).toFixed(2)}/mes
+                  </span>
+                )}
               </div>
 
               <p className="text-[11px] text-gray-500 mt-1 leading-tight">
                 {currentWebBilling
-                  ? 'Los cajeros pueden cobrar desde el navegador y el teléfono.'
-                  : 'Cobro desde navegador y teléfono móvil deshabilitado.'}
+                  ? 'Cobro desde navegador y teléfono móvil habilitado.'
+                  : 'Cobro desde navegador y teléfono deshabilitado.'}
               </p>
 
               {/* Aviso informativo cuando el límite esté por debajo de los activos */}

@@ -8,6 +8,7 @@ interface ModalProps {
   subtitle?: string;
   children: React.ReactNode;
   maxWidth?: string;
+  footer?: React.ReactNode;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -17,6 +18,7 @@ export const Modal: React.FC<ModalProps> = ({
   subtitle,
   children,
   maxWidth = 'max-w-md',
+  footer,
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -56,7 +58,13 @@ export const Modal: React.FC<ModalProps> = ({
           </button>
         </div>
 
-        <div className="p-4 sm:p-6 overflow-y-auto">{children}</div>
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">{children}</div>
+
+        {footer && (
+          <div className="px-5 sm:px-6 py-3 sm:py-3.5 bg-gray-50/90 border-t border-gray-100 shrink-0">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

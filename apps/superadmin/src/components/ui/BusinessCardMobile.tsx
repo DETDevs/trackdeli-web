@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BusinessItem } from '../../hooks/useBusinesses';
 import { Badge } from './Badge';
-import { ArrowRight, Motorcycle, Coins, Receipt, Wallet, CalendarBlank, Clock } from '@phosphor-icons/react';
+import { ArrowRight, Motorcycle, Coins, Receipt, Wallet, CalendarBlank, Clock, Globe } from '@phosphor-icons/react';
 
 interface BusinessCardMobileProps {
   business: BusinessItem;
@@ -160,6 +160,34 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
                   >
                     <Clock size={11} weight="bold" className={isExpired ? 'text-gray-500' : 'text-amber-600'} />
                     <span>Prueba</span>
+                  </span>
+                );
+              }
+
+              // Insignia discreta por nivel de acceso web (ticket 166b)
+              const hasWebAdmin = (posSub as any)?.webAdminEnabled ?? (business as any)?.webAdminEnabled ?? true;
+              const hasWebBilling = (posSub as any)?.webBillingEnabled ?? (business as any)?.webBillingEnabled ?? false;
+
+              if (hasWebAdmin && hasWebBilling) {
+                badges.push(
+                  <span
+                    key="pos-web-billing"
+                    title="Acceso web y facturación web habilitados"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-100/90 text-purple-900 border border-purple-300"
+                  >
+                    <Globe size={11} weight="duotone" className="text-purple-700" />
+                    <span>Web + facturación</span>
+                  </span>
+                );
+              } else if (hasWebAdmin) {
+                badges.push(
+                  <span
+                    key="pos-web-basic"
+                    title="Acceso web admin básico (reportes y consulta)"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-800 border border-blue-200/80"
+                  >
+                    <Globe size={11} className="text-blue-600" />
+                    <span>Web básico</span>
                   </span>
                 );
               }

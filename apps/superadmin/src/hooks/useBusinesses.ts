@@ -40,8 +40,10 @@ export interface BusinessItem {
     posVertical?: 'RESTAURANTE' | 'RETAIL' | null;
     salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
     maxDevices?: number | null;
+    webAdminEnabled?: boolean;
     webBillingEnabled?: boolean;
     maxWebDevices?: number | null;
+    webBillingMonthlyUsd?: number | null;
     trialHours?: number | null;
     trialStartedAt?: string | null;
     trialEndsAt?: string | null;
@@ -59,8 +61,10 @@ export interface BusinessItem {
   hasCitas?: boolean;
   salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
   maxDevices?: number | null;
+  webAdminEnabled?: boolean;
   webBillingEnabled?: boolean;
   maxWebDevices?: number | null;
+  webBillingMonthlyUsd?: number | null;
   trialHours?: number | null;
   trialStartedAt?: string | null;
   trialEndsAt?: string | null;
@@ -135,6 +139,10 @@ export interface CreateBusinessInput {
   maxDevices?: number | null;
   trialHours?: number | null;
   posMonthlyFee?: number;
+  webAdminEnabled?: boolean;
+  webBillingEnabled?: boolean;
+  maxWebDevices?: number | null;
+  webBillingMonthlyUsd?: number | null;
   hasCarteraCobro?: boolean;
   carteraMonthlyFee?: number;
   hasCitas?: boolean;
@@ -332,8 +340,10 @@ export interface PosDeviceItem {
 export interface UpdatePosSubscriptionInput {
   salonProfile?: 'RESTAURANTE' | 'TALLER' | null;
   maxDevices?: number | null;
+  webAdminEnabled?: boolean;
   webBillingEnabled?: boolean;
   maxWebDevices?: number | null;
+  webBillingMonthlyUsd?: number | null;
   backofficeTier?: 'BASIC' | 'PRO' | null;
   trialHours?: number | null;
   trialAction?: 'extend' | 'reset' | 'terminate' | null;
