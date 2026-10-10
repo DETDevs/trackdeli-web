@@ -11,11 +11,13 @@ import {
   DeviceMobile,
   Tag,
   X,
+  ClockCounterClockwise,
 } from '@phosphor-icons/react';
 import {
   getPosCategories,
   getPosProducts,
   createPosSale,
+  getMyBusiness,
   type PosCategory,
   type PosProductItem,
   type SaleResponse,
@@ -26,6 +28,7 @@ import { usePosShift } from '../../hooks/usePosShift';
 import { usePosCartStore } from '../../store/posCart.store';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency } from '../../utils/formatters';
+import { type ReceiptBusinessInfo } from '../../utils/receiptPdf';
 
 // Subcomponentes del flujo de cobro
 import { ShiftStatusBanner } from '../../components/pos/cobrar/ShiftStatusBanner';
@@ -35,6 +38,7 @@ import { CartDrawer } from '../../components/pos/cobrar/CartDrawer';
 import { PaymentModal } from '../../components/pos/cobrar/PaymentModal';
 import { SaleSuccessView } from '../../components/pos/cobrar/SaleSuccessView';
 import { NetworkErrorModal } from '../../components/pos/cobrar/NetworkErrorModal';
+import { RecentSalesModal } from '../../components/pos/cobrar/RecentSalesModal';
 
 export const PosCobrarPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -79,9 +83,28 @@ export const PosCobrarPage: React.FC = () => {
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isNetworkErrorModalOpen, setIsNetworkErrorModalOpen] = useState(false);
+  const [isRecentSalesModalOpen, setIsRecentSalesModalOpen] = useState(false);
   const [completedSale, setCompletedSale] = useState<SaleResponse | null>(null);
   const [isSubmittingSale, setIsSubmittingSale] = useState(false);
   const [saleErrorMessage, setSaleErrorMessage] = useState<string | null>(null);
+
+  // Consulta de datos del negocio para recibos
+  const { data: businessData } = useQuery({
+    queryKey: ['business', 'me'],
+    queryFn: getMyBusiness,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const businessInfo: ReceiptBusinessInfo = useMemo(() => {
+    const b = businessData as any;
+    return {
+      name: completedSale?.business?.name || b?.name || 'NEXOL POS',
+      address: completedSale?.business?.address || b?.posAddress || b?.address || null,
+      phone: completedSale?.business?.phone || b?.posPhone || b?.whatsappNumber || b?.phone || null,
+      taxId: completedSale?.business?.taxId || b?.taxId || null,
+      logoUrl: completedSale?.business?.logoUrl || b?.logoUrl || null,
+    };
+  }, [completedSale, businessData]);
 
   // Consulta de categorías
   const { data: categories = [] } = useQuery<PosCategory[]>({
@@ -274,6 +297,8 @@ export const PosCobrarPage: React.FC = () => {
     return (
       <SaleSuccessView
         sale={completedSale}
+        businessInfo={businessInfo}
+        cashierName={cashierName || user?.name || 'Cajero'}
         onNewSale={() => {
           setCompletedSale(null);
           clearCart();
@@ -396,6 +421,32 @@ export const PosCobrarPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto pb-24 select-none px-2 sm:px-4">
+      {/* 0. Barra Superior con navegación y Ventas Recientes */}
+      <div className="flex items-center justify-between gap-2 mb-3 pt-1">
+        <div className="flex items-center gap-2">
+          <NavLink
+            to="/dashboard"
+            className="p-1.5 text-gray-500 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition-colors"
+            title="Volver al panel"
+          >
+            <ArrowLeft size={18} weight="bold" />
+          </NavLink>
+          <h1 className="text-base sm:text-lg font-black text-gray-900 tracking-tight">
+            Cobro Móvil
+          </h1>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsRecentSalesModalOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200/90 text-gray-700 font-bold text-xs rounded-xl shadow-2xs transition-colors cursor-pointer"
+          title="Ver ventas recientes y reimprimir recibos"
+        >
+          <ClockCounterClockwise size={15} weight="bold" />
+          <span>Ventas recientes</span>
+        </button>
+      </div>
+
       {/* 1. Barra de Turno de Caja */}
       <ShiftStatusBanner
         isOpen={isShiftOpen}
@@ -588,6 +639,15 @@ export const PosCobrarPage: React.FC = () => {
           setIsNetworkErrorModalOpen(false);
           clearCart();
         }}
+        businessInfo={businessInfo}
+        cashierName={cashierName || user?.name || 'Cajero'}
+      />
+
+      <RecentSalesModal
+        isOpen={isRecentSalesModalOpen}
+        onClose={() => setIsRecentSalesModalOpen(false)}
+        businessInfo={businessInfo}
+        cashierName={cashierName || user?.name || 'Cajero'}
       />
     </div>
   );

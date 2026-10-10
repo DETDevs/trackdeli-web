@@ -111,17 +111,27 @@ export interface SaleResponse {
   total: number;
   subtotal: number;
   discountAmount?: number;
+  taxAmount?: number;
   amountPaid?: number;
   change?: number;
   paymentMethod: string;
   status: string;
   createdAt: string;
+  customerName?: string;
+  customerPhone?: string;
+  notes?: string;
   items: any[];
   payments: any[];
+  cashier?: {
+    id: string;
+    name: string;
+  };
   business?: {
     name: string;
     phone?: string | null;
     address?: string | null;
+    taxId?: string | null;
+    logoUrl?: string | null;
   };
 }
 

@@ -9,12 +9,15 @@ import {
 import { getRecentPosSales } from 'api-client';
 import { formatCurrency } from '../../../utils/formatters';
 import { formatManaguaTime } from '../../../utils/dateManagua';
+import { downloadReceiptPdf, type ReceiptBusinessInfo } from '../../../utils/receiptPdf';
 
 interface NetworkErrorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRetryCobro: () => void;
   onDiscardAndClean: () => void;
+  businessInfo?: ReceiptBusinessInfo;
+  cashierName?: string;
 }
 
 export const NetworkErrorModal: React.FC<NetworkErrorModalProps> = ({
@@ -22,6 +25,8 @@ export const NetworkErrorModal: React.FC<NetworkErrorModalProps> = ({
   onClose,
   onRetryCobro,
   onDiscardAndClean,
+  businessInfo,
+  cashierName,
 }) => {
   const [sales, setSales] = useState<any[]>([]);
   const [isLoadingSales, setIsLoadingSales] = useState(false);
@@ -109,7 +114,7 @@ export const NetworkErrorModal: React.FC<NetworkErrorModalProps> = ({
           ) : (
             <div className="divide-y divide-gray-100 border border-gray-200/80 rounded-2xl overflow-hidden bg-gray-50/50">
               {sales.map((s) => (
-                <div key={s.id} className="p-3 flex items-center justify-between text-xs hover:bg-white transition-colors">
+                <div key={s.id} className="p-3 flex items-center justify-between text-xs hover:bg-white transition-colors gap-2">
                   <div className="min-w-0">
                     <div className="font-mono font-bold text-gray-900">
                       {s.invoiceNumber || s.id.slice(-6).toUpperCase()}
@@ -119,8 +124,18 @@ export const NetworkErrorModal: React.FC<NetworkErrorModalProps> = ({
                       {s.customerName ? ` · ${s.customerName}` : ''}
                     </div>
                   </div>
-                  <div className="font-bold text-emerald-800 text-sm shrink-0 ml-2">
-                    {formatCurrency(s.total)}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="font-bold text-emerald-800 text-sm">
+                      {formatCurrency(s.total)}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => downloadReceiptPdf(s, businessInfo, cashierName)}
+                      className="px-2 py-1 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-[11px] rounded-lg shadow-2xs transition-colors cursor-pointer"
+                      title="Descargar recibo PDF"
+                    >
+                      Recibo
+                    </button>
                   </div>
                 </div>
               ))}
