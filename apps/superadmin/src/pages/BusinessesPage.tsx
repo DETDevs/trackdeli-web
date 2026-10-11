@@ -13,6 +13,7 @@ import {
   CalendarBlank,
   Clock,
   Globe,
+  Trash,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { DataTable, Column } from '../components/ui/DataTable';
@@ -27,6 +28,7 @@ import {
 import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
 import { BusinessCredentialsModal } from '../components/modals/BusinessCredentialsModal';
 import { CreateBusinessWizardModal } from '../components/modals/CreateBusinessWizardModal';
+import { DeleteBusinessModal } from '../components/modals/DeleteBusinessModal';
 
 export const BusinessesPage = () => {
   const navigate = useNavigate();
@@ -45,6 +47,11 @@ export const BusinessesPage = () => {
   } | null>(null);
 
   const [deactivatingBusiness, setDeactivatingBusiness] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const [deletingBusiness, setDeletingBusiness] = useState<{
     id: string;
     name: string;
   } | null>(null);
@@ -324,13 +331,22 @@ export const BusinessesPage = () => {
       header: 'Acción',
       className: 'text-right',
       accessor: (row) => (
-        <button
-          onClick={() => navigate(`/businesses/${row.id}`)}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200/60 transition-colors"
-        >
-          <span>Ver</span>
-          <ArrowRight size={12} />
-        </button>
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => navigate(`/businesses/${row.id}`)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200/60 transition-colors cursor-pointer"
+          >
+            <span>Ver</span>
+            <ArrowRight size={12} />
+          </button>
+          <button
+            onClick={() => setDeletingBusiness({ id: row.id, name: row.name })}
+            title="Eliminar negocio definitivamente"
+            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+          >
+            <Trash size={15} />
+          </button>
+        </div>
       ),
     },
   ];
@@ -428,6 +444,7 @@ export const BusinessesPage = () => {
                 key={biz.id}
                 business={biz}
                 onToggle={handleToggleClick}
+                onDelete={(_e, b) => setDeletingBusiness({ id: b.id, name: b.name })}
               />
             ))
           )}
@@ -467,6 +484,19 @@ export const BusinessesPage = () => {
           businessName={deactivatingBusiness.name}
           onConfirm={handleDeactivateConfirm}
           isLoading={toggleMutation.isPending}
+        />
+      )}
+
+      {deletingBusiness && (
+        <DeleteBusinessModal
+          isOpen={!!deletingBusiness}
+          onClose={() => setDeletingBusiness(null)}
+          businessId={deletingBusiness.id}
+          businessName={deletingBusiness.name}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+            queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
+          }}
         />
       )}
     </div>

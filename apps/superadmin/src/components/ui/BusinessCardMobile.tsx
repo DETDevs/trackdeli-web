@@ -2,16 +2,18 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BusinessItem } from '../../hooks/useBusinesses';
 import { Badge } from './Badge';
-import { ArrowRight, Motorcycle, Coins, Receipt, Wallet, CalendarBlank, Clock, Globe } from '@phosphor-icons/react';
+import { ArrowRight, Motorcycle, Coins, Receipt, Wallet, CalendarBlank, Clock, Globe, Trash } from '@phosphor-icons/react';
 
 interface BusinessCardMobileProps {
   business: BusinessItem;
   onToggle: (e: React.MouseEvent, business: BusinessItem) => void;
+  onDelete?: (e: React.MouseEvent, business: BusinessItem) => void;
 }
 
 export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
   business,
   onToggle,
+  onDelete,
 }) => {
   const navigate = useNavigate();
 
@@ -48,19 +50,35 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={(e) => onToggle(e, business)}
-          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-            business.isActive ? 'bg-primary' : 'bg-gray-200'
-          }`}
-        >
-          <span
-            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-              business.isActive ? 'translate-x-4' : 'translate-x-0'
+        <div className="flex items-center gap-1">
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(e, business);
+              }}
+              title="Eliminar negocio definitivamente"
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+            >
+              <Trash size={16} />
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={(e) => onToggle(e, business)}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+              business.isActive ? 'bg-primary' : 'bg-gray-200'
             }`}
-          />
-        </button>
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                business.isActive ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 text-xs">

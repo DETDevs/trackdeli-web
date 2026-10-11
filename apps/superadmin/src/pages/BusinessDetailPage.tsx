@@ -23,6 +23,9 @@ import {
   Key,
   Lock,
   LockOpen,
+  PencilSimple,
+  Trash,
+  Warning,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { StatCard } from '../components/ui/StatCard';
@@ -53,6 +56,8 @@ import { CreateSuperAdminUserModal } from '../components/modals/users/CreateSupe
 import { UserPasswordModal } from '../components/modals/users/UserPasswordModal';
 import { ChangeUserPasswordModal } from '../components/modals/users/ChangeUserPasswordModal';
 import { DeactivateUserModal } from '../components/modals/users/DeactivateUserModal';
+import { EditBusinessModal } from '../components/modals/EditBusinessModal';
+import { DeleteBusinessModal } from '../components/modals/DeleteBusinessModal';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -92,6 +97,8 @@ export const BusinessDetailPage = () => {
     useState<BusinessProductType | undefined>(undefined);
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
   const [isEditModelModalOpen, setIsEditModelModalOpen] = useState(false);
+  const [isEditDataModalOpen, setIsEditDataModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
 
   const handleOpenRegisterPayment = (productType?: BusinessProductType) => {
@@ -253,6 +260,14 @@ export const BusinessDetailPage = () => {
         subtitle={`ID: ${business.id}`}
         actions={
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsEditDataModalOpen(true)}
+              className="h-9 px-3.5 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <PencilSimple size={15} />
+              <span>Editar datos</span>
+            </button>
+
             <button
               onClick={() => {
                 setModelBusinessType(business.businessType || 'NEGOCIO');
@@ -1035,6 +1050,26 @@ export const BusinessDetailPage = () => {
             </div>
           </div>
         )}
+
+        {/* Zona de peligro */}
+        <div className="bg-red-50/40 rounded-xl border border-red-200/80 p-5 sm:p-6 shadow-xs space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-red-900 font-semibold text-sm">
+              <Warning size={18} weight="fill" className="text-red-600" />
+              <span>Zona de peligro</span>
+            </div>
+            <p className="text-xs text-red-700/80">
+              Eliminar este negocio borrará de forma permanente todos sus usuarios, ventas, productos y configuraciones asociadas.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsDeleteModalOpen(true)}
+            className="w-full sm:w-auto h-9 px-4 rounded-xl text-xs font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <Trash size={15} />
+            <span>Eliminar negocio definitivamente</span>
+          </button>
+        </div>
       </div>
 
       <RegisterMembershipModal
@@ -1251,6 +1286,20 @@ export const BusinessDetailPage = () => {
         user={deactivateTargetUser}
         isOnlyActiveEncargado={isTargetOnlyActiveEncargado}
         onClose={() => setDeactivateTargetUser(null)}
+      />
+
+      <EditBusinessModal
+        isOpen={isEditDataModalOpen}
+        onClose={() => setIsEditDataModalOpen(false)}
+        business={business}
+      />
+
+      <DeleteBusinessModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        businessId={business.id}
+        businessName={business.name}
+        onSuccess={() => navigate('/businesses')}
       />
     </div>
   );

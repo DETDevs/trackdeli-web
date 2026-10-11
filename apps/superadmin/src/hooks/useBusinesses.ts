@@ -120,6 +120,12 @@ export interface BusinessDetail extends BusinessItem {
     limit: number;
     remaining: number;
   };
+  posPhone?: string | null;
+  posAddress?: string | null;
+  posFooter?: string | null;
+  taxId?: string | null;
+  phone?: string | null;
+  address?: string | null;
 }
 
 export interface CreateBusinessInput {
@@ -241,6 +247,16 @@ export function useCreateBusiness() {
 export interface UpdateBusinessInput {
   name?: string;
   type?: string;
+  phone?: string;
+  posPhone?: string;
+  whatsappNumber?: string;
+  whatsappDisplay?: string;
+  address?: string;
+  posAddress?: string;
+  taxId?: string;
+  ruc?: string;
+  logoUrl?: string;
+  logo?: string;
   businessType?: BusinessType;
   commissionRate?: number;
   altCommissionRate?: number;
@@ -266,12 +282,60 @@ export function useUpdateBusiness() {
       }
     },
     onSuccess: (data) => {
-      toast.success('Configuración del negocio actualizada');
+      toast.success('Datos del negocio actualizados');
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-business', data.id] });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al actualizar el negocio');
+    },
+  });
+}
+
+export interface BusinessDeletionPreview {
+  business: {
+    id: string;
+    name: string;
+    type?: string | null;
+    isActive: boolean;
+  };
+  counts: Record<string, number>;
+  hasActiveSubscription: boolean;
+  subscriptions?: Array<{
+    product?: string;
+    productType?: string;
+    status: string;
+  }>;
+  blockedReason?: string | null;
+}
+
+export function useBusinessDeletionPreview(id: string, enabled: boolean = true) {
+  return useQuery<BusinessDeletionPreview>({
+    queryKey: ['superadmin-business-deletion-preview', id],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/superadmin/businesses/${id}/deletion-preview`);
+      return data;
+    },
+    enabled: !!id && enabled,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+export function useDeleteBusiness() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, confirmName }: { id: string; confirmName: string }) => {
+      const { data } = await apiClient.delete(`/superadmin/businesses/${id}`, {
+        data: { confirmName },
+      });
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Negocio eliminado');
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
     },
   });
 }
