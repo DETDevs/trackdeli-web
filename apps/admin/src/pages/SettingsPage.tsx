@@ -4,7 +4,10 @@ import { toast } from 'react-hot-toast';
 import {
   getMyBusiness,
   updateMyBusiness,
+  getPosWholesaleSettings,
+  updatePosWholesaleSettings,
   type PricingModel,
+  type UpdateWholesaleSettingsDto,
 } from 'api-client';
 import { PinPicker } from 'map';
 import {
@@ -23,9 +26,11 @@ import {
   Motorcycle,
   Info,
   Lightbulb,
+  Storefront,
 } from '@phosphor-icons/react';
 import { calculateFeeClient, getPricingBreakdownClient } from '../lib/pricing';
 import { useMyProducts } from '../hooks/useMyProducts';
+import { useAuthStore } from '../store/auth.store';
 
 const mapboxToken = (import.meta as any).env.VITE_MAPBOX_TOKEN;
 
@@ -166,6 +171,39 @@ export const SettingsPage = () => {
   const isDeliveryActive = productsData
     ? productsData.products?.DELIVERY?.status === 'ACTIVE'
     : true;
+  const isPosActive = productsData
+    ? productsData.products?.POS?.status === 'ACTIVE'
+    : true;
+
+  const user = useAuthStore((s) => s.user);
+  const canManageWholesale =
+    user?.role === 'ADMIN' || user?.role === 'ENCARGADO' || user?.role === 'SUPERADMIN';
+
+  const { data: wholesaleSettings } = useQuery({
+    queryKey: ['pos', 'wholesale-settings'],
+    queryFn: () => getPosWholesaleSettings(),
+    enabled: isPosActive,
+    retry: false,
+  });
+
+  const wholesaleMutation = useMutation({
+    mutationFn: (dto: UpdateWholesaleSettingsDto) => updatePosWholesaleSettings(dto),
+    onSuccess: (res) => {
+      toast.success(
+        res.wholesale_enabled
+          ? 'Venta por mayor activada'
+          : 'Venta por mayor desactivada'
+      );
+      queryClient.invalidateQueries({ queryKey: ['pos', 'wholesale-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['pos', 'products'] });
+      queryClient.invalidateQueries({ queryKey: ['backoffice'] });
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      toast.error(msg || 'Error al actualizar configuración de venta por mayor');
+    },
+  });
 
   const [pricingModel, setPricingModel] = useState<PricingModel>('FIXED');
   const [baseRate, setBaseRate] = useState<string>('50.00');
@@ -444,6 +482,69 @@ export const SettingsPage = () => {
           </div>
         </form>
       </div>
+
+      {wholesaleSettings?.available && (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
+                <Storefront size={22} weight="duotone" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                    Venta por mayor
+                  </h3>
+                  {wholesaleSettings.wholesale_enabled ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Activa
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
+                      Inactiva
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Permite definir precios por mayor y cantidad mínima en tus productos. Cuando un cliente alcanza la cantidad mínima en caja o facturación web, el precio de línea cambia automáticamente.
+                </p>
+                {!canManageWholesale && (
+                  <p className="text-[11px] text-amber-700 mt-1.5 flex items-center gap-1">
+                    <Info size={13} />
+                    Solo administradores y encargados pueden activar o desactivar esta función.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="shrink-0 pt-1">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={Boolean(wholesaleSettings.wholesale_enabled)}
+                disabled={!canManageWholesale || wholesaleMutation.isPending}
+                onClick={() => {
+                  if (!canManageWholesale) return;
+                  wholesaleMutation.mutate({
+                    wholesale_enabled: !wholesaleSettings.wholesale_enabled,
+                  });
+                }}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  wholesaleSettings.wholesale_enabled ? 'bg-purple-600' : 'bg-gray-200'
+                } ${(!canManageWholesale || wholesaleMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span className="sr-only">Venta por mayor</span>
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    wholesaleSettings.wholesale_enabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isDeliveryActive && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">

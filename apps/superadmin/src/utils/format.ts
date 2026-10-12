@@ -1,5 +1,6 @@
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { parseDateClean } from './membershipDates';
 
 export function formatDateTime(dateString: string | Date | null | undefined): string {
   if (!dateString) return '—';
@@ -14,7 +15,8 @@ export function formatDateTime(dateString: string | Date | null | undefined): st
 export function formatDateShort(dateString: string | Date | null | undefined): string {
   if (!dateString) return '—';
   try {
-    const d = new Date(dateString);
+    const d = parseDateClean(dateString);
+    if (!d) return String(dateString);
     return format(d, 'd MMM yyyy', { locale: es });
   } catch {
     return String(dateString);

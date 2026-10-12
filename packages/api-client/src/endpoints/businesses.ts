@@ -65,6 +65,8 @@ export interface Business {
   pricingZones?: PricingZone[];
   whatsappNumber?: string;
   whatsappDisplay?: string;
+  wholesaleEnabled?: boolean;
+  wholesale_enabled?: boolean;
   membership?: {
     status: 'ACTIVE' | 'EXPIRED' | 'NONE';
     endDate?: string | null;
@@ -94,6 +96,8 @@ export interface UpdateBusinessInput {
   pricingZones?: PricingZone[];
   whatsappNumber?: string;
   whatsappDisplay?: string;
+  wholesaleEnabled?: boolean;
+  wholesale_enabled?: boolean;
 }
 
 export const getMyBusiness = async () => {

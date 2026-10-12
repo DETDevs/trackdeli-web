@@ -26,6 +26,8 @@ import {
   PencilSimple,
   Trash,
   Warning,
+  Desktop,
+  Info,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { StatCard } from '../components/ui/StatCard';
@@ -43,6 +45,10 @@ import {
   MembershipItem,
 } from '../hooks/useMemberships';
 import { formatDateTime, formatDateShort } from '../utils/format';
+import {
+  resolveBusinessBillingInfo,
+  getMembershipPeriodDates,
+} from '../utils/membershipDates';
 import { RegisterMembershipModal } from '../components/modals/RegisterMembershipModal';
 import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
 import { ImageViewerModal } from '../components/modals/ImageViewerModal';
@@ -190,20 +196,7 @@ export const BusinessDetailPage = () => {
   const latestMembership: MembershipItem | undefined =
     memberships[0] || (business as any).latestMembership;
 
-  const now = new Date();
-  let isMembershipActive = false;
-  let daysLeft = 0;
-
-  if (latestMembership) {
-    const end = new Date(latestMembership.endDate);
-    const start = new Date(latestMembership.startDate);
-    isMembershipActive =
-      latestMembership.status === 'ACTIVE' && start <= now && end >= now;
-    daysLeft = Math.max(
-      0,
-      Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-    );
-  }
+  const billingInfo = resolveBusinessBillingInfo(business, latestMembership, productsData);
 
   const handleDeactivateConfirm = (bizId: string) => {
     toggleMutation.mutate(bizId, {
@@ -353,26 +346,68 @@ export const BusinessDetailPage = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <StatCard
-            title="Pedidos Hoy"
-            value={business.ordersToday}
-            subtitle="Creados hoy por este negocio"
-            icon={<Package size={18} />}
-          />
-          <StatCard
-            title="Pedidos Este Mes"
-            value={business.monthlyMetrics.ordersCreated}
-            subtitle={`${business.monthlyMetrics.ordersDelivered} entregados (${business.monthlyMetrics.deliveryRate}%)`}
-            icon={<Calendar size={18} />}
-          />
-          <StatCard
-            title="Total Histórico"
-            value={business._count?.orders ?? 0}
-            subtitle={`${business.monthlyMetrics.ordersCancelled} cancelados este mes`}
-            icon={<Storefront size={18} />}
-          />
-        </div>
+        {isDeliveryActive ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <StatCard
+              title="Pedidos Hoy"
+              value={business.ordersToday}
+              subtitle="Creados hoy por este negocio"
+              icon={<Package size={18} />}
+            />
+            <StatCard
+              title="Pedidos Este Mes"
+              value={business.monthlyMetrics.ordersCreated}
+              subtitle={`${business.monthlyMetrics.ordersDelivered} entregados (${business.monthlyMetrics.deliveryRate}%)`}
+              icon={<Calendar size={18} />}
+            />
+            <StatCard
+              title="Total Histórico"
+              value={business._count?.orders ?? 0}
+              subtitle={`${business.monthlyMetrics.ordersCancelled} cancelados este mes`}
+              icon={<Storefront size={18} />}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <StatCard
+              title="Membresía"
+              value={
+                <span className="inline-flex items-center gap-2">
+                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${billingInfo.statusBadge.dotClass}`} />
+                  <span>{billingInfo.statusBadge.text}</span>
+                </span>
+              }
+              subtitle={
+                billingInfo.hasMembership && billingInfo.dueDateFormatted !== '—'
+                  ? `Vence el ${billingInfo.dueDateFormatted}${billingInfo.daysRemainingText ? ` · ${billingInfo.daysRemainingText}` : ''}`
+                  : 'Sin membresía activa'
+              }
+              icon={<CreditCard size={18} />}
+            />
+            <StatCard
+              title="Próximo Cobro"
+              value={billingInfo.priceFormatted}
+              subtitle={
+                billingInfo.dueDateFormatted !== '—'
+                  ? `Cobro el ${billingInfo.dueDateFormatted}`
+                  : 'Sin fecha programada'
+              }
+              icon={<Coins size={18} />}
+            />
+            <StatCard
+              title="Computadoras"
+              value={`${business.activeDevices ?? 0} activa${(business.activeDevices ?? 0) === 1 ? '' : 's'} / ${business.maxDevices ?? 1} permitida${(business.maxDevices ?? 1) === 1 ? '' : 's'}`}
+              subtitle="Dispositivos POS autorizados"
+              icon={<Desktop size={18} />}
+            />
+            <StatCard
+              title="Usuarios"
+              value={`${business.userUsage?.used ?? businessUsers.filter((u) => u.isActive).length} de ${business.userUsage?.limit ?? (businessUsers.length || 5)} activos`}
+              subtitle={`Cupo base: ${business.userUsage?.base ?? 5}${business.userUsage?.extra ? ` (+${business.userUsage.extra} extra)` : ''}`}
+              icon={<Users size={18} />}
+            />
+          </div>
+        )}
 
         <BusinessProductsSection
           businessId={business.id}
@@ -510,34 +545,103 @@ export const BusinessDetailPage = () => {
                       Membresía
                     </h3>
                   </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    {latestMembership && isMembershipActive ? (
-                      <Badge
-                        variant={daysLeft <= 7 ? 'warning' : 'success'}
-                        dot
-                        size="md"
-                      >
-                        Activa hasta el {formatDateShort(latestMembership.endDate)} ({daysLeft} días restantes)
-                      </Badge>
-                    ) : latestMembership ? (
-                      <Badge variant="danger" dot size="md">
-                        Membresía Vencida
-                      </Badge>
-                    ) : (
-                      <Badge variant="neutral" dot size="md">
-                        Sin membresía registrada
-                      </Badge>
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <Badge variant={billingInfo.variant} dot size="md">
+                      {billingInfo.label}
+                    </Badge>
+                    {billingInfo.status === 'EN_GRACIA' && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800 border border-orange-200">
+                        {billingInfo.graceText}
+                      </span>
+                    )}
+                    {billingInfo.daysRemainingText && billingInfo.status !== 'SIN_MEMBRESIA' && (
+                      <span className="text-xs text-gray-500 font-medium">
+                        ({billingInfo.daysRemainingText})
+                      </span>
                     )}
                   </div>
                 </div>
 
                 <button
+                  id="btn-register-membership-payment"
                   onClick={() => handleOpenRegisterPayment(undefined)}
-                  className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition-colors shadow-xs self-start sm:self-auto cursor-pointer"
+                  className={`flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold transition-all shadow-xs self-start sm:self-auto cursor-pointer ${
+                    billingInfo.isGraceOrExpired
+                      ? 'bg-orange-600 hover:bg-orange-700 text-white ring-2 ring-orange-400 ring-offset-2 shadow-md'
+                      : 'bg-gray-900 hover:bg-gray-800 text-white'
+                  }`}
                 >
                   <Plus size={14} weight="bold" />
                   <span>Registrar nuevo pago</span>
                 </button>
+              </div>
+
+              {/* Bloque principal de membresía: Vence / Período / Próximo cobro */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-gray-50/70 border border-gray-100">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                      Vence
+                    </span>
+                    {billingInfo.daysRemainingText && (
+                      <span
+                        className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
+                          billingInfo.status === 'EN_GRACIA'
+                            ? 'bg-orange-100 text-orange-800'
+                            : billingInfo.status === 'VENCIDO'
+                            ? 'bg-red-100 text-red-800'
+                            : billingInfo.status === 'POR_VENCER'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {billingInfo.daysRemainingText}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-base font-bold text-gray-900">
+                    {billingInfo.hasMembership ? billingInfo.dueDateFormatted : '—'}
+                  </p>
+                  {billingInfo.status === 'EN_GRACIA' ? (
+                    <p className="text-xs font-semibold text-orange-700">
+                      {billingInfo.graceText}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-gray-500">
+                      Gracia de 3 días post-vencimiento
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1 md:border-l md:border-gray-200/80 md:pl-4">
+                  <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                    Período
+                  </span>
+                  <p className="text-sm sm:text-base font-bold text-gray-900">
+                    {billingInfo.hasMembership ? billingInfo.periodStr : '—'}
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    Día de cobro: {billingInfo.anchorDay} de cada mes
+                  </p>
+                </div>
+
+                <div className="space-y-1 md:border-l md:border-gray-200/80 md:pl-4">
+                  <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                    Próximo cobro
+                  </span>
+                  <p className="text-base font-bold text-gray-900">
+                    {billingInfo.hasMembership ? `${billingInfo.dueDateFormatted} · ${billingInfo.priceFormatted}` : '—'}
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    Tarifa mensual según productos contratados
+                  </p>
+                </div>
+              </div>
+
+              {/* Texto de ayuda breve */}
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
+                <Info size={15} className="text-gray-400 shrink-0" />
+                <span>La renovación solo se confirma al registrar el comprobante de pago.</span>
               </div>
 
               {latestMembership ? (
@@ -638,6 +742,7 @@ export const BusinessDetailPage = () => {
                   <thead>
                     <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-medium bg-gray-50/50">
                       <th className="py-2.5 px-3">Período</th>
+                      <th className="py-2.5 px-3">Vence</th>
                       <th className="py-2.5 px-3">Producto(s)</th>
                       <th className="py-2.5 px-3">Monto</th>
                       <th className="py-2.5 px-3">Método</th>
@@ -648,16 +753,19 @@ export const BusinessDetailPage = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-gray-700">
                     {memberships.map((m) => {
-                      const end = new Date(m.endDate);
+                      const mPeriod = getMembershipPeriodDates(m, billingInfo.anchorDay);
                       const isCurrent =
                         m.status === 'ACTIVE' &&
-                        new Date(m.startDate) <= now &&
-                        end >= now;
+                        billingInfo.hasMembership &&
+                        billingInfo.dueDateFormatted === mPeriod.dueFormatted;
 
                       return (
                         <tr key={m.id} className="hover:bg-gray-50/50 transition-colors">
                           <td className="py-3 px-3 font-medium text-gray-900 whitespace-nowrap">
-                            {formatDateShort(m.startDate)} — {formatDateShort(m.endDate)}
+                            {mPeriod.periodStr}
+                          </td>
+                          <td className="py-3 px-3 font-medium text-gray-700 whitespace-nowrap">
+                            {mPeriod.dueFormatted}
                           </td>
                           <td className="py-3 px-3">
                             {m.products && m.products.length > 0 ? (
@@ -768,7 +876,7 @@ export const BusinessDetailPage = () => {
                     })}
                     {!loadingMemberships && memberships.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="py-6 text-center text-gray-400">
+                        <td colSpan={8} className="py-6 text-center text-gray-400">
                           No hay historial de membresías registrado
                         </td>
                       </tr>
@@ -780,7 +888,7 @@ export const BusinessDetailPage = () => {
           </>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <div className={isDeliveryActive ? "grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6" : "space-y-6"}>
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
             <div className="flex flex-col gap-4 mb-4">
               <div className="flex items-center justify-between">
@@ -928,119 +1036,123 @@ export const BusinessDetailPage = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
-            <div className="flex items-center gap-2 mb-4">
-              <Motorcycle size={18} className="text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-900">
-                Repartidores Vinculados ({business.riders.length})
-              </h3>
-            </div>
+          {isDeliveryActive && (
+            <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
+              <div className="flex items-center gap-2 mb-4">
+                <Motorcycle size={18} className="text-gray-500" />
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Repartidores Vinculados ({business.riders.length})
+                </h3>
+              </div>
 
-            <div className="divide-y divide-gray-100">
-              {business.riders.map((r) => (
-                <div key={r.id} className="py-3 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center font-medium text-gray-700">
-                      {r.name.charAt(0)}
+              <div className="divide-y divide-gray-100">
+                {business.riders.map((r) => (
+                  <div key={r.id} className="py-3 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center font-medium text-gray-700">
+                        {r.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{r.name}</p>
+                        <p className="text-[11px] text-gray-400">
+                          {r.vehicleType || 'Repartidor'}{' '}
+                          {r.vehiclePlate ? `· ${r.vehiclePlate}` : ''}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{r.name}</p>
-                      <p className="text-[11px] text-gray-400">
-                        {r.vehicleType || 'Repartidor'}{' '}
-                        {r.vehiclePlate ? `· ${r.vehiclePlate}` : ''}
-                      </p>
-                    </div>
+                    {r.phone && (
+                      <span className="text-xs text-gray-500 font-mono">
+                        {r.phone}
+                      </span>
+                    )}
                   </div>
-                  {r.phone && (
-                    <span className="text-xs text-gray-500 font-mono">
-                      {r.phone}
-                    </span>
-                  )}
-                </div>
-              ))}
-              {business.riders.length === 0 && (
-                <p className="py-6 text-center text-xs text-gray-400">
-                  Aún ningún repartidor ha tomado pedidos de este negocio
-                </p>
-              )}
+                ))}
+                {business.riders.length === 0 && (
+                  <p className="py-6 text-center text-xs text-gray-400">
+                    Aún ningún repartidor ha tomado pedidos de este negocio
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-900">Últimos Pedidos</h3>
-            <span className="text-xs text-gray-400">
-              Mostrando los 10 más recientes
-            </span>
-          </div>
+        {isDeliveryActive && (
+          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900">Últimos Pedidos</h3>
+              <span className="text-xs text-gray-400">
+                Mostrando los 10 más recientes
+              </span>
+            </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-medium">
-                  <th className="py-2.5 px-3">ID</th>
-                  <th className="py-2.5 px-3">Cliente</th>
-                  <th className="py-2.5 px-3">Repartidor</th>
-                  <th className="py-2.5 px-3">Monto</th>
-                  <th className="py-2.5 px-3">Fecha</th>
-                  <th className="py-2.5 px-3 text-right">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-700">
-                {business.recentOrders.map((o) => {
-                  const isDelivered = o.status === 'ENTREGADO';
-                  const isCancelled = o.status === 'CANCELADO';
-                  const isPending = o.status === 'PENDIENTE';
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-medium">
+                    <th className="py-2.5 px-3">ID</th>
+                    <th className="py-2.5 px-3">Cliente</th>
+                    <th className="py-2.5 px-3">Repartidor</th>
+                    <th className="py-2.5 px-3">Monto</th>
+                    <th className="py-2.5 px-3">Fecha</th>
+                    <th className="py-2.5 px-3 text-right">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-gray-700">
+                  {business.recentOrders.map((o) => {
+                    const isDelivered = o.status === 'ENTREGADO';
+                    const isCancelled = o.status === 'CANCELADO';
+                    const isPending = o.status === 'PENDIENTE';
 
-                  return (
-                    <tr key={o.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="py-3 px-3 font-mono text-gray-500">
-                        #{o.id.slice(0, 8)}
-                      </td>
-                      <td className="py-3 px-3">
-                        <p className="font-medium text-gray-900">{o.customerName}</p>
-                        <p className="text-[11px] text-gray-400">{o.customerPhone}</p>
-                      </td>
-                      <td className="py-3 px-3">
-                        {o.deliveryUser?.name || <span className="text-gray-400">Sin asignar</span>}
-                      </td>
-                      <td className="py-3 px-3 font-medium text-gray-900">
-                        C$ {Number(o.deliveryFee).toFixed(2)}
-                      </td>
-                      <td className="py-3 px-3 text-gray-500">
-                        {formatDateTime(o.createdAt)}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <Badge
-                          variant={
-                            isDelivered
-                              ? 'success'
-                              : isCancelled
-                              ? 'danger'
-                              : isPending
-                              ? 'warning'
-                              : 'info'
-                          }
-                          size="sm"
-                        >
-                          {o.status}
-                        </Badge>
+                    return (
+                      <tr key={o.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3 px-3 font-mono text-gray-500">
+                          #{o.id.slice(0, 8)}
+                        </td>
+                        <td className="py-3 px-3">
+                          <p className="font-medium text-gray-900">{o.customerName}</p>
+                          <p className="text-[11px] text-gray-400">{o.customerPhone}</p>
+                        </td>
+                        <td className="py-3 px-3">
+                          {o.deliveryUser?.name || <span className="text-gray-400">Sin asignar</span>}
+                        </td>
+                        <td className="py-3 px-3 font-medium text-gray-900">
+                          C$ {Number(o.deliveryFee).toFixed(2)}
+                        </td>
+                        <td className="py-3 px-3 text-gray-500">
+                          {formatDateTime(o.createdAt)}
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <Badge
+                            variant={
+                              isDelivered
+                                ? 'success'
+                                : isCancelled
+                                ? 'danger'
+                                : isPending
+                                ? 'warning'
+                                : 'info'
+                            }
+                            size="sm"
+                          >
+                            {o.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {business.recentOrders.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-gray-400">
+                        No hay pedidos registrados para este negocio
                       </td>
                     </tr>
-                  );
-                })}
-                {business.recentOrders.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-400">
-                      No hay pedidos registrados para este negocio
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
         {business.latitude && business.longitude && (
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-4">

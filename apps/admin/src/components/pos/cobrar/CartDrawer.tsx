@@ -24,9 +24,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const items = usePosCartStore((s) => s.items);
   const discountType = usePosCartStore((s) => s.discountType);
   const discountValue = usePosCartStore((s) => s.discountValue);
-  const addItem = usePosCartStore((s) => s.addItem);
   const removeItem = usePosCartStore((s) => s.removeItem);
   const deleteItem = usePosCartStore((s) => s.deleteItem);
+  const updateQuantity = usePosCartStore((s) => s.updateQuantity);
   const setDiscount = usePosCartStore((s) => s.setDiscount);
   const clearCart = usePosCartStore((s) => s.clearCart);
   const getSubtotal = usePosCartStore((s) => s.getSubtotal);
@@ -97,11 +97,30 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             items.map((item) => (
               <div key={item.productId} className="pt-3 first:pt-0 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
-                    {item.productName}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
+                      {item.productName}
+                    </span>
+                    {item.isWholesale && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                        Precio por mayor
+                      </span>
+                    )}
                   </div>
-                  <div className="text-[11px] text-gray-500">
-                    {formatCurrency(item.unitPrice)} c/u
+                  <div className="text-[11px] text-gray-500 flex items-center gap-2 mt-0.5">
+                    <span className={item.isWholesale ? 'font-bold text-purple-700' : ''}>
+                      {formatCurrency(item.unitPrice)} c/u
+                    </span>
+                    {item.isWholesale && item.regularPrice > item.unitPrice && (
+                      <span className="line-through text-gray-400 text-[10px]">
+                        {formatCurrency(item.regularPrice)}
+                      </span>
+                    )}
+                    {!item.isWholesale && item.wholesaleMinQty && item.wholesalePrice && (
+                      <span className="text-[10px] text-gray-400">
+                        (Mayor: {formatCurrency(item.wholesalePrice)} desde {item.wholesaleMinQty})
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -120,7 +139,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </span>
                     <button
                       type="button"
-                      onClick={() => addItem({ id: item.productId, name: item.productName, price: item.unitPrice, stock: item.stock, type: item.type, isRecipe: item.isRecipe, unit: item.unit } as any)}
+                      onClick={() => updateQuantity(item.productId, item.quantity + 1)}
                       className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors"
                     >
                       <Plus size={14} weight="bold" />

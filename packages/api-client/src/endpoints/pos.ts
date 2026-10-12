@@ -64,6 +64,12 @@ export interface PosProductItem {
   trackInventory?: boolean;
   categoryId?: string | null;
   isActive?: boolean;
+  wholesalePrice?: number | null;
+  wholesaleMinQty?: number | null;
+  wholesale_price?: number | null;
+  wholesale_min_qty?: number | null;
+  wholesale_enabled?: boolean;
+  wholesaleEnabled?: boolean;
   components?: Array<{
     productId: string;
     quantity: number;
@@ -205,3 +211,32 @@ export const getRecentPosSales = async (limit: number = 5): Promise<any[]> => {
   if (res.data && Array.isArray(res.data.data)) return res.data.data;
   return [];
 };
+
+export interface WholesaleSettingsResponse {
+  available: boolean;
+  wholesale_enabled: boolean;
+}
+
+export interface UpdateWholesaleSettingsDto {
+  wholesale_enabled?: boolean;
+  wholesaleEnabled?: boolean;
+  enabled?: boolean;
+}
+
+export const getPosWholesaleSettings = async (businessId?: string): Promise<WholesaleSettingsResponse> => {
+  const res = await apiClient.get<WholesaleSettingsResponse>('/pos/settings/wholesale', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosWholesaleSettings = async (
+  dto: UpdateWholesaleSettingsDto,
+  businessId?: string,
+): Promise<WholesaleSettingsResponse> => {
+  const res = await apiClient.patch<WholesaleSettingsResponse>('/pos/settings/wholesale', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+

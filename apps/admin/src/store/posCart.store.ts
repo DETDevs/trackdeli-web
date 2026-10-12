@@ -5,12 +5,42 @@ export interface CartItem {
   productId: string;
   productName: string;
   unitPrice: number;
+  regularPrice: number;
+  wholesalePrice?: number | null;
+  wholesaleMinQty?: number | null;
+  isWholesale: boolean;
   quantity: number;
   stock?: number;
   type?: 'PRODUCT' | 'SERVICE';
   isRecipe?: boolean;
   unit?: string;
   barcode?: string;
+}
+
+export function computeItemUnitPrice(
+  regularPrice: number,
+  quantity: number,
+  wholesalePrice?: number | null,
+  wholesaleMinQty?: number | null,
+): { unitPrice: number; isWholesale: boolean } {
+  const hasWholesale =
+    wholesalePrice != null &&
+    Number(wholesalePrice) > 0 &&
+    wholesaleMinQty != null &&
+    Number(wholesaleMinQty) >= 2 &&
+    Number(wholesalePrice) < Number(regularPrice);
+
+  if (hasWholesale && quantity >= Number(wholesaleMinQty)) {
+    return {
+      unitPrice: Number(wholesalePrice),
+      isWholesale: true,
+    };
+  }
+
+  return {
+    unitPrice: Number(regularPrice) || 0,
+    isWholesale: false,
+  };
 }
 
 export type DiscountType = 'FIXED' | 'PERCENT';
@@ -40,20 +70,56 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
   addItem: (product) => {
     set((state) => {
       const existing = state.items.find((i) => i.productId === product.id);
+      const rawWholesalePrice =
+        product.wholesalePrice !== undefined
+          ? product.wholesalePrice
+          : (product as any).wholesale_price;
+      const rawWholesaleMinQty =
+        product.wholesaleMinQty !== undefined
+          ? product.wholesaleMinQty
+          : (product as any).wholesale_min_qty;
+
       if (existing) {
+        const newQty = existing.quantity + 1;
+        const pricing = computeItemUnitPrice(
+          existing.regularPrice,
+          newQty,
+          existing.wholesalePrice,
+          existing.wholesaleMinQty,
+        );
         return {
           items: state.items.map((i) =>
-            i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i
+            i.productId === product.id
+              ? {
+                  ...i,
+                  quantity: newQty,
+                  unitPrice: pricing.unitPrice,
+                  isWholesale: pricing.isWholesale,
+                }
+              : i
           ),
         };
       }
+
+      const regularPrice = Number(product.price) || 0;
+      const pricing = computeItemUnitPrice(
+        regularPrice,
+        1,
+        rawWholesalePrice,
+        rawWholesaleMinQty,
+      );
+
       return {
         items: [
           ...state.items,
           {
             productId: product.id,
             productName: product.name,
-            unitPrice: Number(product.price) || 0,
+            regularPrice,
+            wholesalePrice: rawWholesalePrice != null ? Number(rawWholesalePrice) : null,
+            wholesaleMinQty: rawWholesaleMinQty != null ? Number(rawWholesaleMinQty) : null,
+            unitPrice: pricing.unitPrice,
+            isWholesale: pricing.isWholesale,
             quantity: 1,
             stock: product.stock,
             type: product.type || 'PRODUCT',
@@ -73,9 +139,23 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
       if (existing.quantity <= 1) {
         return { items: state.items.filter((i) => i.productId !== productId) };
       }
+      const newQty = existing.quantity - 1;
+      const pricing = computeItemUnitPrice(
+        existing.regularPrice,
+        newQty,
+        existing.wholesalePrice,
+        existing.wholesaleMinQty,
+      );
       return {
         items: state.items.map((i) =>
-          i.productId === productId ? { ...i, quantity: i.quantity - 1 } : i
+          i.productId === productId
+            ? {
+                ...i,
+                quantity: newQty,
+                unitPrice: pricing.unitPrice,
+                isWholesale: pricing.isWholesale,
+              }
+            : i
         ),
       };
     });
@@ -93,9 +173,21 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
         return { items: state.items.filter((i) => i.productId !== productId) };
       }
       return {
-        items: state.items.map((i) =>
-          i.productId === productId ? { ...i, quantity } : i
-        ),
+        items: state.items.map((i) => {
+          if (i.productId !== productId) return i;
+          const pricing = computeItemUnitPrice(
+            i.regularPrice,
+            quantity,
+            i.wholesalePrice,
+            i.wholesaleMinQty,
+          );
+          return {
+            ...i,
+            quantity,
+            unitPrice: pricing.unitPrice,
+            isWholesale: pricing.isWholesale,
+          };
+        }),
       };
     });
   },

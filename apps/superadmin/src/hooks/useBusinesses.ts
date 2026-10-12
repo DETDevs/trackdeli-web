@@ -27,8 +27,21 @@ export interface BusinessItem {
   activeOrders: number;
   whatsappNumber?: string | null;
   whatsappDisplay?: string | null;
+  billing_anchor_day?: number | null;
+  current_period_start?: string | null;
+  due_date?: string | null;
+  grace_ends_at?: string | null;
+  membership_status?: 'VIGENTE' | 'POR_VENCER' | 'EN_GRACIA' | 'VENCIDO' | 'ACTIVE' | 'EXPIRED' | 'NONE' | 'NOT_CONTRACTED' | string;
+  days_until_due?: number | null;
+  lastActivity?: string | null;
+  lastLoginAt?: string | null;
   membership?: {
-    status: 'ACTIVE' | 'EXPIRED' | 'NONE' | 'NOT_CONTRACTED';
+    status: 'VIGENTE' | 'POR_VENCER' | 'EN_GRACIA' | 'VENCIDO' | 'ACTIVE' | 'EXPIRED' | 'NONE' | 'NOT_CONTRACTED' | string;
+    billing_anchor_day?: number | null;
+    current_period_start?: string | null;
+    due_date?: string | null;
+    grace_ends_at?: string | null;
+    days_until_due?: number | null;
     endDate: string | null;
     daysLeft: number | null;
   };

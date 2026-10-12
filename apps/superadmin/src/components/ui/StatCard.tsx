@@ -2,8 +2,8 @@ import React from 'react';
 
 interface StatCardProps {
   title: string;
-  value: string | number;
-  subtitle?: string;
+  value: string | number | React.ReactNode;
+  subtitle?: string | React.ReactNode;
   trend?: {
     value: string;
     positive?: boolean;

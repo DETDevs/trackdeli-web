@@ -22,6 +22,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const stock = typeof product.stock === 'number' ? product.stock : 0;
   const isOutOfStock = trackStock && stock <= 0;
 
+  const wholesalePrice = product.wholesalePrice ?? product.wholesale_price;
+  const wholesaleMinQty = product.wholesaleMinQty ?? product.wholesale_min_qty;
+  const hasWholesale = Boolean(
+    wholesalePrice &&
+      wholesaleMinQty &&
+      wholesaleMinQty >= 2 &&
+      wholesalePrice < product.price
+  );
+
   const handleClick = () => {
     if (disabled || isOutOfStock) return;
     try {
@@ -49,32 +58,43 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     >
       {/* Indicador superior de tipo / stock */}
       <div className="flex items-center justify-between w-full gap-1 mb-1">
-        <div className="truncate">
-          {isService ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
-              <Wrench size={10} />
-              Servicio
-            </span>
-          ) : isRecipe ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
-              <Sparkle size={10} />
-              Receta
-            </span>
-          ) : trackStock ? (
+        <div className="flex items-center gap-1 min-w-0">
+          <div className="truncate">
+            {isService ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
+                <Wrench size={10} />
+                Servicio
+              </span>
+            ) : isRecipe ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
+                <Sparkle size={10} />
+                Receta
+              </span>
+            ) : trackStock ? (
+              <span
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
+                  isOutOfStock
+                    ? 'bg-red-50 text-red-700 border border-red-200/70'
+                    : stock <= 5
+                    ? 'bg-amber-50 text-amber-800 border border-amber-200/70'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                <Package size={10} />
+                {isOutOfStock ? 'Agotado' : `${stock} ${product.unit || 'UND'}`}
+              </span>
+            ) : (
+              <span className="text-[10px] text-gray-400">Producto</span>
+            )}
+          </div>
+
+          {hasWholesale && (
             <span
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
-                isOutOfStock
-                  ? 'bg-red-50 text-red-700 border border-red-200/70'
-                  : stock <= 5
-                  ? 'bg-amber-50 text-amber-800 border border-amber-200/70'
-                  : 'bg-gray-100 text-gray-600'
-              }`}
+              title={`Precio por mayor ${formatCurrency(wholesalePrice!)} desde ${wholesaleMinQty} uds.`}
+              className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-purple-100 text-purple-800 border border-purple-200 shrink-0"
             >
-              <Package size={10} />
-              {isOutOfStock ? 'Agotado' : `${stock} ${product.unit || 'UND'}`}
+              Mayor ≥ {wholesaleMinQty}
             </span>
-          ) : (
-            <span className="text-[10px] text-gray-400">Producto</span>
           )}
         </div>
 
@@ -92,10 +112,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Precio */}
       <div className="flex items-center justify-between mt-1 pt-1 border-t border-gray-100/70">
-        <span className="font-bold text-xs sm:text-sm text-emerald-800 tracking-tight">
-          {formatCurrency(product.price)}
-        </span>
-        <div className="w-6 h-6 rounded-lg bg-gray-100 group-hover:bg-gray-900 group-hover:text-white flex items-center justify-center text-gray-500 transition-colors">
+        <div className="flex items-baseline gap-1.5 truncate">
+          <span className="font-bold text-xs sm:text-sm text-emerald-800 tracking-tight">
+            {formatCurrency(product.price)}
+          </span>
+          {hasWholesale && (
+            <span
+              className="text-[10px] font-medium text-purple-700 truncate"
+              title={`Precio por mayor: ${formatCurrency(wholesalePrice!)}`}
+            >
+              {formatCurrency(wholesalePrice!)}
+            </span>
+          )}
+        </div>
+        <div className="w-6 h-6 rounded-lg bg-gray-100 group-hover:bg-gray-900 group-hover:text-white flex items-center justify-center text-gray-500 transition-colors shrink-0">
           <Plus size={12} weight="bold" />
         </div>
       </div>

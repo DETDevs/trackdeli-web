@@ -195,7 +195,24 @@ export const PosInventoryPage: React.FC = () => {
                   {products.map((p) => (
                     <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900">{p.name}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-semibold text-gray-900">{p.name}</p>
+                          {(() => {
+                            const wp = p.wholesalePrice ?? p.wholesale_price;
+                            const wmq = p.wholesaleMinQty ?? p.wholesale_min_qty;
+                            if (wp && wmq && wmq >= 2 && wp < p.price) {
+                              return (
+                                <span
+                                  title={`Precio por mayor ${formatCurrency(wp, currency)} a partir de ${wmq} unidades`}
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-800 border border-purple-200 shrink-0"
+                                >
+                                  Mayor ≥ {wmq}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                       </td>
 
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
@@ -229,7 +246,19 @@ export const PosInventoryPage: React.FC = () => {
                       </td>
 
                       <td className="px-4 py-3 text-right font-medium text-gray-900 whitespace-nowrap">
-                        {formatCurrency(p.price, currency)}
+                        <div>{formatCurrency(p.price, currency)}</div>
+                        {(() => {
+                          const wp = p.wholesalePrice ?? p.wholesale_price;
+                          const wmq = p.wholesaleMinQty ?? p.wholesale_min_qty;
+                          if (wp && wmq && wmq >= 2 && wp < p.price) {
+                            return (
+                              <div className="text-[10px] text-purple-700 font-normal">
+                                Mayor: {formatCurrency(wp, currency)}
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </td>
 
                       <td className="px-4 py-3 text-center whitespace-nowrap">
@@ -251,7 +280,21 @@ export const PosInventoryPage: React.FC = () => {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-bold text-xs text-gray-900 truncate">{p.name}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-bold text-xs text-gray-900 truncate">{p.name}</p>
+                      {(() => {
+                        const wp = p.wholesalePrice ?? p.wholesale_price;
+                        const wmq = p.wholesaleMinQty ?? p.wholesale_min_qty;
+                        if (wp && wmq && wmq >= 2 && wp < p.price) {
+                          return (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-800 border border-purple-200 shrink-0">
+                              Mayor ≥ {wmq}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                     <p className="text-[11px] text-gray-400 mt-0.5">
                       {p.category?.name || 'Sin categoría'}
                       {p.barcode && ` · ${p.barcode}`}
@@ -295,6 +338,18 @@ export const PosInventoryPage: React.FC = () => {
                     <span className="font-bold text-gray-900">
                       {formatCurrency(p.price, currency)}
                     </span>
+                    {(() => {
+                      const wp = p.wholesalePrice ?? p.wholesale_price;
+                      const wmq = p.wholesaleMinQty ?? p.wholesale_min_qty;
+                      if (wp && wmq && wmq >= 2 && wp < p.price) {
+                        return (
+                          <span className="block text-[10px] text-purple-700 font-medium">
+                            Mayor: {formatCurrency(wp, currency)}
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
               </div>

@@ -177,6 +177,10 @@ export interface BackofficeInventoryItem {
   isService: boolean;
   status: 'normal' | 'bajo' | 'agotado';
   price: number;
+  wholesalePrice?: number | null;
+  wholesaleMinQty?: number | null;
+  wholesale_price?: number | null;
+  wholesale_min_qty?: number | null;
 }
 
 export interface BackofficeCashRegisterItem {

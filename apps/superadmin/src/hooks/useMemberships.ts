@@ -41,6 +41,12 @@ export interface MembershipItem {
   notes: string | null;
   status: MembershipStatus;
   daysLeft?: number;
+  billing_anchor_day?: number | null;
+  current_period_start?: string | null;
+  due_date?: string | null;
+  grace_ends_at?: string | null;
+  membership_status?: string | null;
+  days_until_due?: number | null;
   products?: MembershipProductItem[];
   isUnitemized?: boolean;
   createdAt: string;
