@@ -12,6 +12,11 @@ import type {
   KitchenRound,
   SendToKitchenPayload,
   VoidOrderItemPayload,
+  StartSplitPayload,
+  MoveSplitItemPayload,
+  AddSubAccountPayload,
+  MergeSubAccountsPayload,
+  UndoSplitPayload,
 } from '../types/mesero';
 
 export const meseroApi = {
@@ -141,6 +146,29 @@ export const meseroApi = {
         customerPhone: data.customerPhone || null,
         vehicleInfo: data.vehicleInfo || null,
         workshopVehicleId: data.workshopVehicleId || null,
+        splitMode: data.splitMode || null,
+        splitVersion: data.splitVersion !== undefined ? Number(data.splitVersion) : 0,
+        discountPercent: Number(data.discountPercent) || 0,
+        discountAmount: Number(data.discountAmount) || 0,
+        discountTotal: Number(data.discountTotal) || 0,
+        taxRate: Number(data.taxRate) || 0,
+        taxTotal: Number(data.taxTotal) || 0,
+        subAccounts: Array.isArray(data.subAccounts)
+          ? data.subAccounts.map((sa: any) => ({
+              id: sa.id,
+              label: sa.label,
+              status: sa.status,
+              saleId: sa.saleId || null,
+              fixedAmount: sa.fixedAmount != null ? Number(sa.fixedAmount) : null,
+              itemsCount: Number(sa.itemsCount) || 0,
+              subtotal: Number(sa.subtotal) || 0,
+              discount: Number(sa.discount) || 0,
+              tax: Number(sa.tax) || 0,
+              total: Number(sa.total) || 0,
+              createdBy: sa.createdBy,
+              createdAt: sa.createdAt,
+            }))
+          : [],
         items: (data.items || []).map((it: any) => ({
           id: it.id,
           productId: it.productId,
@@ -154,6 +182,7 @@ export const meseroApi = {
           kitchenRoundId: it.kitchenRoundId || null,
           sentAt: it.sentAt || null,
           isSent: Boolean(it.kitchenRoundId) || Boolean(it.isSent),
+          subAccountId: it.subAccountId || null,
           product: it.product
             ? {
                 id: it.product.id,
@@ -239,6 +268,61 @@ export const meseroApi = {
   async deleteOrderItem(tableId: string, itemId: string): Promise<ActiveTableOrder> {
     const res = await apiClient.delete<any>(
       `/pos/tables/${tableId}/order/items/${itemId}`
+    );
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  /**
+   * 171c - Inicia división de la comanda (ITEMS o EQUAL).
+   */
+  async startSplitOrder(tableId: string, payload: StartSplitPayload): Promise<ActiveTableOrder> {
+    const res = await apiClient.post<any>(
+      `/pos/tables/${tableId}/order/split/start`,
+      payload
+    );
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  /**
+   * 171c - Mueve un renglón (o cantidad) a otra subcuenta en modo ITEMS.
+   */
+  async moveSplitItem(tableId: string, payload: MoveSplitItemPayload): Promise<ActiveTableOrder> {
+    const res = await apiClient.post<any>(
+      `/pos/tables/${tableId}/order/split/move`,
+      payload
+    );
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  /**
+   * 171c - Agrega una nueva subcuenta a la orden dividida.
+   */
+  async addSubAccount(tableId: string, payload?: AddSubAccountPayload): Promise<ActiveTableOrder> {
+    const res = await apiClient.post<any>(
+      `/pos/tables/${tableId}/order/split/add-account`,
+      payload || {}
+    );
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  /**
+   * 171c - Combina dos subcuentas abiertas en una sola.
+   */
+  async mergeSubAccounts(tableId: string, payload: MergeSubAccountsPayload): Promise<ActiveTableOrder> {
+    const res = await apiClient.post<any>(
+      `/pos/tables/${tableId}/order/split/merge`,
+      payload
+    );
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  /**
+   * 171c - Deshace la división y devuelve la orden a cuenta única.
+   */
+  async undoSplitOrder(tableId: string, payload?: UndoSplitPayload): Promise<ActiveTableOrder> {
+    const res = await apiClient.post<any>(
+      `/pos/tables/${tableId}/order/split/undo`,
+      payload || {}
     );
     return res.data?.data !== undefined ? res.data.data : res.data;
   },

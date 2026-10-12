@@ -6,6 +6,7 @@ import {
   ForkKnife,
   WarningCircle,
   CheckCircle,
+  ArrowsLeftRight,
 } from '@phosphor-icons/react';
 import {
   useTablesStatus,
@@ -25,6 +26,7 @@ import { ProductCard } from '../components/ProductCard';
 import { FloatingCartBar } from '../components/FloatingCartBar';
 import { ComandaBottomSheet } from '../components/ComandaBottomSheet';
 import { VoidItemModal } from '../components/VoidItemModal';
+import { SplitAccountModal } from '../components/SplitAccountModal';
 import type { CartItem, Product, TableOrderItem } from '../types/mesero';
 import toast from 'react-hot-toast';
 
@@ -101,6 +103,9 @@ export const OrderPage: React.FC = () => {
     isOpen: false,
     item: null,
   });
+
+  // Modal para dividir cuenta de la mesa (171c)
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
 
   // Mutaciones
   const addItemsMutation = useAddOrderItems(tableId || '');
@@ -355,23 +360,72 @@ export const OrderPage: React.FC = () => {
         }
         onBack={() => navigate(`/mesas/${businessSlug}/tables`)}
         rightAction={
-          <button
-            type="button"
-            onClick={() => setIsSearchOpen(!isSearchOpen)}
-            className={`p-2 rounded-xl transition-colors cursor-pointer touch-manipulation ${
-              isSearchOpen || search
-                ? 'bg-gray-900 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-            title="Buscar producto"
-          >
-            <MagnifyingGlass size={18} weight="bold" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {isRestaurante && ((activeOrder?.items?.length || 0) > 0 || (activeOrder?.subAccounts?.length || 0) > 0) && (
+              <button
+                type="button"
+                onClick={() => setIsSplitModalOpen(true)}
+                className={`px-2.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer touch-manipulation border ${
+                  activeOrder?.splitMode
+                    ? 'bg-purple-100 border-purple-300 text-purple-800 shadow-2xs'
+                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+                title={activeOrder?.splitMode ? 'Gestionar cuentas divididas' : 'Dividir cuenta'}
+              >
+                <ArrowsLeftRight size={15} weight="bold" className={activeOrder?.splitMode ? 'text-purple-600' : 'text-gray-500'} />
+                <span>
+                  {activeOrder?.splitMode
+                    ? `Dividida (${activeOrder.subAccounts?.length || 0})`
+                    : 'Dividir'}
+                </span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(!isSearchOpen)}
+              className={`p-2 rounded-xl transition-colors cursor-pointer touch-manipulation ${
+                isSearchOpen || search
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+              title="Buscar producto"
+            >
+              <MagnifyingGlass size={18} weight="bold" />
+            </button>
+          </div>
         }
       />
 
       {/* Main Content */}
       <main className="max-w-md w-full mx-auto p-4 space-y-4">
+        {/* Banner de cuenta dividida (171c) */}
+        {activeOrder?.splitMode && (
+          <div
+            onClick={() => setIsSplitModalOpen(true)}
+            className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 text-purple-950 flex items-center justify-between gap-2.5 text-xs font-semibold shadow-2xs cursor-pointer hover:bg-purple-100/70 transition-colors animate-fadeIn"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-purple-200/80 text-purple-800 flex items-center justify-center shrink-0">
+                <ArrowsLeftRight size={17} weight="bold" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-extrabold text-purple-900 truncate">
+                  Cuenta dividida ({activeOrder.subAccounts?.length || 0} cuentas)
+                </p>
+                <p className="text-[11px] text-purple-700 truncate">
+                  {activeOrder.splitMode === 'ITEMS'
+                    ? 'Dividida por productos'
+                    : 'Dividida en partes iguales'}
+                  {activeOrder.subAccounts?.some((s) => s.status === 'PAID') && ' · Pagos en caja'}
+                </p>
+              </div>
+            </div>
+            <span className="text-[11px] font-extrabold text-purple-700 underline shrink-0">
+              Ver cuentas
+            </span>
+          </div>
+        )}
         {/* Banner de alerta: comanda sin imprimir tras 60s (Requerimiento 3) */}
         {unprintedAlert && (
           <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start gap-2.5 text-xs font-semibold shadow-xs animate-fadeIn">
@@ -513,6 +567,10 @@ export const OrderPage: React.FC = () => {
         onAddMoreOfSentItem={handleAddMoreOfSentItem}
         unprintedAlert={unprintedAlert}
         lastSentRoundConfirmation={lastSentRoundConfirmation}
+        onOpenSplitModal={() => {
+          setIsBottomSheetOpen(false);
+          setIsSplitModalOpen(true);
+        }}
       />
 
       {/* Modal de Anulación Autorizada con PIN (Requerimiento 4 y 5) */}
@@ -523,6 +581,16 @@ export const OrderPage: React.FC = () => {
         voidQty={voidModalState.voidQty}
         onConfirm={handleConfirmVoid}
         isLoading={voidMutation.isPending}
+      />
+
+      {/* Modal para Dividir Cuenta y Deshacer División (171c) */}
+      <SplitAccountModal
+        isOpen={isSplitModalOpen}
+        onClose={() => setIsSplitModalOpen(false)}
+        tableId={tableId || ''}
+        tableNumber={tableNumber}
+        tableDisplayName={tableDisplayName}
+        activeOrder={activeOrder || null}
       />
     </div>
   );

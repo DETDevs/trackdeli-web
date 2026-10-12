@@ -80,6 +80,7 @@ export interface TableOrderItem {
   quantity: number;
   unitPrice: number;
   subtotal?: number;
+  subAccountId?: string | null;
   notes?: string | null;
   waiterName?: string | null;
   waiterId?: string | null;
@@ -97,6 +98,22 @@ export interface TableOrderItem {
   createdAt: string;
 }
 
+export interface OrderSubAccount {
+  id: string;
+  label: string;
+  status: 'OPEN' | 'PAID' | string;
+  saleId?: string | null;
+  fixedAmount?: number | null;
+  itemsCount?: number;
+  subtotal?: number;
+  discount?: number;
+  tax?: number;
+  total?: number;
+  createdBy?: string;
+  createdAt?: string;
+  items?: TableOrderItem[];
+}
+
 export interface ActiveTableOrder {
   id: string;
   tableId: string;
@@ -110,6 +127,14 @@ export interface ActiveTableOrder {
   vehicleInfo?: string | null;
   workshopVehicleId?: string | null;
   items: TableOrderItem[];
+  splitMode?: 'ITEMS' | 'EQUAL' | null;
+  splitVersion?: number;
+  subAccounts?: OrderSubAccount[];
+  discountPercent?: number;
+  discountAmount?: number;
+  discountTotal?: number;
+  taxRate?: number;
+  taxTotal?: number;
 }
 
 export interface CartItem {
@@ -168,5 +193,37 @@ export interface VoidOrderItemPayload {
   reason: string;
   authorizerPin?: string;
   qty?: number;
+}
+
+export type SplitMode = 'ITEMS' | 'EQUAL';
+
+export interface StartSplitPayload {
+  mode: SplitMode;
+  parts?: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  splitVersion?: number;
+}
+
+export interface MoveSplitItemPayload {
+  itemId: string;
+  toSubAccountId: string;
+  qty?: number;
+  splitVersion?: number;
+}
+
+export interface AddSubAccountPayload {
+  label?: string;
+  splitVersion?: number;
+}
+
+export interface MergeSubAccountsPayload {
+  fromSubAccountId: string;
+  toSubAccountId: string;
+  splitVersion?: number;
+}
+
+export interface UndoSplitPayload {
+  splitVersion?: number;
 }
 

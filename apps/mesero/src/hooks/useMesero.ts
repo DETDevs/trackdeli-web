@@ -163,6 +163,14 @@ export const useVoidOrderItem = (tableId: string) => {
   });
 };
 
+import type {
+  StartSplitPayload,
+  MoveSplitItemPayload,
+  AddSubAccountPayload,
+  MergeSubAccountsPayload,
+  UndoSplitPayload,
+} from '../types/mesero';
+
 export const useDeleteOrderItem = (tableId: string) => {
   const queryClient = useQueryClient();
 
@@ -175,6 +183,126 @@ export const useDeleteOrderItem = (tableId: string) => {
       }
       queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
       queryClient.invalidateQueries({ queryKey: ['mesero', 'tables'] });
+    },
+  });
+};
+
+const handleSplitConflict = (err: any, queryClient: any, tableId: string) => {
+  const code = err?.response?.data?.code;
+  const msg = err?.response?.data?.message;
+  if (
+    err?.response?.status === 409 &&
+    (code === 'SPLIT_VERSION_CONFLICT' || String(msg).includes('modificada'))
+  ) {
+    queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+    toast.error('La mesa cambió, revisá antes de continuar', { duration: 5000 });
+    return true;
+  }
+  return false;
+};
+
+export const useStartSplitOrder = (tableId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: StartSplitPayload) => meseroApi.startSplitOrder(tableId, payload),
+    retry: false,
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'tables'] });
+    },
+    onError: (err: any) => {
+      if (!handleSplitConflict(err, queryClient, tableId)) {
+        const msg = err?.response?.data?.message || 'Error al iniciar división de cuenta';
+        toast.error(msg, { duration: 4000 });
+      }
+    },
+  });
+};
+
+export const useMoveSplitItem = (tableId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: MoveSplitItemPayload) => meseroApi.moveSplitItem(tableId, payload),
+    retry: false,
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+    },
+    onError: (err: any) => {
+      if (!handleSplitConflict(err, queryClient, tableId)) {
+        const msg = err?.response?.data?.message || 'Error al mover producto';
+        toast.error(msg, { duration: 4000 });
+      }
+    },
+  });
+};
+
+export const useAddSubAccount = (tableId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload?: AddSubAccountPayload) => meseroApi.addSubAccount(tableId, payload),
+    retry: false,
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+    },
+    onError: (err: any) => {
+      if (!handleSplitConflict(err, queryClient, tableId)) {
+        const msg = err?.response?.data?.message || 'Error al agregar cuenta';
+        toast.error(msg, { duration: 4000 });
+      }
+    },
+  });
+};
+
+export const useMergeSubAccounts = (tableId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: MergeSubAccountsPayload) => meseroApi.mergeSubAccounts(tableId, payload),
+    retry: false,
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+    },
+    onError: (err: any) => {
+      if (!handleSplitConflict(err, queryClient, tableId)) {
+        const msg = err?.response?.data?.message || 'Error al combinar cuentas';
+        toast.error(msg, { duration: 4000 });
+      }
+    },
+  });
+};
+
+export const useUndoSplitOrder = (tableId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload?: UndoSplitPayload) => meseroApi.undoSplitOrder(tableId, payload),
+    retry: false,
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'tables'] });
+    },
+    onError: (err: any) => {
+      if (handleSplitConflict(err, queryClient, tableId)) return;
+      const code = err?.response?.data?.code;
+      if (code === 'SPLIT_HAS_PAID_ACCOUNTS') {
+        queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+      } else {
+        const msg = err?.response?.data?.message || 'Error al deshacer la división';
+        toast.error(msg, { duration: 4000 });
+      }
     },
   });
 };

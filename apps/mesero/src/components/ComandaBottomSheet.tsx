@@ -11,6 +11,7 @@ import {
   WarningCircle,
   CheckCircle,
   ShieldWarning,
+  ArrowsLeftRight,
 } from '@phosphor-icons/react';
 import type { CartItem, ActiveTableOrder, TableOrderItem, KitchenRound } from '../types/mesero';
 
@@ -33,6 +34,7 @@ interface ComandaBottomSheetProps {
   onAddMoreOfSentItem: (item: TableOrderItem) => void;
   unprintedAlert: string | null;
   lastSentRoundConfirmation?: string | null;
+  onOpenSplitModal?: () => void;
 }
 
 const NOTE_PRESETS = [
@@ -65,6 +67,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
   onAddMoreOfSentItem,
   unprintedAlert,
   lastSentRoundConfirmation,
+  onOpenSplitModal,
 }) => {
   const [editingNotesProductId, setEditingNotesProductId] = useState<string | null>(null);
 
@@ -480,6 +483,22 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
 
         {/* Footer: Confirmación de envío — SIN BOTÓN DE COBRO */}
         <div className="p-4 border-t border-gray-200 bg-gray-50 space-y-3">
+          {/* Opción de dividir cuenta para Restaurante si hay productos guardados */}
+          {isRestaurante && onOpenSplitModal && ((activeOrder?.items?.length || 0) > 0 || (activeOrder?.subAccounts?.length || 0) > 0) && (
+            <button
+              type="button"
+              onClick={onOpenSplitModal}
+              className="w-full py-2.5 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 border border-purple-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer touch-manipulation"
+            >
+              <ArrowsLeftRight size={16} weight="bold" />
+              <span>
+                {activeOrder?.splitMode
+                  ? `Gestionar cuentas divididas (${activeOrder.subAccounts?.length || 0})`
+                  : 'Dividir cuenta'}
+              </span>
+            </button>
+          )}
+
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-600">
               Total acumulado de la mesa
