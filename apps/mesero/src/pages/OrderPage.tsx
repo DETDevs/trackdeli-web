@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import {
   MagnifyingGlass,
   X,
   ForkKnife,
+  WarningCircle,
+  CheckCircle,
 } from '@phosphor-icons/react';
 import {
   useTablesStatus,
@@ -11,6 +13,10 @@ import {
   useProducts,
   useActiveOrder,
   useAddOrderItems,
+  useTableOrderRounds,
+  useSendToKitchen,
+  useVoidOrderItem,
+  useDeleteOrderItem,
 } from '../hooks/useMesero';
 import { useWaiterAuth } from '../store/authStore';
 import { Header } from '../components/Header';
@@ -18,7 +24,8 @@ import { CategoryPills } from '../components/CategoryPills';
 import { ProductCard } from '../components/ProductCard';
 import { FloatingCartBar } from '../components/FloatingCartBar';
 import { ComandaBottomSheet } from '../components/ComandaBottomSheet';
-import type { CartItem, Product } from '../types/mesero';
+import { VoidItemModal } from '../components/VoidItemModal';
+import type { CartItem, Product, TableOrderItem } from '../types/mesero';
 import toast from 'react-hot-toast';
 
 export const OrderPage: React.FC = () => {
@@ -44,6 +51,30 @@ export const OrderPage: React.FC = () => {
   // Pedido activo de la mesa
   const { data: activeOrder } = useActiveOrder(tableId || '');
 
+  // Rondas de cocina de la mesa
+  const { data: rounds = [] } = useTableOrderRounds(tableId || '', Boolean(tableId));
+
+  // Ticker para frescura de timer de 60 segundos
+  const [now, setNow] = useState<number>(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Perfil del negocio: Taller vs Restaurante
+  const [isKitchenDisabled, setIsKitchenDisabled] = useState(false);
+  const isTaller = useMemo(() => {
+    return Boolean(
+      activeOrder?.workshopVehicleId ||
+      activeOrder?.vehicleInfo ||
+      tables.some((t) => Boolean(t.vehicleInfo)) ||
+      session?.business?.salonProfile === 'TALLER' ||
+      businessSlug.toLowerCase().includes('taller')
+    );
+  }, [activeOrder, tables, session, businessSlug]);
+
+  const isRestaurante = !isTaller && !isKitchenDisabled;
+
   // Categorías y Productos
   const { data: categories = [] } = useCategories();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -58,9 +89,31 @@ export const OrderPage: React.FC = () => {
   // Carrito / Lote nuevo a enviar
   const [newCartItems, setNewCartItems] = useState<CartItem[]>([]);
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  const [isSendingToKitchen, setIsSendingToKitchen] = useState(false);
+  const [lastSentRoundConfirmation, setLastSentRoundConfirmation] = useState<string | null>(null);
 
-  // Mutación de agregar ítems a la comanda
+  // Modal de anulación autorizada con PIN
+  const [voidModalState, setVoidModalState] = useState<{
+    isOpen: boolean;
+    item: TableOrderItem | null;
+    voidQty?: number;
+  }>({
+    isOpen: false,
+    item: null,
+  });
+
+  // Mutaciones
   const addItemsMutation = useAddOrderItems(tableId || '');
+  const sendToKitchenMutation = useSendToKitchen(tableId || '');
+  const voidMutation = useVoidOrderItem(tableId || '');
+  const deleteItemMutation = useDeleteOrderItem(tableId || '');
+
+  // Conteo de ítems sin enviar
+  const newItemsCount = newCartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const savedUnsentCount = (activeOrder?.items || [])
+    .filter((i) => !i.isSent)
+    .reduce((acc, item) => acc + item.quantity, 0);
+  const totalUnsentCount = newItemsCount + savedUnsentCount;
 
   // Manejo de productos en el carrito nuevo
   const handleAddProduct = (product: Product) => {
@@ -108,42 +161,186 @@ export const OrderPage: React.FC = () => {
     );
   };
 
+  // Quitar ítem sin enviar con deshacer breve (Requerimiento 4)
   const handleRemoveItem = (productId: string) => {
+    const removed = newCartItems.find((i) => i.productId === productId);
+    if (!removed) return;
     setNewCartItems((prev) => prev.filter((item) => item.productId !== productId));
+
+    toast(
+      (t) => (
+        <div className="flex items-center justify-between gap-3 w-full">
+          <span className="text-xs font-semibold">Producto quitado</span>
+          <button
+            type="button"
+            onClick={() => {
+              setNewCartItems((prev) => [...prev, removed]);
+              toast.dismiss(t.id);
+            }}
+            className="text-xs font-bold text-amber-600 hover:text-amber-700 underline cursor-pointer"
+          >
+            Deshacer
+          </button>
+        </div>
+      ),
+      { duration: 4000 }
+    );
   };
 
-  // Enviar a cocina
-  const handleConfirmSend = async () => {
-    if (!tableId || newCartItems.length === 0 || addItemsMutation.isPending) return;
-
+  // Quitar renglón sin enviar ya guardado en la orden
+  const handleRemoveSavedUnsentItem = async (itemId: string) => {
     try {
-      await addItemsMutation.mutateAsync({
-        items: newCartItems.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          notes: item.notes.trim() || undefined,
-        })),
-      });
-
-      if ('vibrate' in navigator) {
-        try {
-          navigator.vibrate([40, 40, 60]);
-        } catch {}
-      }
-
-      toast.success('¡Comanda enviada a cocina!', { duration: 3000 });
-      setNewCartItems([]);
-      setIsBottomSheetOpen(false);
+      await deleteItemMutation.mutateAsync(itemId);
+      toast.success('Renglón sin enviar eliminado');
     } catch {
-      // El hook useAddOrderItems ya dispara el toast de error
+      toast.error('No se pudo quitar el producto.');
     }
   };
+
+  // Sumar 1 unidad más de un producto ya enviado para la siguiente ronda
+  const handleAddMoreOfSentItem = (item: TableOrderItem) => {
+    setNewCartItems((prev) => {
+      const existing = prev.find((i) => i.productId === item.productId);
+      if (existing) {
+        return prev.map((i) =>
+          i.productId === item.productId
+            ? { ...i, quantity: i.quantity + 1 }
+            : i
+        );
+      }
+      return [
+        ...prev,
+        {
+          productId: item.productId,
+          productName: item.productName,
+          unitPrice: item.unitPrice,
+          quantity: 1,
+          notes: item.notes || '',
+        },
+      ];
+    });
+    toast.success(`Se sumó 1 ${item.productName} para la siguiente ronda`, { duration: 2500 });
+  };
+
+  // Abrir modal de anulación para ítem ya enviado (Requerimiento 4 y 5)
+  const handleOpenVoidModal = (item: TableOrderItem, qty?: number) => {
+    setVoidModalState({
+      isOpen: true,
+      item,
+      voidQty: qty,
+    });
+  };
+
+  // Confirmar anulación en el modal con motivo y PIN
+  const handleConfirmVoid = async ({
+    reason,
+    pin,
+    qty,
+  }: {
+    reason: string;
+    pin: string;
+    qty?: number;
+  }) => {
+    if (!tableId || !voidModalState.item) return;
+
+    await voidMutation.mutateAsync({
+      itemId: voidModalState.item.id,
+      payload: {
+        reason,
+        authorizerPin: pin,
+        qty,
+      },
+    });
+
+    toast.success(
+      qty
+        ? `Anulación parcial de ${qty} unidad(es) autorizada`
+        : 'Ítem anulado exitosamente'
+    );
+    setVoidModalState({ isOpen: false, item: null });
+  };
+
+  // Enviar a cocina con debounce contra doble toque y clientRequestId (Requerimiento 2)
+  const handleConfirmSend = async () => {
+    if (!tableId || totalUnsentCount === 0 || isSendingToKitchen) return;
+
+    setIsSendingToKitchen(true);
+    const clientRequestId = crypto.randomUUID();
+
+    try {
+      // 1. Guardar primero en backend los ítems del carrito local si hay
+      if (newCartItems.length > 0) {
+        await addItemsMutation.mutateAsync({
+          items: newCartItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            notes: item.notes.trim() || undefined,
+          })),
+        });
+        setNewCartItems([]);
+      }
+
+      // 2. Si es restaurante con cocina, crear ronda de cocina
+      if (isRestaurante) {
+        try {
+          const res = await sendToKitchenMutation.mutateAsync({ clientRequestId });
+          if ('vibrate' in navigator) {
+            try {
+              navigator.vibrate([40, 40, 60]);
+            } catch {}
+          }
+          const roundNum = res?.round?.number ?? res?.round?.roundNumber;
+          const confirmMsg = roundNum
+            ? `Enviado a cocina · Ronda ${roundNum}`
+            : 'Enviado a cocina';
+          setLastSentRoundConfirmation(confirmMsg);
+          toast.success(confirmMsg, { duration: 4000 });
+        } catch (sendErr: any) {
+          const errorMsg = sendErr?.response?.data?.message;
+          if (errorMsg === 'NOTHING_TO_SEND') {
+            toast.success('¡Comanda guardada en mesa!', { duration: 3000 });
+          } else {
+            throw sendErr;
+          }
+        }
+      } else {
+        toast.success('¡Comanda guardada!', { duration: 3000 });
+      }
+
+      setIsBottomSheetOpen(false);
+    } catch (err: any) {
+      if (err?.response?.data?.message === 'NOT_AVAILABLE') {
+        setIsKitchenDisabled(true);
+        toast.error('Módulo de cocina no disponible para este tipo de negocio.');
+      }
+      // Error de red y otros son manejados sin reintento automático por useSendToKitchen
+    } finally {
+      setIsSendingToKitchen(false);
+    }
+  };
+
+  // Verificación de comanda sin imprimir tras 60 segundos (Requerimiento 3)
+  const unprintedRound = useMemo(() => {
+    if (!isRestaurante) return null;
+    return rounds.find((r) => {
+      if (r.type !== 'SEND') return false;
+      if (r.printStatus === 'FAILED') return true;
+      if (r.printStatus === 'PENDING') {
+        const createdAtMs = new Date(r.createdAt).getTime();
+        return now - createdAtMs >= 60000;
+      }
+      return false;
+    });
+  }, [rounds, now, isRestaurante]);
+
+  const unprintedAlert = unprintedRound
+    ? 'La comanda no se ha impreso. Avisá en cocina o al cajero.'
+    : null;
 
   const totalPendingAmount =
     newCartItems.reduce((acc, item) => acc + item.quantity * item.unitPrice, 0) +
     (activeOrder?.total || 0);
 
-  const newItemsCount = newCartItems.reduce((acc, item) => acc + item.quantity, 0);
   const existingItemsCount = activeOrder?.items.length || 0;
 
   return (
@@ -175,6 +372,34 @@ export const OrderPage: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-md w-full mx-auto p-4 space-y-4">
+        {/* Banner de alerta: comanda sin imprimir tras 60s (Requerimiento 3) */}
+        {unprintedAlert && (
+          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start gap-2.5 text-xs font-semibold shadow-xs animate-fadeIn">
+            <WarningCircle size={20} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="font-extrabold text-amber-900">Atención en cocina</p>
+              <p>{unprintedAlert}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Banner de confirmación de última ronda enviada */}
+        {lastSentRoundConfirmation && (
+          <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 flex items-center justify-between gap-2 text-xs font-semibold animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <CheckCircle size={18} weight="fill" className="text-blue-600 shrink-0" />
+              <span>{lastSentRoundConfirmation}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLastSentRoundConfirmation(null)}
+              className="text-blue-400 hover:text-blue-700 p-1"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Barra de búsqueda desplegable */}
         {isSearchOpen && (
           <div className="relative animate-fadeIn">
@@ -255,14 +480,17 @@ export const OrderPage: React.FC = () => {
         )}
       </main>
 
-      {/* Barra Flotante Inferior de Comanda */}
+      {/* Barra Flotante Inferior de Comanda con Botón Fijo "Enviar a cocina (N)" */}
       <FloatingCartBar
         tableNumber={tableNumber}
         tableDisplayName={tableDisplayName}
-        newItemsCount={newItemsCount}
+        newItemsCount={totalUnsentCount}
         totalPendingAmount={totalPendingAmount}
         existingItemsCount={existingItemsCount}
+        isRestaurante={isRestaurante}
         onOpenBottomSheet={() => setIsBottomSheetOpen(true)}
+        onSendToKitchen={handleConfirmSend}
+        isSendingToKitchen={isSendingToKitchen}
       />
 
       {/* Bottom Sheet deslizable de Comanda */}
@@ -276,8 +504,25 @@ export const OrderPage: React.FC = () => {
         onUpdateNotes={handleUpdateNotes}
         onRemoveItem={handleRemoveItem}
         activeOrder={activeOrder || null}
+        rounds={rounds}
         onConfirmSend={handleConfirmSend}
-        isSubmitting={addItemsMutation.isPending}
+        isSubmitting={isSendingToKitchen}
+        isRestaurante={isRestaurante}
+        onRequestVoid={handleOpenVoidModal}
+        onRemoveSavedUnsentItem={handleRemoveSavedUnsentItem}
+        onAddMoreOfSentItem={handleAddMoreOfSentItem}
+        unprintedAlert={unprintedAlert}
+        lastSentRoundConfirmation={lastSentRoundConfirmation}
+      />
+
+      {/* Modal de Anulación Autorizada con PIN (Requerimiento 4 y 5) */}
+      <VoidItemModal
+        isOpen={voidModalState.isOpen}
+        onClose={() => setVoidModalState({ isOpen: false, item: null })}
+        item={voidModalState.item}
+        voidQty={voidModalState.voidQty}
+        onConfirm={handleConfirmVoid}
+        isLoading={voidMutation.isPending}
       />
     </div>
   );

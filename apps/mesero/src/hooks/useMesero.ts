@@ -91,8 +91,91 @@ export const useAddOrderItems = (tableId: string) => {
     onError: (err: any) => {
       const msg =
         err?.response?.data?.message ||
-        'Error al enviar comanda a cocina. Por favor intentá de nuevo.';
+        'Error al guardar productos. Por favor intentá de nuevo.';
       toast.error(msg, { duration: 4000 });
     },
   });
 };
+
+export const useTableOrderRounds = (tableId: string, enabled = true) => {
+  return useQuery({
+    queryKey: ['mesero', 'rounds', tableId],
+    queryFn: () => meseroApi.getTableOrderRounds(tableId),
+    enabled: Boolean(tableId) && enabled,
+    refetchInterval: () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return false;
+      }
+      return POLLING_CONFIG.ACTIVE_ORDER_INTERVAL_MS;
+    },
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useSendToKitchen = (tableId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { clientRequestId: string; itemIds?: string[] }) =>
+      meseroApi.sendToKitchen(tableId, payload),
+    retry: false, // Sin reintento automático ante errores de red
+    onSuccess: (data) => {
+      if (data?.tableOrder) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data.tableOrder);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'rounds', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'tables'] });
+    },
+    onError: (err: any) => {
+      const isNetworkError = !err?.response || err?.code === 'ERR_NETWORK' || err?.message?.includes('Network');
+      if (isNetworkError) {
+        toast.error('No se pudo enviar. Revisá tu conexión e intentá otra vez', { duration: 5000 });
+      } else {
+        const msg = err?.response?.data?.message || 'Error al enviar comanda a cocina.';
+        toast.error(msg, { duration: 4000 });
+      }
+    },
+  });
+};
+
+export const useVoidOrderItem = (tableId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      itemId,
+      payload,
+    }: {
+      itemId: string;
+      payload: { reason: string; authorizerPin?: string; qty?: number };
+    }) => meseroApi.voidOrderItem(tableId, itemId, payload),
+    retry: false,
+    onSuccess: (data) => {
+      if (data?.tableOrder) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data.tableOrder);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'rounds', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'tables'] });
+    },
+  });
+};
+
+export const useDeleteOrderItem = (tableId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (itemId: string) => meseroApi.deleteOrderItem(tableId, itemId),
+    retry: false,
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'tables'] });
+    },
+  });
+};
+

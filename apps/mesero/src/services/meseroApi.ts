@@ -9,6 +9,9 @@ import type {
   Product,
   ActiveTableOrder,
   AddOrderItemsPayload,
+  KitchenRound,
+  SendToKitchenPayload,
+  VoidOrderItemPayload,
 } from '../types/mesero';
 
 export const meseroApi = {
@@ -124,25 +127,43 @@ export const meseroApi = {
   async getActiveOrder(tableId: string): Promise<ActiveTableOrder | null> {
     try {
       const res = await apiClient.get<any>(`/pos/tables/${tableId}/order`);
-      const data = res.data;
+      const data = res.data?.data !== undefined ? res.data.data : res.data;
       if (!data) return null;
       return {
         id: data.id,
         tableId: data.tableId,
         status: data.status,
         total: Number(data.total ?? data.subtotal) || 0,
+        subtotal: Number(data.subtotal ?? data.total) || 0,
         openedAt: data.openedAt || data.createdAt || new Date().toISOString(),
         openedByWaiterName: data.openedByWaiterName || null,
         customerName: data.customerName || null,
+        customerPhone: data.customerPhone || null,
+        vehicleInfo: data.vehicleInfo || null,
+        workshopVehicleId: data.workshopVehicleId || null,
         items: (data.items || []).map((it: any) => ({
           id: it.id,
           productId: it.productId,
           productName: it.productName || it.product?.name,
-          quantity: it.quantity,
+          quantity: Number(it.quantity) || 1,
           unitPrice: Number(it.unitPrice || it.product?.price) || 0,
+          subtotal: Number(it.subtotal) || (Number(it.quantity || 1) * Number(it.unitPrice || it.product?.price || 0)),
           notes: it.notes || null,
           waiterName: it.waiterName || null,
           waiterId: it.waiterId || null,
+          kitchenRoundId: it.kitchenRoundId || null,
+          sentAt: it.sentAt || null,
+          isSent: Boolean(it.kitchenRoundId) || Boolean(it.isSent),
+          product: it.product
+            ? {
+                id: it.product.id,
+                name: it.product.name,
+                price: Number(it.product.price) || 0,
+                sendToKitchen: it.product.sendToKitchen !== false,
+                stock: it.product.stock != null ? Number(it.product.stock) : undefined,
+                unit: it.product.unit || 'UND',
+              }
+            : null,
           createdAt: it.createdAt || new Date().toISOString(),
         })),
       };
@@ -161,10 +182,65 @@ export const meseroApi = {
     tableId: string,
     payload: AddOrderItemsPayload
   ): Promise<ActiveTableOrder> {
-    const res = await apiClient.post<ActiveTableOrder>(
+    const res = await apiClient.post<any>(
       `/pos/tables/${tableId}/order/items`,
       payload
     );
-    return res.data;
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  /**
+   * 170c - Envía a cocina los ítems sin ronda. Idempotente con clientRequestId.
+   */
+  async sendToKitchen(
+    tableId: string,
+    payload: SendToKitchenPayload
+  ): Promise<{ round: KitchenRound; tableOrder: ActiveTableOrder }> {
+    const res = await apiClient.post<any>(
+      `/pos/tables/${tableId}/order/send-to-kitchen`,
+      payload
+    );
+    const data = res.data?.data !== undefined ? res.data.data : res.data;
+    return {
+      round: data.round || data,
+      tableOrder: data.tableOrder || data,
+    };
+  },
+
+  /**
+   * 170c - Obtiene el listado de rondas de cocina de la mesa con sus estados de impresión.
+   */
+  async getTableOrderRounds(tableId: string): Promise<KitchenRound[]> {
+    const res = await apiClient.get<any>(
+      `/pos/tables/${tableId}/order/rounds`
+    );
+    const raw = res.data?.data !== undefined ? res.data.data : res.data;
+    return Array.isArray(raw) ? raw : [];
+  },
+
+  /**
+   * 170c - Anula o reduce cantidad de un ítem de la comanda (con PIN obligatorio si ya fue enviado).
+   */
+  async voidOrderItem(
+    tableId: string,
+    itemId: string,
+    payload: VoidOrderItemPayload
+  ): Promise<{ success: boolean; voided: any; tableOrder: ActiveTableOrder }> {
+    const res = await apiClient.post<any>(
+      `/pos/tables/${tableId}/order/items/${itemId}/void`,
+      payload
+    );
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  /**
+   * Elimina un renglón sin enviar de la orden abierta.
+   */
+  async deleteOrderItem(tableId: string, itemId: string): Promise<ActiveTableOrder> {
+    const res = await apiClient.delete<any>(
+      `/pos/tables/${tableId}/order/items/${itemId}`
+    );
+    return res.data?.data !== undefined ? res.data.data : res.data;
   },
 };
+

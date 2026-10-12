@@ -8,6 +8,8 @@ export interface BusinessPublicInfo {
   name: string;
   slug: string;
   logoUrl?: string | null;
+  salonProfile?: string | null;
+  kitchenMode?: string | null;
 }
 
 export interface WaiterAuthData {
@@ -42,6 +44,8 @@ export interface TableStatusSummary {
   zoneName?: string | null;
   isOccupied: boolean;
   status: 'FREE' | 'OCCUPIED';
+  vehicleInfo?: string | null;
+  workshopVehicleId?: string | null;
   activeOrder: {
     id: string;
     openedAt: string;
@@ -75,9 +79,21 @@ export interface TableOrderItem {
   productName: string;
   quantity: number;
   unitPrice: number;
+  subtotal?: number;
   notes?: string | null;
   waiterName?: string | null;
   waiterId?: string | null;
+  kitchenRoundId?: string | null;
+  sentAt?: string | null;
+  isSent?: boolean;
+  product?: {
+    id: string;
+    name?: string;
+    price?: number;
+    sendToKitchen?: boolean;
+    stock?: number;
+    unit?: string;
+  } | null;
   createdAt: string;
 }
 
@@ -86,9 +102,13 @@ export interface ActiveTableOrder {
   tableId: string;
   status: string;
   total: number;
+  subtotal?: number;
   openedAt: string;
   openedByWaiterName?: string | null;
   customerName?: string | null;
+  customerPhone?: string | null;
+  vehicleInfo?: string | null;
+  workshopVehicleId?: string | null;
   items: TableOrderItem[];
 }
 
@@ -107,3 +127,46 @@ export interface AddOrderItemsPayload {
     notes?: string;
   }[];
 }
+
+export interface KitchenRoundItem {
+  id: string;
+  name: string;
+  quantity: number;
+  notes?: string | null;
+  productId: string;
+  voidReason?: string | null;
+}
+
+export interface KitchenRound {
+  id: string;
+  businessId: string;
+  tableOrderId: string;
+  tableId: string;
+  number: number;
+  roundNumber?: number;
+  type: 'SEND' | 'VOID';
+  status: string;
+  printStatus: 'PENDING' | 'PRINTED' | 'FAILED' | 'NOT_REQUIRED';
+  printAttempts?: number;
+  printedAt?: string | null;
+  claimedBy?: string | null;
+  claimedAt?: string | null;
+  createdBy?: string;
+  createdAt: string;
+  clientRequestId?: string | null;
+  items: KitchenRoundItem[];
+  reason?: string | null;
+  authorizedBy?: string | null;
+}
+
+export interface SendToKitchenPayload {
+  clientRequestId: string;
+  itemIds?: string[];
+}
+
+export interface VoidOrderItemPayload {
+  reason: string;
+  authorizerPin?: string;
+  qty?: number;
+}
+
