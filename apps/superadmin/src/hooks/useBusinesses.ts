@@ -251,7 +251,7 @@ export function useBusinesses(params?: BusinessesQueryParams) {
 
 export function useBusinessesEnriched(params?: BusinessesQueryParams) {
   return useQuery<BusinessesResponse>({
-    queryKey: ['superadmin-businesses-enriched', params],
+    queryKey: ['superadmin-businesses', 'enriched', params],
     queryFn: async () => {
       const { data } = await apiClient.get('/superadmin/businesses', {
         params: { ...params, format: 'object' },
@@ -304,6 +304,7 @@ export function useToggleBusiness() {
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-business', data.id] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Error al cambiar estado del negocio');
@@ -423,6 +424,7 @@ export function useDeleteBusiness() {
       toast.success('Negocio eliminado');
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
     },
   });
 }

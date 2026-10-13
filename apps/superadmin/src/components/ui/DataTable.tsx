@@ -47,11 +47,11 @@ export function DataTable<T>({
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50">
+            <tr className="border-b border-gray-100 bg-gray-50/70">
               {columns.map((col, idx) => (
                 <th
                   key={idx}
-                  className={`py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                  className={`py-3 px-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${
                     col.className || ''
                   }`}
                 >
@@ -92,7 +92,7 @@ export function DataTable<T>({
                         : null;
 
                     return (
-                      <td key={idx} className={`py-3.5 px-4 ${col.className || ''}`}>
+                      <td key={idx} className={`py-3 px-4 align-middle ${col.className || ''}`}>
                         {content}
                       </td>
                     );

@@ -131,6 +131,7 @@ export function useCreateMembership() {
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-expiring-memberships'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
     },
     onError: (err: any) => {
       toast.error(

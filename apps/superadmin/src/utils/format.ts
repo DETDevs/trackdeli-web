@@ -37,7 +37,8 @@ export function formatRelativeTime(dateString: string | Date | null | undefined)
   if (!dateString) return '—';
   try {
     const d = new Date(dateString);
-    return formatDistanceToNow(d, { addSuffix: true, locale: es });
+    const text = formatDistanceToNow(d, { addSuffix: true, locale: es });
+    return text.replace('alrededor de ', '').replace('casi ', '');
   } catch {
     return String(dateString);
   }
