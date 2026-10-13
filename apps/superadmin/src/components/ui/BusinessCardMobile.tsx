@@ -1,243 +1,237 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BusinessItem } from '../../hooks/useBusinesses';
 import { Badge } from './Badge';
-import { ArrowRight, Motorcycle, Coins, Receipt, Wallet, CalendarBlank, Clock, Globe, Trash } from '@phosphor-icons/react';
+import {
+  ArrowRight,
+  CreditCard,
+  DotsThreeVertical,
+  Trash,
+  Desktop,
+  Users,
+  Clock,
+} from '@phosphor-icons/react';
+import { formatDueText, getMembershipPillInfo, formatDateClean } from '../../utils/membershipDates';
+import { formatRelativeTime } from '../../utils/format';
 
 interface BusinessCardMobileProps {
   business: BusinessItem;
-  onToggle: (e: React.MouseEvent, business: BusinessItem) => void;
-  onDelete?: (e: React.MouseEvent, business: BusinessItem) => void;
+  onToggle: (business: BusinessItem) => void;
+  onDelete?: (business: BusinessItem) => void;
+  onRegisterPayment?: (business: BusinessItem) => void;
 }
 
 export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
   business,
   onToggle,
   onDelete,
+  onRegisterPayment,
 }) => {
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const pill = getMembershipPillInfo(
+    business.membership_status,
+    business.is_trial,
+    business.isActive,
+  );
+  const dueText = formatDueText(business.due_date, business.days_until_due);
+
+  // Última señal de actividad
+  const lastActivityDate = business.last_sale_at || business.last_seen_at;
+  const lastActivityText = lastActivityDate
+    ? formatRelativeTime(lastActivityDate)
+    : 'Sin actividad';
+
+  // Productos contratados
+  const productsList = business.products && business.products.length > 0
+    ? business.products
+    : (business.productSubscriptions || []).map((s) => ({
+        id: s.id || s.productType,
+        type: s.productType,
+        status: s.status,
+        name: s.productType,
+        fee: 0,
+      }));
 
   return (
     <div
       onClick={() => navigate(`/businesses/${business.id}`)}
-      className="bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 transition-all shadow-2xs cursor-pointer active:bg-gray-50 space-y-3"
+      className="bg-white border border-gray-200/80 rounded-2xl p-4 hover:border-gray-300 transition-all shadow-2xs cursor-pointer active:bg-gray-50/80 space-y-3 relative"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-100 flex items-center justify-center font-bold text-gray-700 text-sm shrink-0">
+      {/* Cabecera: Nombre, tipo y menú 3 puntos */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-gray-100 border border-gray-200/60 flex items-center justify-center font-bold text-gray-700 text-xs shrink-0 overflow-hidden">
             {business.logoUrl ? (
               <img
                 src={business.logoUrl}
                 alt={business.name}
-                className="w-full h-full object-cover rounded-xl"
+                className="w-full h-full object-cover"
               />
             ) : (
               business.name.charAt(0).toUpperCase()
             )}
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h4 className="font-semibold text-sm text-gray-900 truncate">{business.name}</h4>
-              {business.businessType === 'EMPRESA_RIDERS' && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 shrink-0">
-                  Riders
-                </span>
-              )}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h4 className="font-bold text-xs sm:text-sm text-gray-900 truncate">{business.name}</h4>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200/60">
+                {business.businessType === 'EMPRESA_RIDERS'
+                  ? 'Riders'
+                  : business.posVertical
+                  ? business.posVertical.toLowerCase()
+                  : business.type || 'Comercio'}
+              </span>
             </div>
-            <p className="text-xs text-gray-500 truncate mt-0.5">
-              {business.businessType === 'EMPRESA_RIDERS' ? (business.type || 'Empresa de Riders') : (business.type || 'Comercio')}
-            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          {onDelete && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(e, business);
-              }}
-              title="Eliminar negocio definitivamente"
-              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-            >
-              <Trash size={16} />
-            </button>
-          )}
-
+        {/* Menú de tres puntos */}
+        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            onClick={(e) => onToggle(e, business)}
-            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-              business.isActive ? 'bg-primary' : 'bg-gray-200'
-            }`}
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+            title="Más opciones"
           >
-            <span
-              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                business.isActive ? 'translate-x-4' : 'translate-x-0'
-              }`}
-            />
+            <DotsThreeVertical size={16} weight="bold" />
           </button>
+
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 mt-1 w-44 rounded-xl bg-white shadow-lg border border-gray-100 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onToggle(business);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  {business.isActive ? 'Desactivar negocio' : 'Activar negocio'}
+                </button>
+                {onDelete && (
+                  <>
+                    <div className="my-1 border-t border-gray-100" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDelete(business);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      <Trash size={14} />
+                      <span>Eliminar definitivamente</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 text-xs">
-        <div className="flex items-center gap-3 text-gray-600">
-          <div>
-            <span className="text-gray-400">Hoy: </span>
-            <span className="font-semibold text-gray-900">{business.ordersToday}</span>
-          </div>
-          <div>
-            <span className="text-gray-400">Total: </span>
-            <span className="font-semibold text-gray-900">{business._count?.orders ?? 0}</span>
-          </div>
+      {/* Membresía y Monto */}
+      <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-100 space-y-1">
+        <div className="flex items-center justify-between">
+          <Badge variant={pill.variant} dot size="sm">
+            {pill.label}
+          </Badge>
+          <span className="font-bold text-xs sm:text-sm text-gray-900">
+            ${Number(business.monthly_amount ?? 0).toFixed(2)}
+            <span className="text-[10px] font-normal text-gray-500"> / mes</span>
+          </span>
+        </div>
+        <p className="text-[11px] text-gray-500 font-medium">
+          {dueText}
+        </p>
+      </div>
+
+      {/* Productos contratados */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {productsList.map((p) => {
+          const isPos = p.type === 'POS';
+          const isDel = p.type === 'DELIVERY';
+          const isCar = p.type === 'CARTERA_COBRO';
+          const isCit = p.type === 'CITAS';
+
+          return (
+            <span
+              key={p.id}
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                isPos
+                  ? 'bg-purple-50 text-purple-700 border-purple-200/60'
+                  : isDel
+                  ? 'bg-amber-50 text-amber-700 border-amber-200/60'
+                  : isCar
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                  : isCit
+                  ? 'bg-sky-50 text-sky-700 border-sky-200/60'
+                  : 'bg-gray-50 text-gray-600 border-gray-200'
+              }`}
+            >
+              {p.name || p.type}
+            </span>
+          );
+        })}
+
+        {business.is_trial && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-900 border border-purple-200">
+            Prueba
+          </span>
+        )}
+      </div>
+
+      {/* Uso & Última actividad */}
+      <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-[11px] text-gray-500">
+        <div className="flex items-center gap-2.5">
+          <span className="flex items-center gap-1 font-medium" title="Equipos activos / permitidos">
+            <Desktop size={13} className="text-gray-400" />
+            <span>
+              {business.devices?.active ?? 0}/{business.devices?.allowed ?? '∞'}
+            </span>
+          </span>
+          <span className="flex items-center gap-1 font-medium" title="Usuarios activos / límite">
+            <Users size={13} className="text-gray-400" />
+            <span>
+              {business.users?.active ?? 0}/{business.users?.limit ?? 6}
+            </span>
+          </span>
         </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {(() => {
-            const isDeliveryActive = business.productSubscriptions
-              ? business.productSubscriptions.some((s) => s.productType === 'DELIVERY' && s.status === 'ACTIVE')
-              : (business.hasTrackDeli ?? false);
-            const isPosActive = business.productSubscriptions
-              ? business.productSubscriptions.some((s) => s.productType === 'POS' && s.status === 'ACTIVE')
-              : (business.hasPOS ?? false);
-            const isCarteraActive = business.productSubscriptions
-              ? business.productSubscriptions.some((s) => s.productType === 'CARTERA_COBRO' && s.status === 'ACTIVE')
-              : (business.hasCarteraCobro ?? false);
-            const isCitasActive = business.productSubscriptions
-              ? business.productSubscriptions.some((s) => s.productType === 'CITAS' && s.status === 'ACTIVE')
-              : (business.hasCitas ?? false);
-
-            if (!isDeliveryActive && !isPosActive && !isCarteraActive && !isCitasActive) {
-              return <Badge variant="neutral" size="sm">Sin productos</Badge>;
-            }
-
-            const badges: React.ReactNode[] = [];
-
-            // 1. Delivery
-            if (isDeliveryActive) {
-              if (business.businessType === 'EMPRESA_RIDERS') {
-                const rate = business.commissionRate ? `${(business.commissionRate * 100).toFixed(0)}%` : '15%';
-                badges.push(
-                  <span key="delivery" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
-                    <Coins size={11} className="text-amber-700" />
-                    <span>{rate}</span>
-                  </span>
-                );
-              } else {
-                const mem = business.membership;
-                if (mem && mem.status === 'ACTIVE') {
-                  const days = mem.daysLeft ?? 0;
-                  badges.push(
-                    <Badge key="delivery" variant={days <= 7 ? 'warning' : 'success'} dot size="sm">
-                      {days <= 7 ? `${days}d` : `Activa ${days}d`}
-                    </Badge>
-                  );
-                } else if (mem?.status === 'EXPIRED') {
-                  badges.push(
-                    <Badge key="delivery" variant="danger" dot size="sm">
-                      Vencida
-                    </Badge>
-                  );
-                } else {
-                  badges.push(
-                    <span key="delivery" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
-                      <Motorcycle size={11} weight="duotone" className="text-amber-700" />
-                      <span>Delivery</span>
-                    </span>
-                  );
-                }
-              }
-            }
-
-            // 2. POS
-            if (isPosActive) {
-              const posSub = business.productSubscriptions?.find((s) => s.productType === 'POS');
-              const isTaller = business.salonProfile === 'TALLER' || posSub?.salonProfile === 'TALLER';
-              const vertical = isTaller ? 'Taller' : (posSub?.posVertical === 'RETAIL' ? 'Retail' : 'Rest.');
-              badges.push(
-                <span key="pos" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-800 border border-purple-200/80">
-                  <Receipt size={11} className="text-purple-700" />
-                  <span>POS ({vertical})</span>
-                </span>
-              );
-
-              // Insignia discreta "Prueba"
-              const trialHoursVal = (posSub as any)?.trialHours ?? business.trialHours;
-              const trialEndsAtVal = (posSub as any)?.trialEndsAt ?? business.trialEndsAt;
-              if (trialHoursVal) {
-                const isExpired = trialEndsAtVal && new Date(trialEndsAtVal).getTime() <= Date.now();
-                badges.push(
-                  <span
-                    key="pos-trial"
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                      isExpired
-                        ? 'bg-gray-100 text-gray-600 border border-gray-200'
-                        : 'bg-amber-50 text-amber-800 border border-amber-200/80'
-                    }`}
-                  >
-                    <Clock size={11} weight="bold" className={isExpired ? 'text-gray-500' : 'text-amber-600'} />
-                    <span>Prueba</span>
-                  </span>
-                );
-              }
-
-              // Insignia discreta por nivel de acceso web (ticket 166b)
-              const hasWebAdmin = (posSub as any)?.webAdminEnabled ?? (business as any)?.webAdminEnabled ?? true;
-              const hasWebBilling = (posSub as any)?.webBillingEnabled ?? (business as any)?.webBillingEnabled ?? false;
-
-              if (hasWebAdmin && hasWebBilling) {
-                badges.push(
-                  <span
-                    key="pos-web-billing"
-                    title="Acceso web y facturación web habilitados"
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-100/90 text-purple-900 border border-purple-300"
-                  >
-                    <Globe size={11} weight="duotone" className="text-purple-700" />
-                    <span>Web + facturación</span>
-                  </span>
-                );
-              } else if (hasWebAdmin) {
-                badges.push(
-                  <span
-                    key="pos-web-basic"
-                    title="Acceso web admin básico (reportes y consulta)"
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-800 border border-blue-200/80"
-                  >
-                    <Globe size={11} className="text-blue-600" />
-                    <span>Web básico</span>
-                  </span>
-                );
-              }
-            }
-
-            // 3. Cartera de Cobro
-            if (isCarteraActive) {
-              badges.push(
-                <span key="cartera" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/80">
-                  <Wallet size={11} className="text-emerald-700" />
-                  <span>Cartera</span>
-                </span>
-              );
-            }
-
-            // 4. Citas
-            if (isCitasActive) {
-              badges.push(
-                <span key="citas" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-800 border border-sky-200/80">
-                  <CalendarBlank size={11} className="text-sky-700" />
-                  <span>Citas</span>
-                </span>
-              );
-            }
-
-            return badges;
-          })()}
-
-          <div className="text-gray-400 pl-1">
-            <ArrowRight size={14} />
-          </div>
+        <div
+          className="flex items-center gap-1"
+          title={lastActivityDate ? formatDateClean(lastActivityDate) : 'Sin actividad registrada'}
+        >
+          <Clock size={13} className="text-gray-400" />
+          <span>{lastActivityText}</span>
         </div>
+      </div>
+
+      {/* Botones de acción */}
+      <div className="flex items-center justify-end gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+        {onRegisterPayment && (
+          <button
+            type="button"
+            onClick={() => onRegisterPayment(business)}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors shadow-2xs"
+          >
+            <CreditCard size={13} />
+            <span>Registrar pago</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => navigate(`/businesses/${business.id}`)}
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium transition-colors"
+        >
+          <span>Ver</span>
+          <ArrowRight size={13} />
+        </button>
       </div>
     </div>
   );

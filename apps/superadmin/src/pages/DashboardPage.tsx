@@ -1,361 +1,497 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Storefront,
-  Motorcycle,
-  Package,
-  Clock,
-  ArrowUpRight,
-  Star,
+  CurrencyDollar,
+  CalendarBlank,
+  WarningCircle,
   CheckCircle,
-  XCircle,
-  Warning,
+  Receipt,
+  Wallet,
+  CreditCard,
+  CaretDown,
+  CaretUp,
+  FileText,
+  ArrowUpRight,
+  Motorcycle,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { StatCard } from '../components/ui/StatCard';
-import { OrdersChart } from '../components/ui/Chart';
 import { Badge } from '../components/ui/Badge';
-import { useGlobalMetrics } from '../hooks/useMetrics';
+import { useSuperAdminSummary } from '../hooks/useSuperAdminSummary';
 import { useLogs } from '../hooks/useLogs';
-import { useExpiringMemberships } from '../hooks/useMemberships';
-import { formatRelativeTime, formatDateShort } from '../utils/format';
+import { RegisterMembershipModal } from '../components/modals/RegisterMembershipModal';
+import { formatDueText, getMembershipPillInfo, formatDateClean } from '../utils/membershipDates';
+import { formatRelativeTime } from '../utils/format';
 
 export const DashboardPage = () => {
-  const { data: metrics, isLoading: loadingMetrics } = useGlobalMetrics();
+  const { data: summary, isLoading: loadingSummary } = useSuperAdminSummary();
   const { data: logs = [], isLoading: loadingLogs } = useLogs();
-  const { data: expiringMemberships = [], isLoading: loadingExpiring } = useExpiringMemberships();
+
+  const [paymentTarget, setPaymentTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeliveryExpanded, setIsDeliveryExpanded] = useState(false);
+
+  const pendingCollections = summary?.pending_collections || [];
+  const inGraceCount = summary?.in_grace?.count || 0;
+  const overdueCount = summary?.overdue?.count || 0;
+  const totalOverdueRisk = inGraceCount + overdueCount;
+  const overdueRiskAmount = (summary?.in_grace?.amount || 0) + (summary?.overdue?.amount || 0);
 
   return (
     <div>
       <TopBar
         title="Dashboard Global"
-        subtitle="Métricas en tiempo real y rendimiento de la plataforma"
+        subtitle="Métricas de cobro, riesgo de membresías y adopción de la plataforma"
       />
 
       <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-          <StatCard
-            title="Negocios Activos"
-            value={metrics?.totals.businessesActive ?? (loadingMetrics ? '...' : 0)}
-            subtitle={`${metrics?.totals.businesses ?? 0} registrados en total`}
-            icon={<Storefront size={18} />}
-          />
-          <StatCard
-            title="Repartidores Activos"
-            value={metrics?.totals.ridersActive ?? (loadingMetrics ? '...' : 0)}
-            subtitle={`${metrics?.totals.riders ?? 0} registrados en total`}
-            icon={<Motorcycle size={18} />}
-          />
-          <StatCard
-            title="Pedidos Históricos"
-            value={metrics?.totals.ordersAllTime ?? (loadingMetrics ? '...' : 0)}
-            subtitle={`${metrics?.today.ordersCreated ?? 0} pedidos creados hoy`}
-            icon={<Package size={18} />}
-          />
-          <StatCard
-            title="En Curso Ahora"
-            value={metrics?.today.ordersActive ?? (loadingMetrics ? '...' : 0)}
-            subtitle={`${metrics?.today.ordersDelivered ?? 0} entregados hoy`}
-            icon={<Clock size={18} />}
-          />
-        </div>
+        {/* 1. Fila de 4 tarjetas principales */}
+        {loadingSummary || !summary ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 animate-pulse">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 space-y-3 shadow-xs">
+                <div className="h-3 bg-gray-200 rounded w-1/2" />
+                <div className="h-7 bg-gray-200 rounded w-3/4" />
+                <div className="h-3 bg-gray-100 rounded w-2/3" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+            {/* Tarjeta 1: MRR */}
+            <StatCard
+              title="Ingreso Mensual (MRR)"
+              value={`$${summary.mrr.toFixed(2)}`}
+              subtitle="Mensual recurrente activo"
+              icon={<CurrencyDollar size={18} className="text-emerald-600" />}
+            />
 
-        <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Warning size={18} className="text-amber-500" weight="fill" />
-              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                Alertas ({expiringMemberships.length})
-              </h3>
-            </div>
-            <Link
-              to="/businesses"
-              className="text-xs font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1"
+            {/* Tarjeta 2: Por cobrar en 7 días */}
+            <StatCard
+              title="Por cobrar en 7 días"
+              value={`${summary.due_next_7_days.count} ${summary.due_next_7_days.count === 1 ? 'negocio' : 'negocios'}`}
+              subtitle={`$${summary.due_next_7_days.amount.toFixed(2)} por ingresar`}
+              icon={<CalendarBlank size={18} className="text-amber-600" />}
+            />
+
+            {/* Tarjeta 3: En gracia / vencidos (con acento cuando > 0) */}
+            <div
+              className={`bg-white rounded-xl p-5 shadow-xs transition-all hover:shadow-sm border ${
+                totalOverdueRisk > 0
+                  ? 'border-red-200 bg-red-50/20'
+                  : 'border-gray-100'
+              }`}
             >
-              <span>Gestionar negocios</span>
-              <ArrowUpRight size={14} />
-            </Link>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  En gracia / Vencidos
+                </span>
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    totalOverdueRisk > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-50 text-gray-600'
+                  }`}
+                >
+                  <WarningCircle size={18} weight={totalOverdueRisk > 0 ? 'fill' : 'regular'} />
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-baseline gap-2">
+                <span
+                  className={`text-2xl font-semibold tracking-tight ${
+                    totalOverdueRisk > 0 ? 'text-red-600 font-bold' : 'text-gray-900'
+                  }`}
+                >
+                  {totalOverdueRisk}
+                </span>
+                {totalOverdueRisk > 0 && (
+                  <span className="text-[11px] font-semibold text-red-600 bg-red-100/80 px-1.5 py-0.5 rounded">
+                    ¡Atención!
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-500 mt-2 truncate">
+                {overdueCount} vencidos · {inGraceCount} en gracia
+                {overdueRiskAmount > 0 && ` ($${overdueRiskAmount.toFixed(2)})`}
+              </p>
+            </div>
+
+            {/* Tarjeta 4: Negocios activos */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-xs transition-all hover:shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Negocios Activos
+                </span>
+                <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-brand-600">
+                  <Storefront size={18} />
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-2xl font-semibold text-gray-900 tracking-tight">
+                  {summary.active_businesses.total}
+                </span>
+              </div>
+
+              <div className="mt-2 text-xs flex items-center justify-between gap-1 text-gray-500">
+                <span className="text-emerald-700 font-medium">
+                  +{summary.active_businesses.new_this_month} este mes
+                </span>
+                <span className="text-purple-700 font-medium text-[11px] bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                  {summary.trials} en prueba
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2 y 3. Grid central: Cobros pendientes (bloque principal ancho) + Columna lateral */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Bloque principal ancho: Cobros pendientes (8 cols) */}
+          <div className="lg:col-span-8 bg-white rounded-2xl border border-gray-100 p-5 lg:p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-700">
+                  <Receipt size={18} weight="duotone" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+                      Cobros pendientes
+                    </h3>
+                    {pendingCollections.length > 0 && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900">
+                        {pendingCollections.length}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Negocios con membresía vencida, en gracia o por vencer ordenada por urgencia
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {loadingSummary ? (
+              <div className="py-8 text-center text-xs text-gray-400 animate-pulse">
+                Cargando cobros pendientes...
+              </div>
+            ) : pendingCollections.length === 0 ? (
+              <div className="py-10 text-center flex flex-col items-center justify-center space-y-2">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-1">
+                  <CheckCircle size={26} weight="fill" />
+                </div>
+                <p className="text-sm font-semibold text-gray-900">Todo al día</p>
+                <p className="text-xs text-gray-500 max-w-sm">
+                  No hay cobros pendientes ni cuentas vencidas en este momento.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {pendingCollections.map((item) => {
+                  const pill = getMembershipPillInfo(item.status);
+                  const dueText = formatDueText(item.due_date, item.days_until_due);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50/70 rounded-xl px-2.5 transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            to={`/businesses/${item.id}`}
+                            className="font-semibold text-xs sm:text-sm text-gray-900 hover:text-brand-600 transition-colors truncate"
+                          >
+                            {item.name}
+                          </Link>
+                          <Badge variant={pill.variant} dot size="sm">
+                            {pill.label}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 font-medium">
+                          {dueText}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                        <div className="text-right">
+                          <span className="font-bold text-xs sm:text-sm text-gray-900 block">
+                            ${Number(item.amount || 0).toFixed(2)}
+                            <span className="text-[11px] font-normal text-gray-500"> / mes</span>
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setPaymentTarget({ id: item.id, name: item.name })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                        >
+                          <CreditCard size={14} />
+                          <span>Registrar pago</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {loadingExpiring ? (
-            <p className="text-xs text-gray-400 py-2">Verificando membresías...</p>
-          ) : expiringMemberships.length > 0 ? (
-            <div className="space-y-2 pt-1">
-              {expiringMemberships.map((m) => {
-                const days = m.daysLeft ?? 0;
-                const isUrgent = days <= 2;
+          {/* Columna lateral: Negocios por tipo & Riesgo de adopción (4 cols) */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* Negocios por tipo */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                  Negocios por tipo
+                </h3>
+                <span className="text-xs text-gray-400 font-mono">
+                  {summary ? Object.values(summary.by_type || {}).reduce((a, b) => a + b, 0) : 0} activos
+                </span>
+              </div>
 
-                return (
-                  <Link
-                    key={m.id}
-                    to={`/businesses/${m.businessId}`}
-                    className={`flex items-center justify-between p-3.5 rounded-xl border transition-all hover:scale-[1.005] ${
-                      isUrgent
-                        ? 'bg-[#FEF2F2] border-[#FEE2E2] hover:bg-[#FEE2E2]/60'
-                        : 'bg-[#FFFBEB] border-[#FEF3C7] hover:bg-[#FEF3C7]/60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                        isUrgent ? 'bg-red-500 ring-4 ring-red-100' : 'bg-amber-500 ring-4 ring-amber-100'
-                      }`} />
-                      <div>
-                        <p className={`text-xs font-semibold ${isUrgent ? 'text-[#991B1B]' : 'text-[#92400E]'}`}>
-                          {m.business?.name || 'Comercio'}
-                          <span className="font-normal text-xs ml-1.5 opacity-90">
-                            — vence en {days === 0 ? 'hoy' : days === 1 ? '1 día' : `${days} días`} ({formatDateShort(m.endDate)})
-                          </span>
-                        </p>
+              {loadingSummary || !summary ? (
+                <div className="py-4 text-xs text-gray-400 animate-pulse">Cargando tipos...</div>
+              ) : Object.keys(summary.by_type || {}).length === 0 ? (
+                <p className="text-xs text-gray-400 py-3 text-center">Sin datos de tipos de negocio.</p>
+              ) : (
+                <div className="space-y-2.5 pt-1">
+                  {Object.entries(summary.by_type)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([typeKey, count]) => {
+                      const total =
+                        Object.values(summary.by_type).reduce((a, b) => a + b, 0) || 1;
+                      const pct = Math.round((count / total) * 100);
+
+                      return (
+                        <div key={typeKey} className="space-y-1">
+                          <div className="flex justify-between text-xs font-medium text-gray-700">
+                            <span className="capitalize">{typeKey.toLowerCase()}</span>
+                            <span className="text-gray-500 font-mono text-[11px]">
+                              {count} ({pct}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-brand-600 h-full rounded-full transition-all"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* Adopción: Sin actividad en 7 días */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-xs space-y-3">
+              <div>
+                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                  Riesgo de adopción
+                </h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  Sin actividad en 7 días · Nota: señal basada en la última venta registrada en POS
+                </p>
+              </div>
+
+              {loadingSummary || !summary ? (
+                <div className="py-4 text-xs text-gray-400 animate-pulse">Verificando adopción...</div>
+              ) : summary.inactive_adoption.businesses.length === 0 ? (
+                <div className="py-4 text-center">
+                  <p className="text-xs text-emerald-700 font-medium">
+                    Todos los negocios activos registran ventas recientes.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto pr-1">
+                  {summary.inactive_adoption.businesses.map((biz) => (
+                    <div key={biz.id} className="py-2.5 flex items-center justify-between gap-2 text-xs">
+                      <div className="min-w-0">
+                        <Link
+                          to={`/businesses/${biz.id}`}
+                          className="font-semibold text-gray-900 hover:text-brand-600 truncate block"
+                        >
+                          {biz.name}
+                        </Link>
+                        <span className="text-[11px] text-gray-400">
+                          {biz.last_activity_at
+                            ? `Última venta ${formatRelativeTime(biz.last_activity_at)}`
+                            : 'Sin ventas registradas'}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/60 shrink-0">
+                        {biz.days_inactive}d inactivo
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Pagos recientes (últimos 10) y Actividad reciente compacta */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Pagos recientes (7 cols) */}
+          <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-100 p-5 lg:p-6 shadow-xs space-y-3">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Wallet size={18} className="text-emerald-600" weight="duotone" />
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+                  Pagos recientes
+                </h3>
+              </div>
+              <span className="text-xs text-gray-400">
+                Últimos {summary?.recent_payments?.length || 0}
+              </span>
+            </div>
+
+            {loadingSummary || !summary ? (
+              <div className="py-6 text-xs text-gray-400 text-center animate-pulse">Cargando pagos...</div>
+            ) : summary.recent_payments.length === 0 ? (
+              <p className="text-xs text-gray-400 py-6 text-center">
+                No hay pagos registrados recientemente.
+              </p>
+            ) : (
+              <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto pr-1">
+                {summary.recent_payments.map((payment) => (
+                  <div key={payment.id} className="py-3 flex items-center justify-between gap-3 text-xs">
+                    <div className="min-w-0">
+                      <Link
+                        to={`/businesses/${payment.business_id}`}
+                        className="font-semibold text-gray-900 hover:text-brand-600 truncate block text-xs sm:text-sm"
+                      >
+                        {payment.business_name}
+                      </Link>
+                      <div className="text-[11px] text-gray-500 flex items-center gap-1.5 mt-0.5">
+                        <span className="font-medium text-gray-700">{payment.payment_method}</span>
+                        <span>·</span>
+                        <span>{payment.period}</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${
-                        isUrgent ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        Renovar pago →
+                    <div className="text-right shrink-0">
+                      <span className="font-bold text-gray-900 block text-xs sm:text-sm">
+                        ${payment.amount.toFixed(2)} {payment.currency}
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        {formatDateClean(payment.paid_at)}
                       </span>
                     </div>
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center justify-between text-xs text-emerald-800">
-              <div className="flex items-center gap-2">
-                <CheckCircle size={16} className="text-brand-600" weight="fill" />
-                <span className="font-medium">Todas las membresías están al día</span>
-              </div>
-              <span className="text-[11px] text-emerald-700/80">Ningún negocio vence en los próximos 7 días</span>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Volumen de Pedidos (Últimos 30 días)
-                </h3>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Comparativa de pedidos creados vs entregados
-                </p>
-              </div>
-              <Badge variant="success" size="sm">
-                Tasa de éxito: {metrics?.last30Days.deliveryRate ?? 0}%
-              </Badge>
-            </div>
-
-            {metrics?.ordersPerDay && metrics.ordersPerDay.length > 0 ? (
-              <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
-                <div className="min-w-[500px]">
-                  <OrdersChart data={metrics.ordersPerDay} />
-                </div>
-              </div>
-            ) : (
-              <div className="h-72 flex items-center justify-center text-xs text-gray-400">
-                {loadingMetrics ? 'Cargando gráfico...' : 'No hay datos de los últimos 30 días'}
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs flex flex-col justify-between space-y-6">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                Rendimiento de Entrega
-              </h3>
-              <p className="text-xs text-gray-400 mb-5">
-                Promedios acumulados del último mes
+          {/* Actividad reciente (5 cols) */}
+          <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 p-5 lg:p-6 shadow-xs space-y-3">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <FileText size={18} className="text-gray-700" weight="duotone" />
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+                  Actividad reciente
+                </h3>
+              </div>
+              <Link
+                to="/logs"
+                className="text-xs font-semibold text-gray-500 hover:text-gray-900 flex items-center gap-1 transition-colors"
+              >
+                <span>Ver todos los logs</span>
+                <ArrowUpRight size={13} />
+              </Link>
+            </div>
+
+            {loadingLogs ? (
+              <div className="py-6 text-xs text-gray-400 text-center animate-pulse">Cargando actividad...</div>
+            ) : logs.slice(0, 5).length === 0 ? (
+              <p className="text-xs text-gray-400 py-6 text-center">
+                No hay registros de actividad recientes.
               </p>
-
-              <div className="space-y-4">
-                <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100/80 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs text-gray-500">Tiempo prom. entrega</span>
-                    <p className="text-base font-semibold text-gray-900 mt-0.5">
-                      {metrics?.last30Days.avgDeliveryTimeMinutes
-                        ? `${metrics.last30Days.avgDeliveryTimeMinutes} min`
-                        : 'N/A'}
-                    </p>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {logs.slice(0, 5).map((log: any) => (
+                  <div key={log.id} className="py-2.5 flex items-start justify-between gap-3 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 truncate">
+                        {log.action || log.description || 'Evento registrado'}
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                        {log.businessName || log.userName || log.entity || 'Sistema'}
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-gray-400 shrink-0">
+                      {formatRelativeTime(log.createdAt)}
+                    </span>
                   </div>
-                  <Clock size={20} className="text-gray-400" />
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100/80 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs text-gray-500">Entregas exitosas (30d)</span>
-                    <p className="text-base font-semibold text-brand-700 mt-0.5">
-                      {metrics?.last30Days.ordersDelivered ?? 0} pedidos
-                    </p>
-                  </div>
-                  <CheckCircle size={20} className="text-brand-500" />
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100/80 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs text-gray-500">Cancelaciones (30d)</span>
-                    <p className="text-base font-semibold text-red-600 mt-0.5">
-                      {metrics?.last30Days.ordersCancelled ?? 0} pedidos
-                    </p>
-                  </div>
-                  <XCircle size={20} className="text-red-500" />
-                </div>
+                ))}
               </div>
-            </div>
-
-            <div className="pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-              <span>Nuevos repartidores hoy:</span>
-              <span className="font-semibold text-gray-900">
-                +{metrics?.today.newRiders ?? 0}
-              </span>
-            </div>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">Top Negocios</h3>
-                <p className="text-xs text-gray-400">Por volumen de pedidos en 30 días</p>
-              </div>
-              <Link
-                to="/businesses"
-                className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1"
-              >
-                <span>Ver todos</span>
-                <ArrowUpRight size={14} />
-              </Link>
-            </div>
-
-            <div className="divide-y divide-gray-100">
-              {metrics?.topBusinesses && metrics.topBusinesses.length > 0 ? (
-                metrics.topBusinesses.map((biz, idx) => (
-                  <div
-                    key={biz.id}
-                    className="py-3 flex items-center justify-between text-sm"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="w-5 text-xs font-semibold text-gray-400">
-                        #{idx + 1}
-                      </span>
-                      <Link
-                        to={`/businesses/${biz.id}`}
-                        className="font-medium text-gray-900 hover:underline"
-                      >
-                        {biz.name}
-                      </Link>
-                    </div>
-                    <span className="text-xs font-semibold text-gray-700 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
-                      {biz.ordersCount} pedidos
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="py-8 text-center text-xs text-gray-400">
-                  {loadingMetrics ? 'Cargando ranking...' : 'No hay datos suficientes'}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">Top Repartidores</h3>
-                <p className="text-xs text-gray-400">Por entregas completadas en 30 días</p>
-              </div>
-              <Link
-                to="/riders"
-                className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1"
-              >
-                <span>Ver todos</span>
-                <ArrowUpRight size={14} />
-              </Link>
-            </div>
-
-            <div className="divide-y divide-gray-100">
-              {metrics?.topRiders && metrics.topRiders.length > 0 ? (
-                metrics.topRiders.map((rider, idx) => (
-                  <div
-                    key={rider.id}
-                    className="py-3 flex items-center justify-between text-sm"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="w-5 text-xs font-semibold text-gray-400">
-                        #{idx + 1}
-                      </span>
-                      <span className="font-medium text-gray-900">{rider.name}</span>
-                      {rider.averageRating && (
-                        <span className="flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                          <Star size={12} weight="fill" />
-                          {rider.averageRating}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs font-semibold text-gray-700 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
-                      {rider.deliveriesCount} entregas
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="py-8 text-center text-xs text-gray-400">
-                  {loadingMetrics ? 'Cargando ranking...' : 'No hay datos suficientes'}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900">Actividad Reciente</h3>
-              <p className="text-xs text-gray-400">Últimos eventos registrados en el sistema</p>
-            </div>
-            <Link
-              to="/logs"
-              className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1"
+        {/* 5. Delivery: sección secundaria colapsada al final solo si el API devuelve el bloque */}
+        {summary?.delivery && summary.delivery.active_businesses_count > 0 && (
+          <div className="border border-gray-200/80 rounded-2xl bg-white overflow-hidden shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setIsDeliveryExpanded(!isDeliveryExpanded)}
+              className="w-full p-4 flex items-center justify-between bg-gray-50/70 hover:bg-gray-100/60 transition-colors text-left cursor-pointer"
             >
-              <span>Ver todos los logs</span>
-              <ArrowUpRight size={14} />
-            </Link>
-          </div>
+              <div className="flex items-center gap-2.5">
+                <Motorcycle size={18} className="text-amber-600" weight="duotone" />
+                <span className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                  Métricas de Delivery ({summary.delivery.active_businesses_count} negocios)
+                </span>
+              </div>
+              <div className="text-gray-500">
+                {isDeliveryExpanded ? <CaretUp size={16} /> : <CaretDown size={16} />}
+              </div>
+            </button>
 
-          <div className="divide-y divide-gray-100">
-            {logs.slice(0, 5).map((log) => {
-              const isDelivered = log.type === 'ORDER_DELIVERED';
-              const isIncidencia = log.type === 'INCIDENCIA';
-              const isCancelled = log.type === 'ORDER_CANCELLED';
-
-              return (
-                <div key={log.id} className="py-3 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        isDelivered
-                          ? 'bg-brand-500'
-                          : isIncidencia || isCancelled
-                          ? 'bg-red-500'
-                          : 'bg-blue-500'
-                      }`}
-                    />
-                    <span className="text-gray-900 font-medium">{log.description}</span>
-                  </div>
-                  <span className="text-gray-400 shrink-0">
-                    {formatRelativeTime(log.createdAt)}
+            {isDeliveryExpanded && (
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-gray-200/80 bg-white">
+                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <span className="text-[11px] text-gray-500 uppercase block font-medium">
+                    Repartidores activos
+                  </span>
+                  <span className="text-lg font-bold text-gray-900">
+                    {summary.delivery.active_riders}
                   </span>
                 </div>
-              );
-            })}
-            {!loadingLogs && logs.length === 0 && (
-              <p className="py-6 text-center text-xs text-gray-400">
-                No hay actividad registrada aún
-              </p>
+                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <span className="text-[11px] text-gray-500 uppercase block font-medium">
+                    Pedidos creados hoy
+                  </span>
+                  <span className="text-lg font-bold text-gray-900">
+                    {summary.delivery.orders_today}
+                  </span>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <span className="text-[11px] text-gray-500 uppercase block font-medium">
+                    Tasa de entrega (30d)
+                  </span>
+                  <span className="text-lg font-bold text-gray-900">
+                    {summary.delivery.delivery_rate_30d}%
+                  </span>
+                </div>
+              </div>
             )}
           </div>
-        </div>
+        )}
       </div>
+
+      {/* Modal para registrar pago */}
+      {paymentTarget && (
+        <RegisterMembershipModal
+          isOpen={Boolean(paymentTarget)}
+          onClose={() => setPaymentTarget(null)}
+          businessId={paymentTarget.id}
+          businessName={paymentTarget.name}
+        />
+      )}
     </div>
   );
 };

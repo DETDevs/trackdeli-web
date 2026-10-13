@@ -348,3 +348,73 @@ export function resolveBusinessBillingInfo(
     statusBadge,
   };
 }
+
+/**
+ * Formatea una fecha de vencimiento y días restantes de forma humana.
+ * Ej: "Vence 10 nov · en 29 días", "Vence hoy · 10 nov", "Venció hace 2 días · 10 oct".
+ */
+export function formatDueText(
+  dueDate: string | null | undefined,
+  daysUntilDue: number | null | undefined,
+): string {
+  if (!dueDate) return 'Sin fecha de vencimiento';
+  const d = parseDateClean(dueDate);
+  if (!d) return 'Sin fecha de vencimiento';
+  const shortDate = format(d, 'd MMM', { locale: es });
+
+  if (daysUntilDue === undefined || daysUntilDue === null) {
+    return `Vence ${shortDate}`;
+  }
+
+  if (daysUntilDue < 0) {
+    const absDays = Math.abs(daysUntilDue);
+    return `Venció hace ${absDays} ${absDays === 1 ? 'día' : 'días'} · ${shortDate}`;
+  }
+  if (daysUntilDue === 0) {
+    return `Vence hoy · ${shortDate}`;
+  }
+  if (daysUntilDue === 1) {
+    return `Vence mañana · ${shortDate}`;
+  }
+  return `Vence ${shortDate} · en ${daysUntilDue} días`;
+}
+
+/**
+ * Retorna la variante de Badge y etiqueta en español según el estado de membresía.
+ * Colores:
+ * VIGENTE: verde (success)
+ * POR_VENCER: ámbar (warning)
+ * EN_GRACIA: naranja (orange)
+ * VENCIDO: rojo (danger)
+ * PRUEBA: púrpura (purple)
+ * INACTIVO: gris (neutral)
+ */
+export function getMembershipPillInfo(
+  status?: string | null,
+  isTrial?: boolean,
+  isActive: boolean = true,
+): { variant: 'success' | 'warning' | 'orange' | 'danger' | 'purple' | 'neutral'; label: string } {
+  if (!isActive) {
+    return { variant: 'neutral', label: 'Inactivo' };
+  }
+  if (isTrial) {
+    return { variant: 'purple', label: 'En prueba' };
+  }
+
+  const s = (status || '').toUpperCase().trim();
+  switch (s) {
+    case 'VIGENTE':
+      return { variant: 'success', label: 'Vigente' };
+    case 'POR_VENCER':
+      return { variant: 'warning', label: 'Por vencer' };
+    case 'EN_GRACIA':
+      return { variant: 'orange', label: 'En gracia' };
+    case 'VENCIDO':
+      return { variant: 'danger', label: 'Vencido' };
+    case 'NOT_CONTRACTED':
+      return { variant: 'neutral', label: 'Sin contrato' };
+    default:
+      return { variant: 'neutral', label: status || 'Sin membresía' };
+  }
+}
+

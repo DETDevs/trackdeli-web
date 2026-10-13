@@ -81,7 +81,27 @@ export interface BusinessItem {
   trialHours?: number | null;
   trialStartedAt?: string | null;
   trialEndsAt?: string | null;
+  posVertical?: string | null;
   activeDevices?: number;
+  monthly_amount?: number;
+  is_trial?: boolean;
+  products?: Array<{
+    id: string;
+    type: string;
+    status: string;
+    name: string;
+    fee: number;
+  }>;
+  devices?: {
+    active: number;
+    allowed: number | null;
+  };
+  users?: {
+    active: number;
+    limit: number;
+  };
+  last_seen_at?: string | null;
+  last_sale_at?: string | null;
 }
 
 export interface BusinessDetail extends BusinessItem {
@@ -192,11 +212,65 @@ export interface CreateBusinessResult {
   };
 }
 
-export function useBusinesses() {
+export interface BusinessCounters {
+  all: number;
+  activo: number;
+  por_vencer: number;
+  en_gracia: number;
+  vencido: number;
+  prueba: number;
+  inactivo: number;
+}
+
+export interface BusinessesResponse {
+  data: BusinessItem[];
+  counters: BusinessCounters;
+}
+
+export interface BusinessesQueryParams {
+  status?: string;
+  search?: string;
+  type?: string;
+  sortBy?: string;
+  order?: 'asc' | 'desc';
+  format?: 'object' | 'array';
+}
+
+export function useBusinesses(params?: BusinessesQueryParams) {
   return useQuery<BusinessItem[]>({
-    queryKey: ['superadmin-businesses'],
+    queryKey: ['superadmin-businesses', params],
     queryFn: async () => {
-      const { data } = await apiClient.get('/superadmin/businesses');
+      const { data } = await apiClient.get('/superadmin/businesses', {
+        params: { ...params, format: 'array' },
+      });
+      return Array.isArray(data) ? data : (data.data || []);
+    },
+    refetchInterval: 30000,
+  });
+}
+
+export function useBusinessesEnriched(params?: BusinessesQueryParams) {
+  return useQuery<BusinessesResponse>({
+    queryKey: ['superadmin-businesses-enriched', params],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/superadmin/businesses', {
+        params: { ...params, format: 'object' },
+      });
+      if (Array.isArray(data)) {
+        const all = data;
+        return {
+          data: all,
+          counters: {
+            all: all.length,
+            activo: all.filter((b) => b.isActive).length,
+            por_vencer: all.filter((b) => b.isActive && b.membership_status === 'POR_VENCER').length,
+            en_gracia: all.filter((b) => b.isActive && b.membership_status === 'EN_GRACIA').length,
+            vencido: all.filter((b) => b.isActive && b.membership_status === 'VENCIDO').length,
+            prueba: all.filter((b) => b.isActive && b.is_trial).length,
+            inactivo: all.filter((b) => !b.isActive).length,
+          },
+        };
+      }
       return data;
     },
     refetchInterval: 30000,
