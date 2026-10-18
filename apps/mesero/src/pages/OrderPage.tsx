@@ -44,11 +44,16 @@ export const OrderPage: React.FC = () => {
   // Cargar mesas sin refresco periódico mientras la comanda está abierta
   const { data: tables = [] } = useTablesStatus({ enabledPolling: false });
   const currentTable = tables.find((t) => t.id === tableId);
-  const tableNumber = currentTable?.number || '?';
-  const zoneName = currentTable?.zoneName;
+  const rawTableNumber = String(currentTable?.number || '').trim();
+  const cleanNumber = rawTableNumber.replace(/^(mesa\s*)+/i, '').trim() || rawTableNumber || '?';
+  const tablePart = /^\d+$/.test(cleanNumber)
+    ? `Mesa ${cleanNumber}`
+    : (rawTableNumber.toLowerCase().startsWith('mesa') ? rawTableNumber : `Mesa ${cleanNumber}`);
+  const zoneName = currentTable?.zoneName?.trim();
   const tableDisplayName = zoneName
-    ? `${zoneName} · Mesa ${tableNumber}`
-    : `Mesa ${tableNumber}`;
+    ? `${zoneName} · ${tablePart}`
+    : tablePart;
+  const tableNumber = cleanNumber;
 
   // Pedido activo de la mesa
   const { data: activeOrder } = useActiveOrder(tableId || '');
@@ -75,7 +80,13 @@ export const OrderPage: React.FC = () => {
     );
   }, [activeOrder, tables, session, businessSlug]);
 
+  const isKitchenModeDisabled = useMemo(() => {
+    const km = session?.business?.kitchenMode?.toUpperCase();
+    return km === 'NO_PRINT' || km === 'NONE' || km === 'DISABLED';
+  }, [session?.business?.kitchenMode]);
+
   const isRestaurante = !isTaller && !isKitchenDisabled;
+  const isNoPrintMode = isKitchenModeDisabled;
 
   // Categorías y Productos
   const { data: categories = [] } = useCategories();
@@ -326,9 +337,10 @@ export const OrderPage: React.FC = () => {
 
   // Verificación de comanda sin imprimir tras 60 segundos (Requerimiento 3)
   const unprintedRound = useMemo(() => {
-    if (!isRestaurante) return null;
+    if (!isRestaurante || isNoPrintMode) return null;
     return rounds.find((r) => {
       if (r.type !== 'SEND') return false;
+      if (r.printStatus === 'NOT_REQUIRED') return false;
       if (r.printStatus === 'FAILED') return true;
       if (r.printStatus === 'PENDING') {
         const createdAtMs = new Date(r.createdAt).getTime();
@@ -336,7 +348,7 @@ export const OrderPage: React.FC = () => {
       }
       return false;
     });
-  }, [rounds, now, isRestaurante]);
+  }, [rounds, now, isRestaurante, isNoPrintMode]);
 
   const unprintedAlert = unprintedRound
     ? 'La comanda no se ha impreso. Avisá en cocina o al cajero.'
@@ -562,6 +574,7 @@ export const OrderPage: React.FC = () => {
         onConfirmSend={handleConfirmSend}
         isSubmitting={isSendingToKitchen}
         isRestaurante={isRestaurante}
+        isNoPrintMode={isNoPrintMode}
         onRequestVoid={handleOpenVoidModal}
         onRemoveSavedUnsentItem={handleRemoveSavedUnsentItem}
         onAddMoreOfSentItem={handleAddMoreOfSentItem}

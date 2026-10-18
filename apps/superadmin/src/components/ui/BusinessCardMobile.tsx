@@ -43,8 +43,8 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
     ? formatRelativeTime(lastActivityDate)
     : 'Sin actividad';
 
-  // Productos contratados
-  const productsList = business.products && business.products.length > 0
+  // Productos contratados (solo activos)
+  const rawProducts = business.products && business.products.length > 0
     ? business.products
     : (business.productSubscriptions || []).map((s) => ({
         id: s.id || s.productType,
@@ -53,6 +53,8 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
         name: s.productType,
         fee: 0,
       }));
+
+  const productsList = rawProducts.filter((p) => p.status === 'ACTIVE');
 
   return (
     <div
@@ -152,31 +154,42 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
 
       {/* Productos contratados */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        {productsList.map((p) => {
-          const isPos = p.type === 'POS';
-          const isDel = p.type === 'DELIVERY';
-          const isCar = p.type === 'CARTERA_COBRO';
-          const isCit = p.type === 'CITAS';
+        {productsList.length === 0 && !business.is_trial ? (
+          <span className="text-[11px] text-gray-400 italic">Sin productos</span>
+        ) : (
+          productsList.map((p) => {
+            const isPos = p.type === 'POS';
+            const isDel = p.type === 'DELIVERY';
+            const isCar = p.type === 'CARTERA_COBRO';
+            const isCit = p.type === 'CITAS';
 
-          return (
-            <span
-              key={p.id}
-              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
-                isPos
-                  ? 'bg-purple-50 text-purple-700 border-purple-200/60'
-                  : isDel
-                  ? 'bg-amber-50 text-amber-700 border-amber-200/60'
-                  : isCar
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
-                  : isCit
-                  ? 'bg-sky-50 text-sky-700 border-sky-200/60'
-                  : 'bg-gray-50 text-gray-600 border-gray-200'
-              }`}
-            >
-              {p.name || p.type}
-            </span>
-          );
-        })}
+            const displayName =
+              p.type === 'CARTERA_COBRO'
+                ? 'Cartera'
+                : p.type === 'DELIVERY'
+                ? 'Delivery'
+                : p.name || p.type;
+
+            return (
+              <span
+                key={p.id}
+                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                  isPos
+                    ? 'bg-purple-50 text-purple-700 border-purple-200/60'
+                    : isDel
+                    ? 'bg-amber-50 text-amber-700 border-amber-200/60'
+                    : isCar
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                    : isCit
+                    ? 'bg-sky-50 text-sky-700 border-sky-200/60'
+                    : 'bg-gray-50 text-gray-600 border-gray-200'
+                }`}
+              >
+                {displayName}
+              </span>
+            );
+          })
+        )}
 
         {business.is_trial && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-900 border border-purple-200">

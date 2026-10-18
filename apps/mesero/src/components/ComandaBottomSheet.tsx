@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   X,
   Plus,
@@ -29,6 +29,7 @@ interface ComandaBottomSheetProps {
   onConfirmSend: () => void;
   isSubmitting: boolean;
   isRestaurante?: boolean;
+  isNoPrintMode?: boolean;
   onRequestVoid: (item: TableOrderItem, qty?: number) => void;
   onRemoveSavedUnsentItem: (itemId: string) => void;
   onAddMoreOfSentItem: (item: TableOrderItem) => void;
@@ -62,6 +63,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
   onConfirmSend,
   isSubmitting,
   isRestaurante = true,
+  isNoPrintMode = false,
   onRequestVoid,
   onRemoveSavedUnsentItem,
   onAddMoreOfSentItem,
@@ -73,7 +75,9 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
 
   if (!isOpen) return null;
 
-  const displayTitle = tableDisplayName || `Mesa ${tableNumber}`;
+  const cleanRaw = String(tableNumber || '').replace(/^(mesa\s*)+/i, '').trim();
+  const fallbackTitle = cleanRaw ? `Mesa ${cleanRaw}` : 'Mesa';
+  const displayTitle = tableDisplayName || fallbackTitle;
 
   // Separar ítems guardados en backend: sin enviar vs ya enviados
   const savedItems = activeOrder?.items || [];
@@ -100,32 +104,72 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
     newItems.reduce((acc, i) => acc + i.quantity, 0) +
     savedUnsentItems.reduce((acc, i) => acc + i.quantity, 0);
 
-  // Helper para estado de impresión de una ronda
-  const getRoundDisplay = (roundId?: string | null) => {
-    if (!roundId) return null;
-    const r = rounds.find((rnd) => rnd.id === roundId);
-    if (!r) return { roundNumber: 1, label: 'Enviada', status: 'SENT' as const };
+  const isNoPrint = Boolean(
+    isNoPrintMode ||
+    (rounds.length > 0 && rounds.every((r) => r.printStatus === 'NOT_REQUIRED'))
+  );
 
-    const roundNumber = r.number;
-    const createdAtMs = new Date(r.createdAt).getTime();
-    const isOver60s = Date.now() - createdAtMs >= 60000;
+  // Agrupar ítems enviados por ronda de cocina
+  const roundGroups = useMemo(() => {
+    // Rondas de tipo SEND ordenadas por número ascendente
+    const sendRounds = rounds
+      .filter((r) => r.type === 'SEND')
+      .sort((a, b) => (a.number || 0) - (b.number || 0));
 
-    let label = 'Enviada';
-    let variant: 'sent' | 'printed' | 'unprinted' = 'sent';
+    const groups: Array<{
+      roundId: string | null;
+      roundNumber: number;
+      round?: KitchenRound;
+      items: TableOrderItem[];
+      hasUnprintedAlert: boolean;
+      unprintedMessage?: string;
+    }> = [];
 
-    if (r.printStatus === 'PRINTED') {
-      label = 'Impresa ✓';
-      variant = 'printed';
-    } else if (r.printStatus === 'FAILED' || (r.printStatus === 'PENDING' && isOver60s)) {
-      label = 'Sin imprimir ⚠';
-      variant = 'unprinted';
-    } else {
-      label = 'Enviada';
-      variant = 'sent';
+    const assignedItemIds = new Set<string>();
+
+    sendRounds.forEach((round) => {
+      const roundItems = sentItems.filter((item) => item.kitchenRoundId === round.id);
+      if (roundItems.length > 0) {
+        roundItems.forEach((i) => assignedItemIds.add(i.id));
+
+        // Solo si la ronda tiene impresión pendiente o fallida y no estamos en modo no imprimir
+        let hasUnprintedAlert = false;
+        let unprintedMessage = '';
+
+        if (!isNoPrint && round.printStatus !== 'NOT_REQUIRED') {
+          if (round.printStatus === 'FAILED') {
+            hasUnprintedAlert = true;
+            unprintedMessage = 'Error de impresión ⚠';
+          } else if (round.printStatus === 'PENDING') {
+            hasUnprintedAlert = true;
+            unprintedMessage = 'Pendiente de imprimir';
+          }
+        }
+
+        groups.push({
+          roundId: round.id,
+          roundNumber: round.number,
+          round,
+          items: roundItems,
+          hasUnprintedAlert,
+          unprintedMessage,
+        });
+      }
+    });
+
+    // Ítems enviados que no tengan kitchenRoundId asignado o cuya ronda no esté en la lista
+    const unassignedItems = sentItems.filter((i) => !assignedItemIds.has(i.id));
+    if (unassignedItems.length > 0) {
+      groups.push({
+        roundId: null,
+        roundNumber: groups.length > 0 ? groups[groups.length - 1].roundNumber + 1 : 1,
+        items: unassignedItems,
+        hasUnprintedAlert: false,
+      });
     }
 
-    return { roundNumber, label, variant, printStatus: r.printStatus };
-  };
+    return groups;
+  }, [rounds, sentItems, isNoPrint]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs animate-fadeIn">
@@ -355,9 +399,9 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
             )}
           </div>
 
-          {/* SECCIÓN B: Ítems YA ENVIADOS a cocina ("Ronda N", estado de impresión y anulación autorizada) */}
+          {/* SECCIÓN B: Ítems YA ENVIADOS a cocina agrupados por ronda */}
           {sentItems.length > 0 && (
-            <div className="space-y-3 pt-4 border-t border-gray-200">
+            <div className="space-y-4 pt-4 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
                   <CookingPot size={14} weight="duotone" className="text-indigo-600" />
@@ -368,114 +412,107 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
                 </span>
               </div>
 
-              <div className="space-y-2.5">
-                {sentItems.map((item) => {
-                  const roundInfo = getRoundDisplay(item.kitchenRoundId);
-                  return (
-                    <div
-                      key={`sent-${item.id}`}
-                      className="p-3.5 rounded-2xl bg-slate-50 border border-gray-200/90 space-y-2 transition-all shadow-2xs"
-                    >
-                      {/* Fila superior: Nombre, Ronda N, Badge de impresión */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-xs text-gray-900">
-                              {item.productName}
-                            </span>
+              {/* Rondas de cocina */}
+              <div className="space-y-3.5">
+                {roundGroups.map((group) => (
+                  <div
+                    key={group.roundId || `round-${group.roundNumber}`}
+                    className="space-y-2 rounded-2xl bg-slate-50/70 border border-slate-200/90 p-2.5"
+                  >
+                    {/* Encabezado de la Ronda con alerta única */}
+                    <div className="flex items-center justify-between gap-2 px-1 py-0.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-indigo-600 shrink-0" />
+                        <span className="text-xs font-bold text-gray-800 truncate">
+                          Ronda {group.roundNumber} · Enviada a cocina
+                        </span>
+                      </div>
 
-                            {/* Badge Ronda N */}
-                            {roundInfo && (
-                              <span className="px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-extrabold font-mono">
-                                Ronda {roundInfo.roundNumber}
-                              </span>
-                            )}
+                      {/* Alerta única por ronda: solo si está pendiente o fallida */}
+                      {group.hasUnprintedAlert && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shrink-0 animate-fadeIn">
+                          <WarningCircle size={12} weight="fill" className="text-amber-600 shrink-0" />
+                          <span>{group.unprintedMessage || 'Pendiente de imprimir'}</span>
+                        </span>
+                      )}
+                    </div>
 
-                            {/* Estado de la ronda: Enviada / Impresa ✓ / Sin imprimir ⚠ */}
-                            {roundInfo && (
-                              <span
-                                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 ${
-                                  roundInfo.variant === 'printed'
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                    : roundInfo.variant === 'unprinted'
-                                    ? 'bg-amber-100/80 text-amber-900 border border-amber-300 font-extrabold'
-                                    : 'bg-blue-50 text-blue-700 border border-blue-200'
-                                }`}
+                    {/* Tarjetas de línea compactas */}
+                    <div className="space-y-1.5">
+                      {group.items.map((item) => (
+                        <div
+                          key={`sent-${item.id}`}
+                          className="p-2.5 rounded-xl bg-white border border-gray-200/80 shadow-2xs space-y-1.5 transition-all"
+                        >
+                          {/* Fila principal: Nombre, cantidad x precio, total y Stepper */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-bold text-xs text-gray-900 truncate">
+                                {item.productName}
+                              </h4>
+                              <div className="text-[11px] text-gray-500 font-mono flex items-center gap-1.5 mt-0.5">
+                                <span>{item.quantity}x a C$ {item.unitPrice.toFixed(2)}</span>
+                                <span className="text-gray-300">·</span>
+                                <span className="font-bold text-gray-800">
+                                  C$ {(item.quantity * item.unitPrice).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Stepper compacto */}
+                            <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-0.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => onRequestVoid(item, 1)}
+                                className="w-6 h-6 rounded-md bg-white hover:bg-rose-50 active:bg-rose-100 text-rose-700 flex items-center justify-center font-bold cursor-pointer touch-manipulation transition-colors border border-gray-200/60 shadow-2xs"
+                                title="Anulación parcial (bajar 1 cantidad con PIN)"
                               >
-                                {roundInfo.label}
+                                <Minus size={11} weight="bold" />
+                              </button>
+
+                              <span className="w-5 text-center text-xs font-extrabold text-gray-900 font-mono">
+                                {item.quantity}
                               </span>
-                            )}
+
+                              <button
+                                type="button"
+                                onClick={() => onAddMoreOfSentItem(item)}
+                                className="w-6 h-6 rounded-md bg-white hover:bg-emerald-50 active:bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold cursor-pointer touch-manipulation transition-colors border border-gray-200/60 shadow-2xs"
+                                title="Agregar 1 unidad más para la siguiente ronda"
+                              >
+                                <Plus size={11} weight="bold" />
+                              </button>
+                            </div>
                           </div>
 
-                          <div className="text-[11px] text-gray-500 font-mono flex items-center gap-2">
-                            <span>
-                              {item.quantity}x a C$ {item.unitPrice.toFixed(2)}
-                            </span>
-                            <span className="font-bold text-gray-800">
-                              C$ {(item.quantity * item.unitPrice).toFixed(2)}
-                            </span>
-                          </div>
-
+                          {/* Notas si existen */}
                           {item.notes && (
-                            <p className="text-[11px] text-amber-800 italic">
+                            <p className="text-[11px] text-amber-800 italic bg-amber-50/60 px-2 py-0.5 rounded-md border border-amber-100/80">
                               "{item.notes}"
                             </p>
                           )}
 
-                          {item.waiterName && (
-                            <p className="text-[10px] text-gray-400 flex items-center gap-1">
-                              <User size={10} />
-                              <span>Tomado por {item.waiterName}</span>
-                            </p>
-                          )}
+                          {/* Fila inferior compacta: Tomado por (izq) y Solicitar anulación (der) en una sola fila */}
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100/80">
+                            <span className="text-[10px] text-gray-400 truncate flex items-center gap-1">
+                              <User size={10} className="shrink-0 text-gray-400" />
+                              <span>{item.waiterName ? `Por ${item.waiterName}` : 'Enviado'}</span>
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => onRequestVoid(item)}
+                              className="px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 text-[10px] font-bold transition-colors cursor-pointer touch-manipulation border border-rose-200/60 whitespace-nowrap flex items-center gap-1"
+                            >
+                              <ShieldWarning size={11} weight="bold" />
+                              <span>Solicitar anulación</span>
+                            </button>
+                          </div>
                         </div>
-
-                        {/* Stepper para ítems enviados:
-                            - Disminuir cantidad: Anulación parcial con PIN
-                            - Aumentar cantidad: Agrega nueva unidad para siguiente ronda */}
-                        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1 shadow-2xs shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => onRequestVoid(item, 1)}
-                            className="w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 flex items-center justify-center font-bold cursor-pointer touch-manipulation transition-colors"
-                            title="Anulación parcial (bajar 1 cantidad con PIN)"
-                          >
-                            <Minus size={13} weight="bold" />
-                          </button>
-
-                          <span className="w-6 text-center text-xs font-extrabold text-gray-900 font-mono">
-                            {item.quantity}
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() => onAddMoreOfSentItem(item)}
-                            className="w-7 h-7 rounded-lg bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-700 flex items-center justify-center font-bold cursor-pointer touch-manipulation transition-colors"
-                            title="Agregar 1 unidad más para la siguiente ronda"
-                          >
-                            <Plus size={13} weight="bold" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Botón explícito: "Solicitar anulación" (Requerimiento 4) */}
-                      <div className="pt-1 border-t border-gray-100 flex items-center justify-between">
-                        <span className="text-[10px] text-gray-400">
-                          Para quitar requiere autorización
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() => onRequestVoid(item)}
-                          className="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer touch-manipulation border border-rose-200/80"
-                        >
-                          <ShieldWarning size={13} weight="bold" />
-                          <span>Solicitar anulación</span>
-                        </button>
-                      </div>
+                      ))}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
           )}

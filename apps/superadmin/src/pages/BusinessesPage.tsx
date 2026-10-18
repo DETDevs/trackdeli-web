@@ -283,15 +283,27 @@ export const BusinessesPage = () => {
     {
       header: 'PRODUCTOS',
       accessor: (row) => {
-        const productsList = row.products && row.products.length > 0
-          ? row.products
-          : (row.productSubscriptions || []).map((s) => ({
-              id: s.id || s.productType,
-              type: s.productType,
-              status: s.status,
-              name: s.productType,
-              fee: 0,
-            }));
+        const rawProducts =
+          row.products && row.products.length > 0
+            ? row.products
+            : (row.productSubscriptions || []).map((s) => ({
+                id: s.id || s.productType,
+                type: s.productType,
+                status: s.status,
+                name: s.productType,
+                fee: 0,
+              }));
+
+        // Solo productos con status activo contratado
+        const productsList = rawProducts.filter((p) => p.status === 'ACTIVE');
+
+        if (productsList.length === 0 && !row.is_trial) {
+          return (
+            <span className="text-[11px] text-gray-400 italic">
+              Sin productos
+            </span>
+          );
+        }
 
         return (
           <div className="flex flex-wrap items-center gap-1 w-[150px]">
