@@ -64,6 +64,7 @@ import { ChangeUserPasswordModal } from '../components/modals/users/ChangeUserPa
 import { DeactivateUserModal } from '../components/modals/users/DeactivateUserModal';
 import { EditBusinessModal } from '../components/modals/EditBusinessModal';
 import { DeleteBusinessModal } from '../components/modals/DeleteBusinessModal';
+import toast from 'react-hot-toast';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -135,6 +136,55 @@ export const BusinessDetailPage = () => {
   const [modelAltCommissionRate, setModelAltCommissionRate] = useState('12');
   const [modelAltCommissionDistanceKm, setModelAltCommissionDistanceKm] = useState('40');
   const [modelDispatchTimeoutMin, setModelDispatchTimeoutMin] = useState('3');
+
+  const [isActivateBatchesModalOpen, setIsActivateBatchesModalOpen] = useState(false);
+  const [isDeactivateBatchesModalOpen, setIsDeactivateBatchesModalOpen] = useState(false);
+  const [deactivateBatchesError, setDeactivateBatchesError] = useState<string | null>(null);
+
+  const handleConfirmActivateBatches = () => {
+    if (!business) return;
+    updateMutation.mutate(
+      { id: business.id, data: { tracksBatches: true } },
+      {
+        onSuccess: () => {
+          setIsActivateBatchesModalOpen(false);
+          toast.success('Control de lotes activado');
+        },
+      }
+    );
+  };
+
+  const handleDeactivateBatchesClick = () => {
+    if (!business) return;
+    updateMutation.mutate(
+      { id: business.id, data: { tracksBatches: false } },
+      {
+        onSuccess: () => {
+          toast.success('Control de lotes desactivado');
+        },
+        onError: (err: any) => {
+          const msg = err.response?.data?.message;
+          const errorText = Array.isArray(msg) ? msg.join(', ') : msg;
+          setDeactivateBatchesError(errorText || 'El negocio tiene lotes con existencias activas.');
+          setIsDeactivateBatchesModalOpen(true);
+        },
+      }
+    );
+  };
+
+  const handleConfirmDeactivateBatchesWithConfirm = () => {
+    if (!business) return;
+    updateMutation.mutate(
+      { id: business.id, data: { tracksBatches: false, confirm: true } },
+      {
+        onSuccess: () => {
+          setIsDeactivateBatchesModalOpen(false);
+          setDeactivateBatchesError(null);
+          toast.success('Control de lotes desactivado');
+        },
+      }
+    );
+  };
 
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -432,6 +482,60 @@ export const BusinessDetailPage = () => {
           industryName={business.industry?.name}
           posVertical={productsData?.products?.POS?.posVertical || undefined}
         />
+
+        {/* Sección: Control de lotes y vencimientos */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 shrink-0 mt-0.5">
+                <Package size={22} weight="duotone" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-sm font-bold text-gray-900 leading-tight">
+                    Control de lotes y vencimientos
+                  </h3>
+                  {business.tracksBatches ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Activo
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      Inactivo
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
+                  Agrega Lote y Fecha de Vencimiento a compras, ventas, alertas y a la plantilla Excel.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+              {business.tracksBatches ? (
+                <button
+                  type="button"
+                  onClick={handleDeactivateBatchesClick}
+                  disabled={updateMutation.isPending}
+                  className="h-9 px-4 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                >
+                  Desactivar control de lotes
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsActivateBatchesModalOpen(true)}
+                  disabled={updateMutation.isPending}
+                  className="h-9 px-4 rounded-xl text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                >
+                  Activar control de lotes
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
 
         {business.businessType === 'EMPRESA_RIDERS' ? (
           <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-6">
@@ -1413,6 +1517,92 @@ export const BusinessDetailPage = () => {
         businessName={business.name}
         onSuccess={() => navigate('/businesses')}
       />
+
+      {/* Modal Confirmar Activación de Lotes */}
+      {isActivateBatchesModalOpen && (
+        <Modal
+          isOpen={true}
+          onClose={() => setIsActivateBatchesModalOpen(false)}
+          title="Activar Control de Lotes y Vencimientos"
+          maxWidth="max-w-md"
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-purple-50/60 border border-purple-200/80 text-xs text-purple-900 leading-relaxed">
+              Agrega Lote y Fecha de Vencimiento a compras, ventas, alertas y a la plantilla Excel para este negocio.
+            </div>
+            <p className="text-xs text-gray-600">
+              Los productos nuevos y las importaciones podrán registrar números de lote y fechas de vencimiento con rotación FEFO.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setIsActivateBatchesModalOpen(false)}
+                className="px-3.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmActivateBatches}
+                disabled={updateMutation.isPending}
+                className="px-4 py-2 rounded-lg bg-purple-700 text-white text-xs font-bold hover:bg-purple-800 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {updateMutation.isPending ? 'Activando...' : 'Confirmar y Activar'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Confirmación de Desactivación con lotes con saldo */}
+      {isDeactivateBatchesModalOpen && (
+        <Modal
+          isOpen={true}
+          onClose={() => {
+            setIsDeactivateBatchesModalOpen(false);
+            setDeactivateBatchesError(null);
+          }}
+          title="Confirmar Desactivación de Lotes"
+          maxWidth="max-w-md"
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+              <Warning size={20} className="text-amber-700 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-bold">
+                  {deactivateBatchesError || 'El negocio tiene lotes con existencias activas.'}
+                </p>
+                <p className="text-amber-800">
+                  Al desactivar el control de lotes, los productos dejarán de descontar existencias por lote y los vencimientos no se validarán en ventas ni compras.
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-600">
+              ¿Estás seguro de que deseas desactivar el control de lotes y vencimientos para <strong>{business.name}</strong>?
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDeactivateBatchesModalOpen(false);
+                  setDeactivateBatchesError(null);
+                }}
+                className="px-3.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeactivateBatchesWithConfirm}
+                disabled={updateMutation.isPending}
+                className="px-4 py-2 rounded-lg bg-rose-700 text-white text-xs font-bold hover:bg-rose-800 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {updateMutation.isPending ? 'Desactivando...' : 'Confirmar y Desactivar'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

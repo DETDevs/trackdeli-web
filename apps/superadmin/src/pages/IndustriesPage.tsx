@@ -20,12 +20,14 @@ export const IndustriesPage = () => {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [posVertical, setPosVertical] = useState<'RESTAURANTE' | 'RETAIL'>('RESTAURANTE');
+  const [tracksBatches, setTracksBatches] = useState(false);
 
   const openCreateModal = () => {
     setEditingIndustry(null);
     setName('');
     setCode('');
     setPosVertical('RESTAURANTE');
+    setTracksBatches(false);
     setIsModalOpen(true);
   };
 
@@ -35,6 +37,7 @@ export const IndustriesPage = () => {
     setName(ind.name);
     setCode(ind.code);
     setPosVertical(ind.posVertical);
+    setTracksBatches(Boolean(ind.tracksBatches));
     setIsModalOpen(true);
   };
 
@@ -44,7 +47,7 @@ export const IndustriesPage = () => {
 
     if (editingIndustry) {
       updateMutation.mutate(
-        { id: editingIndustry.id, payload: { name, code, posVertical } },
+        { id: editingIndustry.id, payload: { name, code, posVertical, tracksBatches } },
         {
           onSuccess: () => {
             toast.success('Tipo de negocio actualizado');
@@ -57,7 +60,7 @@ export const IndustriesPage = () => {
       );
     } else {
       createMutation.mutate(
-        { name, code, posVertical },
+        { name, code, posVertical, tracksBatches },
         {
           onSuccess: () => {
             toast.success('Tipo de negocio creado');
@@ -108,6 +111,17 @@ export const IndustriesPage = () => {
           {row.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'}
         </span>
       ),
+    },
+    {
+      header: 'Lotes por defecto',
+      accessor: (row) =>
+        row.tracksBatches ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Activo
+          </span>
+        ) : (
+          <span className="text-gray-400 text-xs">—</span>
+        ),
     },
     {
       header: 'Campos',
@@ -222,6 +236,29 @@ export const IndustriesPage = () => {
               <option value="RETAIL">Retail</option>
             </select>
           </div>
+
+          <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <label
+                  className="block text-xs font-semibold text-gray-900 cursor-pointer"
+                  onClick={() => setTracksBatches(!tracksBatches)}
+                >
+                  Control de lotes y vencimientos por defecto
+                </label>
+                <p className="text-[11px] text-amber-700 font-medium">
+                  Solo aplica a negocios nuevos; los existentes no cambian.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={tracksBatches}
+                onChange={(e) => setTracksBatches(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+              />
+            </div>
+          </div>
+
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <button
               type="button"

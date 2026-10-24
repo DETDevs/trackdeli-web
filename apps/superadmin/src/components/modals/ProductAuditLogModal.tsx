@@ -109,10 +109,10 @@ export const ProductAuditLogModal: React.FC<ProductAuditLogModalProps> = ({
       details.push(`Tarifa POS: $${Number(m.posMonthlyFee).toFixed(2)}/mes`);
     }
     if (m.carteraMonthlyFee !== undefined && m.carteraMonthlyFee !== null) {
-      details.push(`Tarifa Cartera: $${Number(m.carteraMonthlyFee).toFixed(2)}/mes`);
+      details.push(`Tarifa Finanzas: $${Number(m.carteraMonthlyFee).toFixed(2)}/mes`);
     }
     if (m.carteraCobroMonthlyFee !== undefined && m.carteraCobroMonthlyFee !== null) {
-      details.push(`Tarifa Cartera: $${Number(m.carteraCobroMonthlyFee).toFixed(2)}/mes`);
+      details.push(`Tarifa Finanzas: $${Number(m.carteraCobroMonthlyFee).toFixed(2)}/mes`);
     }
     if (m.citasMonthlyFee !== undefined && m.citasMonthlyFee !== null) {
       details.push(`Tarifa Citas: $${Number(m.citasMonthlyFee).toFixed(2)}/mes`);

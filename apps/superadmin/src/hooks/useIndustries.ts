@@ -20,6 +20,7 @@ export interface Industry {
   name: string;
   code: string;
   posVertical: 'RESTAURANTE' | 'RETAIL';
+  tracksBatches?: boolean;
   isActive: boolean;
   fields?: IndustryField[];
   _count?: { fields: number };

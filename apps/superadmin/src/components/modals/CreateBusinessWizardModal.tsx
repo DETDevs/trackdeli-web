@@ -15,6 +15,7 @@ import {
   Globe,
   MagnifyingGlass,
   Info,
+  Package,
 } from '@phosphor-icons/react';
 import apiClient from '../../lib/apiClient';
 import { Modal } from '../ui/Modal';
@@ -59,6 +60,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
   const [hasCarteraCobro, setHasCarteraCobro] = useState(false);
   const [hasCitas, setHasCitas] = useState(false);
   const [hasUserModifiedProducts, setHasUserModifiedProducts] = useState(false);
+  const [tracksBatches, setTracksBatches] = useState(false);
 
   // Delivery config
   const [businessType, setBusinessType] = useState<BusinessType>('NEGOCIO');
@@ -155,10 +157,23 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
       posVertical: (selectedIndustry.posVertical || 'RETAIL') as 'RETAIL' | 'RESTAURANTE',
       salonProfile: 'RESTAURANTE' as const,
       label: 'Retail / Comercio',
-      description: 'Punto de venta directo (mostrador). Perfil base Restaurante.',
+      description: 'Punto de venta directo (mostrador). Sin mesas ni comandas.',
       hasClearCorrespondence: true,
     };
   }, [selectedIndustry]);
+
+  // Etiqueta y descripción del perfil actual para mostrar en el asistente
+  const profileLabel = useMemo(() => {
+    if (salonProfile === 'TALLER') return 'Taller';
+    if (posVertical === 'RETAIL') return 'Retail';
+    return 'Restaurante';
+  }, [salonProfile, posVertical]);
+
+  const profileDescription = useMemo(() => {
+    if (salonProfile === 'TALLER') return 'Bahías de servicio y órdenes automotrices.';
+    if (posVertical === 'RETAIL') return 'Punto de venta directo (mostrador). Sin mesas ni comandas.';
+    return 'Mesas, comandas y salón comedor.';
+  }, [salonProfile, posVertical]);
 
   // Selección de tipo de negocio con deducción automática
   const handleSelectIndustry = (ind: Industry) => {
@@ -199,6 +214,10 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
       setHasCarteraCobro(false);
       setHasCitas(false);
     }
+
+    // Preselección de lotes: si la industria es farmacia o tiene tracksBatches activo
+    const isFarmaciaOrBatches = Boolean(ind.tracksBatches || ind.code === 'farmacia');
+    setTracksBatches(isFarmaciaOrBatches);
 
     setErrors((prev) => {
       const copy = { ...prev };
@@ -374,7 +393,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
       if (hasCarteraCobro && carteraMonthlyFee.trim()) {
         const cmf = Number(carteraMonthlyFee);
         if (isNaN(cmf) || cmf < 0) {
-          newErrors.carteraMonthlyFee = 'La tarifa de cartera debe ser un número válido.';
+          newErrors.carteraMonthlyFee = 'La tarifa de finanzas debe ser un número válido.';
         }
       }
       if (hasCitas && citasMonthlyFee.trim()) {
@@ -449,6 +468,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
       {
         name: name.trim(),
         industryId,
+        tracksBatches,
         businessType: hasDelivery ? businessType : 'NEGOCIO',
         commissionRate:
           hasDelivery && businessType === 'EMPRESA_RIDERS'
@@ -599,6 +619,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
     setHasCarteraCobro(false);
     setHasCitas(false);
     setHasUserModifiedProducts(false);
+    setTracksBatches(false);
     setBusinessType('NEGOCIO');
     setCommissionRate('15');
     setAltCommissionRate('12');
@@ -891,12 +912,10 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       <div>
                         <p className="text-xs font-bold text-purple-950">
                           Detectamos: {selectedIndustry.name} → Sistema POS, perfil{' '}
-                          {salonProfile === 'TALLER' ? 'Taller' : 'Restaurante'}
+                          {profileLabel}
                         </p>
                         <p className="text-[11px] text-purple-800/80 mt-0.5">
-                          {salonProfile === 'TALLER'
-                            ? 'Bahías de servicio y órdenes automotrices.'
-                            : 'Mesas, comandas y salón comedor.'}
+                          {profileDescription}
                         </p>
                       </div>
                     </div>
@@ -1068,7 +1087,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
 
                 {hasPOS && (
                   <div className="pt-2 border-t border-purple-200/60 text-[11px] text-purple-950 font-medium">
-                    Perfil: <span className="font-bold">{salonProfile === 'TALLER' ? 'Taller' : 'Restaurante'}</span> • Acceso web configurable en paso 3
+                    Perfil: <span className="font-bold">{profileLabel}</span> • Acceso web configurable en paso 3
                   </div>
                 )}
               </div>
@@ -1198,6 +1217,44 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Control de lotes y vencimientos */}
+            <div className="p-3.5 rounded-xl border bg-white border-purple-200/80 flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-700 shrink-0 mt-0.5">
+                  <Package size={18} weight="duotone" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-gray-900">
+                      Control de lotes y vencimientos
+                    </span>
+                    {tracksBatches && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        Activo
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">
+                    Agrega Lote y Fecha de Vencimiento a compras, ventas, alertas y a la plantilla Excel.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setTracksBatches(!tracksBatches)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  tracksBatches ? 'bg-purple-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    tracksBatches ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
 
             {/* Configuración compacta de Delivery si está marcado */}
@@ -1740,7 +1797,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     )}
                     {hasCarteraCobro && (
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-900 border border-emerald-200">
-                        Cartera
+                        Finanzas
                       </span>
                     )}
                     {hasCitas && (
@@ -1757,7 +1814,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       Perfil & Equipos
                     </span>
                     <p className="font-semibold text-gray-900">
-                      Perfil {salonProfile === 'TALLER' ? 'Taller' : 'Restaurante'}
+                      Perfil {profileLabel}
                     </p>
                     <p className="text-[11px] text-gray-500">
                       {isUnlimitedDevices ? 'Equipos ilimitados' : `${maxDevices || 1} equipo(s)`} •{' '}
@@ -1782,6 +1839,22 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     </p>
                   </div>
                 )}
+
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                    Control de Lotes
+                  </span>
+                  <p className="font-semibold text-gray-900">
+                    {tracksBatches ? (
+                      <span className="text-emerald-700 font-bold">Activo</span>
+                    ) : (
+                      <span className="text-gray-500">Desactivado</span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    {tracksBatches ? 'Lotes y vencimientos' : 'Sin seguimiento de lotes'}
+                  </p>
+                </div>
 
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">

@@ -102,6 +102,7 @@ export interface BusinessItem {
   };
   last_seen_at?: string | null;
   last_sale_at?: string | null;
+  tracksBatches?: boolean;
 }
 
 export interface BusinessDetail extends BusinessItem {
@@ -186,6 +187,7 @@ export interface CreateBusinessInput {
   carteraMonthlyFee?: number;
   hasCitas?: boolean;
   citasMonthlyFee?: number;
+  tracksBatches?: boolean;
   encargado?: {
     name: string;
     email: string;
@@ -351,6 +353,8 @@ export interface UpdateBusinessInput {
   altCommissionDistanceKm?: number;
   dispatchTimeoutMin?: number;
   isActive?: boolean;
+  tracksBatches?: boolean;
+  confirm?: boolean;
 }
 
 export function useUpdateBusiness() {
