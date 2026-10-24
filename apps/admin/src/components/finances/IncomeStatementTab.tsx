@@ -7,6 +7,7 @@ import {
   Receipt,
   Package,
   Coins,
+  Percent,
   ArrowsClockwise,
 } from '@phosphor-icons/react';
 import { useIncomeStatement } from '../../hooks/useFinances';
@@ -37,6 +38,9 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
     statement?.isPartial ||
     (statement?.coverage?.coveragePercent !== undefined && statement.coverage.coveragePercent < 100)
   );
+
+  const interestIncome = statement?.interestIncome ?? 0;
+  const netProfit = statement?.netProfit ?? ((statement?.operatingProfit || 0) + interestIncome);
 
   const renderComparisonBadge = (changeVal: number | undefined) => {
     if (changeVal === undefined || changeVal === null) return null;
@@ -205,10 +209,10 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
               <p className="text-[10px] text-gray-400">Alquiler, servicios, planilla, etc.</p>
             </div>
 
-            {/* Utilidad Operativa */}
+            {/* Utilidad Neta / del Periodo (Ticket 189c) */}
             <div
               className={`p-4 rounded-2xl border shadow-2xs space-y-1.5 ${
-                statement.operatingProfit >= 0
+                netProfit >= 0
                   ? 'bg-emerald-50/40 border-emerald-200'
                   : 'bg-rose-50/40 border-rose-200'
               }`}
@@ -216,29 +220,36 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
               <div className="flex items-center justify-between">
                 <span
                   className={`text-xs font-bold ${
-                    statement.operatingProfit >= 0 ? 'text-emerald-950' : 'text-rose-950'
+                    netProfit >= 0 ? 'text-emerald-950' : 'text-rose-950'
                   }`}
                 >
-                  {hasMissingCost ? 'Utilidad del periodo (estimada)' : 'Utilidad Operativa'}
+                  {hasMissingCost ? 'Utilidad del periodo (estimada)' : 'Utilidad Neta'}
                 </span>
-                {renderComparisonBadge(statement.comparison?.operatingProfitChange)}
+                {renderComparisonBadge(statement.comparison?.netProfitChange ?? statement.comparison?.operatingProfitChange)}
               </div>
               <div
                 className={`text-lg sm:text-xl font-bold font-mono ${
-                  statement.operatingProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
+                  netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
                 }`}
               >
-                {formatCurrency(statement.operatingProfit, currency)}
+                {formatCurrency(netProfit, currency)}
               </div>
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold">
-                <span className="text-gray-600">Margen Operativo:</span>
-                <span
-                  className={`font-bold ${
-                    statement.operatingProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
-                  }`}
-                >
-                  {statement.operatingMarginPercent}%
-                </span>
+              <div className="flex items-center justify-between text-[11px] font-semibold">
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-600">Margen Op.:</span>
+                  <span
+                    className={`font-bold ${
+                      statement.operatingProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
+                    }`}
+                  >
+                    {statement.operatingMarginPercent}%
+                  </span>
+                </div>
+                {interestIncome > 0 && (
+                  <span className="text-[10px] text-purple-700 font-bold truncate">
+                    +{formatCurrency(interestIncome, currency)} int.
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -394,10 +405,54 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                 </div>
               </div>
 
-              {/* Sección 4: Resultado Operativo Final */}
+              {/* Sección 4: Utilidad Operativa */}
+              <div className="space-y-2">
+                <div className="bg-gray-50/80 rounded-xl p-3.5 flex justify-between items-center text-xs border border-gray-200/70 font-bold">
+                  <span className="text-gray-800">
+                    = {hasMissingCost ? 'Utilidad operativa (estimada)' : 'Utilidad Operativa'}
+                  </span>
+                  <div className="text-right">
+                    <span className={`font-mono text-sm ${statement.operatingProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                      {formatCurrency(statement.operatingProfit, currency)}
+                    </span>
+                    <span className="text-[10px] text-gray-400 block font-normal">
+                      Margen operativo: {statement.operatingMarginPercent}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 5: Ingresos por Intereses (Ticket 189c) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider">
+                  <div className="flex items-center gap-2">
+                    <Percent size={14} weight="bold" />
+                    <span>4. Ingresos por Intereses</span>
+                  </div>
+                  <span className="text-purple-700 font-mono font-bold">
+                    +{formatCurrency(interestIncome, currency)}
+                  </span>
+                </div>
+
+                <div className="bg-gray-50/70 rounded-xl p-3.5 space-y-1 text-xs border border-gray-100">
+                  <div className="flex justify-between items-center text-gray-700">
+                    <div>
+                      <span className="font-semibold text-gray-900">Ingresos por intereses</span>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        Intereses cobrados en el periodo
+                      </p>
+                    </div>
+                    <span className="font-mono font-bold text-purple-700 text-sm">
+                      +{formatCurrency(interestIncome, currency)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 6: Utilidad Neta del Período */}
               <div
                 className={`rounded-2xl p-5 border shadow-xs transition-colors ${
-                  statement.operatingProfit >= 0
+                  netProfit >= 0
                     ? 'bg-emerald-50/50 border-emerald-200'
                     : 'bg-rose-50/50 border-rose-200'
                 }`}
@@ -407,32 +462,30 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                     <div className="flex items-center gap-2">
                       <span
                         className={`text-base font-bold ${
-                          statement.operatingProfit >= 0 ? 'text-emerald-950' : 'text-rose-950'
+                          netProfit >= 0 ? 'text-emerald-950' : 'text-rose-950'
                         }`}
                       >
-                        = {hasMissingCost ? 'Utilidad del periodo (estimada)' : 'Utilidad Operativa del Período'}
+                        = {hasMissingCost ? 'Utilidad neta del periodo (estimada)' : 'Utilidad Neta del Período'}
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Utilidad Bruta menos Gastos Operativos (ganancia real de operación)
+                      Utilidad Operativa más Ingresos por Intereses cobrados
                     </p>
                   </div>
 
                   <div className="text-left sm:text-right">
                     <div
                       className={`text-2xl font-bold font-mono ${
-                        statement.operatingProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
+                        netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
                       }`}
                     >
-                      {formatCurrency(statement.operatingProfit, currency)}
+                      {formatCurrency(netProfit, currency)}
                     </div>
-                    <div
-                      className={`text-xs font-semibold mt-0.5 ${
-                        statement.operatingProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
-                      }`}
-                    >
-                      Margen Operativo: {statement.operatingMarginPercent}%
-                    </div>
+                    {interestIncome > 0 && (
+                      <div className="text-[11px] font-semibold text-purple-700 mt-0.5">
+                        Incluye {formatCurrency(interestIncome, currency)} de intereses cobrados
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

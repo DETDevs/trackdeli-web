@@ -18,6 +18,8 @@ import {
   IncomeStatementResponse,
   IncomeStatementQueryParams,
   CreditPortfolioSummary,
+  CreditAccountDetail,
+  PosCreditPolicies,
 } from '../types/finances';
 
 // ==========================================
@@ -329,5 +331,30 @@ export function useCreditPortfolioSummary(enabled: boolean = true) {
     enabled,
     staleTime: 60000,
     retry: 1,
+  });
+}
+
+export function useCreditAccountDetail(id: string | null, enabled: boolean = true) {
+  return useQuery<CreditAccountDetail>({
+    queryKey: ['pos', 'credit-accounts', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Credit account ID required');
+      const res = await apiClient.get<CreditAccountDetail>(`/pos/credit-accounts/${id}`);
+      return res.data;
+    },
+    enabled: Boolean(enabled && id),
+    staleTime: 10000,
+  });
+}
+
+export function usePosCreditPolicies(enabled: boolean = true) {
+  return useQuery<PosCreditPolicies>({
+    queryKey: ['pos', 'policies', 'credit'],
+    queryFn: async () => {
+      const res = await apiClient.get<PosCreditPolicies>('/pos/policies');
+      return res.data;
+    },
+    enabled,
+    staleTime: 60000,
   });
 }
