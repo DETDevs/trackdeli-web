@@ -4,6 +4,7 @@ import { DeliveredPage } from '../pages/DeliveredPage';
 import { ExpiredPage } from '../pages/ExpiredPage';
 import { JoinInvitePage } from '../pages/JoinInvitePage';
 import { ConfirmLocationPage } from '../pages/ConfirmLocationPage';
+import { PublicReceiptPage } from '../pages/PublicReceiptPage';
 
 export const router = createBrowserRouter([
   {
@@ -21,6 +22,10 @@ export const router = createBrowserRouter([
   {
     path: '/join/:code',
     element: <JoinInvitePage />,
+  },
+  {
+    path: '/comprobante/:token',
+    element: <PublicReceiptPage />,
   },
   {
     path: '/:token',
