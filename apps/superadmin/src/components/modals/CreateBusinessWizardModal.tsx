@@ -568,6 +568,8 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
             setIsSubmitting(false);
           }
 
+          resetForm();
+          onClose();
           onSuccess({
             businessName: data.business.name,
             email: data.encargado.email,
@@ -580,6 +582,51 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
         },
       }
     );
+  };
+
+  const resetForm = () => {
+    setCurrentStep(1);
+    setName('');
+    setIndustryId('');
+    setIndustrySearch('');
+    setIsIndustryDropdownOpen(false);
+    setPosVertical('RESTAURANTE');
+    setSalonProfile('RESTAURANTE');
+    setIsAdvancedOpen(false);
+    setHasCustomizedProfile(false);
+    setHasDelivery(false);
+    setHasPOS(true);
+    setHasCarteraCobro(false);
+    setHasCitas(false);
+    setHasUserModifiedProducts(false);
+    setBusinessType('NEGOCIO');
+    setCommissionRate('15');
+    setAltCommissionRate('12');
+    setAltCommissionDistanceKm('40');
+    setDispatchTimeoutMin('3');
+    setMaxDevices('1');
+    setIsUnlimitedDevices(false);
+    setTrialHours('');
+    setPosMonthlyFee('');
+    setWebAdminEnabled(true);
+    setWebBillingEnabled(false);
+    setMaxWebDevices('2');
+    setIsUnlimitedWebDevices(false);
+    setWebBillingMonthlyUsd('');
+    setDeliveryMonthlyFee('');
+    setCarteraMonthlyFee('');
+    setCitasMonthlyFee('');
+    setEncargadoName('');
+    setEncargadoEmail('');
+    setEncargadoPassword('');
+    setErrors({});
+    setIsSubmitting(false);
+  };
+
+  const handleClose = () => {
+    if (isSubmitting) return;
+    resetForm();
+    onClose();
   };
 
   // Footer fijo al pie con botones
@@ -599,7 +646,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
         ) : (
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isSubmitting}
             className="px-3.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
           >
@@ -642,9 +689,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
   return (
     <Modal
       isOpen={isOpen}
-      onClose={() => {
-        if (!isSubmitting) onClose();
-      }}
+      onClose={handleClose}
       title="Crear Nuevo Negocio"
       subtitle="Asistente de configuración paso a paso"
       maxWidth="max-w-2xl"

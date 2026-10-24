@@ -556,6 +556,7 @@ export const BusinessesPage = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={(credentials) => {
+          setIsModalOpen(false);
           setCreatedCredentials(credentials);
         }}
       />
