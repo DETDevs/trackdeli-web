@@ -13,6 +13,8 @@ import {
 import { useIncomeStatement } from '../../hooks/useFinances';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 import { formatManaguaDate } from '../../utils/dateManagua';
+import { TooltipInfo } from './TooltipInfo';
+import { INCOME_STATEMENT_TOOLTIPS } from './financesTooltips';
 
 interface IncomeStatementTabProps {
   currency?: string;
@@ -42,20 +44,54 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
   const interestIncome = statement?.interestIncome ?? 0;
   const netProfit = statement?.netProfit ?? ((statement?.operatingProfit || 0) + interestIncome);
 
-  const renderComparisonBadge = (changeVal: number | undefined) => {
-    if (changeVal === undefined || changeVal === null) return null;
+  /**
+   * Renderiza el badge de comparativa porcentual.
+   * Si el anterior es 0 o no hay comparación, muestra "Sin ventas en el período anterior".
+   */
+  const renderComparisonBadge = (
+    changeVal: number | null | undefined,
+    options?: {
+      invertColors?: boolean;
+    }
+  ) => {
+    const prevRange = statement?.comparison?.previousPeriod;
+    const prevDatesText = prevRange?.from && prevRange?.to
+      ? `${formatManaguaDate(prevRange.from)} al ${formatManaguaDate(prevRange.to)}`
+      : '';
+
+    if (changeVal === undefined || changeVal === null) {
+      return (
+        <span
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 whitespace-nowrap"
+          title={
+            prevDatesText
+              ? `Comparado contra ${prevDatesText}: Sin ventas en el período anterior`
+              : 'Sin ventas en el período anterior'
+          }
+        >
+          Sin ventas en el período anterior
+        </span>
+      );
+    }
+
     const isPositive = changeVal > 0;
     const isZero = changeVal === 0;
+    const isGood = options?.invertColors ? !isPositive : isPositive;
 
     return (
       <span
-        className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+        className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
           isZero
             ? 'bg-gray-100 text-gray-600'
-            : isPositive
+            : isGood
             ? 'bg-emerald-50 text-emerald-700'
             : 'bg-rose-50 text-rose-700'
         }`}
+        title={
+          prevDatesText
+            ? `Comparado contra ${prevDatesText}: ${formatPercentage(changeVal)}`
+            : `Comparativa: ${formatPercentage(changeVal)}`
+        }
       >
         {isPositive ? (
           <TrendUp size={11} weight="bold" />
@@ -69,9 +105,9 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
 
   return (
     <div className="space-y-5">
-      {/* Controles: Selector de periodo y botón refrescar */}
+      {/* Controles: Selector de período y botón refrescar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Pills de periodo */}
+        {/* Pills de período */}
         <div className="inline-flex items-center bg-gray-100 p-1 rounded-xl gap-0.5 overflow-x-auto max-w-full">
           {[
             { id: 'today', label: 'Hoy' },
@@ -165,11 +201,14 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
       ) : (
         <>
           {/* Tarjetas KPI de Resumen Superior */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Ventas Netas */}
             <div className="p-4 rounded-2xl bg-white border border-gray-200/80 shadow-2xs space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500">Ventas Netas</span>
+              <div className="flex flex-wrap items-center justify-between gap-1">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-semibold text-gray-500">Ventas Netas</span>
+                  <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.netSalesKpi} align="left" />
+                </div>
                 {renderComparisonBadge(statement.comparison?.netSalesChange)}
               </div>
               <div className="text-lg sm:text-xl font-bold text-gray-900 font-mono">
@@ -180,10 +219,13 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
 
             {/* Utilidad Bruta */}
             <div className="p-4 rounded-2xl bg-white border border-gray-200/80 shadow-2xs space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500">
-                  {hasMissingCost ? 'Utilidad bruta (estimada)' : 'Utilidad Bruta'}
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-1">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-semibold text-gray-500">
+                    {hasMissingCost ? 'Utilidad bruta (estimada)' : 'Utilidad Bruta'}
+                  </span>
+                  <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.grossProfitKpi} align="left" />
+                </div>
                 {renderComparisonBadge(statement.comparison?.grossProfitChange)}
               </div>
               <div className="text-lg sm:text-xl font-bold text-emerald-700 font-mono">
@@ -192,13 +234,17 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
                 <span>Margen Bruto:</span>
                 <span className="text-emerald-700 font-bold">{statement.grossMarginPercent}%</span>
+                <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.grossMargin} align="left" />
               </div>
             </div>
 
             {/* Gastos Operativos */}
             <div className="p-4 rounded-2xl bg-white border border-gray-200/80 shadow-2xs space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500">Gastos Operativos</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-semibold text-gray-500">Gastos Operativos</span>
+                  <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.operatingExpensesKpi} align="left" />
+                </div>
                 <div className="w-6 h-6 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center">
                   <Receipt size={14} weight="duotone" />
                 </div>
@@ -206,10 +252,10 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
               <div className="text-lg sm:text-xl font-bold text-rose-700 font-mono">
                 {formatCurrency(statement.operatingExpenses?.total || 0, currency)}
               </div>
-              <p className="text-[10px] text-gray-400">Alquiler, servicios, planilla, etc.</p>
+              <p className="text-[10px] text-gray-400">Alquiler, servicios, nómina, etc.</p>
             </div>
 
-            {/* Utilidad Neta / del Periodo (Ticket 189c) */}
+            {/* Utilidad Neta / del Período */}
             <div
               className={`p-4 rounded-2xl border shadow-2xs space-y-1.5 ${
                 netProfit >= 0
@@ -217,14 +263,17 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                   : 'bg-rose-50/40 border-rose-200'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span
-                  className={`text-xs font-bold ${
-                    netProfit >= 0 ? 'text-emerald-950' : 'text-rose-950'
-                  }`}
-                >
-                  {hasMissingCost ? 'Utilidad del periodo (estimada)' : 'Utilidad Neta'}
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-1">
+                <div className="flex items-center gap-1">
+                  <span
+                    className={`text-xs font-bold ${
+                      netProfit >= 0 ? 'text-emerald-950' : 'text-rose-950'
+                    }`}
+                  >
+                    {hasMissingCost ? 'Utilidad del período (estimada)' : 'Utilidad Neta'}
+                  </span>
+                  <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.netProfitKpi} align="right" />
+                </div>
                 {renderComparisonBadge(statement.comparison?.netProfitChange ?? statement.comparison?.operatingProfitChange)}
               </div>
               <div
@@ -244,6 +293,7 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                   >
                     {statement.operatingMarginPercent}%
                   </span>
+                  <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.operatingMargin} align="right" />
                 </div>
                 {interestIncome > 0 && (
                   <span className="text-[10px] text-purple-700 font-bold truncate">
@@ -256,33 +306,66 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
 
           {/* Cascada Financiera (Estructura de Resultados Simplificada) */}
           <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="font-bold text-sm text-gray-900">Estado de Resultados Gerencial</h3>
-                <p className="text-xs text-gray-400">
-                  Período: {formatManaguaDate(statement.period?.from)} al{' '}
-                  {formatManaguaDate(statement.period?.to)}
-                </p>
+                <h3 className="font-bold text-sm text-gray-900 flex items-center gap-2">
+                  <ChartBar size={16} weight="bold" className="text-gray-700" />
+                  <span>Estado de Resultados Gerencial</span>
+                </h3>
+                <div className="text-xs text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="font-semibold text-gray-700">Período actual:</span>
+                    <span className="font-mono text-gray-600">
+                      {formatManaguaDate(statement.period?.from)} al {formatManaguaDate(statement.period?.to)}
+                    </span>
+                  </span>
+                  {statement.comparison?.previousPeriod && (
+                    <span className="inline-flex items-center gap-1 text-gray-500">
+                      <span className="text-gray-300">•</span>
+                      <span className="font-semibold text-gray-700">Comparado contra:</span>
+                      <span className="font-mono text-gray-600">
+                        {formatManaguaDate(statement.comparison.previousPeriod.from)} al{' '}
+                        {formatManaguaDate(statement.comparison.previousPeriod.to)}
+                      </span>
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="p-6 space-y-6">
               {/* Sección 1: Ingresos de Venta */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  <Package size={14} weight="bold" />
-                  <span>1. Ingresos por Ventas</span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    <Package size={14} weight="bold" />
+                    <span>1. Ingresos por Ventas</span>
+                    <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.salesSection} align="left" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-gray-400 font-normal">
+                      Comparativa vs anterior{statement.comparison?.previousPeriod ? ` (${formatManaguaDate(statement.comparison.previousPeriod.from)} al ${formatManaguaDate(statement.comparison.previousPeriod.to)})` : ''}:
+                    </span>
+                    {renderComparisonBadge(statement.comparison?.netSalesChange)}
+                  </div>
                 </div>
+
                 <div className="bg-gray-50/70 rounded-xl p-3.5 space-y-2 text-xs border border-gray-100">
                   <div className="flex justify-between items-center text-gray-700">
-                    <span>Ventas Brutas</span>
+                    <div className="flex items-center gap-1">
+                      <span>(+) Ventas Brutas</span>
+                      <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.grossSales} align="left" />
+                    </div>
                     <span className="font-mono font-medium">
                       +{formatCurrency(statement.grossSales, currency)}
                     </span>
                   </div>
                   {statement.discounts > 0 && (
                     <div className="flex justify-between items-center text-gray-500">
-                      <span className="pl-3">— Descuentos aplicados</span>
+                      <div className="flex items-center gap-1 pl-3">
+                        <span>— Descuentos aplicados</span>
+                        <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.discounts} align="left" />
+                      </div>
                       <span className="font-mono text-rose-600">
                         -{formatCurrency(statement.discounts, currency)}
                       </span>
@@ -290,14 +373,20 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                   )}
                   {statement.returns > 0 && (
                     <div className="flex justify-between items-center text-gray-500">
-                      <span className="pl-3">— Devoluciones / Reembolsos</span>
+                      <div className="flex items-center gap-1 pl-3">
+                        <span>— Devoluciones / Reembolsos</span>
+                        <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.returns} align="left" />
+                      </div>
                       <span className="font-mono text-rose-600">
                         -{formatCurrency(statement.returns, currency)}
                       </span>
                     </div>
                   )}
                   <div className="pt-2 border-t border-gray-200/60 flex justify-between items-center font-bold text-gray-900 text-sm">
-                    <span>= Ventas Netas</span>
+                    <div className="flex items-center gap-1">
+                      <span>= Ventas Netas</span>
+                      <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.netSales} align="left" />
+                    </div>
                     <span className="font-mono text-gray-900">
                       {formatCurrency(statement.netSales, currency)}
                     </span>
@@ -307,14 +396,27 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
 
               {/* Sección 2: Costo de Ventas */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  <Coins size={14} weight="bold" />
-                  <span>2. Costo de Mercadería Vendida</span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    <Coins size={14} weight="bold" />
+                    <span>2. Costo de Mercancía Vendida (COGS)</span>
+                    <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.cogsSection} align="left" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-gray-400 font-normal">
+                      Comparativa utilidad{statement.comparison?.previousPeriod ? ` (${formatManaguaDate(statement.comparison.previousPeriod.from)} al ${formatManaguaDate(statement.comparison.previousPeriod.to)})` : ''}:
+                    </span>
+                    {renderComparisonBadge(statement.comparison?.grossProfitChange)}
+                  </div>
                 </div>
+
                 <div className="bg-gray-50/70 rounded-xl p-3.5 space-y-2 text-xs border border-gray-100">
                   <div className="flex justify-between items-center text-gray-700">
                     <div>
-                      <span>Costo de adquisición de productos vendidos (COGS)</span>
+                      <div className="flex items-center gap-1">
+                        <span>Costo de adquisición de productos vendidos (COGS)</span>
+                        <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.costOfGoodsSold} align="left" />
+                      </div>
                       {statement.coverage && (
                         <div className="text-[10px] text-gray-400">
                           Cobertura: {statement.coverage.coveragePercent}%
@@ -325,10 +427,14 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                       -{formatCurrency(statement.costOfGoodsSold, currency)}
                     </span>
                   </div>
+
                   {/* Línea secundaria cuando hay ventas sin costo */}
                   {hasMissingCost && (
                     <div className="flex justify-between items-center text-amber-800 text-xs pt-1.5 border-t border-gray-200/40 font-medium">
-                      <span>Ventas sin costo registrado:</span>
+                      <div className="flex items-center gap-1">
+                        <span>Ventas sin costo registrado:</span>
+                        <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.uncoveredRevenue} align="left" />
+                      </div>
                       <span className="font-mono font-bold">
                         {statement.uncoveredRevenue !== undefined && statement.uncoveredRevenue !== null
                           ? formatCurrency(statement.uncoveredRevenue, currency)
@@ -337,17 +443,29 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                     </div>
                   )}
 
-                  <div className="pt-2 border-t border-gray-200/60 flex justify-between items-center font-bold text-emerald-800 text-sm">
-                    <span>
-                      = {hasMissingCost ? 'Utilidad bruta (estimada)' : 'Utilidad Bruta (Ganancia sobre ventas)'}
-                    </span>
-                    <div className="text-right">
-                      <span className="font-mono block">
-                        {formatCurrency(statement.grossProfit, currency)}
-                      </span>
-                      <span className="text-[11px] font-semibold text-emerald-700">
-                        Margen: {statement.grossMarginPercent}%
-                      </span>
+                  <div className="pt-2 border-t border-gray-200/60 flex flex-wrap justify-between items-center gap-2 font-bold text-emerald-800 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <span>
+                          = {hasMissingCost ? 'Utilidad bruta (estimada)' : 'Utilidad Bruta (Ganancia sobre ventas)'}
+                        </span>
+                        <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.grossProfit} align="left" />
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                        <span>(Margen Bruto: {statement.grossMarginPercent}%)</span>
+                        <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.grossMargin} align="left" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1 text-xs font-normal">
+                        <span className="text-[11px] text-gray-500">Comparativa utilidad:</span>
+                        {renderComparisonBadge(statement.comparison?.grossProfitChange)}
+                      </div>
+                      <div className="text-right">
+                        <span className="font-mono block text-sm sm:text-base">
+                          {formatCurrency(statement.grossProfit, currency)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -358,7 +476,8 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                 <div className="flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider">
                   <div className="flex items-center gap-2">
                     <Receipt size={14} weight="bold" />
-                    <span>3. Gastos Operativos</span>
+                    <span>3. Gastos Operativos (Opex)</span>
+                    <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.expensesSection} align="left" />
                   </div>
                   <span className="text-rose-700 font-mono">
                     -{formatCurrency(statement.operatingExpenses?.total || 0, currency)}
@@ -397,7 +516,10 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                   )}
 
                   <div className="pt-2 border-t border-gray-200/60 flex justify-between items-center font-bold text-rose-800 text-sm">
-                    <span>Total Gastos Operativos</span>
+                    <div className="flex items-center gap-1">
+                      <span>Total Gastos Operativos</span>
+                      <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.totalOperatingExpenses} align="left" />
+                    </div>
                     <span className="font-mono">
                       -{formatCurrency(statement.operatingExpenses?.total || 0, currency)}
                     </span>
@@ -407,17 +529,27 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
 
               {/* Sección 4: Utilidad Operativa */}
               <div className="space-y-2">
-                <div className="bg-gray-50/80 rounded-xl p-3.5 flex justify-between items-center text-xs border border-gray-200/70 font-bold">
-                  <span className="text-gray-800">
-                    = {hasMissingCost ? 'Utilidad operativa (estimada)' : 'Utilidad Operativa'}
-                  </span>
-                  <div className="text-right">
-                    <span className={`font-mono text-sm ${statement.operatingProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
-                      {formatCurrency(statement.operatingProfit, currency)}
+                <div className="bg-gray-50/80 rounded-xl p-3.5 flex flex-wrap justify-between items-center gap-2 text-xs border border-gray-200/70 font-bold">
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-800 text-sm">
+                      = {hasMissingCost ? 'Utilidad operativa (estimada)' : 'Utilidad Operativa'}
                     </span>
-                    <span className="text-[10px] text-gray-400 block font-normal">
-                      Margen operativo: {statement.operatingMarginPercent}%
-                    </span>
+                    <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.operatingProfit} align="left" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1 text-xs font-normal">
+                      <span className="text-[11px] text-gray-500">Comparativa:</span>
+                      {renderComparisonBadge(statement.comparison?.operatingProfitChange)}
+                    </div>
+                    <div className="text-right">
+                      <span className={`font-mono text-sm sm:text-base ${statement.operatingProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                        {formatCurrency(statement.operatingProfit, currency)}
+                      </span>
+                      <div className="flex items-center gap-1 text-[10px] text-gray-500 justify-end font-normal">
+                        <span>Margen operativo: {statement.operatingMarginPercent}%</span>
+                        <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.operatingMargin} align="right" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -428,6 +560,7 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                   <div className="flex items-center gap-2">
                     <Percent size={14} weight="bold" />
                     <span>4. Ingresos por Intereses</span>
+                    <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.interestIncomeSection} align="left" />
                   </div>
                   <span className="text-purple-700 font-mono font-bold">
                     +{formatCurrency(interestIncome, currency)}
@@ -437,9 +570,12 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                 <div className="bg-gray-50/70 rounded-xl p-3.5 space-y-1 text-xs border border-gray-100">
                   <div className="flex justify-between items-center text-gray-700">
                     <div>
-                      <span className="font-semibold text-gray-900">Ingresos por intereses</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-semibold text-gray-900">Ingresos por intereses</span>
+                        <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.interestIncome} align="left" />
+                      </div>
                       <p className="text-[11px] text-gray-400 mt-0.5">
-                        Intereses cobrados en el periodo
+                        Intereses cobrados en el período
                       </p>
                     </div>
                     <span className="font-mono font-bold text-purple-700 text-sm">
@@ -459,14 +595,15 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <span
                         className={`text-base font-bold ${
                           netProfit >= 0 ? 'text-emerald-950' : 'text-rose-950'
                         }`}
                       >
-                        = {hasMissingCost ? 'Utilidad neta del periodo (estimada)' : 'Utilidad Neta del Período'}
+                        = {hasMissingCost ? 'Utilidad neta del período (estimada)' : 'Utilidad Neta del Período'}
                       </span>
+                      <TooltipInfo text={INCOME_STATEMENT_TOOLTIPS.netProfit} align="left" />
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
                       Utilidad Operativa más Ingresos por Intereses cobrados
