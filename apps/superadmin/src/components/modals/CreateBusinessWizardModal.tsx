@@ -273,9 +273,9 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
         !isNaN(Number(carteraMonthlyFee)) &&
         Number(carteraMonthlyFee) > 0
       ) {
-        list.push({ name: 'Cartera de Cobro', amount: Number(carteraMonthlyFee) });
+        list.push({ name: 'Finanzas', amount: Number(carteraMonthlyFee) });
       } else {
-        missing.push('Cartera de Cobro (sin tarifa)');
+        missing.push('Finanzas (sin tarifa)');
       }
     }
 
@@ -1092,8 +1092,8 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       <Wallet size={17} weight="duotone" />
                     </div>
                     <div>
-                      <p className="font-bold text-xs text-gray-900 leading-tight">Cartera de Cobro</p>
-                      <p className="text-[11px] text-gray-500">Ventas a crédito y abonos</p>
+                      <p className="font-bold text-xs text-gray-900 leading-tight">Finanzas</p>
+                      <p className="text-[11px] text-gray-500">Cuentas por pagar, gastos y cartera</p>
                     </div>
                   </div>
                   <div
@@ -1529,16 +1529,16 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
               </div>
             )}
 
-            {/* Condiciones Cartera de Cobro */}
+            {/* Condiciones Finanzas */}
             {hasCarteraCobro && (
               <div className="p-3.5 rounded-xl bg-emerald-50/40 border border-emerald-200 space-y-2">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-950 uppercase tracking-wider">
                   <Wallet size={16} className="text-emerald-700" />
-                  <span>Condiciones Cartera de Cobro</span>
+                  <span>Condiciones Finanzas</span>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-700 mb-1">
-                    Tarifa mensual Cartera en USD (opcional)
+                    Tarifa mensual Finanzas en USD (opcional)
                   </label>
                   <div className="relative max-w-xs">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
@@ -1550,7 +1550,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       min="0"
                       value={carteraMonthlyFee}
                       onChange={(e) => setCarteraMonthlyFee(e.target.value)}
-                      placeholder="29.99"
+                      placeholder="30.00"
                       className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs bg-white"
                     />
                   </div>

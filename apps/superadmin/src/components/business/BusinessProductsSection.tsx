@@ -336,8 +336,8 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
           {isCarteraActive && (
             <ProductCard
               productType="CARTERA_COBRO"
-              title="Cartera de Cobro"
-              subtitle="Ventas a crédito, abonos y cartera vencida"
+              title="Finanzas"
+              subtitle="Cuentas por pagar, gastos, estado de resultados y cartera"
               icon={<Wallet size={22} weight="duotone" />}
               iconActiveThemeClass="bg-emerald-500/10 text-emerald-800 border border-emerald-200/60"
               isActive={true}
@@ -347,7 +347,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
               activatedAt={carteraSub?.activatedAt}
               deactivatedAt={carteraSub?.deactivatedAt}
               isMembershipProduct={true}
-              inactiveDescription="Este negocio no tiene contratada la Cartera de Cobro. El registro de ventas a crédito y control de saldos está deshabilitado."
+              inactiveDescription="Este negocio no tiene contratado el módulo de Finanzas. El registro de compras a crédito, cuentas por pagar y gastos está deshabilitado."
               onAuditClick={() => setAuditLogModal({ isOpen: true, productType: 'CARTERA_COBRO' })}
               onConfigureClick={() =>
                 setActiveModal({
@@ -376,7 +376,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                   <span className="text-xs text-gray-500 font-medium">Módulo</span>
                   <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs">
                     <CreditCard size={14} className="text-emerald-600" />
-                    <span>Crédito y Cobranza POS</span>
+                    <span>Finanzas (Cobranza, Pagos y Gastos)</span>
                   </span>
                 </div>
 

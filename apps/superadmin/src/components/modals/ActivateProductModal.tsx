@@ -498,7 +498,7 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
           <div className="space-y-3.5">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Tarifa Mensual Cartera de Cobro en USD (opcional)
+                Tarifa Mensual Finanzas en USD (opcional)
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
@@ -510,7 +510,7 @@ export const ActivateProductModal: React.FC<ActivateProductModalProps> = ({
                   min="0"
                   value={carteraMonthlyFee}
                   onChange={(e) => setCarteraMonthlyFee(e.target.value)}
-                  placeholder="29.99"
+                  placeholder="30.00"
                   className="w-full h-10 pl-7 pr-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
                 />
               </div>

@@ -13,7 +13,7 @@ export function getProductLabel(productType: BusinessProductType): string {
     case 'POS':
       return 'Sistema POS';
     case 'CARTERA_COBRO':
-      return 'Cartera de Cobro';
+      return 'Finanzas';
     case 'CITAS':
       return 'Citas';
     default:

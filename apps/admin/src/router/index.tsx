@@ -24,6 +24,7 @@ import { PosAnalyticsPage } from "../pages/pos/PosAnalyticsPage";
 import { PosInventoryPage } from "../pages/pos/PosInventoryPage";
 import { PosCashRegistersPage } from "../pages/pos/PosCashRegistersPage";
 import { PosCobrarPage } from "../pages/pos/PosCobrarPage";
+import { FinancesPage } from "../pages/FinancesPage";
 import { useMyProducts } from "../hooks/useMyProducts";
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
@@ -90,6 +91,8 @@ const router = createBrowserRouter([
       { path: "pos/cash-registers", element: <PosCashRegistersPage /> },
       { path: "pos/reports", element: <ReportsPage /> },
       { path: "pos/cobrar", element: <PosCobrarPage /> },
+      { path: "finances", element: <FinancesPage /> },
+      { path: "pos/finances", element: <Navigate to="/finances" replace /> },
     ],
   },
   {

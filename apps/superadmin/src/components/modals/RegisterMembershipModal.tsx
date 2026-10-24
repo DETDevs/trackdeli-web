@@ -95,7 +95,7 @@ export const RegisterMembershipModal: React.FC<RegisterMembershipModalProps> = (
       list.push({
         id: sub.id!,
         productType: 'CARTERA_COBRO',
-        name: 'Cartera de Cobro',
+        name: 'Finanzas',
         subtitle: fee ? `$${Number(fee).toFixed(2)}/mes` : 'Sin cuota fija',
         fee: fee ? Number(fee) : null,
         icon: <Wallet size={16} weight="duotone" className="text-emerald-600 shrink-0" />,

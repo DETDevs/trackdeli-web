@@ -21,6 +21,7 @@ import {
   TrendUp,
   CashRegister,
   CreditCard,
+  Bank,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -95,6 +96,11 @@ export const AppLayout = () => {
     productsData?.products?.POS?.status === 'ACTIVE' ||
     (business as any)?.hasPOS === true;
 
+  const hasCarteraCobro =
+    isSuperAdmin ||
+    productsData?.products?.CARTERA_COBRO?.status === 'ACTIVE' ||
+    (business as any)?.hasCarteraCobro === true;
+
   const businessName = business?.name || productsData?.businessName;
 
   useOrderNotifications(isDeliveryActive);
@@ -148,6 +154,7 @@ export const AppLayout = () => {
   }
 
   const getPageTitle = (pathname: string) => {
+    if (pathname.startsWith('/finances') || pathname.startsWith('/pos/finances')) return 'Finanzas';
     if (pathname.startsWith('/pos/cobrar')) return 'Cobrar';
     if (pathname.startsWith('/pos/dashboard')) return 'Resumen POS';
     if (pathname.startsWith('/pos/sales')) return 'Ventas POS';
@@ -255,6 +262,12 @@ export const AppLayout = () => {
                     Reportes
                   </NavLink>
                 )}
+                {hasCarteraCobro && (user?.role === 'SUPERADMIN' || user?.role === 'ENCARGADO') && (
+                  <NavLink to="/finances" className={navLinkClass}>
+                    <Bank size={18} weight="regular" />
+                    Finanzas
+                  </NavLink>
+                )}
                 {canCobrar && webBillingEnabled && (
                   <NavLink to="/pos/cobrar" className={navLinkClass}>
                     <CreditCard size={18} weight="regular" />
@@ -334,6 +347,12 @@ export const AppLayout = () => {
                 <NavLink to="/commissions" className={navLinkClass}>
                   <Coins size={18} weight="regular" />
                   Comisiones
+                </NavLink>
+              )}
+              {!isPosActive && hasCarteraCobro && (user?.role === 'SUPERADMIN' || user?.role === 'ENCARGADO') && (
+                <NavLink to="/finances" className={navLinkClass}>
+                  <Bank size={18} weight="regular" />
+                  Finanzas
                 </NavLink>
               )}
               <NavLink to="/settings" className={navLinkClass}>

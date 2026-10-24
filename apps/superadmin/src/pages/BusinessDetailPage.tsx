@@ -323,7 +323,7 @@ export const BusinessDetailPage = () => {
             {isCarteraActive && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80">
                 <Wallet size={13} weight="duotone" className="text-emerald-700" />
-                <span>Cartera de Cobro</span>
+                <span>Finanzas</span>
               </span>
             )}
             {isCitasActive && (
@@ -671,7 +671,7 @@ export const BusinessDetailPage = () => {
                               : p.productType === 'POS'
                               ? 'POS'
                               : p.productType === 'CARTERA_COBRO'
-                              ? 'Cartera'
+                              ? 'Finanzas'
                               : p.productType === 'CITAS'
                               ? 'Citas'
                               : p.name}
@@ -800,7 +800,7 @@ export const BusinessDetailPage = () => {
                                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80"
                                       >
                                         <Wallet size={11} weight="duotone" className="text-emerald-700" />
-                                        <span>Cartera</span>
+                                        <span>Finanzas</span>
                                       </span>
                                     );
                                   }

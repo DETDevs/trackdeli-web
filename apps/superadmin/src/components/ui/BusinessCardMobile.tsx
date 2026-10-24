@@ -165,7 +165,7 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
 
             const displayName =
               p.type === 'CARTERA_COBRO'
-                ? 'Cartera'
+                ? 'Finanzas'
                 : p.type === 'DELIVERY'
                 ? 'Delivery'
                 : p.name || p.type;
