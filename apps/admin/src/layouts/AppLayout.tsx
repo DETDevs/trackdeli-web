@@ -74,6 +74,7 @@ export const AppLayout = () => {
     );
 
   const isSuperAdmin = user?.role === 'SUPERADMIN';
+  const isPosManager = isSuperAdmin || user?.role === 'ENCARGADO';
 
   const {
     data: productsData,
@@ -230,7 +231,7 @@ export const AppLayout = () => {
 
         <nav className="flex-1 px-3 py-2 space-y-5 overflow-y-auto">
           {/* SECCIÓN PUNTO DE VENTA (POS) - Solo visible si POS está activo Y webAdminEnabled */}
-          {isPosActive && webAdminEnabled && (
+          {isPosActive && webAdminEnabled && isPosManager && (
             <div>
               <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 mt-2">
                 PUNTO DE VENTA (POS)
@@ -256,13 +257,11 @@ export const AppLayout = () => {
                   <CashRegister size={18} weight="regular" />
                   Cierres de Caja
                 </NavLink>
-                {(user?.role === 'SUPERADMIN' || user?.role === 'ENCARGADO') && (
-                  <NavLink to="/pos/reports" className={navLinkClass}>
-                    <ChartBar size={18} weight="regular" />
-                    Reportes
-                  </NavLink>
-                )}
-                {hasCarteraCobro && (user?.role === 'SUPERADMIN' || user?.role === 'ENCARGADO') && (
+                <NavLink to="/pos/reports" className={navLinkClass}>
+                  <ChartBar size={18} weight="regular" />
+                  Reportes
+                </NavLink>
+                {hasCarteraCobro && (
                   <NavLink to="/finances" className={navLinkClass}>
                     <Bank size={18} weight="regular" />
                     Finanzas

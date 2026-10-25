@@ -23,6 +23,44 @@ export interface DashboardPeriodData extends PeriodMetrics {
   comparison: PeriodComparison;
 }
 
+export interface DashboardOpenRegister {
+  id: string;
+  cashierName: string;
+  openedAt: string;
+  openingFloat: number;
+  expectedCash: number;
+  salesCount: number;
+}
+
+export interface DashboardTodayProfit {
+  profit: number;
+  cost: number;
+  marginPct: number;
+  itemsWithoutCost: number;
+}
+
+export interface DashboardLastSale {
+  id: string;
+  invoiceNumber: string;
+  createdAt: string;
+  total: number;
+  paymentMethod: string;
+  status: string;
+}
+
+export interface DashboardAlerts {
+  lowStock?: { count: number };
+  outOfStock?: { count: number };
+  expiringBatches?: { count: number; amount: number };
+  expiredBatches?: { count: number; amount: number };
+  overdueCredit?: { count: number; amount: number };
+  lastCashDifference?: {
+    amount: number;
+    cashier: string;
+    date: string;
+  } | null;
+}
+
 export interface BackofficeDashboardData {
   tier: string;
   currency: string;
@@ -36,6 +74,13 @@ export interface BackofficeDashboardData {
     transferencia: number;
     otros: number;
   };
+  openRegister?: DashboardOpenRegister | null;
+  openRegisters?: DashboardOpenRegister[];
+  todayProfit?: DashboardTodayProfit;
+  lastSales?: DashboardLastSale[];
+  alerts?: DashboardAlerts;
+  generatedAt?: string;
+  timezone?: string;
 }
 
 export interface BackofficeSaleCustomer {
@@ -282,8 +327,9 @@ export const useBackofficeDashboard = (businessId?: string) => {
       const res = await apiClient.get<BackofficeDashboardData>('/backoffice/dashboard', { params });
       return res.data;
     },
-    staleTime: 30000,
-    refetchOnWindowFocus: false,
+    staleTime: 15000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
 };
 

@@ -14,7 +14,12 @@ import { formatCurrency, formatQuantity } from '../../utils/formatters';
 
 export const PosInventoryPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [onlyLowStock, setOnlyLowStock] = useState(false);
+  const [onlyLowStock, setOnlyLowStock] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('onlyLowStock') === 'true';
+    }
+    return false;
+  });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
