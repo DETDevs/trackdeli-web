@@ -292,7 +292,7 @@ export const PosAnalyticsPage: React.FC = () => {
           <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
             <div>
               <span className="text-xs font-semibold text-gray-700">Ventas por Categoría</span>
-              <p className="text-[11px] text-gray-400">Participación en la facturación total</p>
+              <p className="text-[11px] text-gray-400">Participación en las ventas totales</p>
             </div>
             {categoryData && (
               <span className="font-bold text-xs text-gray-900">

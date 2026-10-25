@@ -49,7 +49,7 @@ export function usePosWebDevice(enabled: boolean = true) {
     if (code === 'WEB_BILLING_DISABLED') {
       setDeviceError({
         code: 'WEB_BILLING_DISABLED',
-        message: 'La facturación web no está habilitada para este negocio.',
+        message: 'El cobro y emisión de comprobantes web no está habilitado para este negocio.',
       });
       return true;
     }
@@ -127,12 +127,12 @@ export function usePosWebDevice(enabled: boolean = true) {
         } else if (code === 'WEB_BILLING_DISABLED') {
           setDeviceError({
             code: 'WEB_BILLING_DISABLED',
-            message: 'La facturación web no está habilitada para este negocio.',
+            message: 'El cobro y emisión de comprobantes web no está habilitado para este negocio.',
           });
         } else {
           setDeviceError({
             code: 'REGISTRATION_ERROR',
-            message: err?.response?.data?.message || 'No se pudo registrar el dispositivo para facturar.',
+            message: err?.response?.data?.message || 'No se pudo registrar el dispositivo para emitir comprobantes.',
           });
         }
       } finally {

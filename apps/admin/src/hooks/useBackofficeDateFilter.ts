@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { format, subDays, startOfMonth } from 'date-fns';
+import { getManaguaTodayYMD } from '../utils/dateManagua';
 
 export type DateFilterPreset = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
@@ -10,10 +10,6 @@ interface StoredFilterState {
 }
 
 const STORAGE_KEY = 'trackdeli_pos_backoffice_date_filter';
-
-const getLocalDateString = (d: Date): string => {
-  return format(d, 'yyyy-MM-dd');
-};
 
 export const useBackofficeDateFilter = (defaultPreset: DateFilterPreset = 'today') => {
   // Inicializar estado desde sessionStorage si existe
@@ -30,7 +26,7 @@ export const useBackofficeDateFilter = (defaultPreset: DateFilterPreset = 'today
     return defaultPreset;
   });
 
-  const todayStr = useMemo(() => getLocalDateString(new Date()), []);
+  const todayStr = useMemo(() => getManaguaTodayYMD(), []);
 
   const [customFrom, setCustomFromState] = useState<string>(() => {
     try {
@@ -66,10 +62,20 @@ export const useBackofficeDateFilter = (defaultPreset: DateFilterPreset = 'today
     } catch {}
   }, [preset, customFrom, customTo]);
 
-  // Calcular las fechas resultantes según el preset activo
+  // Calcular las fechas resultantes según el preset activo usando la fecha del negocio en Managua
   const { from, to, label } = useMemo(() => {
-    const now = new Date();
-    const today = getLocalDateString(now);
+    const today = getManaguaTodayYMD();
+    const [y, m, d] = today.split('-').map(Number);
+    const baseDate = new Date(y, m - 1, d, 12, 0, 0);
+
+    const calcDaysAgo = (days: number): string => {
+      const dt = new Date(baseDate);
+      dt.setDate(baseDate.getDate() - days);
+      const resY = dt.getFullYear();
+      const resM = String(dt.getMonth() + 1).padStart(2, '0');
+      const resD = String(dt.getDate()).padStart(2, '0');
+      return `${resY}-${resM}-${resD}`;
+    };
 
     switch (preset) {
       case 'today':
@@ -80,8 +86,7 @@ export const useBackofficeDateFilter = (defaultPreset: DateFilterPreset = 'today
         };
 
       case 'yesterday': {
-        const yDate = subDays(now, 1);
-        const yStr = getLocalDateString(yDate);
+        const yStr = calcDaysAgo(1);
         return {
           from: yStr,
           to: yStr,
@@ -90,8 +95,7 @@ export const useBackofficeDateFilter = (defaultPreset: DateFilterPreset = 'today
       }
 
       case 'week': {
-        const wDate = subDays(now, 6);
-        const wStr = getLocalDateString(wDate);
+        const wStr = calcDaysAgo(6);
         return {
           from: wStr,
           to: today,
@@ -100,8 +104,7 @@ export const useBackofficeDateFilter = (defaultPreset: DateFilterPreset = 'today
       }
 
       case 'month': {
-        const mStart = startOfMonth(now);
-        const mStr = getLocalDateString(mStart);
+        const mStr = `${y}-${String(m).padStart(2, '0')}-01`;
         return {
           from: mStr,
           to: today,

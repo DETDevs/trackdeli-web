@@ -45,7 +45,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-sm text-gray-900">
-                    Factura #{sale?.invoiceNumber || '—'}
+                    Comprobante #{sale?.invoiceNumber || '—'}
                   </h3>
                   {sale?.isVoided && (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200">

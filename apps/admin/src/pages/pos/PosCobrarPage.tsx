@@ -163,7 +163,7 @@ export const PosCobrarPage: React.FC = () => {
     );
   }
 
-  // 1. Facturación web no habilitada
+  // 1. Cobro web no habilitado
   if (!webBillingEnabled) {
     return (
       <div className="max-w-xl mx-auto py-12 px-4 sm:px-6">
@@ -176,10 +176,10 @@ export const PosCobrarPage: React.FC = () => {
               Módulo adicional
             </span>
             <h2 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">
-              Facturación web no habilitada
+              Cobro web no habilitado
             </h2>
             <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-              La facturación desde la web es un módulo adicional que no está activo en este negocio. Pedile al administrador que lo active desde el panel de Superadmin.
+              El cobro y emisión de comprobantes desde la web es un módulo adicional que no está activo en este negocio. Pedile al administrador que lo active desde el panel de Superadmin.
             </p>
           </div>
           <div className="pt-2">

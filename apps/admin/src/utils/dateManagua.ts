@@ -5,23 +5,48 @@
 export const MANAGUA_TIMEZONE = 'America/Managua';
 
 /**
- * Obtiene la fecha actual de Managua en formato 'YYYY-MM-DD'
+ * Obtiene la fecha de una entrada en hora de Managua en formato 'YYYY-MM-DD'.
+ * Si no se pasa parámetro o es undefined, devuelve la fecha de hoy en Managua.
  */
-export const getManaguaTodayYMD = (): string => {
+export const getManaguaYMD = (dateInput?: Date | string | null): string => {
+  if (!dateInput) {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: MANAGUA_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(new Date());
+  }
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())) {
+    return dateInput.trim();
+  }
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return '';
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: MANAGUA_TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   });
-  return formatter.format(new Date());
+  return formatter.format(d);
 };
 
 /**
- * Formatea una fecha u hora ISO a fecha legible en hora de Managua (ej: 09/10/2026)
+ * Obtiene la fecha actual de Managua en formato 'YYYY-MM-DD'
+ */
+export const getManaguaTodayYMD = (): string => getManaguaYMD();
+
+/**
+ * Formatea una fecha u hora ISO a fecha legible en hora de Managua (ej: 24/10/2026)
+ * Si ya viene en formato 'YYYY-MM-DD', no lo convierte a UTC para evitar desfase de -6h.
  */
 export const formatManaguaDate = (dateStr?: string | null | Date): string => {
   if (!dateStr) return '—';
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {
+    const [y, m, d] = dateStr.trim().split('-');
+    return `${d}/${m}/${y}`;
+  }
   try {
     const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
     if (isNaN(d.getTime())) return '—';
@@ -37,7 +62,7 @@ export const formatManaguaDate = (dateStr?: string | null | Date): string => {
 };
 
 /**
- * Formatea una fecha u hora ISO a fecha y hora en hora de Managua (ej: 09/10/2026, 09:30 PM)
+ * Formatea una fecha u hora ISO a fecha y hora en hora de Managua (ej: 24 oct 2026, 9:48 p. m.)
  */
 export const formatManaguaDateTime = (dateStr?: string | null | Date): string => {
   if (!dateStr) return '—';
@@ -46,10 +71,10 @@ export const formatManaguaDateTime = (dateStr?: string | null | Date): string =>
     if (isNaN(d.getTime())) return '—';
     return d.toLocaleString('es-NI', {
       timeZone: MANAGUA_TIMEZONE,
-      day: '2-digit',
-      month: '2-digit',
+      day: 'numeric',
+      month: 'short',
       year: 'numeric',
-      hour: '2-digit',
+      hour: 'numeric',
       minute: '2-digit',
       hour12: true,
     });
@@ -59,7 +84,7 @@ export const formatManaguaDateTime = (dateStr?: string | null | Date): string =>
 };
 
 /**
- * Formatea solo la hora en hora de Managua (ej: 08:45 PM)
+ * Formatea solo la hora en hora de Managua (ej: 9:48 p. m.)
  */
 export const formatManaguaTime = (dateStr?: string | null | Date): string => {
   if (!dateStr) return '—';
@@ -68,7 +93,7 @@ export const formatManaguaTime = (dateStr?: string | null | Date): string => {
     if (isNaN(d.getTime())) return '—';
     return d.toLocaleTimeString('es-NI', {
       timeZone: MANAGUA_TIMEZONE,
-      hour: '2-digit',
+      hour: 'numeric',
       minute: '2-digit',
       hour12: true,
     });

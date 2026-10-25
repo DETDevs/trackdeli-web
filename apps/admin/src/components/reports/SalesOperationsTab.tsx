@@ -23,6 +23,7 @@ import {
 } from '../../types/reports';
 import { formatCurrency } from '../../utils/formatters';
 import { formatManaguaDate } from '../../utils/dateManagua';
+import { TooltipInfo } from '../finances/TooltipInfo';
 
 interface SalesOperationsTabProps {
   reportsData?: ReportsSummary | null;
@@ -134,7 +135,13 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
         {/* Ventas Cobradas (con impuesto) */}
         <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between text-gray-500">
-            <span className="text-xs font-semibold text-gray-700">Ventas cobradas (con impuesto)</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-gray-700">Ventas cobradas (con impuesto)</span>
+              <TooltipInfo
+                text="Total facturado y cobrado a clientes incluyendo impuestos, neto de devoluciones en el período. Si el negocio vende a crédito, incluye el monto total de la venta."
+                align="left"
+              />
+            </div>
             <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
               <Coins size={16} weight="duotone" />
             </div>
@@ -151,7 +158,13 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
         {/* Ventas Netas (sin impuesto, con descuentos y devoluciones) */}
         <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between text-gray-500">
-            <span className="text-xs font-semibold text-gray-700">Ventas netas (sin impuesto)</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-gray-700">Ventas netas (sin impuesto)</span>
+              <TooltipInfo
+                text="Ingreso neto del negocio sin impuestos, deduciendo descuentos y devoluciones del período."
+                align="left"
+              />
+            </div>
             <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
               <Receipt size={16} weight="duotone" />
             </div>
@@ -208,9 +221,13 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
           <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
             Distribución por Método de Pago
           </h3>
-          <span className="text-[11px] text-gray-400">
-            Total recaudado: {formatCurrency(totalPaymentMethods)}
-          </span>
+          <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+            <span>Total recaudado: {formatCurrency(totalPaymentMethods)}</span>
+            <TooltipInfo
+              text="Total efectivamente ingresado en caja por medios de pago. Puede diferir de 'Ventas cobradas' si se realizaron ventas al crédito (cuentas por cobrar) cuyo pago aún no entra a caja."
+              align="right"
+            />
+          </div>
         </div>
 
         {/* Barra segmentada */}
@@ -286,7 +303,8 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
               </h3>
             </div>
             <span className="text-[11px] text-gray-400">
-              {reportsData.summary.byDay.length} días con actividad
+              {reportsData.summary.byDay.length}{' '}
+              {reportsData.summary.byDay.length === 1 ? 'día con actividad' : 'días con actividad'}
             </span>
           </div>
 
@@ -305,7 +323,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                         <div
                           style={{ height: `${pct}%` }}
                           className="w-full rounded-t-lg bg-gray-900 group-hover:bg-blue-600 transition-colors"
-                          title={`${d.date}: ${formatCurrency(d.revenue)} (${d.count} tickets)`}
+                          title={`${d.date}: ${formatCurrency(d.revenue)} (${d.count} comprobantes)`}
                         />
                       </div>
                       <span className="text-[10px] text-gray-500 font-medium truncate max-w-full">
@@ -531,7 +549,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
             <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
               Productos Más Vendidos
             </h3>
-            <span className="text-[11px] text-gray-400">Por facturación</span>
+            <span className="text-[11px] text-gray-400">Por ventas</span>
           </div>
 
           {!reportsData?.topProducts || reportsData.topProducts.length === 0 ? (

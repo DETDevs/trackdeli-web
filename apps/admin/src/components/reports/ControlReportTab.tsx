@@ -227,7 +227,7 @@ export const ControlReportTab: React.FC<ControlReportTabProps> = ({
                   <table className="w-full text-xs text-left">
                     <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-400 text-[11px]">
                       <tr>
-                        <th className="py-2.5 px-4 font-semibold">Factura</th>
+                        <th className="py-2.5 px-4 font-semibold">Comprobante</th>
                         <th className="py-2.5 px-4 font-semibold">Fecha (Managua)</th>
                         <th className="py-2.5 px-4 font-semibold text-right">Monto</th>
                         <th className="py-2.5 px-4 font-semibold">Cajero</th>
@@ -369,11 +369,11 @@ export const ControlReportTab: React.FC<ControlReportTabProps> = ({
                   <table className="w-full text-xs text-left">
                     <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-400 text-[11px]">
                       <tr>
-                        <th className="py-2.5 px-4 font-semibold">Factura</th>
+                        <th className="py-2.5 px-4 font-semibold">Comprobante</th>
                         <th className="py-2.5 px-4 font-semibold">Fecha (Managua)</th>
                         <th className="py-2.5 px-4 font-semibold text-right">Subtotal</th>
                         <th className="py-2.5 px-4 font-semibold text-right">Descuento</th>
-                        <th className="py-2.5 px-4 font-semibold text-right">Total Facturado</th>
+                        <th className="py-2.5 px-4 font-semibold text-right">Total Ventas</th>
                         <th className="py-2.5 px-4 font-semibold">Cajero</th>
                       </tr>
                     </thead>

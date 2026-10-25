@@ -89,10 +89,10 @@ export const WorkshopReportTab: React.FC<WorkshopReportTabProps> = ({
           <div className="text-[11px] text-gray-400">Mano de obra y reparaciones</div>
         </div>
 
-        {/* Facturación Taller */}
+        {/* Ventas Taller */}
         <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between text-gray-500">
-            <span className="text-xs font-semibold text-gray-700">Facturación taller</span>
+            <span className="text-xs font-semibold text-gray-700">Ventas taller</span>
             <div className="w-7 h-7 rounded-lg bg-gray-100 text-gray-800 flex items-center justify-center">
               <CurrencyDollar size={16} weight="bold" />
             </div>
@@ -155,7 +155,7 @@ export const WorkshopReportTab: React.FC<WorkshopReportTabProps> = ({
                 Rendimiento por Técnico
               </h3>
             </div>
-            <span className="text-[11px] text-gray-400">Facturación acumulada</span>
+            <span className="text-[11px] text-gray-400">Ventas acumuladas</span>
           </div>
 
           {technicians.length === 0 ? (
@@ -169,7 +169,7 @@ export const WorkshopReportTab: React.FC<WorkshopReportTabProps> = ({
                   <tr className="border-b border-gray-100 text-gray-400 text-[11px]">
                     <th className="py-2 px-2 font-semibold">Técnico</th>
                     <th className="py-2 px-2 font-semibold text-center">Órdenes</th>
-                    <th className="py-2 px-2 font-semibold text-right">Facturación</th>
+                    <th className="py-2 px-2 font-semibold text-right">Ventas</th>
                     <th className="py-2 px-2 font-semibold text-right">% Taller</th>
                   </tr>
                 </thead>
@@ -222,7 +222,7 @@ export const WorkshopReportTab: React.FC<WorkshopReportTabProps> = ({
                   <th className="py-2.5 px-4 font-semibold">Placa</th>
                   <th className="py-2.5 px-4 font-semibold">Descripción</th>
                   <th className="py-2.5 px-4 font-semibold text-center">Visitas / Órdenes</th>
-                  <th className="py-2.5 px-4 font-semibold text-right">Total Facturado</th>
+                  <th className="py-2.5 px-4 font-semibold text-right">Total Ventas</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">

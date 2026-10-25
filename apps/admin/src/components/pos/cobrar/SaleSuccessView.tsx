@@ -96,7 +96,7 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
             ¡Cobro completado!
           </h2>
           <p className="text-xs text-gray-500 mt-1">
-            Factura:{' '}
+            Comprobante:{' '}
             <span className="font-mono font-bold text-gray-800">
               {sale.invoiceNumber || sale.id.slice(-6).toUpperCase()}
             </span>

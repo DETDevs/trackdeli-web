@@ -317,7 +317,7 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
 
                   <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-black/5">
                     <div>
-                      <span className="text-[10px] text-gray-500 uppercase block">Facturado</span>
+                      <span className="text-[10px] text-gray-500 uppercase block">Venta</span>
                       <span className="font-bold text-gray-900">
                         {formatCurrency(sourceData.revenue)}
                       </span>
@@ -365,7 +365,7 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
                 <tr className="border-b border-gray-100 text-gray-400 text-[11px] bg-gray-50/50">
                   <th className="py-2.5 px-4 font-semibold">Producto</th>
                   <th className="py-2.5 px-4 font-semibold text-center">Unidades Vendidas</th>
-                  <th className="py-2.5 px-4 font-semibold text-right">Total Facturado</th>
+                  <th className="py-2.5 px-4 font-semibold text-right">Total Ventas</th>
                   <th className="py-2.5 px-4 font-semibold text-center">Estado Costo</th>
                 </tr>
               </thead>

@@ -292,7 +292,7 @@ export async function generateReceiptPdfBlob(
 
   // Número de factura destacado
   doc.setFont('helvetica', 'bold');
-  doc.text('Factura:', 4, y);
+  doc.text('Comprobante:', 4, y);
   doc.text(invoiceNum, 76, y, { align: 'right' });
   y += 4;
 

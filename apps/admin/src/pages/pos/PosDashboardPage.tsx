@@ -12,28 +12,61 @@ import {
   ArrowRight,
   Storefront,
   Wrench,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import { useBackofficeDashboard, useBackofficeSales } from '../../hooks/useBackoffice';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 import { ModuleNotEnabledAlert } from '../../components/pos/ModuleNotEnabledAlert';
 import { WebAccessDisabledView } from '../../components/pos/WebAccessDisabledView';
-import { subDays, format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getManaguaTodayYMD, getManaguaYMD } from '../../utils/dateManagua';
+import { TooltipInfo } from '../../components/finances/TooltipInfo';
 
 export const PosDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { data: dashboard, isLoading, isError, error, refetch } = useBackofficeDashboard();
 
-  // Fechas de los últimos 7 días para el gráfico simple de ventas diarias
+  // Fechas de los últimos 7 días según hora de negocio Managua
   const { weekFrom, weekTo, last7Days } = useMemo(() => {
-    const now = new Date();
-    const to = format(now, 'yyyy-MM-dd');
-    const from = format(subDays(now, 6), 'yyyy-MM-dd');
+    const today = getManaguaTodayYMD();
+    const [y, m, d] = today.split('-').map(Number);
+    const baseDate = new Date(y, m - 1, d, 12, 0, 0);
     const days: string[] = [];
     for (let i = 6; i >= 0; i--) {
-      days.push(format(subDays(now, i), 'yyyy-MM-dd'));
+      const cur = new Date(baseDate);
+      cur.setDate(baseDate.getDate() - i);
+      const curYmd = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+      days.push(curYmd);
     }
-    return { weekFrom: from, weekTo: to, last7Days: days };
+    return { weekFrom: days[0], weekTo: days[days.length - 1], last7Days: days };
+  }, []);
+
+  // Etiquetas de comparación con fechas explícitas (ej: vs ayer (23 oct), vs 11–17 oct)
+  const comparisonLabels = useMemo(() => {
+    const today = getManaguaTodayYMD();
+    const [y, m, d] = today.split('-').map(Number);
+    const baseDate = new Date(y, m - 1, d, 12, 0, 0);
+
+    const yestDate = new Date(baseDate);
+    yestDate.setDate(baseDate.getDate() - 1);
+    const yesterday = format(yestDate, 'd MMM', { locale: es });
+
+    const p7StartDate = new Date(baseDate);
+    p7StartDate.setDate(baseDate.getDate() - 13);
+    const p7EndDate = new Date(baseDate);
+    p7EndDate.setDate(baseDate.getDate() - 7);
+    const prev7 = `${format(p7StartDate, 'd', { locale: es })}–${format(p7EndDate, 'd MMM', { locale: es })}`;
+
+    const pMonthDate = new Date(baseDate);
+    pMonthDate.setMonth(baseDate.getMonth() - 1);
+    const prevMonth = format(pMonthDate, 'MMM', { locale: es });
+
+    return {
+      yesterday: `vs ayer (${yesterday})`,
+      prev7: `vs ${prev7}`,
+      prevMonth: `vs mes ant. (${prevMonth})`,
+    };
   }, []);
 
   const { data: weekSalesData } = useBackofficeSales({
@@ -42,7 +75,7 @@ export const PosDashboardPage: React.FC = () => {
     limit: 100,
   });
 
-  // Agrupar ventas de los últimos 7 días
+  // Agrupar ventas de los últimos 7 días con fecha local Managua
   const dailySales = useMemo(() => {
     const map: Record<string, { total: number; count: number }> = {};
     last7Days.forEach((d) => {
@@ -52,7 +85,7 @@ export const PosDashboardPage: React.FC = () => {
     if (weekSalesData?.data) {
       weekSalesData.data.forEach((s) => {
         if (s.isVoided) return;
-        const dayStr = s.createdAt.slice(0, 10);
+        const dayStr = getManaguaYMD(s.createdAt);
         if (map[dayStr]) {
           map[dayStr].total += s.netTotal;
           map[dayStr].count += 1;
@@ -61,7 +94,8 @@ export const PosDashboardPage: React.FC = () => {
     }
 
     return last7Days.map((d) => {
-      const dateObj = parseISO(d);
+      const [year, month, day] = d.split('-').map(Number);
+      const dateObj = new Date(year, month - 1, day, 12, 0, 0);
       const dayName = format(dateObj, 'EEE', { locale: es });
       const dayNum = format(dateObj, 'd MMM', { locale: es });
       return {
@@ -113,7 +147,7 @@ export const PosDashboardPage: React.FC = () => {
               )}
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Métricas consolidadas de ventas, facturación y arqueo
+              Métricas consolidadas de ventas, comprobantes y arqueo
             </p>
           </div>
         </div>
@@ -137,11 +171,26 @@ export const PosDashboardPage: React.FC = () => {
           ))}
         </div>
       ) : isError ? (
-        <div className="p-5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-center">
-          <p className="font-semibold text-xs">Error al cargar resumen del POS</p>
-          <p className="text-[11px] text-red-500 mt-1">
-            {(error as any)?.response?.data?.message || 'Intente nuevamente más tarde.'}
-          </p>
+        <div className="p-6 rounded-2xl bg-red-50 border border-red-200 text-center space-y-3">
+          <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+            <WarningCircle size={22} weight="duotone" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-gray-900">Error al cargar resumen del POS</p>
+            <p className="text-xs text-red-600">
+              {(error as any)?.response?.data?.message || 'No se pudieron consultar los datos del panel. Intente nuevamente más tarde.'}
+            </p>
+          </div>
+          <div>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <ArrowsClockwise size={13} weight="bold" />
+              <span>Reintentar</span>
+            </button>
+          </div>
         </div>
       ) : dashboard ? (
         <>
@@ -150,9 +199,15 @@ export const PosDashboardPage: React.FC = () => {
             {/* 1. Ventas Hoy */}
             <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                  Ventas de Hoy
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                    Ventas cobradas (hoy)
+                  </span>
+                  <TooltipInfo
+                    text="Total facturado y cobrado con impuesto neto de devoluciones en la jornada actual de Managua."
+                    align="left"
+                  />
+                </div>
                 <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
                   <CurrencyCircleDollar size={16} weight="duotone" />
                 </div>
@@ -182,7 +237,7 @@ export const PosDashboardPage: React.FC = () => {
                     <TrendDown size={13} weight="bold" />
                   )}
                   <span>{formatPercentage(dashboard.today.comparison.revenueGrowthPercent)}</span>
-                  <span className="text-gray-400 font-normal">vs ayer</span>
+                  <span className="text-gray-400 font-normal">{comparisonLabels.yesterday}</span>
                 </div>
               </div>
             </div>
@@ -190,9 +245,15 @@ export const PosDashboardPage: React.FC = () => {
             {/* 2. Ventas Esta Semana */}
             <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                  Últimos 7 Días
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                    Ventas cobradas (7 días)
+                  </span>
+                  <TooltipInfo
+                    text="Total facturado y cobrado con impuesto en los últimos 7 días netos de devoluciones."
+                    align="left"
+                  />
+                </div>
                 <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
                   <CalendarBlank size={16} weight="duotone" />
                 </div>
@@ -222,7 +283,7 @@ export const PosDashboardPage: React.FC = () => {
                     <TrendDown size={13} weight="bold" />
                   )}
                   <span>{formatPercentage(dashboard.week.comparison.revenueGrowthPercent)}</span>
-                  <span className="text-gray-400 font-normal">vs prev.</span>
+                  <span className="text-gray-400 font-normal">{comparisonLabels.prev7}</span>
                 </div>
               </div>
             </div>
@@ -230,9 +291,15 @@ export const PosDashboardPage: React.FC = () => {
             {/* 3. Ventas Este Mes */}
             <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                  Ventas del Mes
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                    Ventas cobradas del mes
+                  </span>
+                  <TooltipInfo
+                    text="Total facturado y cobrado acumulado con impuesto en el mes calendario en curso."
+                    align="left"
+                  />
+                </div>
                 <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
                   <Receipt size={16} weight="duotone" />
                 </div>
@@ -262,7 +329,7 @@ export const PosDashboardPage: React.FC = () => {
                     <TrendDown size={13} weight="bold" />
                   )}
                   <span>{formatPercentage(dashboard.month.comparison.revenueGrowthPercent)}</span>
-                  <span className="text-gray-400 font-normal">vs mes ant.</span>
+                  <span className="text-gray-400 font-normal">{comparisonLabels.prevMonth}</span>
                 </div>
               </div>
             </div>
@@ -270,9 +337,15 @@ export const PosDashboardPage: React.FC = () => {
             {/* 4. Ticket Promedio */}
             <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                  Ticket Promedio
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                    Ticket Promedio
+                  </span>
+                  <TooltipInfo
+                    text="Monto promedio cobrado por comprobante emitido."
+                    align="left"
+                  />
+                </div>
                 <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
                   <TrendUp size={16} weight="duotone" />
                 </div>
@@ -305,7 +378,7 @@ export const PosDashboardPage: React.FC = () => {
                     Ventas Diarias (Últimos 7 días)
                   </h3>
                   <p className="text-[11px] text-gray-400">
-                    Comportamiento de facturación neta por jornada
+                    Comportamiento de ventas netas por jornada
                   </p>
                 </div>
                 <button
@@ -365,11 +438,19 @@ export const PosDashboardPage: React.FC = () => {
             {/* Desglose por Método de Pago */}
             <div className="bg-white border border-gray-200/80 rounded-2xl p-5 shadow-2xs space-y-4 flex flex-col justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Métodos de Pago (Mes Actual)
-                </h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Métodos de Pago (Mes Actual)
+                    </h3>
+                    <TooltipInfo
+                      text="Total ingresado por métodos de pago en caja. Puede diferir de las ventas cobradas si se realizaron ventas al crédito (cuentas por cobrar) cuyo pago aún no ingresa a caja."
+                      align="left"
+                    />
+                  </div>
+                </div>
                 <p className="text-[11px] text-gray-400">
-                  Distribución de ingresos por modalidad de cobro
+                  Distribución de ingresos recaudados por modalidad de cobro
                 </p>
 
                 {(() => {
@@ -443,7 +524,7 @@ export const PosDashboardPage: React.FC = () => {
               </div>
               <h4 className="font-semibold text-xs text-gray-900">Historial de Ventas</h4>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                Facturas, devoluciones y detalle de órdenes
+                Comprobantes, devoluciones y detalle de órdenes
               </p>
             </button>
 
@@ -460,7 +541,7 @@ export const PosDashboardPage: React.FC = () => {
               </div>
               <h4 className="font-semibold text-xs text-gray-900">Más Vendidos y Categorías</h4>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                Ranking de productos por volumen y facturación
+                Ranking de productos por volumen y ventas
               </p>
             </button>
 

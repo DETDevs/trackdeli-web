@@ -191,7 +191,7 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
                 {/* Desglose de Ventas por Método */}
                 <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
                   <span className="uppercase text-[11px] text-gray-500 font-semibold tracking-wider block">
-                    Ventas del Turno ({reg.salesCount || 0} facturas)
+                    Ventas del Turno ({reg.salesCount || 0} comprobantes)
                   </span>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">

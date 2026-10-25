@@ -267,7 +267,7 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
           />
           <input
             type="text"
-            placeholder="Buscar por cliente o factura..."
+            placeholder="Buscar por cliente o comprobante..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-9 pl-9 pr-3 text-xs bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-gray-900 shadow-2xs"
@@ -328,7 +328,7 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
             <thead className="bg-gray-50/80 text-gray-500 border-b border-gray-100 text-[11px] uppercase tracking-wider font-semibold">
               <tr>
                 <th className="py-3 px-4">Cliente</th>
-                <th className="py-3 px-4">Factura</th>
+                <th className="py-3 px-4">Comprobante</th>
                 <th className="py-3 px-4 text-right">Saldo / Total</th>
                 <th className="py-3 px-4">Próxima cuota</th>
                 <th className="py-3 px-4 text-center">Cuotas</th>

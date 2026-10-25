@@ -17,6 +17,7 @@ import { ModuleNotEnabledAlert } from '../../components/pos/ModuleNotEnabledAler
 import { WebAccessDisabledView } from '../../components/pos/WebAccessDisabledView';
 import { formatCurrency } from '../../utils/formatters';
 import { formatDateTime } from '../../utils/formatDate';
+import { formatManaguaDate } from '../../utils/dateManagua';
 
 export const PosSalesPage: React.FC = () => {
   const { preset, setPreset, from, to, customFrom, customTo, setCustomRange } =
@@ -83,7 +84,7 @@ export const PosSalesPage: React.FC = () => {
               )}
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Consulta de facturas emitidas, devoluciones y detalle de órdenes
+              Consulta de comprobantes emitidos, devoluciones y detalle de órdenes
             </p>
           </div>
         </div>
@@ -160,21 +161,37 @@ export const PosSalesPage: React.FC = () => {
           <p className="text-gray-400 text-xs">Cargando ventas...</p>
         </div>
       ) : isError ? (
-        <div className="bg-white rounded-2xl border border-red-200 p-6 text-center text-red-700 shadow-2xs space-y-1">
-          <WarningCircle size={24} className="mx-auto text-red-500 mb-1" />
-          <p className="font-semibold text-xs">Error al cargar las ventas</p>
-          <p className="text-[11px] text-red-500">
-            {(error as any)?.response?.data?.message || 'Intente nuevamente más tarde.'}
-          </p>
+        <div className="bg-white rounded-2xl border border-red-200 p-8 text-center shadow-2xs space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-500 mx-auto">
+            <WarningCircle size={26} weight="duotone" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="font-semibold text-sm text-gray-900">Error al cargar las ventas</h4>
+            <p className="text-xs text-red-600 max-w-sm mx-auto">
+              {(error as any)?.response?.data?.message || 'No se pudieron consultar los comprobantes. Por favor intente nuevamente.'}
+            </p>
+          </div>
+          <div>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <ArrowsClockwise size={14} weight="bold" />
+              <span>Reintentar</span>
+            </button>
+          </div>
         </div>
       ) : sales.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-200/80 p-12 text-center shadow-2xs space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400 mx-auto">
-            <Receipt size={24} />
+            <Receipt size={24} weight="duotone" />
           </div>
-          <h4 className="font-semibold text-sm text-gray-900">No hay ventas registradas</h4>
+          <h4 className="font-semibold text-sm text-gray-900">Sin ventas en este periodo</h4>
           <p className="text-xs text-gray-500 max-w-sm mx-auto">
-            No se encontraron ventas para los filtros y fechas seleccionadas.
+            {from === to
+              ? `No se registraron comprobantes el ${formatManaguaDate(from)}.`
+              : `No se registraron comprobantes entre el ${formatManaguaDate(from)} y el ${formatManaguaDate(to)}.`}
           </p>
         </div>
       ) : (
@@ -185,7 +202,7 @@ export const PosSalesPage: React.FC = () => {
               <table className="w-full text-left text-xs text-gray-700">
                 <thead className="bg-gray-50/80 border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                   <tr>
-                    <th className="px-4 py-3">Factura</th>
+                    <th className="px-4 py-3">Comprobante</th>
                     <th className="px-4 py-3">Fecha y Hora</th>
                     <th className="px-4 py-3">
                       {isTallerProfile ? 'Cliente / Vehículo' : 'Cliente'}
