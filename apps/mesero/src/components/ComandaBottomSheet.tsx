@@ -73,8 +73,6 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
 }) => {
   const [editingNotesProductId, setEditingNotesProductId] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
   const cleanRaw = String(tableNumber || '').replace(/^(mesa\s*)+/i, '').trim();
   const fallbackTitle = cleanRaw ? `Mesa ${cleanRaw}` : 'Mesa';
   const displayTitle = tableDisplayName || fallbackTitle;
@@ -111,6 +109,8 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
 
   // Agrupar ítems enviados por ronda de cocina
   const roundGroups = useMemo(() => {
+    if (!isOpen) return [];
+
     // Rondas de tipo SEND ordenadas por número ascendente
     const sendRounds = rounds
       .filter((r) => r.type === 'SEND')
@@ -169,7 +169,9 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
     }
 
     return groups;
-  }, [rounds, sentItems, isNoPrint]);
+  }, [isOpen, rounds, sentItems, isNoPrint]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs animate-fadeIn">

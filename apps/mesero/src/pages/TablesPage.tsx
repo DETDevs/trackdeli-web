@@ -21,11 +21,6 @@ export const TablesPage: React.FC = () => {
 
   const businessSlug = slug || session?.slug || '';
 
-  // Proteger la vista: si no hay sesión, volver al login
-  if (!session) {
-    return <Navigate to={`/mesas/${businessSlug || 'default'}/login`} replace />;
-  }
-
   // Consulta de mesas con sondeo inteligente activo en esta pantalla (20 s)
   const {
     data: tables = [],
@@ -278,6 +273,10 @@ export const TablesPage: React.FC = () => {
 
   // Mostrar fila de chips de zonas solo si el negocio tiene 2 o más zonas (A.1)
   const showZoneChips = zonesWithTables.length >= 2;
+
+  if (!session) {
+    return <Navigate to={`/mesas/${businessSlug || 'default'}/login`} replace />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">

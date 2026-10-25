@@ -37,10 +37,6 @@ export const OrderPage: React.FC = () => {
 
   const businessSlug = slug || session?.slug || '';
 
-  if (!session) {
-    return <Navigate to={`/mesas/${businessSlug || 'default'}/login`} replace />;
-  }
-
   // Cargar mesas sin refresco periódico mientras la comanda está abierta
   const { data: tables = [] } = useTablesStatus({ enabledPolling: false });
   const currentTable = tables.find((t) => t.id === tableId);
@@ -359,6 +355,10 @@ export const OrderPage: React.FC = () => {
     (activeOrder?.total || 0);
 
   const existingItemsCount = activeOrder?.items.length || 0;
+
+  if (!session) {
+    return <Navigate to={`/mesas/${businessSlug || 'default'}/login`} replace />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col pb-28">

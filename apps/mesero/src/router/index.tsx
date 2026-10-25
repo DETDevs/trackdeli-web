@@ -18,6 +18,19 @@ const MesasSlugRedirect: React.FC = () => {
   return <WaiterLoginPage />;
 };
 
+// Componente para proteger rutas privadas del mesero
+const ProtectedWaiterRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { slug } = useParams<{ slug: string }>();
+  const { session } = useWaiterAuth();
+  const businessSlug = slug || session?.slug || 'default';
+
+  if (!session) {
+    return <Navigate to={`/mesas/${businessSlug}/login`} replace />;
+  }
+
+  return children;
+};
+
 // Pantalla informativa si acceden a la raíz sin slug
 const RootHome: React.FC = () => {
   const { session } = useWaiterAuth();
@@ -48,8 +61,22 @@ export const AppRouter: React.FC = () => {
       {/* Rutas principales del flujo de mesero */}
       <Route path="/mesas/:slug" element={<MesasSlugRedirect />} />
       <Route path="/mesas/:slug/login" element={<WaiterLoginPage />} />
-      <Route path="/mesas/:slug/tables" element={<TablesPage />} />
-      <Route path="/mesas/:slug/tables/:tableId" element={<OrderPage />} />
+      <Route
+        path="/mesas/:slug/tables"
+        element={
+          <ProtectedWaiterRoute>
+            <TablesPage />
+          </ProtectedWaiterRoute>
+        }
+      />
+      <Route
+        path="/mesas/:slug/tables/:tableId"
+        element={
+          <ProtectedWaiterRoute>
+            <OrderPage />
+          </ProtectedWaiterRoute>
+        }
+      />
 
       {/* 404 */}
       <Route path="*" element={<NotFoundPage />} />
