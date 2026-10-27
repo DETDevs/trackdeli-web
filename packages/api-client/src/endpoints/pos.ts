@@ -70,6 +70,8 @@ export interface PosProductItem {
   wholesale_min_qty?: number | null;
   wholesale_enabled?: boolean;
   wholesaleEnabled?: boolean;
+  listPrice?: number | null;
+  taxable?: boolean;
   components?: Array<{
     productId: string;
     quantity: number;
@@ -84,6 +86,12 @@ export interface CreateSaleItemPayload {
   quantity: number;
   discount?: number;
   barcode?: string;
+  listPrice?: number | null;
+  listPriceDiscount?: number;
+  manualDiscountShare?: number;
+  taxable?: boolean;
+  taxRate?: number;
+  taxAmount?: number;
 }
 
 export interface CreateSalePaymentPayload {
@@ -102,6 +110,19 @@ export interface CreateSalePayload {
   subtotal?: number;
   total?: number;
   clientTotal?: number;
+  subtotalBeforeTax?: number;
+  taxModel?: 'PER_LINE' | 'LEGACY';
+  taxAmount?: number;
+  taxEnabled?: boolean;
+  taxRate?: number;
+  listPriceTotal?: number;
+  listDiscountTotal?: number;
+  clientListPriceTotal?: number;
+  clientListDiscountTotal?: number;
+  clientTaxRate?: number;
+  clientTaxEnabled?: boolean;
+  clientTaxIncluded?: boolean;
+  clientTaxAmount?: number;
   paymentMethod?: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
   amountPaid?: number;
   reference?: string;
@@ -116,6 +137,10 @@ export interface SaleResponse {
   invoiceNumber: string;
   total: number;
   subtotal: number;
+  subtotalBeforeTax?: number;
+  taxModel?: string;
+  listPriceTotal?: number;
+  listDiscountTotal?: number;
   discountAmount?: number;
   taxAmount?: number;
   amountPaid?: number;

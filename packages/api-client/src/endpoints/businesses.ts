@@ -67,6 +67,10 @@ export interface Business {
   whatsappDisplay?: string;
   wholesaleEnabled?: boolean;
   wholesale_enabled?: boolean;
+  useListPrice?: boolean;
+  taxEnabled?: boolean;
+  taxIncluded?: boolean;
+  taxRate?: number;
   membership?: {
     status: 'ACTIVE' | 'EXPIRED' | 'NONE';
     endDate?: string | null;

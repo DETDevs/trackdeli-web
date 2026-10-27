@@ -12,6 +12,7 @@ import {
   CaretUp,
 } from '@phosphor-icons/react';
 import { formatCurrency } from '../../../utils/formatters';
+import type { CalculatedSaleSummary } from '../../../utils/saleCalculation';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ interface PaymentModalProps {
   total: number;
   subtotal: number;
   discountAmount: number;
+  calcSummary?: CalculatedSaleSummary;
   onSubmitSale: (paymentData: {
     method: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
     amountTendered?: number;
@@ -35,6 +37,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
   onClose,
   total,
+  calcSummary,
   onSubmitSale,
   isSubmitting,
   errorMessage,
@@ -107,11 +110,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* Total display grande */}
           <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 text-center">
             <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block mb-0.5">
-              Total a pagar
+              {calcSummary && calcSummary.taxAmount > 0 ? 'Total a pagar (con IVA)' : 'Total a pagar'}
             </span>
             <div className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight">
               {formatCurrency(total)}
             </div>
+            {calcSummary && calcSummary.taxAmount > 0 && (
+              <div className="text-xs text-emerald-800/80 font-medium mt-1">
+                Subtotal antes de IVA: {formatCurrency(calcSummary.subtotalBeforeTax)} • IVA (15%): {formatCurrency(calcSummary.taxAmount)}
+              </div>
+            )}
           </div>
 
           {(localError || errorMessage) && (

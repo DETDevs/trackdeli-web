@@ -75,6 +75,8 @@ export const PosCobrarPage: React.FC = () => {
   const getSubtotal = usePosCartStore((s) => s.getSubtotal);
   const getDiscountAmount = usePosCartStore((s) => s.getDiscountAmount);
   const getTotal = usePosCartStore((s) => s.getTotal);
+  const getCalculationSummary = usePosCartStore((s) => s.getCalculationSummary);
+  const setBusinessContext = usePosCartStore((s) => s.setBusinessContext);
 
   // Estado local de la UI
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('ALL');
@@ -94,6 +96,18 @@ export const PosCobrarPage: React.FC = () => {
     queryFn: getMyBusiness,
     staleTime: 5 * 60 * 1000,
   });
+
+  React.useEffect(() => {
+    if (businessData) {
+      const b = businessData as any;
+      setBusinessContext({
+        useListPrice: Boolean(b.useListPrice),
+        taxEnabled: b.taxEnabled !== undefined ? Boolean(b.taxEnabled) : true,
+        taxIncluded: Boolean(b.taxIncluded),
+        taxRate: b.taxRate !== undefined && Number(b.taxRate) > 0 ? Number(b.taxRate) : 15,
+      });
+    }
+  }, [businessData, setBusinessContext]);
 
   const businessInfo: ReceiptBusinessInfo = useMemo(() => {
     const b = businessData as any;
@@ -334,21 +348,46 @@ export const PosCobrarPage: React.FC = () => {
       ? crypto.randomUUID()
       : `sale-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
+    const currentCalc = getCalculationSummary();
+
+    const itemsPayload = currentCalc.lines.map((line) => ({
+      productId: line.productId || undefined,
+      productName: line.productName,
+      barcode: line.barcode || undefined,
+      unitPrice: line.unitPrice,
+      quantity: Number(Number(line.quantity).toFixed(3)),
+      discount: line.discount || 0,
+      subtotal: line.subtotal,
+      listPrice: line.listPrice != null ? line.listPrice : undefined,
+      listPriceDiscount: line.listPriceDiscount,
+      manualDiscountShare: line.manualDiscountShare,
+      taxable: line.taxable,
+      taxRate: line.taxRate,
+      taxAmount: line.taxAmount,
+    }));
+
     const salePayload = {
-      items: cartItems.map((item) => ({
-        productId: item.productId,
-        productName: item.productName,
-        unitPrice: item.unitPrice,
-        quantity: item.quantity,
-        barcode: item.barcode,
-      })),
-      subtotal,
-      discountAmount: discountAmount > 0 ? discountAmount : undefined,
-      discount: discountAmount > 0 ? discountAmount : undefined,
-      total,
-      clientTotal: total,
+      items: itemsPayload,
+      subtotal: currentCalc.subtotal,
+      discountAmount: currentCalc.discountAmount > 0 ? currentCalc.discountAmount : undefined,
+      discount: currentCalc.discountAmount > 0 ? currentCalc.discountAmount : undefined,
+      subtotalBeforeTax: currentCalc.subtotalBeforeTax,
+      total: currentCalc.total,
+      clientTotal: currentCalc.total,
+      taxModel: currentCalc.taxModel,
+      taxAmount: currentCalc.taxAmount,
+      taxEnabled: currentCalc.taxAmount > 0,
+      taxRate: 15,
+      listPriceTotal: currentCalc.listPriceTotal,
+      listDiscountTotal: currentCalc.listDiscountTotal,
+      clientListPriceTotal: currentCalc.listPriceTotal,
+      clientListDiscountTotal: currentCalc.listDiscountTotal,
+      clientTaxRate: 15,
+      clientTaxEnabled: currentCalc.taxAmount > 0,
+      clientTaxIncluded: false,
+      clientTaxAmount: currentCalc.taxAmount,
       paymentMethod: paymentData.method,
-      amountPaid: paymentData.method === 'EFECTIVO' ? paymentData.amountTendered : total,
+      amountPaid: paymentData.method === 'EFECTIVO' ? paymentData.amountTendered : currentCalc.total,
       reference: paymentData.reference,
       customerName: paymentData.customerName,
       customerPhone: paymentData.customerPhone,
@@ -356,8 +395,8 @@ export const PosCobrarPage: React.FC = () => {
       payments: [
         {
           method: paymentData.method,
-          amount: total,
-          amountTendered: paymentData.method === 'EFECTIVO' ? paymentData.amountTendered : total,
+          amount: currentCalc.total,
+          amountTendered: paymentData.method === 'EFECTIVO' ? paymentData.amountTendered : currentCalc.total,
           reference: paymentData.reference,
           currency: 'NIO',
         },

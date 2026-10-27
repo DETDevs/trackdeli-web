@@ -29,15 +29,21 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const updateQuantity = usePosCartStore((s) => s.updateQuantity);
   const setDiscount = usePosCartStore((s) => s.setDiscount);
   const clearCart = usePosCartStore((s) => s.clearCart);
-  const getSubtotal = usePosCartStore((s) => s.getSubtotal);
-  const getDiscountAmount = usePosCartStore((s) => s.getDiscountAmount);
-  const getTotal = usePosCartStore((s) => s.getTotal);
+  const getCalculationSummary = usePosCartStore((s) => s.getCalculationSummary);
+  const businessContext = usePosCartStore((s) => s.businessContext);
 
   if (!isOpen) return null;
 
-  const subtotal = getSubtotal();
-  const discountAmount = getDiscountAmount();
-  const total = getTotal();
+  const calcSummary = getCalculationSummary();
+  const subtotal = calcSummary.subtotal;
+  // discountAmount used via calcSummary
+  const total = calcSummary.total;
+
+  const hasListDiscount = calcSummary.listDiscountTotal > 0 && calcSummary.listPriceTotal > 0;
+  const hasTaxable = calcSummary.taxAmount > 0;
+  const listDiscountPct = hasListDiscount
+    ? Math.round((calcSummary.listDiscountTotal / calcSummary.listPriceTotal) * 100)
+    : 0;
 
   const handleQuickDiscount = (pct: number) => {
     setDiscount('PERCENT', pct);
@@ -101,16 +107,32 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
                       {item.productName}
                     </span>
+                    {item.taxable !== undefined && (
+                      <span
+                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          item.taxable
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {item.taxable ? '15% IVA' : 'Exento'}
+                      </span>
+                    )}
                     {item.isWholesale && (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
                         Precio por mayor
                       </span>
                     )}
                   </div>
-                  <div className="text-[11px] text-gray-500 flex items-center gap-2 mt-0.5">
+                  <div className="text-[11px] text-gray-500 flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className={item.isWholesale ? 'font-bold text-purple-700' : ''}>
                       {formatCurrency(item.unitPrice)} c/u
                     </span>
+                    {businessContext.useListPrice && item.listPrice && item.listPrice > item.unitPrice && (
+                      <span className="line-through text-gray-400 text-[10px]">
+                        Etiqueta: {formatCurrency(item.listPrice)}
+                      </span>
+                    )}
                     {item.isWholesale && item.regularPrice > item.unitPrice && (
                       <span className="line-through text-gray-400 text-[10px]">
                         {formatCurrency(item.regularPrice)}
@@ -244,23 +266,72 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </div>
 
             {/* Resumen financiero */}
-            <div className="space-y-1 text-xs pt-1 border-t border-gray-200/60">
-              <div className="flex justify-between text-gray-500">
-                <span>Subtotal</span>
-                <span className="font-semibold text-gray-800">{formatCurrency(subtotal)}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-amber-700 font-semibold">
-                  <span>
-                    Descuento {discountType === 'PERCENT' ? `(${discountValue}%)` : ''}
-                  </span>
-                  <span>- {formatCurrency(discountAmount)}</span>
-                </div>
+            <div className="space-y-1.5 text-xs pt-1 border-t border-gray-200/60">
+              {hasListDiscount ? (
+                <>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Precio</span>
+                    <span className="font-semibold text-gray-800">
+                      {formatCurrency(calcSummary.listPriceTotal)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Descuento ({listDiscountPct}%)</span>
+                    <span>-{formatCurrency(calcSummary.listDiscountTotal)}</span>
+                  </div>
+                  {calcSummary.discountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-medium">
+                      <span>Descuento adicional</span>
+                      <span>-{formatCurrency(calcSummary.discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-gray-700 font-medium pt-1 border-t border-gray-200/60">
+                    <span>Subtotal antes de IVA</span>
+                    <span>{formatCurrency(calcSummary.subtotalBeforeTax)}</span>
+                  </div>
+                  {hasTaxable && (
+                    <div className="flex justify-between text-gray-600">
+                      <span>IVA 15 %</span>
+                      <span>{formatCurrency(calcSummary.taxAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm sm:text-base font-bold text-gray-900 pt-1 border-t border-gray-200">
+                    <span>TOTAL A PAGAR {hasTaxable ? '(con IVA)' : ''}</span>
+                    <span className="text-emerald-800 font-black">{formatCurrency(calcSummary.total)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-gray-500">
+                    <span>Subtotal</span>
+                    <span className="font-semibold text-gray-800">{formatCurrency(calcSummary.subtotal)}</span>
+                  </div>
+                  {calcSummary.discountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-medium">
+                      <span>
+                        Descuento {discountType === 'PERCENT' ? `(${discountValue}%)` : ''}
+                      </span>
+                      <span>-{formatCurrency(calcSummary.discountAmount)}</span>
+                    </div>
+                  )}
+                  {hasTaxable && (
+                    <>
+                      <div className="flex justify-between text-gray-700 font-medium pt-1 border-t border-gray-200/60">
+                        <span>Subtotal antes de IVA</span>
+                        <span>{formatCurrency(calcSummary.subtotalBeforeTax)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-600">
+                        <span>IVA 15 %</span>
+                        <span>{formatCurrency(calcSummary.taxAmount)}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between text-sm sm:text-base font-bold text-gray-900 pt-1 border-t border-gray-200">
+                    <span>{hasTaxable ? 'TOTAL A PAGAR (con IVA)' : 'Total a cobrar'}</span>
+                    <span className="text-emerald-800 font-black">{formatCurrency(calcSummary.total)}</span>
+                  </div>
+                </>
               )}
-              <div className="flex justify-between text-sm sm:text-base font-bold text-gray-900 pt-1">
-                <span>Total a cobrar</span>
-                <span className="text-emerald-800 font-black">{formatCurrency(total)}</span>
-              </div>
             </div>
 
             {/* Botón de acción principal */}

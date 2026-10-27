@@ -41,6 +41,22 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
     TRANSFERENCIA: 'Transferencia',
   };
 
+  const isPerLine =
+    sale.taxModel === 'PER_LINE' ||
+    (sale.items || []).some((it: any) => it.taxable !== undefined && it.taxable !== null);
+  const listPriceTotal = Number((sale as any).listPriceTotal || 0);
+  const listDiscountTotal = Number((sale as any).listDiscountTotal || 0);
+  const discountManual = Number(sale.discountAmount || 0);
+  const taxAmount = Number(sale.taxAmount || 0);
+  const total = Number(sale.total || 0);
+  const subtotalBeforeTax =
+    (sale as any).subtotalBeforeTax != null
+      ? Number((sale as any).subtotalBeforeTax)
+      : Math.max(0, Number(sale.subtotal || 0) - discountManual);
+  const hasTaxable = taxAmount > 0 || (sale.items || []).some((it: any) => Boolean(it.taxable));
+  const hasListDiscount = listDiscountTotal > 0 && listPriceTotal > 0;
+  const listDiscountPct = hasListDiscount ? Math.round((listDiscountTotal / listPriceTotal) * 100) : 0;
+
   const handleShareReceipt = async () => {
     setIsSharing(true);
     setStatusMessage(null);
@@ -135,11 +151,92 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
             </div>
           )}
 
-          <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
-            <span className="text-sm font-bold text-gray-900">Total cobrado</span>
-            <span className="text-lg font-black text-emerald-800">
-              {formatCurrency(sale.total)}
-            </span>
+          {/* Desglose financiero con formato exacto 206g */}
+          <div className="pt-2 border-t border-gray-200/80 space-y-1.5">
+            {hasListDiscount ? (
+              <>
+                <div className="flex justify-between text-gray-600">
+                  <span>Precio</span>
+                  <span className="font-semibold text-gray-800">{formatCurrency(listPriceTotal)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>Descuento ({listDiscountPct}%)</span>
+                  <span>-{formatCurrency(listDiscountTotal)}</span>
+                </div>
+                {discountManual > 0 && (
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Descuento adicional</span>
+                    <span>-{formatCurrency(discountManual)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-gray-700 font-medium pt-1 border-t border-gray-200/60">
+                  <span>Subtotal antes de IVA</span>
+                  <span>{formatCurrency(subtotalBeforeTax)}</span>
+                </div>
+                {hasTaxable && (
+                  <div className="flex justify-between text-gray-600">
+                    <span>IVA 15 %</span>
+                    <span>{formatCurrency(taxAmount)}</span>
+                  </div>
+                )}
+                <div className="pt-1.5 border-t border-gray-200 flex justify-between items-center">
+                  <span className="text-sm font-bold text-gray-900">
+                    {hasTaxable ? 'TOTAL A PAGAR (con IVA)' : 'Total cobrado'}
+                  </span>
+                  <span className="text-lg font-black text-emerald-800">
+                    {formatCurrency(total)}
+                  </span>
+                </div>
+              </>
+            ) : isPerLine || hasTaxable ? (
+              <>
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal</span>
+                  <span className="font-semibold text-gray-800">{formatCurrency(sale.subtotal)}</span>
+                </div>
+                {discountManual > 0 && (
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Descuento</span>
+                    <span>-{formatCurrency(discountManual)}</span>
+                  </div>
+                )}
+                {hasTaxable && (
+                  <>
+                    <div className="flex justify-between text-gray-700 font-medium pt-1 border-t border-gray-200/60">
+                      <span>Subtotal antes de IVA</span>
+                      <span>{formatCurrency(subtotalBeforeTax)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>IVA 15 %</span>
+                      <span>{formatCurrency(taxAmount)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="pt-1.5 border-t border-gray-200 flex justify-between items-center">
+                  <span className="text-sm font-bold text-gray-900">
+                    {hasTaxable ? 'TOTAL A PAGAR (con IVA)' : 'Total cobrado'}
+                  </span>
+                  <span className="text-lg font-black text-emerald-800">
+                    {formatCurrency(total)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                {discountManual > 0 && (
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Descuento</span>
+                    <span>-{formatCurrency(discountManual)}</span>
+                  </div>
+                )}
+                <div className="pt-1 border-t border-gray-200 flex justify-between items-center">
+                  <span className="text-sm font-bold text-gray-900">Total cobrado</span>
+                  <span className="text-lg font-black text-emerald-800">
+                    {formatCurrency(total)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

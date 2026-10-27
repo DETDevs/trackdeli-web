@@ -116,6 +116,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <span className="font-bold text-xs sm:text-sm text-emerald-800 tracking-tight">
             {formatCurrency(product.price)}
           </span>
+          {product.listPrice && Number(product.listPrice) > Number(product.price) && (
+            <span
+              className="text-[10px] font-medium text-gray-400 line-through truncate"
+              title={`Precio de etiqueta: ${formatCurrency(Number(product.listPrice))}`}
+            >
+              {formatCurrency(Number(product.listPrice))}
+            </span>
+          )}
           {hasWholesale && (
             <span
               className="text-[10px] font-medium text-purple-700 truncate"

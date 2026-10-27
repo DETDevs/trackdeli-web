@@ -1,5 +1,10 @@
 import { create } from 'zustand';
 import { type PosProductItem } from 'api-client';
+import {
+  calculateSaleTotals,
+  type BusinessCalculationContext,
+  type CalculatedSaleSummary,
+} from '../utils/saleCalculation';
 
 export interface CartItem {
   productId: string;
@@ -15,6 +20,8 @@ export interface CartItem {
   isRecipe?: boolean;
   unit?: string;
   barcode?: string;
+  listPrice?: number | null;
+  taxable?: boolean;
 }
 
 export function computeItemUnitPrice(
@@ -49,7 +56,9 @@ interface PosCartState {
   items: CartItem[];
   discountType: DiscountType;
   discountValue: number;
+  businessContext: BusinessCalculationContext;
 
+  setBusinessContext: (context: Partial<BusinessCalculationContext>) => void;
   addItem: (product: PosProductItem) => void;
   removeItem: (productId: string) => void;
   deleteItem: (productId: string) => void;
@@ -57,6 +66,7 @@ interface PosCartState {
   setDiscount: (type: DiscountType, value: number) => void;
   clearCart: () => void;
 
+  getCalculationSummary: () => CalculatedSaleSummary;
   getSubtotal: () => number;
   getDiscountAmount: () => number;
   getTotal: () => number;
@@ -66,6 +76,21 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
   items: [],
   discountType: 'PERCENT',
   discountValue: 0,
+  businessContext: {
+    useListPrice: false,
+    taxEnabled: true,
+    taxIncluded: false,
+    taxRate: 15,
+  },
+
+  setBusinessContext: (context) => {
+    set((state) => ({
+      businessContext: {
+        ...state.businessContext,
+        ...context,
+      },
+    }));
+  },
 
   addItem: (product) => {
     set((state) => {
@@ -78,6 +103,11 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
         product.wholesaleMinQty !== undefined
           ? product.wholesaleMinQty
           : (product as any).wholesale_min_qty;
+      const rawListPrice =
+        product.listPrice !== undefined && product.listPrice !== null
+          ? Number(product.listPrice)
+          : null;
+      const taxable = product.taxable !== undefined ? Boolean(product.taxable) : undefined;
 
       if (existing) {
         const newQty = existing.quantity + 1;
@@ -95,6 +125,8 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
                   quantity: newQty,
                   unitPrice: pricing.unitPrice,
                   isWholesale: pricing.isWholesale,
+                  listPrice: rawListPrice !== null ? rawListPrice : i.listPrice,
+                  taxable: taxable !== undefined ? taxable : i.taxable,
                 }
               : i
           ),
@@ -126,6 +158,8 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
             isRecipe: Boolean(product.isRecipe),
             unit: product.unit || 'UND',
             barcode: product.barcode || undefined,
+            listPrice: rawListPrice,
+            taxable,
           },
         ],
       };
@@ -208,28 +242,46 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
     });
   },
 
+  getCalculationSummary: () => {
+    const { items, discountType, discountValue, businessContext } = get();
+    const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+
+    let rawManualDiscount = 0;
+    if (subtotal > 0 && discountValue > 0) {
+      if (discountType === 'PERCENT') {
+        const calculated = (subtotal * discountValue) / 100;
+        rawManualDiscount = Math.min(subtotal, Math.round(calculated * 100) / 100);
+      } else {
+        rawManualDiscount = Math.min(subtotal, discountValue);
+      }
+    }
+
+    return calculateSaleTotals(
+      items.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        barcode: i.barcode,
+        unitPrice: i.unitPrice,
+        quantity: i.quantity,
+        discount: 0,
+        priceTier: i.isWholesale ? 'WHOLESALE' : 'RETAIL',
+        listPrice: i.listPrice !== undefined ? i.listPrice : null,
+        taxable: i.taxable !== undefined ? i.taxable : null,
+      })),
+      rawManualDiscount,
+      businessContext,
+    );
+  },
+
   getSubtotal: () => {
-    const { items } = get();
-    return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    return get().getCalculationSummary().subtotal;
   },
 
   getDiscountAmount: () => {
-    const { getSubtotal, discountType, discountValue } = get();
-    const subtotal = getSubtotal();
-    if (subtotal <= 0 || discountValue <= 0) return 0;
-
-    if (discountType === 'PERCENT') {
-      const calculated = (subtotal * discountValue) / 100;
-      return Math.min(subtotal, Math.round(calculated * 100) / 100);
-    }
-
-    return Math.min(subtotal, discountValue);
+    return get().getCalculationSummary().discountAmount;
   },
 
   getTotal: () => {
-    const { getSubtotal, getDiscountAmount } = get();
-    const subtotal = getSubtotal();
-    const discount = getDiscountAmount();
-    return Math.max(0, Math.round((subtotal - discount) * 100) / 100);
+    return get().getCalculationSummary().total;
   },
 }));

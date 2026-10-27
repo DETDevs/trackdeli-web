@@ -128,7 +128,7 @@ function calculateReceiptHeight(
   y += 4;
 
   // 4. Metadatos de la venta
-  y += 4.5; // Factura
+  y += 4.5; // Comprobante
   y += 3.5; // Fecha
   y += 3.5; // Cajero
   if (sale.customerName) y += 3.5;
@@ -139,22 +139,50 @@ function calculateReceiptHeight(
   y += 4.5;
   y += 2.5; // Línea sólida
 
+  const isPerLine =
+    sale.taxModel === 'PER_LINE' ||
+    (sale.items || []).some((it: any) => it.taxable !== undefined && it.taxable !== null);
+  const listPriceTotal = Number((sale as any).listPriceTotal || 0);
+  const listDiscountTotal = Number((sale as any).listDiscountTotal || 0);
+  const hasListDiscount = listDiscountTotal > 0 && listPriceTotal > 0;
+  const taxAmount = Number(sale.taxAmount || 0);
+  const hasTaxable = taxAmount > 0 || (sale.items || []).some((it: any) => Boolean(it.taxable));
+
   // 6. Renglones de productos
   const items = sale.items || [];
   for (const item of items) {
-    const name = item.productName || item.name || item.product?.name || 'Producto';
+    const rawName = item.productName || item.name || item.product?.name || 'Producto';
+    const isItemTaxable = Boolean(item.taxable);
+    const name = isPerLine && isItemTaxable ? `${rawName} (G)` : rawName;
     const lines = measureDoc.splitTextToSize(name, 38);
     const itemHeight = Math.max(lines.length * 3.3, 4);
     const hasMultiple = (item.quantity || 1) > 1;
-    y += itemHeight + (hasMultiple ? 3 : 1);
+    const hasEtiqueta = hasListDiscount && item.listPrice && Number(item.listPrice) > Number(item.unitPrice || 0);
+    y += itemHeight + (hasMultiple ? 3 : 1) + (hasEtiqueta ? 3 : 0);
   }
   y += 3; // Línea sólida
 
-  // 7. Totales
-  y += 4; // Subtotal
-  if (sale.discountAmount && sale.discountAmount > 0) y += 3.8;
-  if (sale.taxAmount && sale.taxAmount > 0) y += 3.8;
-  y += 5.5; // Total
+  // 7. Totales (formato 206g según aplique)
+  if (hasListDiscount) {
+    y += 3.5; // Precio
+    y += 3.5; // Descuento
+    if (sale.discountAmount && sale.discountAmount > 0) y += 3.5; // Descuento adicional
+    y += 3.5; // Subtotal antes de IVA
+    if (hasTaxable && taxAmount > 0) y += 3.5; // IVA 15%
+    y += 5.5; // TOTAL A PAGAR (con IVA)
+  } else if (isPerLine || hasTaxable) {
+    y += 3.5; // Subtotal
+    if (sale.discountAmount && sale.discountAmount > 0) y += 3.5; // Descuento
+    if (hasTaxable && taxAmount > 0) {
+      y += 3.5; // Subtotal antes de IVA
+      y += 3.5; // IVA 15%
+    }
+    y += 5.5; // TOTAL A PAGAR
+  } else {
+    y += 4; // Subtotal
+    if (sale.discountAmount && sale.discountAmount > 0) y += 3.8;
+    y += 5.5; // Total
+  }
   y += 3.5; // Línea divisoria
 
   // 8. Total en letras
@@ -181,6 +209,11 @@ function calculateReceiptHeight(
     if ((sale as any).reference) y += 3.2;
   }
   y += 3.5; // Línea divisoria
+
+  // Leyenda de gravados
+  if (isPerLine && hasTaxable) {
+    y += 7;
+  }
 
   // 10. Código de barras
   y += 16;
@@ -290,7 +323,7 @@ export async function generateReceiptPdfBlob(
   doc.setFontSize(8);
   doc.setTextColor(30, 30, 30);
 
-  // Número de factura destacado
+  // Número de comprobante destacado
   doc.setFont('helvetica', 'bold');
   doc.text('Comprobante:', 4, y);
   doc.text(invoiceNum, 76, y, { align: 'right' });
@@ -333,6 +366,23 @@ export async function generateReceiptPdfBlob(
   drawSolidLine(doc, y, 100, 0.2);
   y += 3.2;
 
+  // Variables de modelo impositivo y de etiqueta
+  const isPerLine =
+    sale.taxModel === 'PER_LINE' ||
+    (sale.items || []).some((it: any) => it.taxable !== undefined && it.taxable !== null);
+  const listPriceTotal = Number((sale as any).listPriceTotal || 0);
+  const listDiscountTotal = Number((sale as any).listDiscountTotal || 0);
+  const discountManual = Number(sale.discountAmount || 0);
+  const taxAmount = Number(sale.taxAmount || 0);
+  const total = Number(sale.total || 0);
+  const subtotalBeforeTax =
+    (sale as any).subtotalBeforeTax != null
+      ? Number((sale as any).subtotalBeforeTax)
+      : Math.max(0, Number(sale.subtotal || 0) - discountManual);
+  const hasTaxable = taxAmount > 0 || (sale.items || []).some((it: any) => Boolean(it.taxable));
+  const hasListDiscount = listDiscountTotal > 0 && listPriceTotal > 0;
+  const listDiscountPct = hasListDiscount ? Math.round((listDiscountTotal / listPriceTotal) * 100) : 0;
+
   // Renglones
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
@@ -343,7 +393,9 @@ export async function generateReceiptPdfBlob(
     const qty = Number(item.quantity || 1);
     const unitPrice = Number(item.unitPrice || 0);
     const itemTotal = Number(item.subtotal ?? qty * unitPrice);
-    const name = item.productName || item.name || item.product?.name || 'Producto';
+    const rawName = item.productName || item.name || item.product?.name || 'Producto';
+    const isItemTaxable = Boolean(item.taxable);
+    const name = isPerLine && isItemTaxable ? `${rawName} (G)` : rawName;
     const unit = item.unit && item.unit.toUpperCase() !== 'UND' ? ` ${item.unit}` : '';
 
     const nameLines = doc.splitTextToSize(name, 38);
@@ -368,42 +420,115 @@ export async function generateReceiptPdfBlob(
       doc.setTextColor(20, 20, 20);
       y += 3;
     }
+
+    // Si el producto tiene precio de etiqueta mayor al cobrado
+    if (item.listPrice && Number(item.listPrice) > unitPrice && hasListDiscount) {
+      doc.setFontSize(6.5);
+      doc.setTextColor(110, 110, 110);
+      doc.text(`Etiqueta: ${formatCurrency(Number(item.listPrice))}`, 16, y);
+      doc.setFontSize(7.5);
+      doc.setTextColor(20, 20, 20);
+      y += 3;
+    }
+
     y += 0.8;
   }
 
   drawSolidLine(doc, y, 100, 0.2);
   y += 3.5;
 
-  // 6. Subtotal, Descuento, Impuesto, Total
+  // 6. Subtotal, Descuento, Impuesto, Total (formato 206g según aplique)
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(50, 50, 50);
 
-  doc.text('Subtotal:', 4, y);
-  doc.text(formatCurrency(sale.subtotal), 76, y, { align: 'right' });
-  y += 3.5;
+  if (hasListDiscount) {
+    doc.text('Precio:', 4, y);
+    doc.text(formatCurrency(listPriceTotal), 76, y, { align: 'right' });
+    y += 3.5;
 
-  if (sale.discountAmount && sale.discountAmount > 0) {
-    doc.setTextColor(180, 40, 40);
-    doc.text('Descuento:', 4, y);
-    doc.text(`-${formatCurrency(sale.discountAmount)}`, 76, y, { align: 'right' });
+    doc.setTextColor(22, 101, 52);
+    doc.text(`Descuento (${listDiscountPct}%):`, 4, y);
+    doc.text(`-${formatCurrency(listDiscountTotal)}`, 76, y, { align: 'right' });
     doc.setTextColor(50, 50, 50);
     y += 3.5;
-  }
 
-  if (sale.taxAmount && sale.taxAmount > 0) {
-    doc.text('IVA (15%):', 4, y);
-    doc.text(formatCurrency(sale.taxAmount), 76, y, { align: 'right' });
+    if (discountManual > 0) {
+      doc.setTextColor(22, 101, 52);
+      doc.text('Descuento adicional:', 4, y);
+      doc.text(`-${formatCurrency(discountManual)}`, 76, y, { align: 'right' });
+      doc.setTextColor(50, 50, 50);
+      y += 3.5;
+    }
+
+    doc.text('Subtotal antes de IVA:', 4, y);
+    doc.text(formatCurrency(subtotalBeforeTax), 76, y, { align: 'right' });
     y += 3.5;
-  }
 
-  // TOTAL destacado
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(10, 10, 10);
-  doc.text('TOTAL:', 4, y);
-  doc.text(formatCurrency(sale.total), 76, y, { align: 'right' });
-  y += 4;
+    if (hasTaxable && taxAmount > 0) {
+      doc.text('IVA 15 %:', 4, y);
+      doc.text(formatCurrency(taxAmount), 76, y, { align: 'right' });
+      y += 3.5;
+    }
+
+    // TOTAL destacado
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(10, 10, 10);
+    doc.text(hasTaxable ? 'TOTAL A PAGAR (con IVA):' : 'TOTAL A PAGAR:', 4, y);
+    doc.text(formatCurrency(total), 76, y, { align: 'right' });
+    y += 4;
+  } else if (isPerLine || hasTaxable) {
+    doc.text('Subtotal:', 4, y);
+    doc.text(formatCurrency(sale.subtotal), 76, y, { align: 'right' });
+    y += 3.5;
+
+    if (discountManual > 0) {
+      doc.setTextColor(22, 101, 52);
+      doc.text('Descuento:', 4, y);
+      doc.text(`-${formatCurrency(discountManual)}`, 76, y, { align: 'right' });
+      doc.setTextColor(50, 50, 50);
+      y += 3.5;
+    }
+
+    if (hasTaxable && taxAmount > 0) {
+      doc.text('Subtotal antes de IVA:', 4, y);
+      doc.text(formatCurrency(subtotalBeforeTax), 76, y, { align: 'right' });
+      y += 3.5;
+
+      doc.text('IVA 15 %:', 4, y);
+      doc.text(formatCurrency(taxAmount), 76, y, { align: 'right' });
+      y += 3.5;
+    }
+
+    // TOTAL destacado
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(10, 10, 10);
+    doc.text(hasTaxable ? 'TOTAL A PAGAR (con IVA):' : 'TOTAL A PAGAR:', 4, y);
+    doc.text(formatCurrency(total), 76, y, { align: 'right' });
+    y += 4;
+  } else {
+    doc.text('Subtotal:', 4, y);
+    doc.text(formatCurrency(sale.subtotal), 76, y, { align: 'right' });
+    y += 3.5;
+
+    if (discountManual > 0) {
+      doc.setTextColor(180, 40, 40);
+      doc.text('Descuento:', 4, y);
+      doc.text(`-${formatCurrency(discountManual)}`, 76, y, { align: 'right' });
+      doc.setTextColor(50, 50, 50);
+      y += 3.5;
+    }
+
+    // TOTAL destacado
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(10, 10, 10);
+    doc.text('TOTAL:', 4, y);
+    doc.text(formatCurrency(total), 76, y, { align: 'right' });
+    y += 4;
+  }
 
   drawDashedLine(doc, y);
   y += 3.5;
@@ -497,7 +622,17 @@ export async function generateReceiptPdfBlob(
   drawDashedLine(doc, y);
   y += 3.5;
 
-  // 9. Código de barras del número de factura
+  if (isPerLine && hasTaxable) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7);
+    doc.setTextColor(80, 80, 80);
+    doc.text('G = producto gravado con IVA 15 %', 40, y, { align: 'center' });
+    y += 3.5;
+    drawDashedLine(doc, y);
+    y += 3.5;
+  }
+
+  // 9. Código de barras del número de comprobante
   if (barcodeDataUrl) {
     try {
       const barcodeWidth = 44;
