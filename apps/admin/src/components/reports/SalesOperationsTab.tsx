@@ -73,11 +73,13 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
     );
   };
 
-  // Valores de Ventas Cobradas vs Ventas Netas
+  // Valores de Ventas Cobradas vs Ventas Netas vs Desglose Impositivo
   const totalCollected = reportsData?.summary?.totalRevenue ?? reportsData?.totalSales ?? 0;
   const netRevenue = reportsData?.summary?.netRevenue ?? reportsData?.totalSales ?? 0;
-  const totalTax = reportsData?.summary?.totalTax ?? 0;
+  const totalTax = reportsData?.totalTax ?? reportsData?.summary?.totalTax ?? 0;
   const totalDiscount = reportsData?.summary?.totalDiscount ?? 0;
+  const taxableSales = reportsData?.taxableSales ?? reportsData?.summary?.taxableSales ?? 0;
+  const exemptSales = reportsData?.exemptSales ?? reportsData?.summary?.exemptSales ?? 0;
 
   // Métodos de pago
   const cashAmount = reportsData?.totalCash ?? reportsData?.summary?.byPaymentMethod?.['EFECTIVO'] ?? 0;
@@ -212,6 +214,75 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
             <span>Por ticket concretado</span>
             {renderComparisonBadge(reportsData?.comparison?.averageTicket?.changePercent)}
           </div>
+        </div>
+      </div>
+
+      {/* Desglose Impositivo del Período (Gravado / Exento / IVA) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        {/* Ventas Gravadas */}
+        <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
+          <div className="flex items-center justify-between text-gray-500">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-gray-700">Ventas gravadas</span>
+              <TooltipInfo
+                text="Ventas netas de productos que causan IVA (15%), deduciendo descuentos y devoluciones del período. Las ventas de comprobantes anteriores (LEGACY) con impuesto se incluyen en este total sin duplicar."
+                align="left"
+              />
+            </div>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
+              15% IVA
+            </span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+            {formatCurrency(taxableSales)}
+          </div>
+          <p className="text-[11px] text-gray-400">
+            Base imponible gravada
+          </p>
+        </div>
+
+        {/* Ventas Exentas */}
+        <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
+          <div className="flex items-center justify-between text-gray-500">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-gray-700">Ventas exentas</span>
+              <TooltipInfo
+                text="Ventas netas de productos exentos de IVA (medicamentos y productos exentos por ley), deduciendo descuentos y devoluciones del período."
+                align="left"
+              />
+            </div>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+              Exento
+            </span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+            {formatCurrency(exemptSales)}
+          </div>
+          <p className="text-[11px] text-gray-400">
+            Medicamentos y productos exentos
+          </p>
+        </div>
+
+        {/* IVA Recaudado */}
+        <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
+          <div className="flex items-center justify-between text-gray-500">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-gray-700">IVA recaudado</span>
+              <TooltipInfo
+                text="Total de IVA (15%) cobrado a clientes en comprobantes del período, neto del impuesto de devoluciones registradas."
+                align="left"
+              />
+            </div>
+            <div className="w-6 h-6 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-[10px]">
+              %
+            </div>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold text-purple-900 tracking-tight">
+            {formatCurrency(totalTax)}
+          </div>
+          <p className="text-[11px] text-gray-400">
+            Impuesto del período
+          </p>
         </div>
       </div>
 

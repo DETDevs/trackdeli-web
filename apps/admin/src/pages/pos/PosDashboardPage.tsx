@@ -438,6 +438,48 @@ export const PosDashboardPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Desglose Gravado / Exento / IVA de hoy */}
+              <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-gray-100/80">
+                <div className="bg-gray-50/80 rounded-xl p-2">
+                  <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium">
+                    <span>Gravadas</span>
+                    <TooltipInfo
+                      text="Ventas netas gravadas con IVA (15%) de la jornada de hoy. En comprobantes con impuesto global anterior (LEGACY), se incluye su monto gravado sin duplicar."
+                      align="left"
+                    />
+                  </div>
+                  <div className="font-bold text-gray-900 text-xs mt-0.5 truncate">
+                    {formatCurrency(dashboard.today.taxableSales ?? 0, currency)}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50/80 rounded-xl p-2">
+                  <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium">
+                    <span>Exentas</span>
+                    <TooltipInfo
+                      text="Ventas netas exentas de IVA (medicamentos y productos exentos de IVA) de la jornada de hoy."
+                      align="left"
+                    />
+                  </div>
+                  <div className="font-bold text-gray-900 text-xs mt-0.5 truncate">
+                    {formatCurrency(dashboard.today.exemptSales ?? 0, currency)}
+                  </div>
+                </div>
+
+                <div className="bg-purple-50/50 rounded-xl p-2 border border-purple-100/60">
+                  <div className="flex items-center gap-1 text-[10px] text-purple-700 font-medium">
+                    <span>IVA</span>
+                    <TooltipInfo
+                      text="IVA (15%) cobrado a clientes en comprobantes emitidos en la jornada de hoy, deduciendo devoluciones."
+                      align="left"
+                    />
+                  </div>
+                  <div className="font-bold text-purple-900 text-xs mt-0.5 truncate">
+                    {formatCurrency(dashboard.today.taxAmount ?? 0, currency)}
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between text-xs pt-2.5 border-t border-gray-100 flex-wrap gap-2">
                 <span className="text-gray-500 text-[11px] font-medium">
                   {dashboard.today.salesCount} {dashboard.today.salesCount === 1 ? 'venta' : 'ventas'}

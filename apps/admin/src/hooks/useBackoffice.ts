@@ -9,6 +9,9 @@ export interface PeriodMetrics {
   totalRevenue: number;
   salesCount: number;
   averageTicket: number;
+  taxableSales?: number;
+  exemptSales?: number;
+  taxAmount?: number;
 }
 
 export interface PeriodComparison {
@@ -148,6 +151,12 @@ export interface SaleDetailItem {
   subtotal: number;
   total: number;
   discount?: number | null;
+  listPrice?: number | null;
+  listPriceDiscount?: number;
+  manualDiscountShare?: number;
+  taxable?: boolean;
+  taxRate?: number;
+  taxAmount?: number;
 }
 
 export interface SaleDetailReturn {
@@ -172,6 +181,9 @@ export interface SaleDetailPayment {
 export interface BackofficeSaleDetail extends Omit<BackofficeSaleItemSummary, 'itemsCount'> {
   notes?: string | null;
   taxRate?: number | null;
+  taxModel?: string;
+  listPriceTotal?: number;
+  listDiscountTotal?: number;
   totalRefunded: number;
   cashRegister?: {
     id: string;

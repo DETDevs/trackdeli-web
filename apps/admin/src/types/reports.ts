@@ -37,6 +37,8 @@ export interface SalesSummaryDetail {
   totalDiscount: number;
   totalTax: number;
   netRevenue: number;
+  taxableSales?: number;
+  exemptSales?: number;
   averageTicket: number;
   byPaymentMethod: Record<string, number>;
   byDay: Array<{
@@ -53,6 +55,9 @@ export interface ReportsSummary {
   totalCash: number;
   totalCard: number;
   totalTransfer: number;
+  taxableSales?: number;
+  exemptSales?: number;
+  totalTax?: number;
   topProducts: Array<{
     productId: string;
     productName: string;

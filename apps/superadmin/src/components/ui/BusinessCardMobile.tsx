@@ -205,6 +205,15 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
             Lotes
           </span>
         )}
+
+        {business.useListPrice && (
+          <span
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60 whitespace-nowrap shrink-0"
+            title="Precio de etiqueta activo"
+          >
+            Etiqueta
+          </span>
+        )}
       </div>
 
       {/* Uso & Última actividad */}

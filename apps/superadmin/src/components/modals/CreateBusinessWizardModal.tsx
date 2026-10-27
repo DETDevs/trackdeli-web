@@ -16,6 +16,7 @@ import {
   MagnifyingGlass,
   Info,
   Package,
+  Tag,
 } from '@phosphor-icons/react';
 import apiClient from '../../lib/apiClient';
 import { Modal } from '../ui/Modal';
@@ -61,6 +62,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
   const [hasCitas, setHasCitas] = useState(false);
   const [hasUserModifiedProducts, setHasUserModifiedProducts] = useState(false);
   const [tracksBatches, setTracksBatches] = useState(false);
+  const [useListPrice, setUseListPrice] = useState(false);
 
   // Delivery config
   const [businessType, setBusinessType] = useState<BusinessType>('NEGOCIO');
@@ -218,6 +220,10 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
     // Preselección de lotes: si la industria es farmacia o tiene tracksBatches activo
     const isFarmaciaOrBatches = Boolean(ind.tracksBatches || ind.code === 'farmacia');
     setTracksBatches(isFarmaciaOrBatches);
+
+    // Preselección de precio de etiqueta: si el rubro es farmacia, activado por defecto
+    const isFarmacia = ind.code === 'farmacia' || ind.name?.toLowerCase().includes('farmacia');
+    setUseListPrice(Boolean(isFarmacia));
 
     setErrors((prev) => {
       const copy = { ...prev };
@@ -469,6 +475,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
         name: name.trim(),
         industryId,
         tracksBatches,
+        useListPrice,
         businessType: hasDelivery ? businessType : 'NEGOCIO',
         commissionRate:
           hasDelivery && businessType === 'EMPRESA_RIDERS'
@@ -620,6 +627,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
     setHasCitas(false);
     setHasUserModifiedProducts(false);
     setTracksBatches(false);
+    setUseListPrice(false);
     setBusinessType('NEGOCIO');
     setCommissionRate('15');
     setAltCommissionRate('12');
@@ -1257,6 +1265,44 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
               </button>
             </div>
 
+            {/* Usar precio de etiqueta */}
+            <div className="p-3.5 rounded-xl border bg-white border-blue-200/80 flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-700 shrink-0 mt-0.5">
+                  <Tag size={18} weight="duotone" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-gray-900">
+                      Usar precio de etiqueta
+                    </span>
+                    {useListPrice && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        Activo
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">
+                    Muestra precio de etiqueta y descuento en productos y comprobantes (farmacias)
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setUseListPrice(!useListPrice)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  useListPrice ? 'bg-blue-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    useListPrice ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
             {/* Configuración compacta de Delivery si está marcado */}
             {hasDelivery && (
               <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200 space-y-2.5">
@@ -1853,6 +1899,22 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                   </p>
                   <p className="text-[11px] text-gray-500">
                     {tracksBatches ? 'Lotes y vencimientos' : 'Sin seguimiento de lotes'}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                    Precio de Etiqueta
+                  </span>
+                  <p className="font-semibold text-gray-900">
+                    {useListPrice ? (
+                      <span className="text-emerald-700 font-bold">Activo</span>
+                    ) : (
+                      <span className="text-gray-500">Desactivado</span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    {useListPrice ? 'Etiqueta y descuentos' : 'Precio regular directo'}
                   </p>
                 </div>
 

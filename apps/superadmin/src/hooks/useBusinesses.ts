@@ -103,6 +103,7 @@ export interface BusinessItem {
   last_seen_at?: string | null;
   last_sale_at?: string | null;
   tracksBatches?: boolean;
+  useListPrice?: boolean;
 }
 
 export interface BusinessDetail extends BusinessItem {
@@ -188,6 +189,7 @@ export interface CreateBusinessInput {
   hasCitas?: boolean;
   citasMonthlyFee?: number;
   tracksBatches?: boolean;
+  useListPrice?: boolean;
   encargado?: {
     name: string;
     email: string;
@@ -354,6 +356,7 @@ export interface UpdateBusinessInput {
   dispatchTimeoutMin?: number;
   isActive?: boolean;
   tracksBatches?: boolean;
+  useListPrice?: boolean;
   confirm?: boolean;
 }
 

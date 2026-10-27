@@ -211,13 +211,31 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                     {sale.items?.map((item) => (
                       <div key={item.id} className="p-3 flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="font-medium text-gray-900 text-xs truncate">
-                            {item.productName}
-                          </p>
-                          <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-0.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-medium text-gray-900 text-xs truncate">
+                              {item.productName}
+                            </p>
+                            {sale.taxModel === 'PER_LINE' && (
+                              <span
+                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                  item.taxable
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                                    : 'bg-gray-100 text-gray-600'
+                                }`}
+                              >
+                                {item.taxable ? '15% IVA' : 'Exento'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-0.5 flex-wrap">
                             <span>
                               {formatQuantity(item.quantity, item.unit)} × {formatCurrency(item.unitPrice, currency)}
                             </span>
+                            {item.listPrice && item.listPriceDiscount && item.listPriceDiscount > 0 ? (
+                              <span className="text-gray-400 line-through text-[10px]">
+                                Etiqueta: {formatCurrency(item.listPrice, currency)}
+                              </span>
+                            ) : null}
                             {item.returnedQty > 0 && (
                               <span className="text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded text-[10px]">
                                 Devuelto: {formatQuantity(item.returnedQty, item.unit)}
@@ -238,23 +256,72 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
 
                 {/* Resumen Financiero */}
                 <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-1.5">
-                  <div className="flex justify-between text-gray-600">
-                    <span>Subtotal:</span>
-                    <span>{formatCurrency(sale.subtotal, currency)}</span>
-                  </div>
+                  {sale.taxModel === 'PER_LINE' ? (
+                    <>
+                      <div className="flex justify-between text-gray-600">
+                        <span>Precio:</span>
+                        <span>
+                          {formatCurrency(
+                            sale.listPriceTotal && sale.listPriceTotal > 0
+                              ? sale.listPriceTotal
+                              : sale.subtotal,
+                            currency
+                          )}
+                        </span>
+                      </div>
 
-                  {sale.discountAmount > 0 && (
-                    <div className="flex justify-between text-emerald-700 font-medium">
-                      <span>Descuento aplicado:</span>
-                      <span>-{formatCurrency(sale.discountAmount, currency)}</span>
-                    </div>
-                  )}
+                      {sale.listDiscountTotal && sale.listDiscountTotal > 0 ? (
+                        <div className="flex justify-between text-emerald-700 font-medium">
+                          <span>Descuento:</span>
+                          <span>-{formatCurrency(sale.listDiscountTotal, currency)}</span>
+                        </div>
+                      ) : null}
 
-                  {sale.taxAmount > 0 && (
-                    <div className="flex justify-between text-gray-600">
-                      <span>Impuestos (IVA):</span>
-                      <span>{formatCurrency(sale.taxAmount, currency)}</span>
-                    </div>
+                      {sale.discountAmount > 0 && (
+                        <div className="flex justify-between text-emerald-700 font-medium">
+                          <span>Descuento adicional:</span>
+                          <span>-{formatCurrency(sale.discountAmount, currency)}</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between text-gray-700 font-medium pt-1 border-t border-gray-200/60">
+                        <span>Subtotal antes de IVA:</span>
+                        <span>
+                          {formatCurrency(
+                            (sale.listPriceTotal && sale.listPriceTotal > 0
+                              ? sale.listPriceTotal - (sale.listDiscountTotal || 0)
+                              : sale.subtotal) - (sale.discountAmount || 0),
+                            currency
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between text-gray-600">
+                        <span>IVA:</span>
+                        <span>{formatCurrency(sale.taxAmount, currency)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between text-gray-600">
+                        <span>Subtotal:</span>
+                        <span>{formatCurrency(sale.subtotal, currency)}</span>
+                      </div>
+
+                      {sale.discountAmount > 0 && (
+                        <div className="flex justify-between text-emerald-700 font-medium">
+                          <span>Descuento aplicado:</span>
+                          <span>-{formatCurrency(sale.discountAmount, currency)}</span>
+                        </div>
+                      )}
+
+                      {sale.taxAmount > 0 && (
+                        <div className="flex justify-between text-gray-600">
+                          <span>Impuestos (IVA):</span>
+                          <span>{formatCurrency(sale.taxAmount, currency)}</span>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {sale.totalRefunded > 0 && (
@@ -265,7 +332,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                   )}
 
                   <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-sm font-bold text-gray-900">
-                    <span>Total Neto:</span>
+                    <span>Total:</span>
                     <span className="text-base text-gray-900">
                       {formatCurrency(sale.netTotal, currency)}
                     </span>

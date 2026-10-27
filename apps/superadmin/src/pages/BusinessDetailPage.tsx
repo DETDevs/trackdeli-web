@@ -28,6 +28,7 @@ import {
   Warning,
   Desktop,
   Info,
+  Tag,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { StatCard } from '../components/ui/StatCard';
@@ -181,6 +182,23 @@ export const BusinessDetailPage = () => {
           setIsDeactivateBatchesModalOpen(false);
           setDeactivateBatchesError(null);
           toast.success('Control de lotes desactivado');
+        },
+      }
+    );
+  };
+
+  const handleToggleUseListPrice = () => {
+    if (!business) return;
+    const nextVal = !business.useListPrice;
+    updateMutation.mutate(
+      { id: business.id, data: { useListPrice: nextVal } },
+      {
+        onSuccess: () => {
+          toast.success(nextVal ? 'Precio de etiqueta activado' : 'Precio de etiqueta desactivado');
+        },
+        onError: (err: any) => {
+          const msg = err.response?.data?.message;
+          toast.error(msg || 'Error al actualizar precio de etiqueta');
         },
       }
     );
@@ -533,6 +551,53 @@ export const BusinessDetailPage = () => {
                   Activar control de lotes
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Sección: Usar precio de etiqueta */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700 shrink-0 mt-0.5">
+                <Tag size={22} weight="duotone" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-sm font-bold text-gray-900 leading-tight">
+                    Usar precio de etiqueta
+                  </h3>
+                  {business.useListPrice ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Activo
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      Inactivo
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
+                  Muestra precio de etiqueta y descuento en productos y comprobantes (farmacias)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleUseListPrice}
+                disabled={updateMutation.isPending}
+                className={`h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
+                  business.useListPrice
+                    ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
+                    : 'text-white bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {business.useListPrice ? 'Desactivar precio de etiqueta' : 'Activar precio de etiqueta'}
+              </button>
             </div>
           </div>
         </div>

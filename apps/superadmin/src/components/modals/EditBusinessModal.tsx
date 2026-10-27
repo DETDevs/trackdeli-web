@@ -23,6 +23,7 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
     taxId: '',
     type: '',
     logoUrl: '',
+    useListPrice: false,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -42,6 +43,7 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
         taxId: business.taxId || (business as any).ruc || '',
         type: business.type || '',
         logoUrl: business.logoUrl || (business as any).logo || '',
+        useListPrice: Boolean(business.useListPrice),
       });
       setErrors({});
       setApiError(null);
@@ -112,6 +114,7 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
         type: formData.type.trim() || undefined,
         logoUrl: formData.logoUrl.trim() || undefined,
         logo: formData.logoUrl.trim() || undefined,
+        useListPrice: formData.useListPrice,
       };
 
       await updateMutation.mutateAsync({
@@ -310,6 +313,34 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
           {errors.logoUrl && (
             <p className="text-[11px] text-red-600 mt-1">{errors.logoUrl}</p>
           )}
+        </div>
+
+        {/* Usar precio de etiqueta */}
+        <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-200/70 flex items-center justify-between gap-3">
+          <div>
+            <label
+              className="block text-xs font-bold text-gray-900 cursor-pointer"
+              onClick={() => setFormData({ ...formData, useListPrice: !formData.useListPrice })}
+            >
+              Usar precio de etiqueta
+            </label>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Muestra precio de etiqueta y descuento en productos y comprobantes (farmacias)
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, useListPrice: !formData.useListPrice })}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              formData.useListPrice ? 'bg-blue-600' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                formData.useListPrice ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
 
         {/* Botones de acción */}
