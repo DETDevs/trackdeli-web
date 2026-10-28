@@ -7,13 +7,42 @@ export interface BusinessProductField {
   businessId: string;
   label: string;
   key: string;
-  dataType: 'TEXT' | 'NUMBER' | 'SELECT' | 'BOOLEAN' | 'DATE';
+  dataType: 'TEXT' | 'NUMBER' | 'SELECT' | 'BOOLEAN' | 'DATE' | 'LIST';
   options?: string[];
   isRequired: boolean;
   isSearchable: boolean;
+  /** Nombres reales que devuelve el API (el editor usa isRequired/isSearchable). */
+  required?: boolean;
+  searchable?: boolean;
   showInPos: boolean;
+  /** 208c: solo aplica a campos LIST (permitir agregar opciones al vuelo). */
+  allowCreateInline?: boolean;
+  /** 208c: opciones del catálogo para campos LIST. */
+  fieldOptions?: Array<{ id: string; label: string; isActive: boolean }>;
   isActive: boolean;
   order: number;
+}
+
+/** Respuesta de POST .../product-fields/apply-template */
+export interface ApplyTemplateResult {
+  businessId: string;
+  industry: string;
+  appliedFields: Array<{ key: string; action: 'UPGRADED_TO_LIST' | 'UPDATED' | 'CREATED' }>;
+  totalMigratedOptions: number;
+}
+
+/** Respuesta de POST .../product-fields/migrate-text-to-list */
+export interface MigrateTextToListResult {
+  businessId: string;
+  createdOptions: number;
+  updatedProducts: number;
+  details: Array<{
+    fieldKey: string;
+    fieldLabel: string;
+    distinctValuesFound: number;
+    optionsCreated: number;
+    productsMigrated: number;
+  }>;
 }
 
 export const useBusinessProductFields = (businessId: string) => {
@@ -72,6 +101,32 @@ export const useReorderBusinessProductFields = () => {
   return useMutation({
     mutationFn: async ({ businessId, fieldIds }: { businessId: string; fieldIds: string[] }) => {
       const { data } = await apiClient.patch(`/superadmin/businesses/${businessId}/product-fields/reorder`, { fieldIds });
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-product-fields', variables.businessId] });
+    },
+  });
+};
+
+export const useApplyBusinessFieldTemplate = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ businessId }: { businessId: string }): Promise<ApplyTemplateResult> => {
+      const { data } = await apiClient.post(`/superadmin/businesses/${businessId}/product-fields/apply-template`);
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-product-fields', variables.businessId] });
+    },
+  });
+};
+
+export const useMigrateBusinessTextToList = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ businessId }: { businessId: string }): Promise<MigrateTextToListResult> => {
+      const { data } = await apiClient.post(`/superadmin/businesses/${businessId}/product-fields/migrate-text-to-list`);
       return data;
     },
     onSuccess: (_, variables) => {

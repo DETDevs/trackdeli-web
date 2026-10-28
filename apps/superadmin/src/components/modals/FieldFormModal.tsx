@@ -3,11 +3,14 @@ import { Modal } from '../ui/Modal';
 
 export interface FieldFormValues {
   label: string;
+  // 'LIST' (208c) solo se ofrece a los campos de negocio (allowListType); el editor de industrias no lo usa.
   dataType: 'TEXT' | 'NUMBER' | 'SELECT' | 'BOOLEAN' | 'DATE';
   options: string[];
   isRequired: boolean;
   isSearchable: boolean;
   showInPos: boolean;
+  /** 208c: solo se envía para campos LIST. */
+  allowCreateInline?: boolean;
 }
 
 interface FieldFormModalProps {
@@ -19,6 +22,8 @@ interface FieldFormModalProps {
   isEditMode?: boolean;
   isKeyLocked?: boolean;
   isLoading?: boolean;
+  /** 208c: ofrece el tipo "Lista (con opciones editables)" (campos de negocio). */
+  allowListType?: boolean;
   onSubmit: (values: FieldFormValues) => void;
 }
 
@@ -31,24 +36,27 @@ export const FieldFormModal: React.FC<FieldFormModalProps> = ({
   isEditMode,
   isKeyLocked,
   isLoading,
+  allowListType,
   onSubmit,
 }) => {
   const [label, setLabel] = useState('');
-  const [dataType, setDataType] = useState<'TEXT' | 'NUMBER' | 'SELECT' | 'BOOLEAN' | 'DATE'>('TEXT');
+  const [dataType, setDataType] = useState<'TEXT' | 'NUMBER' | 'SELECT' | 'BOOLEAN' | 'DATE' | 'LIST'>('TEXT');
   const [optionsStr, setOptionsStr] = useState('');
   const [isRequired, setIsRequired] = useState(false);
   const [isSearchable, setIsSearchable] = useState(false);
   const [showInPos, setShowInPos] = useState(false);
+  const [allowCreateInline, setAllowCreateInline] = useState(true);
 
   useEffect(() => {
     if (isOpen) {
       if (initialValues) {
         setLabel(initialValues.label);
-        setDataType(initialValues.dataType);
+        setDataType(initialValues.dataType as typeof dataType);
         setOptionsStr(initialValues.options?.join(', ') || '');
         setIsRequired(initialValues.isRequired);
         setIsSearchable(initialValues.isSearchable);
         setShowInPos(initialValues.showInPos);
+        setAllowCreateInline(initialValues.allowCreateInline ?? true);
       } else {
         setLabel('');
         setDataType('TEXT');
@@ -56,6 +64,7 @@ export const FieldFormModal: React.FC<FieldFormModalProps> = ({
         setIsRequired(false);
         setIsSearchable(false);
         setShowInPos(false);
+        setAllowCreateInline(true);
       }
     }
   }, [isOpen, initialValues]);
@@ -66,11 +75,12 @@ export const FieldFormModal: React.FC<FieldFormModalProps> = ({
 
     onSubmit({
       label,
-      dataType,
+      dataType: dataType as FieldFormValues['dataType'],
       options: dataType === 'SELECT' ? optionsStr.split(',').map(s => s.trim()).filter(Boolean) : [],
       isRequired,
       isSearchable,
       showInPos,
+      ...(dataType === 'LIST' ? { allowCreateInline } : {}),
     });
   };
 
@@ -110,8 +120,28 @@ export const FieldFormModal: React.FC<FieldFormModalProps> = ({
             <option value="SELECT">Lista (Selector)</option>
             <option value="BOOLEAN">Si/No (Switch)</option>
             <option value="DATE">Fecha</option>
+            {(allowListType || dataType === 'LIST') && (
+              <option value="LIST">Lista (con opciones editables)</option>
+            )}
           </select>
         </div>
+
+        {dataType === 'LIST' && (
+          <label className="flex items-start gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={allowCreateInline}
+              onChange={(e) => setAllowCreateInline(e.target.checked)}
+              className="mt-0.5 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+            />
+            <span>
+              Permitir agregar al vuelo
+              <span className="block text-[11px] text-gray-400">
+                Desde el POS se podrán crear opciones nuevas al registrar un producto.
+              </span>
+            </span>
+          </label>
+        )}
 
         {dataType === 'SELECT' && (
           <div>
