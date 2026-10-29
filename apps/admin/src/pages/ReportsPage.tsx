@@ -6,6 +6,7 @@ import {
   Wrench,
   WarningCircle,
   ArrowsClockwise,
+  Users,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { PeriodType } from '../types/reports';
@@ -14,6 +15,7 @@ import { SalesOperationsTab } from '../components/reports/SalesOperationsTab';
 import { ProfitReportTab } from '../components/reports/ProfitReportTab';
 import { ControlReportTab } from '../components/reports/ControlReportTab';
 import { WorkshopReportTab } from '../components/reports/WorkshopReportTab';
+import { SellerReportTab } from '../components/reports/SellerReportTab';
 import {
   useReportsOverview,
   useSalesByTime,
@@ -22,11 +24,12 @@ import {
   useProfitReport,
   useControlReport,
   useWorkshopReport,
+  useSalesBySeller,
 } from '../hooks/useBackofficeReports';
 import { useQuery } from '@tanstack/react-query';
 import { getMyBusiness } from 'api-client';
 
-export type ReportTabKey = 'sales' | 'profit' | 'control' | 'workshop';
+export type ReportTabKey = 'sales' | 'profit' | 'control' | 'workshop' | 'sellers';
 
 export const ReportsPage: React.FC = () => {
   const user = useAuthStore((state) => state.user);
@@ -111,6 +114,21 @@ export const ReportsPage: React.FC = () => {
     isFetching: isFetchingWorkshop,
   } = useWorkshopReport(queryParams, isAllowedRole);
 
+  // Modo Venta en dos pasos del negocio
+  const hasTwoStepSale = Boolean(business?.twoStepSaleEnabled);
+
+  const {
+    data: sellerData,
+    isLoading: isLoadingSeller,
+    isError: isErrorSeller,
+    error: errorSeller,
+    refetch: refetchSeller,
+    isFetching: isFetchingSeller,
+  } = useSalesBySeller(
+    queryParams,
+    Boolean(isAllowedRole && hasTwoStepSale && (activeTab === 'sellers' || !reportsData))
+  );
+
   // Determinar si el negocio es taller
   const isWorkshop = Boolean(
     workshopData?.isWorkshop || (business as any)?.salonProfile === 'TALLER'
@@ -121,7 +139,10 @@ export const ReportsPage: React.FC = () => {
     if (!isWorkshop && activeTab === 'workshop') {
       setActiveTab('sales');
     }
-  }, [isWorkshop, activeTab]);
+    if (!hasTwoStepSale && activeTab === 'sellers') {
+      setActiveTab('sales');
+    }
+  }, [isWorkshop, hasTwoStepSale, activeTab]);
 
   const handlePeriodChange = (p: PeriodType, f?: string, t?: string) => {
     setPeriod(p);
@@ -137,10 +158,11 @@ export const ReportsPage: React.FC = () => {
     refetchProfit();
     refetchControl();
     refetchWorkshop();
+    refetchSeller();
   };
 
   const isRefreshing =
-    isFetchingOverview || isFetchingProfit || isFetchingControl || isFetchingWorkshop;
+    isFetchingOverview || isFetchingProfit || isFetchingControl || isFetchingWorkshop || isFetchingSeller;
 
   // Validación de permiso de usuario
   if (!isAllowedRole) {
@@ -163,7 +185,8 @@ export const ReportsPage: React.FC = () => {
     (activeTab === 'sales' && isErrorOverview ? errorOverview : null) ||
     (activeTab === 'profit' && isErrorProfit ? errorProfit : null) ||
     (activeTab === 'control' && isErrorControl ? errorControl : null) ||
-    (activeTab === 'workshop' && isErrorWorkshop ? errorWorkshop : null);
+    (activeTab === 'workshop' && isErrorWorkshop ? errorWorkshop : null) ||
+    (activeTab === 'sellers' && isErrorSeller ? errorSeller : null);
 
   const getErrorMessage = (err: any) => {
     if (!err) return 'Ocurrió un error al cargar el reporte.';
@@ -190,7 +213,9 @@ export const ReportsPage: React.FC = () => {
               ? 'Margen operativo, costo de lo vendido y rentabilidad de ventas'
               : activeTab === 'control'
               ? 'Auditoría de anulaciones, devoluciones, descuentos y arqueos'
-              : 'Rendimiento de órdenes de taller, servicios y mecánicos'}
+              : activeTab === 'workshop'
+              ? 'Rendimiento de órdenes de taller, servicios y mecánicos'
+              : 'Rendimiento por vendedor, tickets enviados vs. cobrados y productos más vendidos'}
           </p>
         </div>
 
@@ -265,6 +290,22 @@ export const ReportsPage: React.FC = () => {
               <span>Taller</span>
             </button>
           )}
+
+          {/* Pestaña 5: Vendedores (solo aparece si hasTwoStepSale es true) */}
+          {hasTwoStepSale && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('sellers')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'sellers'
+                  ? 'bg-gray-900 text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <Users size={16} weight={activeTab === 'sellers' ? 'bold' : 'regular'} />
+              <span>Vendedores</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -327,6 +368,15 @@ export const ReportsPage: React.FC = () => {
               workshopData={workshopData}
               period={period}
               isLoading={isLoadingWorkshop}
+            />
+          )}
+
+          {/* Pestaña 5: Vendedores */}
+          {activeTab === 'sellers' && hasTwoStepSale && (
+            <SellerReportTab
+              sellerData={sellerData}
+              period={period}
+              isLoading={isLoadingSeller}
             />
           )}
         </>

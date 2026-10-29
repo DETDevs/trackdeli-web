@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CircleNotch, Eye, EyeSlash, Sparkle, Storefront, ShieldCheck, UserCheck, Motorcycle } from '@phosphor-icons/react';
+import { X, CircleNotch, Eye, EyeSlash, Sparkle, Storefront, ShieldCheck, UserCheck, Motorcycle, Tag } from '@phosphor-icons/react';
 import { useCreateSuperAdminUser } from '../../../hooks/useSuperAdminUsers';
 import { useBusinesses } from '../../../hooks/useBusinesses';
 import { type AdminUser } from 'api-client';
@@ -19,7 +19,7 @@ export const CreateSuperAdminUserModal: React.FC<CreateSuperAdminUserModalProps>
   presetBusinessId,
   presetBusinessName,
 }) => {
-  const [role, setRole] = useState<'ENCARGADO' | 'CAJERO' | 'SUPERADMIN' | 'REPARTIDOR'>(
+  const [role, setRole] = useState<'ENCARGADO' | 'CAJERO' | 'VENDEDOR' | 'SUPERADMIN' | 'REPARTIDOR'>(
     presetBusinessId ? 'CAJERO' : 'ENCARGADO'
   );
   const [businessId, setBusinessId] = useState<string>(presetBusinessId || '');
@@ -33,6 +33,10 @@ export const CreateSuperAdminUserModal: React.FC<CreateSuperAdminUserModalProps>
   const { data: businesses = [] } = useBusinesses();
   const createMutation = useCreateSuperAdminUser();
 
+  const targetBizId = presetBusinessId || businessId;
+  const targetBiz = businesses.find((b) => b.id === targetBizId);
+  const isTwoStepEnabled = Boolean(targetBiz?.twoStepSaleEnabled);
+
   useEffect(() => {
     if (presetBusinessId) {
       setBusinessId(presetBusinessId);
@@ -40,12 +44,19 @@ export const CreateSuperAdminUserModal: React.FC<CreateSuperAdminUserModalProps>
     }
   }, [presetBusinessId]);
 
+  useEffect(() => {
+    if (role === 'VENDEDOR' && !isTwoStepEnabled) {
+      setRole('CAJERO');
+    }
+  }, [isTwoStepEnabled, role]);
+
   if (!isOpen) return null;
 
   const generatePassword = () => {
     const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
     let prefix = 'Pass-';
     if (role === 'CAJERO') prefix = 'Caj-';
+    if (role === 'VENDEDOR') prefix = 'Ven-';
     if (role === 'ENCARGADO') prefix = 'Enc-';
     if (role === 'SUPERADMIN') prefix = 'Adm-';
     if (role === 'REPARTIDOR') prefix = 'Rid-';
@@ -218,6 +229,27 @@ export const CreateSuperAdminUserModal: React.FC<CreateSuperAdminUserModalProps>
                 </div>
               </button>
 
+              {isTwoStepEnabled && (
+                <button
+                  id="role-btn-vendedor"
+                  type="button"
+                  onClick={() => setRole('VENDEDOR')}
+                  className={`p-2.5 rounded-lg border text-left text-xs transition-colors cursor-pointer flex items-center gap-2 ${
+                    role === 'VENDEDOR'
+                      ? 'border-amber-600 bg-amber-600 text-white shadow-xs'
+                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  <Tag size={16} />
+                  <div>
+                    <p className="font-semibold">Vendedor</p>
+                    <p className={role === 'VENDEDOR' ? 'text-amber-100 text-[10px]' : 'text-gray-400 text-[10px]'}>
+                      Preventa POS
+                    </p>
+                  </div>
+                </button>
+              )}
+
               {!presetBusinessId && (
                 <button
                   id="role-btn-repartidor"
@@ -239,6 +271,14 @@ export const CreateSuperAdminUserModal: React.FC<CreateSuperAdminUserModalProps>
                 </button>
               )}
             </div>
+
+            {role === 'VENDEDOR' && (
+              <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200/70 text-amber-900 text-xs">
+                <p className="text-[11px] leading-relaxed">
+                  Arma la orden y la envía a caja. No cobra ni ve costos.
+                </p>
+              </div>
+            )}
           </div>
 
           {role !== 'SUPERADMIN' && (

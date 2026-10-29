@@ -19,6 +19,7 @@ export const DeactivateCajeroModal: React.FC<DeactivateCajeroModalProps> = ({
   if (!isOpen || !user) return null;
 
   const willDeactivate = user.isActive;
+  const roleName = user.role === 'VENDEDOR' ? 'Vendedor' : user.role === 'CAJERO' ? 'Cajero' : 'Usuario';
 
   const handleConfirm = async () => {
     try {
@@ -51,7 +52,7 @@ export const DeactivateCajeroModal: React.FC<DeactivateCajeroModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-semibold text-gray-900">
-                {willDeactivate ? '¿Desactivar Cajero?' : '¿Activar Cajero?'}
+                {willDeactivate ? `¿Desactivar ${roleName}?` : `¿Activar ${roleName}?`}
               </h3>
               <p className="text-xs text-gray-500">{user.name}</p>
             </div>
@@ -84,7 +85,7 @@ export const DeactivateCajeroModal: React.FC<DeactivateCajeroModalProps> = ({
                 ¿Deseas reactivar a{' '}
                 <span className="font-semibold text-gray-900">{user.name}</span>?
                 <br />
-                Podrá volver a iniciar sesión y registrar ventas en el punto de venta (POS).
+                Podrá volver a iniciar sesión y operar en el punto de venta (POS).
               </>
             )}
           </p>
@@ -115,12 +116,12 @@ export const DeactivateCajeroModal: React.FC<DeactivateCajeroModalProps> = ({
             {willDeactivate ? (
               <>
                 <Lock size={15} />
-                <span>Desactivar cajero</span>
+                <span>Desactivar {roleName.toLowerCase()}</span>
               </>
             ) : (
               <>
                 <LockOpen size={15} />
-                <span>Activar cajero</span>
+                <span>Activar {roleName.toLowerCase()}</span>
               </>
             )}
           </button>

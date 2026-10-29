@@ -104,6 +104,9 @@ export interface BusinessItem {
   last_sale_at?: string | null;
   tracksBatches?: boolean;
   useListPrice?: boolean;
+  twoStepSaleEnabled?: boolean;
+  twoStepTicketTtlHours?: number;
+  twoStepMinVersion?: string | null;
 }
 
 export interface BusinessDetail extends BusinessItem {
@@ -190,6 +193,8 @@ export interface CreateBusinessInput {
   citasMonthlyFee?: number;
   tracksBatches?: boolean;
   useListPrice?: boolean;
+  twoStepSaleEnabled?: boolean;
+  twoStepTicketTtlHours?: number;
   encargado?: {
     name: string;
     email: string;
@@ -357,6 +362,8 @@ export interface UpdateBusinessInput {
   isActive?: boolean;
   tracksBatches?: boolean;
   useListPrice?: boolean;
+  twoStepSaleEnabled?: boolean;
+  twoStepTicketTtlHours?: number;
   confirm?: boolean;
 }
 

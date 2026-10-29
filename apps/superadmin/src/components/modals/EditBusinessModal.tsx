@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PencilSimple, Storefront, Phone, MapPin, IdentificationCard, Tag, Image, WarningCircle } from '@phosphor-icons/react';
+import { PencilSimple, Storefront, Phone, MapPin, IdentificationCard, Tag, Image, WarningCircle, Info } from '@phosphor-icons/react';
 import { Modal } from '../ui/Modal';
 import { BusinessDetail, useUpdateBusiness } from '../../hooks/useBusinesses';
 
@@ -24,6 +24,8 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
     type: '',
     logoUrl: '',
     useListPrice: false,
+    twoStepSaleEnabled: false,
+    twoStepTicketTtlHours: 4,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -44,6 +46,8 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
         type: business.type || '',
         logoUrl: business.logoUrl || (business as any).logo || '',
         useListPrice: Boolean(business.useListPrice),
+        twoStepSaleEnabled: Boolean(business.twoStepSaleEnabled),
+        twoStepTicketTtlHours: business.twoStepTicketTtlHours ?? 4,
       });
       setErrors({});
       setApiError(null);
@@ -115,6 +119,8 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
         logoUrl: formData.logoUrl.trim() || undefined,
         logo: formData.logoUrl.trim() || undefined,
         useListPrice: formData.useListPrice,
+        twoStepSaleEnabled: formData.twoStepSaleEnabled,
+        twoStepTicketTtlHours: Number(formData.twoStepTicketTtlHours) || 4,
       };
 
       await updateMutation.mutateAsync({
@@ -341,6 +347,86 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
               }`}
             />
           </button>
+        </div>
+
+        {/* Venta en dos pasos (vendedor → caja) */}
+        <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200/70 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <label
+                className="block text-xs font-bold text-gray-900 cursor-pointer"
+                onClick={() =>
+                  setFormData({
+                    ...formData,
+                    twoStepSaleEnabled: !formData.twoStepSaleEnabled,
+                  })
+                }
+              >
+                Venta en dos pasos (vendedor → caja)
+              </label>
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                El vendedor arma la orden y la envía a caja; el cajero la cobra.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setFormData({
+                  ...formData,
+                  twoStepSaleEnabled: !formData.twoStepSaleEnabled,
+                })
+              }
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                formData.twoStepSaleEnabled ? 'bg-amber-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                  formData.twoStepSaleEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {formData.twoStepSaleEnabled && (
+            <div className="pt-2 border-t border-amber-200/50 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Vencimiento del ticket (horas)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={72}
+                  value={formData.twoStepTicketTtlHours}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      twoStepTicketTtlHours: Math.max(1, parseInt(e.target.value, 10) || 1),
+                    })
+                  }
+                  className="w-full sm:w-36 px-3 py-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  Tiempo límite antes de que un ticket no cobrado venza (por defecto 4 horas).
+                </p>
+              </div>
+
+              {/* Aviso de límite de dispositivos y versión mínima */}
+              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-100/70 border border-amber-300/60 text-amber-900 text-[11px] leading-relaxed">
+                <Info size={16} className="shrink-0 text-amber-700 mt-0.5" weight="fill" />
+                <div>
+                  <p className="font-semibold">Aviso importante:</p>
+                  <p>
+                    Las computadoras de vendedores cuentan en el límite del plan.
+                    {business?.twoStepMinVersion
+                      ? ` Requiere el POS de escritorio versión ${business.twoStepMinVersion} o superior.`
+                      : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Botones de acción */}

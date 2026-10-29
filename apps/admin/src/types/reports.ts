@@ -261,3 +261,35 @@ export interface WorkshopReport {
   vehiclesAttendedCount: number;
   vehiclesAttended: WorkshopAttendedVehicleItem[];
 }
+
+export interface SellerProductStat {
+  productId: string;
+  productName: string;
+  units: number;
+  revenue: number;
+}
+
+export interface SellerReportRow {
+  sellerId: string;
+  sellerName: string;
+  ticketsSent: number;
+  ticketsCharged: number;
+  ticketsCancelled: number;
+  ticketsExpired: number;
+  conversionRate: number;
+  grossSales: number;
+  returnsDiscounted: number;
+  netSales: number;
+  salesCount: number;
+  averageTicket: number;
+  unitsSold: number;
+  topProducts: SellerProductStat[];
+}
+
+export interface SalesBySellerReport {
+  period: {
+    from: string;
+    to: string;
+  };
+  sellers: SellerReportRow[];
+}

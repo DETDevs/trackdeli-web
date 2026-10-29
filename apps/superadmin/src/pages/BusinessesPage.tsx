@@ -363,6 +363,15 @@ export const BusinessesPage = () => {
                 Etiqueta
               </span>
             )}
+
+            {row.twoStepSaleEnabled && (
+              <span
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60 whitespace-nowrap shrink-0"
+                title="Venta en dos pasos activa"
+              >
+                Dos pasos
+              </span>
+            )}
           </div>
         );
       },

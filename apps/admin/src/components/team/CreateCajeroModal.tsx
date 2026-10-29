@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CircleNotch, Eye, EyeSlash, Sparkle, UserCheck } from '@phosphor-icons/react';
+import { X, CircleNotch, Eye, EyeSlash, Sparkle, UserCheck, Tag, Info } from '@phosphor-icons/react';
 import { useCreateAdminUser } from '../../hooks/useAdminUsers';
 import { type AdminUser } from 'api-client';
 
@@ -7,13 +7,16 @@ interface CreateCajeroModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (user: AdminUser, initialPassword: string) => void;
+  twoStepSaleEnabled?: boolean;
 }
 
 export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  twoStepSaleEnabled = false,
 }) => {
+  const [role, setRole] = useState<'CAJERO' | 'VENDEDOR'>('CAJERO');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -27,7 +30,7 @@ export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
 
   const generatePassword = () => {
     const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-    let result = 'Caj-';
+    let result = role === 'VENDEDOR' ? 'Ven-' : 'Caj-';
     for (let i = 0; i < 5; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
@@ -48,7 +51,11 @@ export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
     const trimmedPassword = password.trim();
 
     if (!trimmedName) {
-      setErrorMessage('Por favor ingresa el nombre del cajero');
+      setErrorMessage(
+        twoStepSaleEnabled
+          ? 'Por favor ingresa el nombre del usuario'
+          : 'Por favor ingresa el nombre del cajero'
+      );
       return;
     }
 
@@ -62,24 +69,31 @@ export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
       return;
     }
 
+    const assignedRole = twoStepSaleEnabled ? role : 'CAJERO';
+
     try {
       const createdUser = await createMutation.mutateAsync({
         name: trimmedName,
         email: trimmedEmail,
         phone: trimmedPhone || undefined,
         password: trimmedPassword,
-        role: 'CAJERO',
+        role: assignedRole,
       });
 
       setName('');
       setEmail('');
       setPhone('');
       setPassword('');
+      setRole('CAJERO');
       setErrorMessage(null);
 
       onSuccess(createdUser, trimmedPassword);
     } catch (err: any) {
-      const serverMsg = err?.response?.data?.message || 'Ocurrió un error al registrar el cajero';
+      const msgObj = err?.response?.data?.message;
+      const serverMsg =
+        typeof msgObj === 'string'
+          ? msgObj
+          : msgObj?.message || 'Ocurrió un error al registrar el usuario';
       setErrorMessage(serverMsg);
     }
   };
@@ -89,9 +103,13 @@ export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
       <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
-            <h3 className="text-base font-semibold text-gray-900">Agregar Cajero</h3>
+            <h3 className="text-base font-semibold text-gray-900">
+              {twoStepSaleEnabled ? 'Agregar Usuario' : 'Agregar Cajero'}
+            </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Crea una cuenta para que un cajero opere el sistema POS
+              {twoStepSaleEnabled
+                ? 'Crea una cuenta para que un cajero o vendedor opere en el punto de venta'
+                : 'Crea una cuenta para que un cajero opere el sistema POS'}
             </p>
           </div>
           <button
@@ -111,13 +129,70 @@ export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 flex items-center justify-between text-xs">
-            <span className="text-gray-500">Rol asignado:</span>
-            <span className="inline-flex items-center gap-1 font-medium text-gray-800 bg-white border border-gray-200 px-2 py-0.5 rounded">
-              <UserCheck size={14} className="text-brand-600" />
-              Cajero (POS)
-            </span>
-          </div>
+          {twoStepSaleEnabled ? (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                Rol del usuario <span className="text-red-500">*</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  id="role-cajero"
+                  onClick={() => setRole('CAJERO')}
+                  className={`p-2.5 rounded-lg border text-left text-xs transition-colors cursor-pointer flex items-center gap-2 ${
+                    role === 'CAJERO'
+                      ? 'border-gray-900 bg-gray-900 text-white shadow-xs'
+                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  <UserCheck size={16} />
+                  <div>
+                    <p className="font-semibold">Cajero</p>
+                    <p className={role === 'CAJERO' ? 'text-gray-300 text-[10px]' : 'text-gray-400 text-[10px]'}>
+                      Cobra en POS
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  id="role-vendedor"
+                  onClick={() => setRole('VENDEDOR')}
+                  className={`p-2.5 rounded-lg border text-left text-xs transition-colors cursor-pointer flex items-center gap-2 ${
+                    role === 'VENDEDOR'
+                      ? 'border-amber-600 bg-amber-600 text-white shadow-xs'
+                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  <Tag size={16} />
+                  <div>
+                    <p className="font-semibold">Vendedor</p>
+                    <p className={role === 'VENDEDOR' ? 'text-amber-100 text-[10px]' : 'text-gray-400 text-[10px]'}>
+                      Preventa POS
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Texto explicativo bajo el rol Vendedor */}
+              {role === 'VENDEDOR' && (
+                <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200/70 text-amber-900 text-xs flex items-start gap-2">
+                  <Info size={15} className="shrink-0 text-amber-700 mt-0.5" weight="fill" />
+                  <p className="text-[11px] leading-relaxed">
+                    Arma la orden y la envía a caja. No cobra ni ve costos.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 flex items-center justify-between text-xs">
+              <span className="text-gray-500">Rol asignado:</span>
+              <span className="inline-flex items-center gap-1 font-medium text-gray-800 bg-white border border-gray-200 px-2 py-0.5 rounded">
+                <UserCheck size={14} className="text-brand-600" />
+                Cajero (POS)
+              </span>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
@@ -140,7 +215,7 @@ export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
             <input
               type="email"
               required
-              placeholder="cajero@tunegocio.com"
+              placeholder="usuario@tunegocio.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gray-900 transition-colors"
@@ -215,7 +290,13 @@ export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
               {createMutation.isPending && (
                 <CircleNotch size={14} className="animate-spin" />
               )}
-              <span>Crear Cajero</span>
+              <span>
+                {twoStepSaleEnabled
+                  ? role === 'VENDEDOR'
+                    ? 'Crear Vendedor'
+                    : 'Crear Cajero'
+                  : 'Crear Cajero'}
+              </span>
             </button>
           </div>
         </form>

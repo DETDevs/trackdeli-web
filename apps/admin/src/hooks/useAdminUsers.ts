@@ -4,6 +4,7 @@ import {
   createAdminUser,
   resetAdminUserPassword,
   updateAdminUserStatus,
+  apiClient,
   type AdminUser,
   type CreateAdminUserDto,
   type ResetAdminUserPasswordDto,
@@ -12,6 +13,15 @@ import {
 import { toast } from 'react-hot-toast';
 
 export const ADMIN_USERS_QUERY_KEY = ['admin-users'];
+export const USER_QUOTA_QUERY_KEY = ['pos-users-quota'];
+
+export interface UserQuotaUsage {
+  used: number;
+  base: number;
+  extra: number;
+  limit: number;
+  remaining: number;
+}
 
 export const useAdminUsers = (enabled: boolean = true) => {
   return useQuery<AdminUser[]>({
@@ -22,6 +32,26 @@ export const useAdminUsers = (enabled: boolean = true) => {
   });
 };
 
+export const useUserQuota = (enabled: boolean = true) => {
+  return useQuery<{ users: AdminUser[]; usage: UserQuotaUsage }>({
+    queryKey: USER_QUOTA_QUERY_KEY,
+    queryFn: async () => {
+      const res = await apiClient.get('/pos/users');
+      return res.data;
+    },
+    staleTime: 30000,
+    enabled,
+    retry: 1,
+  });
+};
+
+const extractApiError = (error: any, defaultMsg: string): string => {
+  const msgObj = error?.response?.data?.message;
+  if (typeof msgObj === 'string') return msgObj;
+  if (msgObj && typeof msgObj === 'object' && msgObj.message) return msgObj.message;
+  return defaultMsg;
+};
+
 export const useCreateAdminUser = () => {
   const queryClient = useQueryClient();
 
@@ -29,10 +59,11 @@ export const useCreateAdminUser = () => {
     mutationFn: (data: CreateAdminUserDto) => createAdminUser(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ADMIN_USERS_QUERY_KEY });
-      toast.success('Cajero creado exitosamente');
+      queryClient.invalidateQueries({ queryKey: USER_QUOTA_QUERY_KEY });
+      toast.success('Usuario creado exitosamente');
     },
     onError: (error: any) => {
-      const msg = error?.response?.data?.message || 'Error al crear cajero';
+      const msg = extractApiError(error, 'Error al crear usuario');
       toast.error(msg);
     },
   });
@@ -50,7 +81,7 @@ export const useResetAdminUserPassword = () => {
         toast.error('No tienes permisos para modificar la contraseña de este usuario');
         return;
       }
-      const msg = error?.response?.data?.message || 'Error al actualizar contraseña';
+      const msg = extractApiError(error, 'Error al actualizar contraseña');
       toast.error(msg);
     },
   });
@@ -64,10 +95,11 @@ export const useUpdateAdminUserStatus = () => {
       updateAdminUserStatus(id, data),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ADMIN_USERS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_QUOTA_QUERY_KEY });
       toast.success(
         updated.isActive
-          ? 'Cajero activado exitosamente'
-          : 'Cajero desactivado exitosamente'
+          ? 'Usuario activado exitosamente'
+          : 'Usuario desactivado exitosamente'
       );
     },
     onError: (error: any) => {
@@ -75,7 +107,7 @@ export const useUpdateAdminUserStatus = () => {
         toast.error('No tienes permisos para modificar el estado de este usuario');
         return;
       }
-      const msg = error?.response?.data?.message || 'Error al cambiar estado';
+      const msg = extractApiError(error, 'Error al cambiar estado');
       toast.error(msg);
     },
   });

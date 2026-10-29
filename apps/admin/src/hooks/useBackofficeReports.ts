@@ -9,6 +9,7 @@ import {
   ProfitReport,
   ControlReport,
   WorkshopReport,
+  SalesBySellerReport,
 } from '../types/reports';
 
 export interface ReportQueryParams {
@@ -143,6 +144,23 @@ export const useWorkshopReport = (params: ReportQueryParams, enabled = true) => 
     queryFn: async () => {
       const qs = buildReportQueryString(params);
       const res = await apiClient.get<WorkshopReport>(`/pos/reports/workshop?${qs}`);
+      return res.data;
+    },
+    enabled,
+    staleTime: 30000,
+    retry: 1,
+  });
+};
+
+/**
+ * Hook para el reporte de Venta en dos pasos por Vendedor
+ */
+export const useSalesBySeller = (params: ReportQueryParams, enabled = true) => {
+  return useQuery<SalesBySellerReport>({
+    queryKey: ['pos-reports', 'sales-by-seller', params],
+    queryFn: async () => {
+      const qs = buildReportQueryString(params);
+      const res = await apiClient.get<SalesBySellerReport>(`/pos/reports/sales-by-seller?${qs}`);
       return res.data;
     },
     enabled,

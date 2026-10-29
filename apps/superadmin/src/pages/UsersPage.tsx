@@ -12,6 +12,7 @@ import {
   Storefront,
   UserCheck,
   Motorcycle,
+  Tag,
   Circle,
   Phone,
   EnvelopeSimple,
@@ -143,6 +144,13 @@ export const UsersPage = () => {
             Cajero
           </span>
         );
+      case 'VENDEDOR':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
+            <Tag size={13} className="text-amber-700" />
+            Vendedor
+          </span>
+        );
       case 'REPARTIDOR':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
@@ -236,6 +244,7 @@ export const UsersPage = () => {
                 { id: 'SUPERADMIN', label: 'SuperAdmin' },
                 { id: 'ENCARGADO', label: 'Encargados' },
                 { id: 'CAJERO', label: 'Cajeros' },
+                { id: 'VENDEDOR', label: 'Vendedores' },
                 { id: 'REPARTIDOR', label: 'Repartidores' },
               ].map((r) => (
                 <button

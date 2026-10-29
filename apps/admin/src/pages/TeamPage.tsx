@@ -15,8 +15,9 @@ import {
   EnvelopeSimple,
   Circle,
   CircleNotch,
+  Tag,
 } from '@phosphor-icons/react';
-import { useAdminUsers } from '../hooks/useAdminUsers';
+import { useAdminUsers, useUserQuota } from '../hooks/useAdminUsers';
 import { type AdminUser } from 'api-client';
 import { formatDateTime } from '../utils/formatDate';
 import { CreateCajeroModal } from '../components/team/CreateCajeroModal';
@@ -41,7 +42,16 @@ export const TeamPage = () => {
   });
 
   const isEmpresaRiders = business?.businessType === 'EMPRESA_RIDERS';
+  const twoStepSaleEnabled = Boolean(business?.twoStepSaleEnabled);
+
   const { data: users = [], isLoading, isError, refetch } = useAdminUsers(!isEmpresaRiders);
+  const { data: posUsersData } = useUserQuota(!isEmpresaRiders && twoStepSaleEnabled);
+
+  const quotaUsage = posUsersData?.usage;
+  const limit = quotaUsage?.limit ?? (6 + ((business as any)?.extraUserSlots || 0));
+  const used =
+    quotaUsage?.used ??
+    users.filter((u) => u.isActive && (u.role === 'CAJERO' || u.role === 'VENDEDOR' || u.role === 'ENCARGADO')).length;
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
@@ -64,12 +74,15 @@ export const TeamPage = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const cajeros = useMemo(() => {
+  const teamUsers = useMemo(() => {
+    if (twoStepSaleEnabled) {
+      return users.filter((u) => u.role === 'CAJERO' || u.role === 'VENDEDOR');
+    }
     return users.filter((u) => u.role === 'CAJERO');
-  }, [users]);
+  }, [users, twoStepSaleEnabled]);
 
-  const filteredCajeros = useMemo(() => {
-    return cajeros.filter((user) => {
+  const filteredTeamUsers = useMemo(() => {
+    return teamUsers.filter((user) => {
       const matchesSearch =
         user.name.toLowerCase().includes(search.toLowerCase()) ||
         user.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -82,7 +95,7 @@ export const TeamPage = () => {
 
       return matchesSearch && matchesStatus;
     });
-  }, [cajeros, search, statusFilter]);
+  }, [teamUsers, search, statusFilter]);
 
   const handleCreateSuccess = (user: AdminUser, initialPassword: string) => {
     setIsCreateOpen(false);
@@ -96,7 +109,9 @@ export const TeamPage = () => {
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Mi Equipo</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Personal y cajeros autorizados para operar el punto de venta (POS)
+            {twoStepSaleEnabled
+              ? 'Personal, cajeros y vendedores autorizados para operar el punto de venta (POS)'
+              : 'Personal y cajeros autorizados para operar el punto de venta (POS)'}
           </p>
         </div>
         <button
@@ -105,9 +120,24 @@ export const TeamPage = () => {
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors shadow-xs cursor-pointer shrink-0 self-start sm:self-auto"
         >
           <Plus size={16} weight="bold" />
-          <span>Agregar Cajero</span>
+          <span>{twoStepSaleEnabled ? 'Agregar usuario' : 'Agregar Cajero'}</span>
         </button>
       </div>
+
+      {/* Aviso de licencias (solo con el modo activo) */}
+      {twoStepSaleEnabled && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/50 border border-amber-200/70 rounded-xl px-4 py-2.5 text-xs text-amber-950">
+          <div className="flex items-center gap-2">
+            <Users size={18} className="text-amber-700 shrink-0" weight="duotone" />
+            <span>
+              Este plan permite <strong className="font-semibold text-gray-900">{limit}</strong> usuarios; hay <strong className="font-semibold text-gray-900">{used}</strong> en uso.
+            </span>
+          </div>
+          <span className="text-[11px] text-amber-850/80">
+            (los vendedores cuentan en el límite del plan)
+          </span>
+        </div>
+      )}
 
       {isError && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-center justify-between">
@@ -122,7 +152,7 @@ export const TeamPage = () => {
         </div>
       )}
 
-      {!isLoading && !isError && cajeros.length > 0 && (
+      {!isLoading && !isError && teamUsers.length > 0 && (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-100 shadow-xs">
           <div className="relative flex-1">
             <MagnifyingGlass
@@ -147,7 +177,7 @@ export const TeamPage = () => {
                   : 'text-gray-500 hover:text-gray-800'
               }`}
             >
-              Todos ({cajeros.length})
+              Todos ({teamUsers.length})
             </button>
             <button
               onClick={() => setStatusFilter('ACTIVE')}
@@ -157,7 +187,7 @@ export const TeamPage = () => {
                   : 'text-gray-500 hover:text-gray-800'
               }`}
             >
-              Activos ({cajeros.filter((c) => c.isActive).length})
+              Activos ({teamUsers.filter((c) => c.isActive).length})
             </button>
             <button
               onClick={() => setStatusFilter('INACTIVE')}
@@ -167,7 +197,7 @@ export const TeamPage = () => {
                   : 'text-gray-500 hover:text-gray-800'
               }`}
             >
-              Inactivos ({cajeros.filter((c) => !c.isActive).length})
+              Inactivos ({teamUsers.filter((c) => !c.isActive).length})
             </button>
           </div>
         </div>
@@ -196,7 +226,7 @@ export const TeamPage = () => {
         </div>
       )}
 
-      {!isLoading && !isError && cajeros.length === 0 && (
+      {!isLoading && !isError && teamUsers.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center bg-white border border-gray-100 rounded-xl shadow-xs p-6 space-y-4">
           <div className="w-12 h-12 rounded-xl bg-gray-50 text-gray-700 flex items-center justify-center border border-gray-100">
             <Users size={24} weight="regular" />
@@ -220,10 +250,12 @@ export const TeamPage = () => {
         </div>
       )}
 
-      {!isLoading && !isError && cajeros.length > 0 && filteredCajeros.length === 0 && (
+      {!isLoading && !isError && teamUsers.length > 0 && filteredTeamUsers.length === 0 && (
         <div className="text-center py-12 bg-white border border-gray-100 rounded-xl p-6">
           <p className="text-sm font-medium text-gray-900">
-            No se encontraron cajeros con los filtros actuales
+            {twoStepSaleEnabled
+              ? 'No se encontraron usuarios con los filtros actuales'
+              : 'No se encontraron cajeros con los filtros actuales'}
           </p>
           <p className="text-xs text-gray-400 mt-1">Prueba con otro término de búsqueda.</p>
           <button
@@ -238,13 +270,13 @@ export const TeamPage = () => {
         </div>
       )}
 
-      {!isLoading && !isError && filteredCajeros.length > 0 && (
+      {!isLoading && !isError && filteredTeamUsers.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50 text-[11px] font-medium text-gray-400 uppercase tracking-wider">
-                  <th className="py-3 px-4">Cajero</th>
+                  <th className="py-3 px-4">{twoStepSaleEnabled ? 'Usuario' : 'Cajero'}</th>
                   <th className="py-3 px-4">Correo Electrónico</th>
                   <th className="py-3 px-4">Rol</th>
                   <th className="py-3 px-4">Estado</th>
@@ -253,7 +285,7 @@ export const TeamPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm">
-                {filteredCajeros.map((user) => (
+                {filteredTeamUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50/40 transition-colors">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
@@ -282,10 +314,21 @@ export const TeamPage = () => {
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200/70">
-                        <UserCheck size={13} className="text-gray-600" />
-                        Cajero
-                      </span>
+                      {user.role === 'VENDEDOR' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/70">
+                          <Tag size={13} className="text-amber-700" />
+                          Vendedor
+                        </span>
+                      ) : user.role === 'CAJERO' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200/70">
+                          <UserCheck size={13} className="text-gray-600" />
+                          Cajero
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200/70">
+                          {user.role}
+                        </span>
+                      )}
                     </td>
 
                     <td className="py-3.5 px-4">
@@ -321,7 +364,15 @@ export const TeamPage = () => {
 
                         <button
                           onClick={() => setStatusTargetUser(user)}
-                          title={user.isActive ? 'Desactivar cajero' : 'Activar cajero'}
+                          title={
+                            user.isActive
+                              ? user.role === 'VENDEDOR'
+                                ? 'Desactivar vendedor'
+                                : 'Desactivar cajero'
+                              : user.role === 'VENDEDOR'
+                              ? 'Activar vendedor'
+                              : 'Activar cajero'
+                          }
                           className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                             user.isActive
                               ? 'text-gray-500 hover:text-amber-700 hover:bg-amber-50'
@@ -346,6 +397,7 @@ export const TeamPage = () => {
 
       <CreateCajeroModal
         isOpen={isCreateOpen}
+        twoStepSaleEnabled={twoStepSaleEnabled}
         onClose={() => setIsCreateOpen(false)}
         onSuccess={handleCreateSuccess}
       />

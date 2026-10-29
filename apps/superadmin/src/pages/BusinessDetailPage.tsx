@@ -204,6 +204,63 @@ export const BusinessDetailPage = () => {
     );
   };
 
+  const [isEditingTtl, setIsEditingTtl] = useState(false);
+  const [ttlInput, setTtlInput] = useState<number>(4);
+
+  useEffect(() => {
+    if (business) {
+      setTtlInput(business.twoStepTicketTtlHours || 4);
+    }
+  }, [business?.twoStepTicketTtlHours]);
+
+  const handleToggleTwoStepSale = () => {
+    if (!business) return;
+    const nextVal = !business.twoStepSaleEnabled;
+    updateMutation.mutate(
+      {
+        id: business.id,
+        data: {
+          twoStepSaleEnabled: nextVal,
+          twoStepTicketTtlHours: business.twoStepTicketTtlHours || 4,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            nextVal ? 'Venta en dos pasos activada' : 'Venta en dos pasos desactivada'
+          );
+        },
+        onError: (err: any) => {
+          const msg = err.response?.data?.message;
+          toast.error(msg || 'Error al actualizar venta en dos pasos');
+        },
+      }
+    );
+  };
+
+  const handleSaveTtl = () => {
+    if (!business) return;
+    const hours = Math.max(1, Math.min(72, Number(ttlInput) || 4));
+    updateMutation.mutate(
+      {
+        id: business.id,
+        data: {
+          twoStepTicketTtlHours: hours,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success('Vencimiento del ticket actualizado');
+          setIsEditingTtl(false);
+        },
+        onError: (err: any) => {
+          const msg = err.response?.data?.message;
+          toast.error(msg || 'Error al actualizar vencimiento del ticket');
+        },
+      }
+    );
+  };
+
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
@@ -600,6 +657,131 @@ export const BusinessDetailPage = () => {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Sección: Venta en dos pasos (vendedor → caja) */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-700 shrink-0 mt-0.5">
+                <Receipt size={22} weight="duotone" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-sm font-bold text-gray-900 leading-tight">
+                    Venta en dos pasos (vendedor → caja)
+                  </h3>
+                  {business.twoStepSaleEnabled ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Activo
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      Inactivo
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
+                  El vendedor arma la orden y la envía a caja; el cajero la cobra.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleTwoStepSale}
+                disabled={updateMutation.isPending}
+                className={`h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
+                  business.twoStepSaleEnabled
+                    ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
+                    : 'text-white bg-amber-600 hover:bg-amber-700'
+                }`}
+              >
+                {business.twoStepSaleEnabled
+                  ? 'Desactivar venta en dos pasos'
+                  : 'Activar venta en dos pasos'}
+              </button>
+            </div>
+          </div>
+
+          {business.twoStepSaleEnabled && (
+            <div className="pt-4 border-t border-gray-100 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/40 p-3.5 rounded-xl border border-amber-200/60">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-bold text-gray-900">
+                    Vencimiento del ticket
+                  </div>
+                  <div className="text-[11px] text-gray-500">
+                    Los tickets no cobrados se cancelan o vencen después de este tiempo.
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {isEditingTtl ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={1}
+                        max={72}
+                        value={ttlInput}
+                        onChange={(e) => setTtlInput(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        className="w-20 px-2.5 py-1 text-xs rounded-lg border border-gray-300 focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="text-xs text-gray-600 font-medium">horas</span>
+                      <button
+                        type="button"
+                        onClick={handleSaveTtl}
+                        disabled={updateMutation.isPending}
+                        className="px-2.5 py-1 text-xs font-semibold bg-gray-900 text-white rounded-lg hover:bg-black cursor-pointer"
+                      >
+                        Guardar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTtlInput(business.twoStepTicketTtlHours || 4);
+                          setIsEditingTtl(false);
+                        }}
+                        className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-900 bg-white px-2.5 py-1 rounded-lg border border-gray-200 shadow-2xs">
+                        {business.twoStepTicketTtlHours || 4} horas
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingTtl(true)}
+                        className="text-xs text-amber-700 hover:text-amber-800 font-semibold underline underline-offset-2 cursor-pointer"
+                      >
+                        Cambiar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Aviso de límite del plan y versión mínima */}
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-100/70 border border-amber-300/70 text-amber-950 text-xs">
+                <Info size={18} className="text-amber-700 shrink-0 mt-0.5" weight="fill" />
+                <div>
+                  <p className="font-bold">Aviso del modo venta en dos pasos:</p>
+                  <p className="text-[11px] text-amber-900 mt-0.5">
+                    Las computadoras de vendedores cuentan en el límite del plan.
+                    {business?.twoStepMinVersion
+                      ? ` Requiere el POS de escritorio versión ${business.twoStepMinVersion} o superior.`
+                      : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {business.businessType === 'EMPRESA_RIDERS' ? (
@@ -1139,10 +1321,18 @@ export const BusinessDetailPage = () => {
                             ? 'bg-green-50 text-green-700 border border-green-200/60'
                             : u.role === 'CAJERO'
                             ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                            : u.role === 'VENDEDOR'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
                             : 'bg-gray-100 text-gray-700'
                         }`}
                       >
-                        {u.role === 'ENCARGADO' ? 'Encargado' : u.role === 'CAJERO' ? 'Cajero' : u.role}
+                        {u.role === 'ENCARGADO'
+                          ? 'Encargado'
+                          : u.role === 'CAJERO'
+                          ? 'Cajero'
+                          : u.role === 'VENDEDOR'
+                          ? 'Vendedor'
+                          : u.role}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-gray-400 mt-0.5 flex-wrap">
