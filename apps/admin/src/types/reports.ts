@@ -154,6 +154,12 @@ export interface ProfitReport {
   estimatedProfit: number | null;
   marginPercent: number | null;
   laborRevenue: number;
+  deliveryRevenue?: number;
+  channelFees?: {
+    pedidosYaCommission: number;
+    pedidosYaTax: number;
+    total: number;
+  };
   bySource?: Record<string, ProfitSourceItem>;
   uncategorizedRevenue?: number;
   missingCostCount: number;

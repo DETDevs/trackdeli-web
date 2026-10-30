@@ -11,6 +11,8 @@ import {
   Wrench,
   Stack,
   ShoppingBag,
+  Motorcycle,
+  DeviceMobile,
 } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import { ProfitReport, PeriodType } from '../../types/reports';
@@ -20,12 +22,14 @@ interface ProfitReportTabProps {
   profitData?: ProfitReport | null;
   period: PeriodType;
   isLoading: boolean;
+  hasActiveChannels?: boolean;
 }
 
 export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
   profitData,
   period,
   isLoading,
+  hasActiveChannels = false,
 }) => {
   const navigate = useNavigate();
 
@@ -86,6 +90,18 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
   const totalCost = profitData?.totalCost ?? 0;
   const laborRevenue = profitData?.laborRevenue ?? 0;
 
+  // 223b: Canales y envíos
+  const deliveryRevenue = profitData?.deliveryRevenue ?? 0;
+  const channelFees = profitData?.channelFees ?? {
+    pedidosYaCommission: 0,
+    pedidosYaTax: 0,
+    total: 0,
+  };
+
+  const showChannelCards = Boolean(
+    hasActiveChannels || deliveryRevenue > 0 || (channelFees.total ?? 0) > 0
+  );
+
   // Fuentes de costo
   const bySource = profitData?.bySource;
   const sourceLabels: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
@@ -119,7 +135,7 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
   return (
     <div className="space-y-5">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${showChannelCards ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-3.5`}>
         {/* Ganancia Estimada */}
         <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between text-gray-500">
@@ -128,11 +144,13 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
               <TrendUp size={16} weight="bold" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-emerald-700 tracking-tight">
+          <div className="text-2xl font-bold text-emerald-700 tracking-tight font-mono">
             {isZeroCoverage ? '—' : formatCurrency(estimatedProfit)}
           </div>
-          <div className="flex items-center justify-between pt-0.5 text-[11px] text-gray-400">
-            <span>Ingresos cubiertos - Costo</span>
+          <div className="flex items-center justify-between pt-0.5 text-xs text-gray-400">
+            <span title="Ingresos de productos − costo − comisiones de canal">
+              Ingresos de productos − costo − comisiones de canal
+            </span>
             {renderBadge(profitData?.comparison?.estimatedProfit?.changePercent)}
           </div>
         </div>
@@ -145,7 +163,7 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
               <Percent size={16} weight="bold" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-gray-900 tracking-tight">
+          <div className="text-2xl font-bold text-gray-900 tracking-tight font-mono">
             {isZeroCoverage || marginPercent === null ? '—' : `${marginPercent.toFixed(1)}%`}
           </div>
           <div className="flex items-center justify-between pt-0.5 text-[11px] text-gray-400">
@@ -162,7 +180,7 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
               <Coins size={16} weight="bold" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-gray-900 tracking-tight">
+          <div className="text-2xl font-bold text-gray-900 tracking-tight font-mono">
             {isZeroCoverage ? '—' : formatCurrency(totalCost)}
           </div>
           <div className="flex items-center justify-between pt-0.5 text-[11px] text-gray-400">
@@ -179,7 +197,7 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
               <Wrench size={16} weight="bold" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-gray-900 tracking-tight">
+          <div className="text-2xl font-bold text-gray-900 tracking-tight font-mono">
             {formatCurrency(laborRevenue)}
           </div>
           <div className="flex items-center justify-between pt-0.5 text-[11px] text-gray-400">
@@ -187,6 +205,53 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
             <span className="text-[10px] text-gray-500 font-medium">100% margen</span>
           </div>
         </div>
+
+        {/* 223b: Ingresos por envío (solo si hay canales o hubo envíos/comisiones) */}
+        {showChannelCards && (
+          <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
+            <div className="flex items-center justify-between text-gray-500">
+              <span className="text-xs font-semibold text-gray-700">Ingresos por envío</span>
+              <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                <Motorcycle size={16} weight="bold" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 tracking-tight font-mono">
+              {formatCurrency(deliveryRevenue)}
+            </div>
+            <div className="flex items-center justify-between pt-0.5 text-xs text-gray-500">
+              <span title="Envíos cobrados en el periodo. No se suman a la ganancia">
+                Envíos cobrados en el periodo. No se suman a la ganancia
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* 223b: Comisiones de canal (solo si hay canales o hubo envíos/comisiones) */}
+        {showChannelCards && (
+          <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
+            <div className="flex items-center justify-between text-gray-500">
+              <span className="text-xs font-semibold text-gray-700">Comisiones de canal</span>
+              <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center">
+                <DeviceMobile size={16} weight="bold" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 tracking-tight font-mono">
+              {formatCurrency(channelFees.total ?? 0)}
+            </div>
+            <div className="pt-0.5 text-xs text-gray-500 space-y-1">
+              <div className="flex flex-wrap items-center justify-between font-mono text-xs text-gray-600 gap-x-2">
+                <span>Comisión: {formatCurrency(channelFees.pedidosYaCommission ?? 0)}</span>
+                <span>Impuesto: {formatCurrency(channelFees.pedidosYaTax ?? 0)}</span>
+              </div>
+              <p
+                className="text-xs text-gray-500"
+                title="Lo que retiene PedidosYa. Ya está restado de la ganancia"
+              >
+                Lo que retiene PedidosYa. Ya está restado de la ganancia
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Alerta de Cobertura de Costos & Estado Especial coveragePercent === 0 */}

@@ -454,6 +454,7 @@ export const ReportsPage: React.FC = () => {
               profitData={profitData}
               period={period}
               isLoading={isLoadingProfit}
+              hasActiveChannels={hasActiveChannels}
             />
           )}
 
