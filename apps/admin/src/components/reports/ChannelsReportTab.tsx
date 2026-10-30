@@ -874,7 +874,7 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
 
                 <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs">
                   <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider block">
-                    Impuesto Comisión
+                    Impuesto
                   </span>
                   <p className="text-2xl font-bold text-gray-700 font-mono mt-1">
                     {formatCurrency(pedidosYaData?.summary?.totalTax || 0)}
@@ -1163,7 +1163,7 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                   </p>
                 </div>
                 <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-[11px] text-gray-500 block">Impuesto Comisión</span>
+                  <span className="text-[11px] text-gray-500 block">Impuesto</span>
                   <p className="text-base font-bold font-mono text-gray-700 mt-0.5">
                     {formatCurrency(pendingSettlementData?.taxTotal || 0)}
                   </p>

@@ -306,7 +306,7 @@ export const SalesChannelsSection: React.FC<SalesChannelsSectionProps> = ({
 
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Impuesto sobre comisión (%)
+                      Impuesto (%)
                     </label>
                     <div className="relative">
                       <input
@@ -322,7 +322,9 @@ export const SalesChannelsSection: React.FC<SalesChannelsSectionProps> = ({
                         %
                       </span>
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-0.5">IVA retenido sobre la comisión (def: 7%).</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      Se calcula sobre el total de la venta, igual que la comisión.
+                    </p>
                   </div>
                 </div>
 
@@ -511,6 +513,9 @@ export const SalesChannelsSection: React.FC<SalesChannelsSectionProps> = ({
                           → C${calculationExamples.mantener.roundedPrice.toFixed(2)}
                         </span>
                       )}
+                      <span className="text-[10px] text-emerald-700 font-bold block mt-1 font-mono">
+                        Recibe: C${(calculationExamples.mantener.rawPrice * (1 - (commNum + taxNum) / 100)).toFixed(2)}
+                      </span>
                     </div>
 
                     <div
@@ -531,6 +536,9 @@ export const SalesChannelsSection: React.FC<SalesChannelsSectionProps> = ({
                           → C${calculationExamples.recargo.roundedPrice.toFixed(2)}
                         </span>
                       )}
+                      <span className="text-[10px] text-emerald-700 font-bold block mt-1 font-mono">
+                        Recibe: C${(calculationExamples.recargo.rawPrice * (1 - (commNum + taxNum) / 100)).toFixed(2)}
+                      </span>
                     </div>
 
                     <div
@@ -546,34 +554,75 @@ export const SalesChannelsSection: React.FC<SalesChannelsSectionProps> = ({
                       <strong className="text-xs sm:text-sm font-bold text-gray-900 mt-1 block font-mono">
                         C${calculationExamples.mismo.rawPrice.toFixed(2)}
                       </strong>
+                      <span className="text-[10px] text-emerald-700 font-bold block mt-1 font-mono">
+                        Recibe: C${(calculationExamples.mismo.rawPrice * (1 - (commNum + taxNum) / 100)).toFixed(2)}
+                      </span>
                     </div>
                   </div>
 
                   {/* Explicación del modo activo */}
-                  <div className="mt-3 p-2.5 rounded-lg bg-gray-50 border border-gray-100 text-[11px] space-y-1 text-gray-600">
-                    <div className="font-semibold text-gray-800 flex items-center gap-1">
-                      <Sparkle size={13} className="text-rose-600" />
-                      <span>Cálculo activo: {pedidosYaPriceMode === 'MANTENER_GANANCIA' ? 'Mantener ganancia' : pedidosYaPriceMode === 'RECARGO' ? 'Recargo directo' : 'Mismo precio'}</span>
-                    </div>
-                    {pedidosYaPriceMode === 'MANTENER_GANANCIA' && (
-                      <p>
-                        C${sampleBasePrice} ÷ (1 − {totalRetentionPct / 100}) = <strong>C${calculationExamples.mantener.rawPrice.toFixed(2)}</strong>
-                        {pedidosYaRounding !== 'SIN_REDONDEO' && ` (redondeado: C$${calculationExamples.mantener.roundedPrice.toFixed(2)})`}.
-                        Al venderlo en la app recibes exactamente <strong>C${sampleBasePrice.toFixed(2)}</strong>.
-                      </p>
-                    )}
-                    {pedidosYaPriceMode === 'RECARGO' && (
-                      <p>
-                        C${sampleBasePrice} × (1 + {totalRetentionPct / 100}) = <strong>C${calculationExamples.recargo.rawPrice.toFixed(2)}</strong>
-                        {pedidosYaRounding !== 'SIN_REDONDEO' && ` (redondeado: C$${calculationExamples.recargo.roundedPrice.toFixed(2)})`}.
-                      </p>
-                    )}
-                    {pedidosYaPriceMode === 'MISMO_PRECIO' && (
-                      <p>
-                        Precio en app = <strong>C${sampleBasePrice.toFixed(2)}</strong>. De este monto, PedidosYa retiene {totalRetentionPct}% (C${((sampleBasePrice * totalRetentionPct) / 100).toFixed(2)}) y el negocio recibe C${(sampleBasePrice * (1 - totalRetentionPct / 100)).toFixed(2)}.
-                      </p>
-                    )}
-                  </div>
+                  {(() => {
+                    const activeRawPrice =
+                      pedidosYaPriceMode === 'MANTENER_GANANCIA'
+                        ? calculationExamples.mantener.rawPrice
+                        : pedidosYaPriceMode === 'RECARGO'
+                        ? calculationExamples.recargo.rawPrice
+                        : calculationExamples.mismo.rawPrice;
+                    const commAmount = (activeRawPrice * commNum) / 100;
+                    const taxAmount = (activeRawPrice * taxNum) / 100;
+                    const netReceived = activeRawPrice - commAmount - taxAmount;
+
+                    return (
+                      <div className="mt-3 p-3 rounded-xl bg-gray-50 border border-gray-100 text-[11px] space-y-2 text-gray-600">
+                        <div className="font-semibold text-gray-800 flex items-center gap-1">
+                          <Sparkle size={13} className="text-rose-600" />
+                          <span>
+                            Cálculo activo:{' '}
+                            {pedidosYaPriceMode === 'MANTENER_GANANCIA'
+                              ? 'Mantener ganancia'
+                              : pedidosYaPriceMode === 'RECARGO'
+                              ? 'Recargo directo'
+                              : 'Mismo precio'}
+                          </span>
+                        </div>
+                        {pedidosYaPriceMode === 'MANTENER_GANANCIA' && (
+                          <p>
+                            C${sampleBasePrice} ÷ (1 − {totalRetentionPct / 100}) ={' '}
+                            <strong>C${calculationExamples.mantener.rawPrice.toFixed(2)}</strong>
+                            {pedidosYaRounding !== 'SIN_REDONDEO' &&
+                              ` (redondeado: C$${calculationExamples.mantener.roundedPrice.toFixed(2)})`}
+                            .
+                          </p>
+                        )}
+                        {pedidosYaPriceMode === 'RECARGO' && (
+                          <p>
+                            C${sampleBasePrice} × (1 + {totalRetentionPct / 100}) ={' '}
+                            <strong>C${calculationExamples.recargo.rawPrice.toFixed(2)}</strong>
+                            {pedidosYaRounding !== 'SIN_REDONDEO' &&
+                              ` (redondeado: C$${calculationExamples.recargo.roundedPrice.toFixed(2)})`}
+                            .
+                          </p>
+                        )}
+                        {pedidosYaPriceMode === 'MISMO_PRECIO' && (
+                          <p>
+                            Precio en app = <strong>C${sampleBasePrice.toFixed(2)}</strong>.
+                          </p>
+                        )}
+
+                        <div className="pt-2 border-t border-gray-200/80 flex items-center justify-between text-xs bg-emerald-50/70 p-2 rounded-lg border border-emerald-100">
+                          <div className="text-emerald-900 font-semibold">
+                            <span>El negocio recibe:</span>
+                            <span className="text-[10px] text-emerald-700 font-normal block">
+                              (C${activeRawPrice.toFixed(2)} − comisión {commNum}% [C${commAmount.toFixed(2)}] − impuesto {taxNum}% [C${taxAmount.toFixed(2)}])
+                            </span>
+                          </div>
+                          <span className="font-mono text-base font-bold text-emerald-800">
+                            C$ {netReceived.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="text-[10px] text-gray-400 italic">
