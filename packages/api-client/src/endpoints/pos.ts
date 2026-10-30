@@ -265,3 +265,67 @@ export const updatePosWholesaleSettings = async (
   return res.data;
 };
 
+export interface DeliveryChannelConfig {
+  enabled: boolean;
+  defaultFee: number;
+  taxable: boolean;
+  requireDriver: boolean;
+}
+
+export interface PedidosYaChannelConfig {
+  enabled: boolean;
+  commissionPct: number;
+  taxPct: number;
+  priceMode: 'MANTENER_GANANCIA' | 'RECARGO' | 'MISMO_PRECIO';
+  rounding: 'SIN_REDONDEO' | 'REDONDEO_0_50' | 'REDONDEO_1' | 'REDONDEO_5';
+  capAtListPrice: boolean;
+  requireOrderNumber: boolean;
+}
+
+export interface ChannelConfigResponse {
+  delivery: DeliveryChannelConfig;
+  pedidosYa: PedidosYaChannelConfig;
+}
+
+export interface UpdateChannelConfigDto {
+  delivery?: {
+    defaultFee?: number;
+    taxable?: boolean | null;
+    requireDriver?: boolean;
+  };
+  pedidosYa?: {
+    commissionPct?: number;
+    taxPct?: number;
+    priceMode?: 'MANTENER_GANANCIA' | 'RECARGO' | 'MISMO_PRECIO';
+    rounding?: 'SIN_REDONDEO' | 'REDONDEO_0_50' | 'REDONDEO_1' | 'REDONDEO_5';
+    capAtListPrice?: boolean;
+    requireOrderNumber?: boolean;
+  };
+  deliveryDefaultFee?: number;
+  deliveryTaxable?: boolean | null;
+  deliveryRequireDriver?: boolean;
+  pedidosYaCommissionPct?: number;
+  pedidosYaTaxPct?: number;
+  pedidosYaPriceMode?: string;
+  pedidosYaRounding?: string;
+  pedidosYaCapAtListPrice?: boolean;
+  pedidosYaRequireOrderNumber?: boolean;
+}
+
+export const getChannelConfig = async (businessId?: string): Promise<ChannelConfigResponse> => {
+  const res = await apiClient.get<ChannelConfigResponse>('/pos/channels/config', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updateChannelConfig = async (
+  dto: UpdateChannelConfigDto,
+  businessId?: string,
+): Promise<ChannelConfigResponse> => {
+  const res = await apiClient.patch<ChannelConfigResponse>('/pos/channels/config', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+

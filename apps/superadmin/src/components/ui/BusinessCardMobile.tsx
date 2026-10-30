@@ -223,6 +223,24 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
             Dos pasos
           </span>
         )}
+
+        {business.deliveryChannelEnabled && (
+          <span
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 whitespace-nowrap shrink-0"
+            title="Venta a domicilio activa"
+          >
+            Domicilio
+          </span>
+        )}
+
+        {business.pedidosYaChannelEnabled && (
+          <span
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/60 whitespace-nowrap shrink-0"
+            title="Canal PedidosYa activo"
+          >
+            PedidosYa
+          </span>
+        )}
       </div>
 
       {/* Uso & Última actividad */}

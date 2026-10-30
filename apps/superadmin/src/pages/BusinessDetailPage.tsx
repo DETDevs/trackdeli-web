@@ -29,6 +29,7 @@ import {
   Desktop,
   Info,
   Tag,
+  DeviceMobile,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { StatCard } from '../components/ui/StatCard';
@@ -233,6 +234,54 @@ export const BusinessDetailPage = () => {
         onError: (err: any) => {
           const msg = err.response?.data?.message;
           toast.error(msg || 'Error al actualizar venta en dos pasos');
+        },
+      }
+    );
+  };
+
+  const handleToggleDeliveryChannel = () => {
+    if (!business) return;
+    const nextVal = !business.deliveryChannelEnabled;
+    updateMutation.mutate(
+      {
+        id: business.id,
+        data: {
+          deliveryChannelEnabled: nextVal,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            nextVal ? 'Venta a domicilio activada' : 'Venta a domicilio desactivada'
+          );
+        },
+        onError: (err: any) => {
+          const msg = err.response?.data?.message;
+          toast.error(msg || 'Error al actualizar canal de venta a domicilio');
+        },
+      }
+    );
+  };
+
+  const handleTogglePedidosYaChannel = () => {
+    if (!business) return;
+    const nextVal = !business.pedidosYaChannelEnabled;
+    updateMutation.mutate(
+      {
+        id: business.id,
+        data: {
+          pedidosYaChannelEnabled: nextVal,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            nextVal ? 'Canal PedidosYa activado' : 'Canal PedidosYa desactivado'
+          );
+        },
+        onError: (err: any) => {
+          const msg = err.response?.data?.message;
+          toast.error(msg || 'Error al actualizar canal de PedidosYa');
         },
       }
     );
@@ -782,6 +831,104 @@ export const BusinessDetailPage = () => {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Sección: Venta a domicilio */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 shrink-0 mt-0.5">
+                <Motorcycle size={22} weight="duotone" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-sm font-bold text-gray-900 leading-tight">
+                    Venta a domicilio
+                  </h3>
+                  {business.deliveryChannelEnabled ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Activo
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      Inactivo
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
+                  Habilita pedidos a domicilio, cobro de tarifa de envío y asignación de repartidores.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleDeliveryChannel}
+                disabled={updateMutation.isPending}
+                className={`h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
+                  business.deliveryChannelEnabled
+                    ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
+                    : 'text-white bg-indigo-600 hover:bg-indigo-700'
+                }`}
+              >
+                {business.deliveryChannelEnabled
+                  ? 'Desactivar venta a domicilio'
+                  : 'Activar venta a domicilio'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Sección: PedidosYa */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-700 shrink-0 mt-0.5">
+                <DeviceMobile size={22} weight="duotone" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-sm font-bold text-gray-900 leading-tight">
+                    PedidosYa
+                  </h3>
+                  {business.pedidosYaChannelEnabled ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Activo
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      Inactivo
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
+                  Habilita la integración de canal de venta para órdenes recibidas desde la app de PedidosYa.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+              <button
+                type="button"
+                onClick={handleTogglePedidosYaChannel}
+                disabled={updateMutation.isPending}
+                className={`h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
+                  business.pedidosYaChannelEnabled
+                    ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
+                    : 'text-white bg-rose-600 hover:bg-rose-700'
+                }`}
+              >
+                {business.pedidosYaChannelEnabled
+                  ? 'Desactivar canal PedidosYa'
+                  : 'Activar canal PedidosYa'}
+              </button>
+            </div>
+          </div>
         </div>
 
         {business.businessType === 'EMPRESA_RIDERS' ? (

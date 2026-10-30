@@ -71,6 +71,8 @@ export interface Business {
   twoStepSaleEnabled?: boolean;
   twoStepTicketTtlHours?: number;
   twoStepMinVersion?: string | null;
+  deliveryChannelEnabled?: boolean;
+  pedidosYaChannelEnabled?: boolean;
   taxEnabled?: boolean;
   taxIncluded?: boolean;
   taxRate?: number;
@@ -105,6 +107,12 @@ export interface UpdateBusinessInput {
   whatsappDisplay?: string;
   wholesaleEnabled?: boolean;
   wholesale_enabled?: boolean;
+  tracksBatches?: boolean;
+  useListPrice?: boolean;
+  twoStepSaleEnabled?: boolean;
+  twoStepTicketTtlHours?: number;
+  deliveryChannelEnabled?: boolean;
+  pedidosYaChannelEnabled?: boolean;
 }
 
 export const getMyBusiness = async () => {

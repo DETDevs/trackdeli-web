@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   TrendUp,
   TrendDown,
@@ -13,6 +13,7 @@ import {
   Bank,
   Coins,
   CheckCircle,
+  DownloadSimple,
 } from '@phosphor-icons/react';
 import {
   ReportsSummary,
@@ -20,10 +21,13 @@ import {
   SalesByCategoryReport,
   SalesByCashierReport,
   PeriodType,
+  ReportQueryParams,
 } from '../../types/reports';
 import { formatCurrency } from '../../utils/formatters';
 import { formatManaguaDate } from '../../utils/dateManagua';
 import { TooltipInfo } from '../finances/TooltipInfo';
+import { downloadReportCsv } from '../../hooks/useBackofficeReports';
+import { toast } from 'react-hot-toast';
 
 interface SalesOperationsTabProps {
   reportsData?: ReportsSummary | null;
@@ -31,6 +35,7 @@ interface SalesOperationsTabProps {
   categoryData?: SalesByCategoryReport | null;
   cashierData?: SalesByCashierReport | null;
   period: PeriodType;
+  queryParams?: ReportQueryParams;
   isLoading: boolean;
 }
 
@@ -40,8 +45,28 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
   categoryData,
   cashierData,
   period,
+  queryParams,
   isLoading,
 }) => {
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleDownloadCsv = async () => {
+    if (!queryParams) return;
+    try {
+      setIsExporting(true);
+      await downloadReportCsv(
+        '/pos/reports/sales-summary',
+        queryParams,
+        `reporte_ventas_${period}.csv`
+      );
+      toast.success('Reporte descargado correctamente');
+    } catch {
+      toast.error('Error al descargar el archivo CSV');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const comparisonLabel =
     period === 'today'
       ? 'ayer'
@@ -132,6 +157,20 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
 
   return (
     <div className="space-y-5">
+      {queryParams && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            disabled={isExporting}
+            onClick={handleDownloadCsv}
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+          >
+            <DownloadSimple size={15} weight="bold" />
+            <span>{isExporting ? 'Descargando...' : 'Descargar CSV'}</span>
+          </button>
+        </div>
+      )}
+
       {/* KPI Cards Principales: Cobrado vs Neto + Tickets + Ticket Promedio */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Ventas Cobradas (con impuesto) */}

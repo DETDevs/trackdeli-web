@@ -6,6 +6,7 @@ import {
   updateMyBusiness,
   getPosWholesaleSettings,
   updatePosWholesaleSettings,
+  getChannelConfig,
   type PricingModel,
   type UpdateWholesaleSettingsDto,
 } from 'api-client';
@@ -31,6 +32,7 @@ import {
 import { calculateFeeClient, getPricingBreakdownClient } from '../lib/pricing';
 import { useMyProducts } from '../hooks/useMyProducts';
 import { useAuthStore } from '../store/auth.store';
+import { SalesChannelsSection } from '../components/settings/SalesChannelsSection';
 
 const mapboxToken = (import.meta as any).env.VITE_MAPBOX_TOKEN;
 
@@ -185,6 +187,20 @@ export const SettingsPage = () => {
     enabled: isPosActive,
     retry: false,
   });
+
+  const canManageChannels =
+    user?.role === 'ADMIN' || user?.role === 'ENCARGADO' || user?.role === 'SUPERADMIN';
+
+  const { data: channelConfig } = useQuery({
+    queryKey: ['pos', 'channels-config'],
+    queryFn: () => getChannelConfig(),
+    enabled: isPosActive && canManageChannels,
+    retry: false,
+  });
+
+  const hasAnyActiveChannel = Boolean(
+    channelConfig?.delivery?.enabled || channelConfig?.pedidosYa?.enabled
+  );
 
   const wholesaleMutation = useMutation({
     mutationFn: (dto: UpdateWholesaleSettingsDto) => updatePosWholesaleSettings(dto),
@@ -544,6 +560,10 @@ export const SettingsPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {canManageChannels && hasAnyActiveChannel && channelConfig && (
+        <SalesChannelsSection channelConfig={channelConfig} />
       )}
 
       {isDeliveryActive && (

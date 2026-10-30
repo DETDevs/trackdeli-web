@@ -7,6 +7,7 @@ import {
   WarningCircle,
   ArrowsClockwise,
   Users,
+  Motorcycle,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { PeriodType } from '../types/reports';
@@ -16,6 +17,7 @@ import { ProfitReportTab } from '../components/reports/ProfitReportTab';
 import { ControlReportTab } from '../components/reports/ControlReportTab';
 import { WorkshopReportTab } from '../components/reports/WorkshopReportTab';
 import { SellerReportTab } from '../components/reports/SellerReportTab';
+import { ChannelsReportTab } from '../components/reports/ChannelsReportTab';
 import {
   useReportsOverview,
   useSalesByTime,
@@ -27,9 +29,9 @@ import {
   useSalesBySeller,
 } from '../hooks/useBackofficeReports';
 import { useQuery } from '@tanstack/react-query';
-import { getMyBusiness } from 'api-client';
+import { getMyBusiness, getChannelConfig } from 'api-client';
 
-export type ReportTabKey = 'sales' | 'profit' | 'control' | 'workshop' | 'sellers';
+export type ReportTabKey = 'sales' | 'channels' | 'profit' | 'control' | 'workshop' | 'sellers';
 
 export const ReportsPage: React.FC = () => {
   const user = useAuthStore((state) => state.user);
@@ -44,10 +46,23 @@ export const ReportsPage: React.FC = () => {
     staleTime: 60000,
   });
 
+  // Configuración de canales de venta (221c)
+  const { data: channelConfig } = useQuery({
+    queryKey: ['pos', 'channels-config'],
+    queryFn: () => getChannelConfig(),
+    enabled: isAllowedRole,
+    staleTime: 60000,
+  });
+
+  const hasActiveChannels = Boolean(
+    channelConfig?.delivery?.enabled || channelConfig?.pedidosYa?.enabled
+  );
+
   // Estado del período (se preserva al alternar entre pestañas)
   const [period, setPeriod] = useState<PeriodType>('today');
   const [customFrom, setCustomFrom] = useState<string | undefined>();
   const [customTo, setCustomTo] = useState<string | undefined>();
+  const [selectedChannel, setSelectedChannel] = useState<string>('');
   const [activeTab, setActiveTab] = useState<ReportTabKey>('sales');
 
   const queryParams = useMemo(
@@ -55,8 +70,9 @@ export const ReportsPage: React.FC = () => {
       period,
       from: customFrom,
       to: customTo,
+      channel: selectedChannel || undefined,
     }),
-    [period, customFrom, customTo]
+    [period, customFrom, customTo, selectedChannel]
   );
 
   // Hooks para cada pestaña
@@ -142,7 +158,10 @@ export const ReportsPage: React.FC = () => {
     if (!hasTwoStepSale && activeTab === 'sellers') {
       setActiveTab('sales');
     }
-  }, [isWorkshop, hasTwoStepSale, activeTab]);
+    if (!hasActiveChannels && activeTab === 'channels') {
+      setActiveTab('sales');
+    }
+  }, [isWorkshop, hasTwoStepSale, hasActiveChannels, activeTab]);
 
   const handlePeriodChange = (p: PeriodType, f?: string, t?: string) => {
     setPeriod(p);
@@ -209,6 +228,8 @@ export const ReportsPage: React.FC = () => {
           <p className="text-xs text-gray-500 mt-0.5">
             {activeTab === 'sales'
               ? 'Rendimiento de ventas, cobros, horas pico, categorías y cajeros'
+              : activeTab === 'channels'
+              ? 'Resumen por canal, pedidos a domicilio, ventas por PedidosYa y conciliación de liquidaciones'
               : activeTab === 'profit'
               ? 'Margen operativo, costo de lo vendido y rentabilidad de ventas'
               : activeTab === 'control'
@@ -219,18 +240,75 @@ export const ReportsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Selector de Período Global */}
-        <PeriodSelector
-          period={period}
-          from={customFrom}
-          to={customTo}
-          onChange={handlePeriodChange}
-          onRefresh={handleRefresh}
-          isRefreshing={isRefreshing}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Filtro de Canal (solo visible si el negocio tiene canales activos y está en Ventas o Vendedores) */}
+          {hasActiveChannels && (activeTab === 'sales' || activeTab === 'sellers') && (
+            <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200">
+              <span className="text-[11px] font-semibold text-gray-500 pl-2 pr-1">Canal:</span>
+              <button
+                type="button"
+                onClick={() => setSelectedChannel('')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  selectedChannel === ''
+                    ? 'bg-white text-gray-900 shadow-2xs'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedChannel('MOSTRADOR')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  selectedChannel === 'MOSTRADOR'
+                    ? 'bg-white text-gray-900 shadow-2xs'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Mostrador
+              </button>
+              {channelConfig?.delivery?.enabled && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedChannel('DOMICILIO')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    selectedChannel === 'DOMICILIO'
+                      ? 'bg-white text-blue-600 shadow-2xs'
+                      : 'text-gray-500 hover:text-blue-600'
+                  }`}
+                >
+                  Domicilio
+                </button>
+              )}
+              {channelConfig?.pedidosYa?.enabled && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedChannel('PEDIDOSYA')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    selectedChannel === 'PEDIDOSYA'
+                      ? 'bg-white text-red-600 shadow-2xs'
+                      : 'text-gray-500 hover:text-red-600'
+                  }`}
+                >
+                  PedidosYa
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Selector de Período Global */}
+          <PeriodSelector
+            period={period}
+            from={customFrom}
+            to={customTo}
+            onChange={handlePeriodChange}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshing}
+          />
+        </div>
       </div>
 
-      {/* Pestañas de Navegación (4 pestañas) */}
+      {/* Pestañas de Navegación */}
       <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs px-2 pt-1.5 overflow-x-auto">
         <div className="flex items-center gap-1 min-w-max border-b border-gray-100 pb-1">
           {/* Pestaña 1: Ventas y Operaciones */}
@@ -246,6 +324,22 @@ export const ReportsPage: React.FC = () => {
             <ChartBar size={16} weight={activeTab === 'sales' ? 'bold' : 'regular'} />
             <span>Ventas y Operaciones</span>
           </button>
+
+          {/* Pestaña: Canales (solo si hasActiveChannels) */}
+          {hasActiveChannels && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('channels')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'channels'
+                  ? 'bg-gray-900 text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <Motorcycle size={16} weight={activeTab === 'channels' ? 'bold' : 'regular'} />
+              <span>Canales</span>
+            </button>
+          )}
 
           {/* Pestaña 2: Ganancias */}
           <button
@@ -340,7 +434,17 @@ export const ReportsPage: React.FC = () => {
               categoryData={categoryData}
               cashierData={cashierData}
               period={period}
+              queryParams={queryParams}
               isLoading={isLoadingOverview || isLoadingTime || isLoadingCategory || isLoadingCashier}
+            />
+          )}
+
+          {/* Pestaña: Canales (221c) */}
+          {activeTab === 'channels' && hasActiveChannels && channelConfig && (
+            <ChannelsReportTab
+              queryParams={queryParams}
+              period={period}
+              channelConfig={channelConfig}
             />
           )}
 

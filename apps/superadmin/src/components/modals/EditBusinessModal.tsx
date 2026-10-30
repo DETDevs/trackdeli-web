@@ -26,6 +26,9 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
     useListPrice: false,
     twoStepSaleEnabled: false,
     twoStepTicketTtlHours: 4,
+    deliveryChannelEnabled: false,
+    pedidosYaChannelEnabled: false,
+    tracksBatches: false,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -48,6 +51,9 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
         useListPrice: Boolean(business.useListPrice),
         twoStepSaleEnabled: Boolean(business.twoStepSaleEnabled),
         twoStepTicketTtlHours: business.twoStepTicketTtlHours ?? 4,
+        deliveryChannelEnabled: Boolean(business.deliveryChannelEnabled),
+        pedidosYaChannelEnabled: Boolean(business.pedidosYaChannelEnabled),
+        tracksBatches: Boolean(business.tracksBatches),
       });
       setErrors({});
       setApiError(null);
@@ -121,6 +127,9 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
         useListPrice: formData.useListPrice,
         twoStepSaleEnabled: formData.twoStepSaleEnabled,
         twoStepTicketTtlHours: Number(formData.twoStepTicketTtlHours) || 4,
+        tracksBatches: formData.tracksBatches,
+        deliveryChannelEnabled: formData.deliveryChannelEnabled,
+        pedidosYaChannelEnabled: formData.pedidosYaChannelEnabled,
       };
 
       await updateMutation.mutateAsync({
@@ -321,6 +330,34 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
           )}
         </div>
 
+        {/* Control de lotes */}
+        <div className="p-3 rounded-xl bg-purple-50/50 border border-purple-200/70 flex items-center justify-between gap-3">
+          <div>
+            <label
+              className="block text-xs font-bold text-gray-900 cursor-pointer"
+              onClick={() => setFormData({ ...formData, tracksBatches: !formData.tracksBatches })}
+            >
+              Control de lotes
+            </label>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Controla lotes y fechas de vencimiento en compras, inventario y ventas
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, tracksBatches: !formData.tracksBatches })}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              formData.tracksBatches ? 'bg-purple-600' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                formData.tracksBatches ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
         {/* Usar precio de etiqueta */}
         <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-200/70 flex items-center justify-between gap-3">
           <div>
@@ -427,6 +464,82 @@ export const EditBusinessModal: React.FC<EditBusinessModalProps> = ({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Venta a domicilio */}
+        <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-200/70 flex items-center justify-between gap-3">
+          <div>
+            <label
+              className="block text-xs font-bold text-gray-900 cursor-pointer"
+              onClick={() =>
+                setFormData({
+                  ...formData,
+                  deliveryChannelEnabled: !formData.deliveryChannelEnabled,
+                })
+              }
+            >
+              Venta a domicilio
+            </label>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Habilita pedidos a domicilio, cobro de tarifa de envío y asignación de repartidores
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setFormData({
+                ...formData,
+                deliveryChannelEnabled: !formData.deliveryChannelEnabled,
+              })
+            }
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              formData.deliveryChannelEnabled ? 'bg-indigo-600' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                formData.deliveryChannelEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* PedidosYa */}
+        <div className="p-3 rounded-xl bg-rose-50/50 border border-rose-200/70 flex items-center justify-between gap-3">
+          <div>
+            <label
+              className="block text-xs font-bold text-gray-900 cursor-pointer"
+              onClick={() =>
+                setFormData({
+                  ...formData,
+                  pedidosYaChannelEnabled: !formData.pedidosYaChannelEnabled,
+                })
+              }
+            >
+              PedidosYa
+            </label>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Habilita la integración de canal de venta para órdenes recibidas desde la app de PedidosYa
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setFormData({
+                ...formData,
+                pedidosYaChannelEnabled: !formData.pedidosYaChannelEnabled,
+              })
+            }
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              formData.pedidosYaChannelEnabled ? 'bg-rose-600' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                formData.pedidosYaChannelEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
 
         {/* Botones de acción */}

@@ -5,6 +5,17 @@
 
 export type PeriodType = 'today' | 'week' | 'month' | 'custom';
 
+export interface ReportQueryParams {
+  period: PeriodType;
+  from?: string;
+  to?: string;
+  businessId?: string;
+  channel?: string;
+  driverId?: string;
+  status?: string;
+  paymentMode?: string;
+}
+
 export interface ReportComparisonMetric {
   current: number;
   previous: number;
@@ -293,3 +304,211 @@ export interface SalesBySellerReport {
   };
   sellers: SellerReportRow[];
 }
+
+// -------------------------------------------------------------
+// Reportes de Canales de Venta (221c)
+// -------------------------------------------------------------
+
+export type SaleChannelCode = 'MOSTRADOR' | 'DOMICILIO' | 'PEDIDOSYA';
+
+export interface SalesByChannelItem {
+  channel: SaleChannelCode;
+  count: number;
+  gross: number;
+  tax: number;
+  net: number;
+  units: number;
+  avgTicket: number;
+  pctOfTotal: number;
+}
+
+export interface SalesByChannelDayItem {
+  date: string;
+  channel: SaleChannelCode | string;
+  count: number;
+  gross: number;
+}
+
+export interface SalesByChannelHourItem {
+  hour: number;
+  channel: SaleChannelCode | string;
+  count: number;
+  gross: number;
+}
+
+export interface SalesByChannelReport {
+  period: {
+    from: string;
+    to: string;
+  };
+  totalGross: number;
+  summary: SalesByChannelItem[];
+  byDay: SalesByChannelDayItem[];
+  byHour: SalesByChannelHourItem[];
+}
+
+export interface DomicilioDriverSummary {
+  driverId: string;
+  driverName: string;
+  ordersCount: number;
+  totalSales: number;
+  totalFees: number;
+  averageTicket: number;
+}
+
+export interface DomicilioAddressSummary {
+  address: string;
+  ordersCount: number;
+  totalSales: number;
+}
+
+export interface DomicilioOrderItem {
+  id: string;
+  invoiceNumber: string;
+  createdAt: string;
+  total: number;
+  deliveryFee: number;
+  deliveryAddress?: string | null;
+  driverName?: string | null;
+  driverId?: string | null;
+  customerName?: string | null;
+}
+
+export interface DomicilioReport {
+  period: {
+    from: string;
+    to: string;
+  };
+  totalOrders: number;
+  totalSales: number;
+  totalDeliveryFees: number;
+  byDriver: DomicilioDriverSummary[];
+  byAddress: DomicilioAddressSummary[];
+  orders: DomicilioOrderItem[];
+}
+
+export interface PedidosYaPaymentModeStats {
+  count: number;
+  total: number;
+  commission: number;
+  tax: number;
+  netPayout: number;
+}
+
+export interface PedidosYaSettlementStatusStats {
+  count: number;
+  total: number;
+  netPayout: number;
+}
+
+export interface PedidosYaTopProduct {
+  productId: string;
+  productName: string;
+  units: number;
+  total: number;
+}
+
+export interface PedidosYaOrderItem {
+  id: string;
+  invoiceNumber: string;
+  createdAt: string;
+  orderNumber?: string | null;
+  paymentMode: 'APP' | 'EFECTIVO';
+  settlementStatus: 'PENDIENTE' | 'LIQUIDADO';
+  grossTotal: number;
+  commissionAmount: number;
+  taxAmount: number;
+  netPayout: number;
+}
+
+export interface PedidosYaReport {
+  period: {
+    from: string;
+    to: string;
+  };
+  summary: {
+    totalOrders: number;
+    grossTotal: number;
+    totalCommission: number;
+    totalTax: number;
+    netPayout: number;
+  };
+  byPaymentMode: {
+    APP: PedidosYaPaymentModeStats;
+    EFECTIVO: PedidosYaPaymentModeStats;
+  };
+  bySettlementStatus: {
+    PENDIENTE: PedidosYaSettlementStatusStats;
+    LIQUIDADO: PedidosYaSettlementStatusStats;
+  };
+  topProducts: PedidosYaTopProduct[];
+  orders: PedidosYaOrderItem[];
+}
+
+export interface PedidosYaSettlementPendingOrder {
+  id: string;
+  invoiceNumber: string;
+  createdAt: string;
+  orderNumber?: string | null;
+  paymentMode: 'APP' | 'EFECTIVO';
+  grossTotal: number;
+  commissionAmount: number;
+  taxAmount: number;
+  netPayout: number;
+}
+
+export interface PedidosYaSettlementPendingSummary {
+  ordersCount: number;
+  grossTotal: number;
+  commissionTotal: number;
+  taxTotal: number;
+  netPayout: number;
+  appSales: {
+    ordersCount: number;
+    gross: number;
+    commission: number;
+    tax: number;
+    net: number;
+  };
+  cashSales: {
+    ordersCount: number;
+    gross: number;
+    commission: number;
+    tax: number;
+    net: number;
+  };
+  orders: PedidosYaSettlementPendingOrder[];
+}
+
+export interface PedidosYaSettlementRecord {
+  id: string;
+  depositDate: string;
+  depositAmount: number;
+  expectedAmount: number;
+  difference: number;
+  bankId?: string | null;
+  bank?: { id: string; name: string } | null;
+  reference?: string | null;
+  notes?: string | null;
+  ordersCount?: number;
+  sales?: Array<{ id: string; invoiceNumber: string; total: number }>;
+  createdAt: string;
+  createdById?: string;
+  createdBy?: { id: string; name: string } | null;
+}
+
+export interface ChannelDriver {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
+export interface PosBank {
+  id: string;
+  name: string;
+  code?: string;
+  accountNumber?: string;
+  isActive?: boolean;
+}
+

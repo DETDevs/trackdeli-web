@@ -107,6 +107,8 @@ export interface BusinessItem {
   twoStepSaleEnabled?: boolean;
   twoStepTicketTtlHours?: number;
   twoStepMinVersion?: string | null;
+  deliveryChannelEnabled?: boolean;
+  pedidosYaChannelEnabled?: boolean;
 }
 
 export interface BusinessDetail extends BusinessItem {
@@ -195,6 +197,8 @@ export interface CreateBusinessInput {
   useListPrice?: boolean;
   twoStepSaleEnabled?: boolean;
   twoStepTicketTtlHours?: number;
+  deliveryChannelEnabled?: boolean;
+  pedidosYaChannelEnabled?: boolean;
   encargado?: {
     name: string;
     email: string;
@@ -364,6 +368,8 @@ export interface UpdateBusinessInput {
   useListPrice?: boolean;
   twoStepSaleEnabled?: boolean;
   twoStepTicketTtlHours?: number;
+  deliveryChannelEnabled?: boolean;
+  pedidosYaChannelEnabled?: boolean;
   confirm?: boolean;
 }
 
