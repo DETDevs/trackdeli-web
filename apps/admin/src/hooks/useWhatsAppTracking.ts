@@ -22,7 +22,7 @@ export interface TrackableOrder {
 export function getTrackingUrl(token: string): string {
   const base =
     (import.meta as any).env?.VITE_TRACKING_URL ||
-    window.location.origin;
+    'https://trackdeli-web-tracking.vercel.app';
 
   const cleanBase = base.replace(/\/+$/, '');
   return `${cleanBase}/track/${token}`;

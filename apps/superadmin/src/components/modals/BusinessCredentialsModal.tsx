@@ -48,9 +48,13 @@ export const BusinessCredentialsModal: React.FC<BusinessCredentialsModalProps> =
   };
 
   const getWhatsAppMessage = () => {
+    const adminPanelUrl =
+      (import.meta as any).env?.VITE_ADMIN_URL ||
+      'https://trackdeli-web-admin.vercel.app';
+
     return `Hola! Tus credenciales de TrackDeli para "${businessName}":
 
-🌐 Panel: https://admin.trackdeli.app
+🌐 Panel: ${adminPanelUrl}
 📧 Email: ${email}
 🔑 Contraseña: ${password || '••••••••'}
 

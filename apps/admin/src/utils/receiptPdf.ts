@@ -664,7 +664,7 @@ export async function generateReceiptPdfBlob(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text('NEXOL POS — www.detdevs.com', 40, y, { align: 'center' });
+  doc.text('NEXOL POS — www.nexolsoft.com', 40, y, { align: 'center' });
 
   // Convertir a blob
   const pdfBlob = doc.output('blob');

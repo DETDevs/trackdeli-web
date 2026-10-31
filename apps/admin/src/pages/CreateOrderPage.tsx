@@ -275,7 +275,8 @@ export const CreateOrderPage = () => {
       }
 
       const trackingBaseUrl =
-        (import.meta as any).env.VITE_TRACKING_URL || window.location.origin;
+        (import.meta as any).env.VITE_TRACKING_URL ||
+        'https://trackdeli-web-tracking.vercel.app';
       const cleanBase = trackingBaseUrl.replace(/\/+$/, '');
       const confirmationUrl =
         res.confirmationUrl || `${cleanBase}/c/${res.shortCode || res.token}`;
@@ -316,7 +317,8 @@ export const CreateOrderPage = () => {
     } catch (err: any) {
       console.warn('Error al enviar automáticamente confirmación de ubicación:', err);
       const trackingBaseUrl =
-        (import.meta as any).env.VITE_TRACKING_URL || window.location.origin;
+        (import.meta as any).env.VITE_TRACKING_URL ||
+        'https://trackdeli-web-tracking.vercel.app';
       const cleanBase = trackingBaseUrl.replace(/\/+$/, '');
       const clientName = form.customerName.trim();
       const greeting = clientName ? `¡Hola ${clientName}!` : '¡Hola!';
