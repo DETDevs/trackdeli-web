@@ -27,6 +27,7 @@ export interface OrganizationAccess {
     name: string;
     email: string;
     role: string;
+    businessId?: string;
   };
   business?: {
     id: string;

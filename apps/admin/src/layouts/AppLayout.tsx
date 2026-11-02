@@ -35,6 +35,20 @@ import { usePosWebAccess } from '../hooks/usePosWebAccess';
 import { DeliveryAccessBlocked } from '../components/DeliveryAccessBlocked';
 import { WebAccessDisabledView } from '../components/pos/WebAccessDisabledView';
 
+const decodeTokenBusinessId = (token: string | null): string | null => {
+  if (!token) return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = atob(base64);
+    const payload = JSON.parse(json);
+    return payload?.businessId || null;
+  } catch {
+    return null;
+  }
+};
+
 export const AppLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -68,14 +82,34 @@ export const AppLayout = () => {
     };
   }, []);
 
-  // 240b ajuste: Sincronización entre pestañas ante cambio de sucursal en otra pestaña
+  // 240b ajuste: Sincronización entre pestañas ante cambio de sucursal o logout en otra pestaña
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'auth-storage' && e.newValue && e.oldValue) {
+      // 1. Cierre de sesión en otra pestaña -> redirigir al login
+      if (
+        (e.key === 'trackdeli_access_token' && !e.newValue) ||
+        (e.key === 'auth-storage' && !e.newValue)
+      ) {
+        logout();
+        navigate('/login');
+        return;
+      }
+
+      if (e.key === 'auth-storage' && e.newValue) {
         try {
-          const oldData = JSON.parse(e.oldValue);
           const newData = JSON.parse(e.newValue);
-          const oldBizId = oldData?.state?.user?.businessId;
+          const oldData = e.oldValue ? JSON.parse(e.oldValue) : null;
+
+          if (
+            (oldData?.state?.isAuthenticated && !newData?.state?.isAuthenticated) ||
+            (newData?.state && !newData.state.user)
+          ) {
+            logout();
+            navigate('/login');
+            return;
+          }
+
+          const oldBizId = oldData?.state?.user?.businessId || user?.businessId;
           const newBizId = newData?.state?.user?.businessId;
           if (oldBizId && newBizId && oldBizId !== newBizId) {
             window.location.reload();
@@ -84,8 +118,13 @@ export const AppLayout = () => {
         } catch {}
       }
 
-      if (e.key === 'trackdeli_access_token' && e.newValue && e.oldValue && e.newValue !== e.oldValue) {
-        window.location.reload();
+      if (e.key === 'trackdeli_access_token' && e.newValue && e.oldValue) {
+        const oldBizId = decodeTokenBusinessId(e.oldValue) || user?.businessId;
+        const newBizId = decodeTokenBusinessId(e.newValue);
+        if (oldBizId && newBizId && oldBizId !== newBizId) {
+          window.location.reload();
+          return;
+        }
       }
     };
 
@@ -93,7 +132,7 @@ export const AppLayout = () => {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [logout, navigate, user?.businessId]);
 
   const isMembershipInactive =
     business?.businessType !== 'EMPRESA_RIDERS' && (

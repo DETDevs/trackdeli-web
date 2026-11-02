@@ -29,12 +29,45 @@ export const useOrganization = (id?: string | null) => {
   });
 };
 
+export const useBusinessOrganization = (businessId?: string | null, directOrgId?: string | null) => {
+  const { data: organizations = [], isLoading: isLoadingOrgs } = useOrganizations();
+
+  return useQuery<Organization | null>({
+    queryKey: ['superadmin', 'business-organization', businessId, directOrgId],
+    queryFn: async () => {
+      if (!businessId) return null;
+
+      // 1. Si viene un organizationId directo, buscarlo directamente
+      if (directOrgId) {
+        return getOrganization(directOrgId);
+      }
+
+      // 2. Si no viene directo (debido a que GET /superadmin/businesses/:id no lo incluye en el payload del API),
+      // buscar cuál de las empresas registradas contiene este negocio entre sus sucursales
+      const candidateOrgs = organizations.filter((o) => (o.businessCount ?? 0) > 0);
+      for (const candidate of candidateOrgs) {
+        try {
+          const detail = await getOrganization(candidate.id);
+          if ((detail.businesses || []).some((b) => b.id === businessId)) {
+            return detail;
+          }
+        } catch {}
+      }
+
+      return null;
+    },
+    enabled: Boolean(businessId) && !isLoadingOrgs,
+    staleTime: 30000,
+  });
+};
+
 export const useCreateOrganization = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (name: string) => createOrganization(name),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ORGANIZATIONS_KEY });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'business-organization'] });
       toast.success('Empresa creada correctamente');
     },
     onError: (err: any) => {
@@ -50,9 +83,10 @@ export const useSetBusinessOrganization = () => {
       setBusinessOrganization(businessId, organizationId),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ORGANIZATIONS_KEY });
-      queryClient.invalidateQueries({ queryKey: ['businesses', vars.businessId] });
-      queryClient.invalidateQueries({ queryKey: ['businesses'] });
-      toast.success(vars.organizationId ? 'Negocio asignado a la empresa' : 'Negocio desvinculado de la empresa');
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business', vars.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'business-organization'] });
+      toast.success(vars.organizationId ? 'Negocio asignado a la empresa' : 'Negocio quitado de la empresa');
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.message || 'Error al actualizar la empresa del negocio');
@@ -73,7 +107,9 @@ export const useGrantOrganizationAccess = () => {
       businessId: string;
     }) => grantOrganizationAccess(organizationId, { userId, businessId }),
     onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ORGANIZATIONS_KEY });
       queryClient.invalidateQueries({ queryKey: [...ORGANIZATIONS_KEY, vars.organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'business-organization'] });
       toast.success('Acceso multi-sucursal otorgado exitosamente');
     },
     onError: (err: any) => {
@@ -88,7 +124,9 @@ export const useRevokeOrganizationAccess = () => {
     mutationFn: ({ organizationId, accessId }: { organizationId: string; accessId: string }) =>
       revokeOrganizationAccess(organizationId, accessId),
     onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ORGANIZATIONS_KEY });
       queryClient.invalidateQueries({ queryKey: [...ORGANIZATIONS_KEY, vars.organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'business-organization'] });
       toast.success('Acceso revocado correctamente');
     },
     onError: (err: any) => {
@@ -96,4 +134,3 @@ export const useRevokeOrganizationAccess = () => {
     },
   });
 };
-

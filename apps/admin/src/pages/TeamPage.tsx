@@ -301,7 +301,7 @@ export const TeamPage = () => {
                             <p className="font-medium text-gray-900 truncate">{user.name}</p>
                             {user.isVisiting && (
                               <span
-                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 shrink-0"
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 shrink-0"
                                 title={`Usuario visitante autorizado desde ${user.primaryBusinessName || 'otra sucursal'}`}
                               >
                                 Acceso desde {user.primaryBusinessName || 'otra sucursal'}
@@ -373,7 +373,7 @@ export const TeamPage = () => {
 
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       {user.isVisiting ? (
-                        <span className="text-[11px] text-gray-400 italic px-2">Solo lectura</span>
+                        <span className="text-xs text-gray-400 italic px-2">Solo lectura</span>
                       ) : (
                         <div className="inline-flex items-center gap-1">
                           <button
