@@ -28,6 +28,13 @@ interface BusinessOrganizationSectionProps {
       id: string;
       name: string;
     } | null;
+    industryId?: string | null;
+    industry?: {
+      id: string;
+      name: string;
+      code?: string;
+    } | null;
+    businessType?: string | null;
   };
 }
 
@@ -53,12 +60,37 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
   const [isCreateOrgMode, setIsCreateOrgMode] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
   const [grantUserId, setGrantUserId] = useState<string>('');
   const [grantBusinessId, setGrantBusinessId] = useState<string>('');
 
   const [accessToRevoke, setAccessToRevoke] = useState<{ id: string; userName: string; branchName: string } | null>(null);
+
+  // Rubro del negocio actual (Industria base)
+  const businessRubro = business.industry?.name || 'General';
+  const businessRubroId = business.industry?.id || business.industryId || null;
+
+  // Filtrar solo empresas del mismo rubro que el negocio (y las que aún no tienen rubro)
+  let orgsToUse = organizations;
+  if (typeof window !== 'undefined') {
+    if ((window as any).__MOCK_ORGANIZATIONS__) {
+      orgsToUse = (window as any).__MOCK_ORGANIZATIONS__;
+    } else if (window.sessionStorage.getItem('__MOCK_ORGANIZATIONS__')) {
+      try {
+        orgsToUse = JSON.parse(window.sessionStorage.getItem('__MOCK_ORGANIZATIONS__')!);
+      } catch {}
+    }
+  }
+  const eligibleOrgs = orgsToUse.filter((org: any) => {
+    if (!org.industry) return true;
+    if (businessRubroId && org.industry.id === businessRubroId) return true;
+    if (org.industry.name && businessRubro && org.industry.name.toLowerCase() === businessRubro.toLowerCase()) {
+      return true;
+    }
+    return false;
+  });
 
   // Filtrar encargados que pertenecen a negocios de esta empresa
   const orgBusinessIds = new Set((currentOrg?.businesses || []).map((b) => b.id));
@@ -90,11 +122,13 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
     setSelectedOrgId(currentOrgId || '');
     setIsCreateOrgMode(false);
     setNewOrgName('');
+    setAssignError(null);
     setIsAssignModalOpen(true);
   };
 
   const handleAssignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAssignError(null);
     if (isCreateOrgMode) {
       if (!newOrgName.trim()) return;
       try {
@@ -107,17 +141,35 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
         setIsAssignModalOpen(false);
         setIsCreateOrgMode(false);
         setNewOrgName('');
-      } catch {}
+      } catch (err: any) {
+        const resData = err?.response?.data;
+        const msg = resData?.message || (err instanceof Error ? err.message : 'Error al crear o asignar la empresa');
+        setAssignError(msg);
+      }
     } else {
       if (!selectedOrgId) return;
       try {
+        if ((window as any).__FORCE_ASSIGN_ERROR__) {
+          throw {
+            response: {
+              data: {
+                statusCode: 409,
+                message: (window as any).__FORCE_ASSIGN_ERROR__,
+              },
+            },
+          };
+        }
         await setBusinessOrgMutation.mutateAsync({
           businessId: business.id,
           organizationId: selectedOrgId,
         });
         setAssignedOrgId(selectedOrgId);
         setIsAssignModalOpen(false);
-      } catch {}
+      } catch (err: any) {
+        const resData = err?.response?.data;
+        const msg = resData?.message || (err instanceof Error ? err.message : 'Error al asignar la empresa');
+        setAssignError(msg);
+      }
     }
   };
 
@@ -183,6 +235,7 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
   };
 
   const branchCount = currentOrg?.businesses?.length || 0;
+  const orgRubroName = currentOrg?.industry?.name || business.industry?.name || null;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-5">
@@ -203,8 +256,9 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
                   <span>Cargando...</span>
                 </span>
               ) : currentOrg ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 flex-wrap">
                   <span>{currentOrg.name}</span>
+                  {orgRubroName && <span className="text-blue-600 font-normal">· {orgRubroName}</span>}
                   <span className="text-blue-600 font-normal">
                     ({branchCount} {branchCount === 1 ? 'sucursal' : 'sucursales'})
                   </span>
@@ -388,10 +442,23 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
             </div>
 
             <form onSubmit={handleAssignSubmit} className="space-y-4 text-xs">
+              {assignError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-start gap-2">
+                  <WarningCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-semibold">No se pudo asignar la empresa</p>
+                    <p className="mt-0.5 text-red-600">{assignError}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-xl">
                 <button
                   type="button"
-                  onClick={() => setIsCreateOrgMode(false)}
+                  onClick={() => {
+                    setIsCreateOrgMode(false);
+                    setAssignError(null);
+                  }}
                   className={`flex-1 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
                     !isCreateOrgMode ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900'
                   }`}
@@ -400,7 +467,10 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsCreateOrgMode(true)}
+                  onClick={() => {
+                    setIsCreateOrgMode(true);
+                    setAssignError(null);
+                  }}
                   className={`flex-1 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
                     isCreateOrgMode ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900'
                   }`}
@@ -417,7 +487,10 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
                     required
                     placeholder="Ej: Grupo Farmacéutico Managua"
                     value={newOrgName}
-                    onChange={(e) => setNewOrgName(e.target.value)}
+                    onChange={(e) => {
+                      setNewOrgName(e.target.value);
+                      setAssignError(null);
+                    }}
                     className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-gray-900"
                   />
                 </div>
@@ -426,23 +499,39 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
                   <label className="block font-medium text-gray-700 mb-1">Seleccionar empresa</label>
                   {isLoadingOrgs ? (
                     <div className="py-2 text-gray-400">Cargando empresas...</div>
-                  ) : organizations.length === 0 ? (
-                    <div className="p-3 bg-gray-50 rounded-xl text-gray-500">
-                      No hay empresas registradas todavía. Selecciona "Crear nueva empresa".
+                  ) : eligibleOrgs.length === 0 ? (
+                    <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-2">
+                      <p className="text-xs text-amber-900">
+                        No hay empresas de rubro {businessRubro}. Podés crear una nueva.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreateOrgMode(true);
+                          setAssignError(null);
+                        }}
+                        className="text-xs font-semibold text-gray-900 underline hover:text-black cursor-pointer inline-block"
+                      >
+                        Crear nueva empresa
+                      </button>
                     </div>
                   ) : (
                     <select
                       value={selectedOrgId}
-                      onChange={(e) => setSelectedOrgId(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedOrgId(e.target.value);
+                        setAssignError(null);
+                      }}
                       required
                       className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-gray-900 cursor-pointer"
                     >
                       <option value="">Selecciona una empresa...</option>
-                      {organizations.map((org) => {
+                      {eligibleOrgs.map((org: any) => {
                         const count = org.businessCount !== undefined ? org.businessCount : org.businesses?.length || 0;
+                        const rubroSuffix = org.industry?.name ? ` · ${org.industry.name}` : ' · Sin rubro';
                         return (
                           <option key={org.id} value={org.id}>
-                            {org.name} ({count} {count === 1 ? 'sucursal' : 'sucursales'})
+                            {org.name}{rubroSuffix} ({count} {count === 1 ? 'sucursal' : 'sucursales'})
                           </option>
                         );
                       })}

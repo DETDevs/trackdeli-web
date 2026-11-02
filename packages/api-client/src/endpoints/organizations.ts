@@ -6,6 +6,10 @@ export interface Organization {
   businessCount?: number;
   createdAt?: string;
   updatedAt?: string;
+  industry?: {
+    id: string;
+    name: string;
+  } | null;
   businesses?: Array<{
     id: string;
     name: string;
