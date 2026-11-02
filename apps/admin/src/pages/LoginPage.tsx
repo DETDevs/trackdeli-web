@@ -1,21 +1,37 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
 import { Button, Input } from 'ui';
-import { CheckCircle } from '@phosphor-icons/react';
+import { CheckCircle, WarningCircle } from '@phosphor-icons/react';
 import { toast } from 'react-hot-toast';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [revokedNotice, setRevokedNotice] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const login = useAuthStore(state => state.login);
   const isLoading = useAuthStore(state => state.isLoading);
 
+  useEffect(() => {
+    const notice =
+      sessionStorage.getItem('branch_revoked_notice') ||
+      (searchParams.get('reason') === 'branch_revoked'
+        ? 'Ya no tenés acceso a esta sucursal. Iniciá sesión de nuevo.'
+        : null);
+
+    if (notice) {
+      setRevokedNotice(notice);
+      sessionStorage.removeItem('branch_revoked_notice');
+    }
+  }, [searchParams]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setRevokedNotice(null);
     
     if (!email || !password) {
       setError('Por favor, ingresa tu email y contraseña.');
@@ -69,6 +85,13 @@ export const LoginPage = () => {
             <h1 className="text-2xl font-semibold text-gray-900 mb-1">Bienvenido</h1>
             <p className="text-sm text-gray-400">Ingresa a tu cuenta para continuar</p>
           </div>
+
+          {revokedNotice && (
+            <div className="mb-6 p-3.5 bg-amber-50 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+              <WarningCircle size={18} className="text-amber-600 shrink-0 mt-0.5" weight="fill" />
+              <span>{revokedNotice}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input 

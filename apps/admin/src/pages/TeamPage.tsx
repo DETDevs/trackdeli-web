@@ -16,6 +16,7 @@ import {
   Circle,
   CircleNotch,
   Tag,
+  Storefront,
 } from '@phosphor-icons/react';
 import { useAdminUsers, useUserQuota } from '../hooks/useAdminUsers';
 import { type AdminUser } from 'api-client';
@@ -75,10 +76,13 @@ export const TeamPage = () => {
   }
 
   const teamUsers = useMemo(() => {
-    if (twoStepSaleEnabled) {
-      return users.filter((u) => u.role === 'CAJERO' || u.role === 'VENDEDOR');
-    }
-    return users.filter((u) => u.role === 'CAJERO');
+    return users.filter((u) => {
+      if (u.isVisiting) return true;
+      if (twoStepSaleEnabled) {
+        return u.role === 'CAJERO' || u.role === 'VENDEDOR';
+      }
+      return u.role === 'CAJERO';
+    });
   }, [users, twoStepSaleEnabled]);
 
   const filteredTeamUsers = useMemo(() => {
@@ -293,7 +297,17 @@ export const TeamPage = () => {
                           {initials(user.name)}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{user.name}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-gray-900 truncate">{user.name}</p>
+                            {user.isVisiting && (
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 shrink-0"
+                                title={`Usuario visitante autorizado desde ${user.primaryBusinessName || 'otra sucursal'}`}
+                              >
+                                Acceso desde {user.primaryBusinessName || 'otra sucursal'}
+                              </span>
+                            )}
+                          </div>
                           {user.phone ? (
                             <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
                               <Phone size={11} />
@@ -314,7 +328,12 @@ export const TeamPage = () => {
                     </td>
 
                     <td className="py-3.5 px-4">
-                      {user.role === 'VENDEDOR' ? (
+                      {user.isVisiting ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/70">
+                          <Storefront size={13} className="text-blue-600" />
+                          Encargado
+                        </span>
+                      ) : user.role === 'VENDEDOR' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/70">
                           <Tag size={13} className="text-amber-700" />
                           Vendedor
@@ -353,39 +372,43 @@ export const TeamPage = () => {
                     </td>
 
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1">
-                        <button
-                          onClick={() => setPasswordTargetUser(user)}
-                          title="Cambiar contraseña"
-                          className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Key size={16} weight="regular" />
-                        </button>
+                      {user.isVisiting ? (
+                        <span className="text-[11px] text-gray-400 italic px-2">Solo lectura</span>
+                      ) : (
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => setPasswordTargetUser(user)}
+                            title="Cambiar contraseña"
+                            className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Key size={16} weight="regular" />
+                          </button>
 
-                        <button
-                          onClick={() => setStatusTargetUser(user)}
-                          title={
-                            user.isActive
-                              ? user.role === 'VENDEDOR'
-                                ? 'Desactivar vendedor'
-                                : 'Desactivar cajero'
-                              : user.role === 'VENDEDOR'
-                              ? 'Activar vendedor'
-                              : 'Activar cajero'
-                          }
-                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                            user.isActive
-                              ? 'text-gray-500 hover:text-amber-700 hover:bg-amber-50'
-                              : 'text-gray-500 hover:text-green-700 hover:bg-green-50'
-                          }`}
-                        >
-                          {user.isActive ? (
-                            <Lock size={16} weight="regular" />
-                          ) : (
-                            <LockOpen size={16} weight="regular" />
-                          )}
-                        </button>
-                      </div>
+                          <button
+                            onClick={() => setStatusTargetUser(user)}
+                            title={
+                              user.isActive
+                                ? user.role === 'VENDEDOR'
+                                  ? 'Desactivar vendedor'
+                                  : 'Desactivar cajero'
+                                : user.role === 'VENDEDOR'
+                                ? 'Activar vendedor'
+                                : 'Activar cajero'
+                            }
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                              user.isActive
+                                ? 'text-gray-500 hover:text-amber-700 hover:bg-amber-50'
+                                : 'text-gray-500 hover:text-green-700 hover:bg-green-50'
+                            }`}
+                          >
+                            {user.isActive ? (
+                              <Lock size={16} weight="regular" />
+                            ) : (
+                              <LockOpen size={16} weight="regular" />
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { login as apiLogin } from 'api-client';
+import { login as apiLogin, switchBranch as apiSwitchBranch, type Branch } from 'api-client';
 import { usePosCartStore } from './posCart.store';
+
+export type { Branch };
 
 interface User {
   id: string;
@@ -16,10 +18,13 @@ interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  
+  branches: Branch[];
+
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   setTokens: (accessToken: string, refreshToken: string) => void;
+  switchBranch: (businessId: string) => Promise<void>;
+  setBranches: (branches: Branch[]) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -29,6 +34,7 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       isAuthenticated: false,
       isLoading: false,
+      branches: [],
 
       login: async (email, password) => {
         set({ isLoading: true });
@@ -39,6 +45,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: res.user,
             accessToken: res.accessToken,
+            branches: res.branches || [],
             isAuthenticated: true,
             isLoading: false,
           });
@@ -48,6 +55,29 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      switchBranch: async (businessId: string) => {
+        set({ isLoading: true });
+        try {
+          const res = await apiSwitchBranch(businessId);
+          localStorage.setItem('trackdeli_access_token', res.accessToken);
+          localStorage.setItem('trackdeli_refresh_token', res.refreshToken);
+          set({
+            user: res.user,
+            accessToken: res.accessToken,
+            branches: res.branches || [],
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      setBranches: (branches: Branch[]) => {
+        set({ branches });
+      },
+
       logout: () => {
         localStorage.removeItem('trackdeli_access_token');
         localStorage.removeItem('trackdeli_refresh_token');
@@ -55,7 +85,7 @@ export const useAuthStore = create<AuthState>()(
         // NOTA (Ticket 167b): NO eliminar 'trackdeli_pos_device_id' ni 'trackdeli_pos_device_secret'.
         // El dispositivo web es persistente en el navegador y se reutiliza al volver a iniciar sesión o al cambiar de cajero.
         // Solo se eliminan cuando el API responde DEVICE_REVOKED o DEVICE_INVALID.
-        set({ user: null, accessToken: null, isAuthenticated: false });
+        set({ user: null, accessToken: null, branches: [], isAuthenticated: false });
       },
 
       setTokens: (accessToken, refreshToken) => {
@@ -69,7 +99,8 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({ 
         user: state.user,
         accessToken: state.accessToken,
-        isAuthenticated: state.isAuthenticated
+        isAuthenticated: state.isAuthenticated,
+        branches: state.branches,
       }),
     }
   )

@@ -44,6 +44,8 @@ export interface AdminUser {
   createdAt: string;
   isAvailable?: boolean;
   profilePhotoUrl?: string | null;
+  isVisiting?: boolean;
+  primaryBusinessName?: string | null;
 }
 
 export interface CreateAdminUserDto {

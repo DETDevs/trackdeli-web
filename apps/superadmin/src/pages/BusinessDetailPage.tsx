@@ -57,6 +57,7 @@ import { ImageViewerModal } from '../components/modals/ImageViewerModal';
 import { BusinessProductsSection } from '../components/business/BusinessProductsSection';
 import { BusinessProductFieldsSection } from '../components/business/BusinessProductFieldsSection';
 import { BusinessPosDevicesSection } from '../components/business/BusinessPosDevicesSection';
+import { BusinessOrganizationSection } from '../components/business/BusinessOrganizationSection';
 import { useBusinessProducts, type BusinessProductType } from '../hooks/useBusinessProducts';
 import { useSuperAdminUsers } from '../hooks/useSuperAdminUsers';
 import { type AdminUser } from 'api-client';
@@ -600,6 +601,8 @@ export const BusinessDetailPage = () => {
         {(business.hasPOS || productsData?.products?.POS?.status === 'ACTIVE') && (
           <BusinessPosDevicesSection business={business} />
         )}
+
+        <BusinessOrganizationSection business={business} />
 
         <BusinessProductFieldsSection
           businessId={business.id}

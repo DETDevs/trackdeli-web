@@ -24,6 +24,7 @@ import {
   Bank,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
+import { BranchSelector } from '../components/layout/BranchSelector';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrderNotifications } from '../hooks/useOrderNotifications';
 import { useQuery } from '@tanstack/react-query';
@@ -39,6 +40,7 @@ export const AppLayout = () => {
   const navigate = useNavigate();
   const logout = useAuthStore(state => state.logout);
   const user = useAuthStore(state => state.user);
+  const branches = useAuthStore(state => state.branches);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paymentRequiredMessage, setPaymentRequiredMessage] = useState<string | null>(null);
@@ -63,6 +65,33 @@ export const AppLayout = () => {
     window.addEventListener('trackdeli:payment_required', handlePaymentRequired);
     return () => {
       window.removeEventListener('trackdeli:payment_required', handlePaymentRequired);
+    };
+  }, []);
+
+  // 240b ajuste: Sincronización entre pestañas ante cambio de sucursal en otra pestaña
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'auth-storage' && e.newValue && e.oldValue) {
+        try {
+          const oldData = JSON.parse(e.oldValue);
+          const newData = JSON.parse(e.newValue);
+          const oldBizId = oldData?.state?.user?.businessId;
+          const newBizId = newData?.state?.user?.businessId;
+          if (oldBizId && newBizId && oldBizId !== newBizId) {
+            window.location.reload();
+            return;
+          }
+        } catch {}
+      }
+
+      if (e.key === 'trackdeli_access_token' && e.newValue && e.oldValue && e.newValue !== e.oldValue) {
+        window.location.reload();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
@@ -102,7 +131,8 @@ export const AppLayout = () => {
     productsData?.products?.CARTERA_COBRO?.status === 'ACTIVE' ||
     (business as any)?.hasCarteraCobro === true;
 
-  const businessName = business?.name || productsData?.businessName;
+  const activeBranch = branches?.find(b => b.id === user?.businessId);
+  const businessName = activeBranch?.name || business?.name || productsData?.businessName;
 
   useOrderNotifications(isDeliveryActive);
 
@@ -418,11 +448,15 @@ export const AppLayout = () => {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="text-base lg:text-lg font-semibold text-gray-900 leading-tight truncate">{pageTitle}</h1>
-                {businessName && (
+                {branches && branches.length > 1 ? (
+                  <div className="hidden sm:block">
+                    <BranchSelector />
+                  </div>
+                ) : businessName ? (
                   <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 text-gray-700 truncate max-w-[160px] lg:max-w-[220px]" title={businessName}>
                     {businessName}
                   </span>
-                )}
+                ) : null}
               </div>
               <div className="text-xs text-gray-400 mt-0.5 hidden sm:block truncate">
                 {businessName ? `${businessName} · ${pageTitle}` : `TrackDeli / ${pageTitle}`}
@@ -430,11 +464,15 @@ export const AppLayout = () => {
             </div>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            {businessName && (
+            {branches && branches.length > 1 ? (
+              <div className="sm:hidden">
+                <BranchSelector isMobile />
+              </div>
+            ) : businessName ? (
               <span className="sm:hidden text-[11px] font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded-md truncate max-w-[130px]" title={businessName}>
                 {businessName}
               </span>
-            )}
+            ) : null}
             <span className="text-xs text-gray-500 hidden sm:inline">{user?.name || 'Usuario'}</span>
           </div>
         </header>

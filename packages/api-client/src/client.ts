@@ -88,6 +88,33 @@ apiClient.interceptors.response.use(
       );
     }
 
+    const errCode = error.response?.data?.code;
+    const errMsg = String(error.response?.data?.message || '');
+
+    // 240a/240b ajuste: Si el acceso a la sucursal fue revocado, cerrar sesión de inmediato y redirigir
+    if (
+      error.response?.status === 401 &&
+      (errCode === 'BRANCH_ACCESS_REVOKED' || errMsg.toLowerCase().includes('revocado'))
+    ) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('trackdeli_access_token');
+        localStorage.removeItem('trackdeli_refresh_token');
+        localStorage.removeItem('auth-storage');
+        sessionStorage.setItem(
+          'branch_revoked_notice',
+          'Ya no tenés acceso a esta sucursal. Iniciá sesión de nuevo.'
+        );
+        try {
+          const { useAuthStore } = await import('../../../apps/admin/src/store/auth.store');
+          useAuthStore.getState().logout();
+        } catch {}
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login?reason=branch_revoked';
+        }
+      }
+      return Promise.reject(error);
+    }
+
     if (
       error.response?.status !== 401 ||
       originalRequest._retry ||
