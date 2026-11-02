@@ -5,10 +5,16 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   WarningCircle,
+  Desktop,
+  ShieldCheck,
+  Storefront,
+  Motorcycle,
+  DeviceMobile,
 } from '@phosphor-icons/react';
 import { useBackofficeCashRegisterDetail } from '../../hooks/useBackoffice';
 import { formatCurrency } from '../../utils/formatters';
 import { formatDateTime } from '../../utils/formatDate';
+import { formatDiscrepancyReason, getVisibleChannels } from '../../utils/visibleChannels';
 
 interface CashRegisterDetailModalProps {
   registerId: string | null;
@@ -24,6 +30,12 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
   const { data: reg, isLoading, isError, error } = useBackofficeCashRegisterDetail(registerId);
 
   if (!registerId) return null;
+
+  const hasAuthorizedDiscrepancy = Boolean(
+    reg?.discrepancyAuthorizer || reg?.discrepancyReason
+  );
+
+  const channelsVisibility = getVisibleChannels(undefined, reg?.salesByChannel || null);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -44,7 +56,7 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-sm text-gray-900">
-                    Caja #{reg?.id ? reg.id.slice(0, 8).toUpperCase() : '—'}
+                    Turno #{reg?.id ? reg.id.slice(0, 8).toUpperCase() : '—'}
                   </h3>
                   {reg?.status === 'OPEN' ? (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -55,19 +67,28 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
                       Cerrada
                     </span>
                   )}
+                  {hasAuthorizedDiscrepancy && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                      Descuadre autorizado
+                    </span>
+                  )}
                 </div>
-                {reg?.openedAt && (
-                  <p className="text-[11px] text-gray-500">
-                    Apertura: {formatDateTime(reg.openedAt)}
-                  </p>
-                )}
+                <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-500">
+                  <span className="inline-flex items-center gap-1 font-medium text-gray-700">
+                    <Desktop size={12} className="text-gray-400" />
+                    {reg?.deviceName || 'Caja sin nombre'}
+                  </span>
+                  {reg?.openedAt && (
+                    <span>• Apertura: {formatDateTime(reg.openedAt)}</span>
+                  )}
+                </div>
               </div>
             </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
             >
               <X size={18} />
             </button>
@@ -94,7 +115,7 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
 
             {reg && (
               <>
-                {/* Fechas y Cajeros */}
+                {/* Fechas, Cajeros y Caja */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
                     <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider block">
@@ -107,7 +128,7 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
                       {formatDateTime(reg.openedAt)}
                     </p>
                     <p className="text-gray-700 text-[11px] pt-1">
-                      Fondo inicial: <span className="font-semibold">{formatCurrency(reg.openingCash, currency)}</span>
+                      Fondo inicial: <span className="font-semibold font-mono">{formatCurrency(reg.openingCash, currency)}</span>
                     </p>
                   </div>
 
@@ -123,7 +144,7 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
                     </p>
                     {reg.closingCash !== null && (
                       <p className="text-gray-700 text-[11px] pt-1">
-                        Efectivo contado: <span className="font-semibold">{formatCurrency(reg.closingCash, currency)}</span>
+                        Efectivo contado: <span className="font-semibold font-mono">{formatCurrency(reg.closingCash, currency)}</span>
                       </p>
                     )}
                   </div>
@@ -157,14 +178,14 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 text-xs">
                     <div className="p-2.5 rounded-lg bg-white border border-gray-200/70">
                       <span className="text-[10px] text-gray-400 uppercase block">Efectivo Esperado</span>
-                      <span className="font-bold text-gray-900 text-sm">
+                      <span className="font-bold text-gray-900 text-sm font-mono">
                         {formatCurrency(reg.expectedCash, currency)}
                       </span>
                     </div>
 
                     <div className="p-2.5 rounded-lg bg-white border border-gray-200/70">
                       <span className="text-[10px] text-gray-400 uppercase block">Efectivo Contado</span>
-                      <span className="font-bold text-gray-900 text-sm">
+                      <span className="font-bold text-gray-900 text-sm font-mono">
                         {reg.closingCash !== null ? formatCurrency(reg.closingCash, currency) : '—'}
                       </span>
                     </div>
@@ -172,7 +193,7 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
                     <div className="p-2.5 rounded-lg bg-white border border-gray-200/70 col-span-2 sm:col-span-1">
                       <span className="text-[10px] text-gray-400 uppercase block">Diferencia</span>
                       <span
-                        className={`font-bold text-sm ${
+                        className={`font-bold text-sm font-mono ${
                           reg.difference === null
                             ? 'text-gray-400'
                             : reg.difference < 0
@@ -188,6 +209,62 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
                   </div>
                 </div>
 
+                {/* Detalle de Descuadre Autorizado (si existe) */}
+                {hasAuthorizedDiscrepancy && (
+                  <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-amber-900 font-semibold text-xs">
+                        <ShieldCheck size={16} weight="bold" className="text-amber-700" />
+                        <span>Descuadre autorizado</span>
+                      </div>
+                      <span className="text-[11px] font-medium text-amber-700">
+                        {reg.recountAttempts !== undefined ? `${reg.recountAttempts} reconteo${reg.recountAttempts === 1 ? '' : 's'}` : ''}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                      <div>
+                        <span className="text-[10px] text-amber-700 uppercase tracking-wider block font-semibold">
+                          Motivo
+                        </span>
+                        <p className="font-medium text-gray-900 mt-0.5">
+                          {formatDiscrepancyReason(reg.discrepancyReason)}
+                        </p>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-amber-700 uppercase tracking-wider block font-semibold">
+                          Autorizado por
+                        </span>
+                        <p className="font-medium text-gray-900 mt-0.5">
+                          {reg.discrepancyAuthorizer?.name || 'Encargado del negocio'}
+                          {reg.discrepancyAuthorizer?.role && (
+                            <span className="text-gray-500 text-[11px] ml-1">
+                              ({reg.discrepancyAuthorizer.role})
+                            </span>
+                          )}
+                        </p>
+                        {reg.discrepancyAuthorizedAt && (
+                          <p className="text-[11px] text-gray-500">
+                            {formatDateTime(reg.discrepancyAuthorizedAt)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {reg.discrepancyNote && (
+                      <div className="pt-1 border-t border-amber-200/60">
+                        <span className="text-[10px] text-amber-700 uppercase tracking-wider block font-semibold">
+                          Nota explicativa
+                        </span>
+                        <p className="text-gray-800 text-xs mt-0.5 bg-white/70 p-2 rounded-lg border border-amber-100">
+                          {reg.discrepancyNote}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Desglose de Ventas por Método */}
                 <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
                   <span className="uppercase text-[11px] text-gray-500 font-semibold tracking-wider block">
@@ -197,33 +274,93 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                     <div className="p-2 rounded-lg bg-white border border-gray-200/70">
                       <span className="text-[10px] text-gray-400 block">Efectivo</span>
-                      <span className="font-semibold text-gray-900">
+                      <span className="font-semibold text-gray-900 font-mono">
                         {formatCurrency(reg.totalCash, currency)}
                       </span>
                     </div>
 
                     <div className="p-2 rounded-lg bg-white border border-gray-200/70">
                       <span className="text-[10px] text-gray-400 block">Tarjeta</span>
-                      <span className="font-semibold text-gray-900">
+                      <span className="font-semibold text-gray-900 font-mono">
                         {formatCurrency(reg.totalCard, currency)}
                       </span>
                     </div>
 
                     <div className="p-2 rounded-lg bg-white border border-gray-200/70">
                       <span className="text-[10px] text-gray-400 block">Transferencia</span>
-                      <span className="font-semibold text-gray-900">
+                      <span className="font-semibold text-gray-900 font-mono">
                         {formatCurrency(reg.totalTransfer, currency)}
                       </span>
                     </div>
 
                     <div className="p-2 rounded-lg bg-white border border-gray-200/70">
                       <span className="text-[10px] text-gray-400 block">Total Ventas</span>
-                      <span className="font-bold text-gray-900">
+                      <span className="font-bold text-gray-900 font-mono">
                         {formatCurrency(reg.totalSales, currency)}
                       </span>
                     </div>
                   </div>
                 </div>
+
+                {/* Desglose de Ventas por Canal (oculto si solo MOSTRADOR tiene ventas) */}
+                {channelsVisibility.shouldShowChannelsBlock && reg.salesByChannel && (
+                  <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
+                    <span className="uppercase text-[11px] text-gray-500 font-semibold tracking-wider block">
+                      Ventas por Canal
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                      <div className="p-2.5 rounded-lg bg-white border border-gray-200/70 space-y-0.5">
+                        <div className="flex items-center gap-1.5 text-gray-700 font-medium">
+                          <Storefront size={14} className="text-gray-500" />
+                          <span>Mostrador</span>
+                        </div>
+                        <div className="flex items-baseline justify-between pt-1">
+                          <span className="font-bold text-gray-900 font-mono">
+                            {formatCurrency(reg.salesByChannel.MOSTRADOR?.total || 0, currency)}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {reg.salesByChannel.MOSTRADOR?.count || 0} ventas
+                          </span>
+                        </div>
+                      </div>
+
+                      {channelsVisibility.isDeliveryVisible && (
+                        <div className="p-2.5 rounded-lg bg-white border border-gray-200/70 space-y-0.5">
+                          <div className="flex items-center gap-1.5 text-blue-700 font-medium">
+                            <Motorcycle size={14} />
+                            <span>A Domicilio</span>
+                          </div>
+                          <div className="flex items-baseline justify-between pt-1">
+                            <span className="font-bold text-gray-900 font-mono">
+                              {formatCurrency(reg.salesByChannel.DOMICILIO?.total || 0, currency)}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              {reg.salesByChannel.DOMICILIO?.count || 0} ventas
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {channelsVisibility.isPedidosYaVisible && (
+                        <div className="p-2.5 rounded-lg bg-white border border-gray-200/70 space-y-0.5">
+                          <div className="flex items-center gap-1.5 text-red-700 font-medium">
+                            <DeviceMobile size={14} />
+                            <span>PedidosYa</span>
+                          </div>
+                          <div className="flex items-baseline justify-between pt-1">
+                            <span className="font-bold text-gray-900 font-mono">
+                              {formatCurrency(reg.salesByChannel.PEDIDOSYA?.total || 0, currency)}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              {reg.salesByChannel.PEDIDOSYA?.count || 0} ventas
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Movimientos de Caja (Entradas / Salidas de dinero) */}
                 <div className="border border-gray-100 rounded-xl overflow-hidden">
@@ -256,7 +393,7 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
                               </div>
                             </div>
                             <span
-                              className={`font-semibold ${
+                              className={`font-semibold font-mono ${
                                 isIncome ? 'text-emerald-700' : 'text-red-700'
                               }`}
                             >
@@ -285,7 +422,7 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-medium transition-colors shadow-2xs"
+              className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-medium transition-colors shadow-2xs cursor-pointer"
             >
               Cerrar
             </button>

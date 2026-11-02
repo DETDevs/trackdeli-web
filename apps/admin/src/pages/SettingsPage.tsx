@@ -33,6 +33,7 @@ import { calculateFeeClient, getPricingBreakdownClient } from '../lib/pricing';
 import { useMyProducts } from '../hooks/useMyProducts';
 import { useAuthStore } from '../store/auth.store';
 import { SalesChannelsSection } from '../components/settings/SalesChannelsSection';
+import { CashClosePoliciesSection } from '../components/settings/CashClosePoliciesSection';
 
 const mapboxToken = (import.meta as any).env.VITE_MAPBOX_TOKEN;
 
@@ -564,6 +565,10 @@ export const SettingsPage = () => {
 
       {canManageChannels && hasAnyActiveChannel && channelConfig && (
         <SalesChannelsSection channelConfig={channelConfig} />
+      )}
+
+      {isPosActive && canManageChannels && (
+        <CashClosePoliciesSection />
       )}
 
       {isDeliveryActive && (

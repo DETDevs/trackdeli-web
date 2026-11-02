@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from "react";
 import {
   Motorcycle,
   DeviceMobile,
@@ -15,12 +15,12 @@ import {
   MapPin,
   Tag,
   CalendarBlank,
-} from '@phosphor-icons/react';
+} from "@phosphor-icons/react";
 import {
   PeriodType,
   ReportQueryParams,
   SaleChannelCode,
-} from '../../types/reports';
+} from "../../types/reports";
 import {
   useSalesByChannel,
   useDomicilioReport,
@@ -31,11 +31,16 @@ import {
   usePosBanks,
   useRegisterPedidosYaSettlement,
   downloadReportCsv,
-} from '../../hooks/useBackofficeReports';
-import { ChannelConfigResponse } from 'api-client';
-import { formatCurrency, formatQuantity } from '../../utils/formatters';
-import { formatManaguaDate, formatManaguaTime, getManaguaTodayYMD } from '../../utils/dateManagua';
-import { toast } from 'react-hot-toast';
+} from "../../hooks/useBackofficeReports";
+import { ChannelConfigResponse } from "api-client";
+import { formatCurrency, formatQuantity } from "../../utils/formatters";
+import {
+  formatManaguaDate,
+  formatManaguaTime,
+  getManaguaTodayYMD,
+} from "../../utils/dateManagua";
+import { toast } from "react-hot-toast";
+import { getVisibleChannels } from "../../utils/visibleChannels";
 
 interface ChannelsReportTabProps {
   queryParams: ReportQueryParams;
@@ -43,54 +48,83 @@ interface ChannelsReportTabProps {
   channelConfig: ChannelConfigResponse;
 }
 
-type ChannelSubTab = 'summary' | 'domicilio' | 'pedidosya' | 'settlements';
+type ChannelSubTab = "summary" | "domicilio" | "pedidosya" | "settlements";
 
 export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
   queryParams,
   period,
   channelConfig,
 }) => {
-  const isDeliveryEnabled = Boolean(channelConfig.delivery?.enabled);
-  const isPedidosYaEnabled = Boolean(channelConfig.pedidosYa?.enabled);
-
-  const [activeSubTab, setActiveSubTab] = useState<ChannelSubTab>('summary');
+  const [activeSubTab, setActiveSubTab] = useState<ChannelSubTab>("summary");
 
   // Filtros internos
-  const [selectedDriverId, setSelectedDriverId] = useState<string>('');
+  const [selectedDriverId, setSelectedDriverId] = useState<string>("");
   const [isExportingCsv, setIsExportingCsv] = useState<boolean>(false);
 
   // Modal de Liquidación
-  const [isSettlementModalOpen, setIsSettlementModalOpen] = useState<boolean>(false);
+  const [isSettlementModalOpen, setIsSettlementModalOpen] =
+    useState<boolean>(false);
   const [depositDate, setDepositDate] = useState<string>(getManaguaTodayYMD());
-  const [depositAmount, setDepositAmount] = useState<string>('');
-  const [selectedBankId, setSelectedBankId] = useState<string>('');
-  const [depositReference, setDepositReference] = useState<string>('');
-  const [depositNotes, setDepositNotes] = useState<string>('');
+  const [depositAmount, setDepositAmount] = useState<string>("");
+  const [selectedBankId, setSelectedBankId] = useState<string>("");
+  const [depositReference, setDepositReference] = useState<string>("");
+  const [depositNotes, setDepositNotes] = useState<string>("");
   const [selectedSaleIds, setSelectedSaleIds] = useState<string[]>([]);
 
   // Queries
-  const {
-    data: channelSummaryData,
-    isLoading: isLoadingSummary,
-  } = useSalesByChannel(queryParams, activeSubTab === 'summary');
+  const { data: channelSummaryData, isLoading: isLoadingSummary } =
+    useSalesByChannel(queryParams, true);
+
+  const salesByChannelMap = useMemo(() => {
+    const map: Record<string, { count: number; total: number }> = {};
+    if (channelSummaryData?.summary) {
+      for (const item of channelSummaryData.summary) {
+        map[item.channel] = { count: item.count, total: item.gross };
+      }
+    }
+    return map;
+  }, [channelSummaryData]);
+
+  const channelsVisibility = useMemo(() => {
+    return getVisibleChannels(channelConfig, salesByChannelMap);
+  }, [channelConfig, salesByChannelMap]);
+
+  const isDeliveryVisible = channelsVisibility.isDeliveryVisible;
+  const isPedidosYaVisible = channelsVisibility.isPedidosYaVisible;
+  const isDeliveryEnabled = Boolean(channelConfig?.delivery?.enabled);
+  const isPedidosYaEnabled = Boolean(channelConfig?.pedidosYa?.enabled);
+
+  // Redirigir subpestaña si deja de ser visible
+  React.useEffect(() => {
+    if (activeSubTab === "domicilio" && !isDeliveryVisible) {
+      setActiveSubTab("summary");
+    } else if (
+      (activeSubTab === "pedidosya" || activeSubTab === "settlements") &&
+      !isPedidosYaVisible
+    ) {
+      setActiveSubTab("summary");
+    }
+  }, [activeSubTab, isDeliveryVisible, isPedidosYaVisible]);
 
   const domicilioParams = useMemo(
     () => ({
       ...queryParams,
       driverId: selectedDriverId || undefined,
     }),
-    [queryParams, selectedDriverId]
+    [queryParams, selectedDriverId],
   );
 
-  const {
-    data: domicilioData,
-    isLoading: isLoadingDomicilio,
-  } = useDomicilioReport(domicilioParams, isDeliveryEnabled && activeSubTab === 'domicilio');
+  const { data: domicilioData, isLoading: isLoadingDomicilio } =
+    useDomicilioReport(
+      domicilioParams,
+      isDeliveryVisible && activeSubTab === "domicilio",
+    );
 
-  const {
-    data: pedidosYaData,
-    isLoading: isLoadingPedidosYa,
-  } = usePedidosYaReport(queryParams, isPedidosYaEnabled && activeSubTab === 'pedidosya');
+  const { data: pedidosYaData, isLoading: isLoadingPedidosYa } =
+    usePedidosYaReport(
+      queryParams,
+      isPedidosYaVisible && activeSubTab === "pedidosya",
+    );
 
   const {
     data: pendingSettlementData,
@@ -98,17 +132,19 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
     refetch: refetchPendingSettlement,
   } = usePedidosYaSettlementPending(
     { from: queryParams.from, to: queryParams.to },
-    isPedidosYaEnabled && activeSubTab === 'settlements'
+    isPedidosYaVisible && activeSubTab === "settlements",
   );
 
   const {
     data: settlementsListData,
     isLoading: isLoadingSettlementsList,
     refetch: refetchSettlementsList,
-  } = usePedidosYaSettlementsList(isPedidosYaEnabled && activeSubTab === 'settlements');
+  } = usePedidosYaSettlementsList(
+    isPedidosYaVisible && activeSubTab === "settlements",
+  );
 
-  const { data: driversList } = useChannelDrivers(isDeliveryEnabled);
-  const { data: banksList } = usePosBanks(isPedidosYaEnabled);
+  const { data: driversList } = useChannelDrivers(isDeliveryVisible);
+  const { data: banksList } = usePosBanks(isPedidosYaVisible);
 
   const registerSettlementMutation = useRegisterPedidosYaSettlement();
 
@@ -117,12 +153,14 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
     const orders = pendingSettlementData?.orders || [];
     setSelectedSaleIds(orders.map((o) => o.id));
     setDepositAmount(
-      pendingSettlementData?.netPayout ? String(pendingSettlementData.netPayout) : ''
+      pendingSettlementData?.netPayout
+        ? String(pendingSettlementData.netPayout)
+        : "",
     );
     setDepositDate(getManaguaTodayYMD());
-    setSelectedBankId(banksList?.[0]?.id || '');
-    setDepositReference('');
-    setDepositNotes('');
+    setSelectedBankId(banksList?.[0]?.id || "");
+    setDepositReference("");
+    setDepositNotes("");
     setIsSettlementModalOpen(true);
   };
 
@@ -139,7 +177,7 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
 
   const handleToggleSaleSelection = (id: string) => {
     setSelectedSaleIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
@@ -155,11 +193,11 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
   const handleSubmitSettlement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedSaleIds.length === 0) {
-      toast.error('Selecciona al menos un pedido para liquidar');
+      toast.error("Selecciona al menos un pedido para liquidar");
       return;
     }
     if (parsedDepositAmount <= 0) {
-      toast.error('Ingresa un monto depositado válido');
+      toast.error("Ingresa un monto depositado válido");
       return;
     }
 
@@ -172,12 +210,15 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
         notes: depositNotes.trim() || undefined,
         saleIds: selectedSaleIds,
       });
-      toast.success('Liquidación registrada con éxito');
+      toast.success("Liquidación registrada con éxito");
       setIsSettlementModalOpen(false);
       refetchPendingSettlement();
       refetchSettlementsList();
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Error al registrar liquidación';
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Error al registrar liquidación";
       toast.error(msg);
     }
   };
@@ -187,13 +228,13 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
     try {
       setIsExportingCsv(true);
       await downloadReportCsv(
-        '/pos/reports/sales-by-channel',
+        "/pos/reports/sales-by-channel",
         queryParams,
-        `ventas_por_canal_${period}.csv`
+        `ventas_por_canal_${period}.csv`,
       );
-      toast.success('Reporte descargado correctamente');
+      toast.success("Reporte descargado correctamente");
     } catch (error) {
-      toast.error('Error al descargar el archivo CSV');
+      toast.error("Error al descargar el archivo CSV");
     } finally {
       setIsExportingCsv(false);
     }
@@ -203,13 +244,13 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
     try {
       setIsExportingCsv(true);
       await downloadReportCsv(
-        '/pos/reports/domicilio',
+        "/pos/reports/domicilio",
         domicilioParams,
-        `reporte_domicilio_${period}.csv`
+        `reporte_domicilio_${period}.csv`,
       );
-      toast.success('Reporte descargado correctamente');
+      toast.success("Reporte descargado correctamente");
     } catch (error) {
-      toast.error('Error al descargar el archivo CSV');
+      toast.error("Error al descargar el archivo CSV");
     } finally {
       setIsExportingCsv(false);
     }
@@ -219,13 +260,13 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
     try {
       setIsExportingCsv(true);
       await downloadReportCsv(
-        '/pos/reports/pedidosya',
+        "/pos/reports/pedidosya",
         queryParams,
-        `reporte_pedidosya_${period}.csv`
+        `reporte_pedidosya_${period}.csv`,
       );
-      toast.success('Reporte descargado correctamente');
+      toast.success("Reporte descargado correctamente");
     } catch (error) {
-      toast.error('Error al descargar el archivo CSV');
+      toast.error("Error al descargar el archivo CSV");
     } finally {
       setIsExportingCsv(false);
     }
@@ -233,12 +274,12 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
 
   const channelLabel = (c: SaleChannelCode | string) => {
     switch (c) {
-      case 'MOSTRADOR':
-        return 'Mostrador';
-      case 'DOMICILIO':
-        return 'A Domicilio';
-      case 'PEDIDOSYA':
-        return 'PedidosYa';
+      case "MOSTRADOR":
+        return "Mostrador";
+      case "DOMICILIO":
+        return "A Domicilio";
+      case "PEDIDOSYA":
+        return "PedidosYa";
       default:
         return c;
     }
@@ -246,11 +287,11 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
 
   const channelIcon = (c: SaleChannelCode | string) => {
     switch (c) {
-      case 'MOSTRADOR':
+      case "MOSTRADOR":
         return <Storefront size={16} className="text-gray-700" />;
-      case 'DOMICILIO':
+      case "DOMICILIO":
         return <Motorcycle size={16} className="text-blue-600" />;
-      case 'PEDIDOSYA':
+      case "PEDIDOSYA":
         return <DeviceMobile size={16} className="text-red-500" />;
       default:
         return <Storefront size={16} className="text-gray-500" />;
@@ -263,58 +304,70 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
       <div className="flex flex-wrap items-center gap-2 border-b border-gray-200/80 pb-3">
         <button
           type="button"
-          onClick={() => setActiveSubTab('summary')}
+          onClick={() => setActiveSubTab("summary")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-            activeSubTab === 'summary'
-              ? 'bg-gray-900 text-white shadow-2xs'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            activeSubTab === "summary"
+              ? "bg-gray-900 text-white shadow-2xs"
+              : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
           }`}
         >
-          <Storefront size={15} weight={activeSubTab === 'summary' ? 'bold' : 'regular'} />
+          <Storefront
+            size={15}
+            weight={activeSubTab === "summary" ? "bold" : "regular"}
+          />
           <span>Resumen por canal</span>
         </button>
 
-        {isDeliveryEnabled && (
+        {isDeliveryVisible && (
           <button
             type="button"
-            onClick={() => setActiveSubTab('domicilio')}
+            onClick={() => setActiveSubTab("domicilio")}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-              activeSubTab === 'domicilio'
-                ? 'bg-blue-600 text-white shadow-2xs'
-                : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+              activeSubTab === "domicilio"
+                ? "bg-blue-600 text-white shadow-2xs"
+                : "text-gray-600 hover:text-blue-600 hover:bg-blue-50"
             }`}
           >
-            <Motorcycle size={15} weight={activeSubTab === 'domicilio' ? 'bold' : 'regular'} />
+            <Motorcycle
+              size={15}
+              weight={activeSubTab === "domicilio" ? "bold" : "regular"}
+            />
             <span>A Domicilio</span>
           </button>
         )}
 
-        {isPedidosYaEnabled && (
+        {isPedidosYaVisible && (
           <button
             type="button"
-            onClick={() => setActiveSubTab('pedidosya')}
+            onClick={() => setActiveSubTab("pedidosya")}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-              activeSubTab === 'pedidosya'
-                ? 'bg-red-600 text-white shadow-2xs'
-                : 'text-gray-600 hover:text-red-600 hover:bg-red-50'
+              activeSubTab === "pedidosya"
+                ? "bg-red-600 text-white shadow-2xs"
+                : "text-gray-600 hover:text-red-600 hover:bg-red-50"
             }`}
           >
-            <DeviceMobile size={15} weight={activeSubTab === 'pedidosya' ? 'bold' : 'regular'} />
+            <DeviceMobile
+              size={15}
+              weight={activeSubTab === "pedidosya" ? "bold" : "regular"}
+            />
             <span>PedidosYa</span>
           </button>
         )}
 
-        {isPedidosYaEnabled && (
+        {isPedidosYaVisible && (
           <button
             type="button"
-            onClick={() => setActiveSubTab('settlements')}
+            onClick={() => setActiveSubTab("settlements")}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-              activeSubTab === 'settlements'
-                ? 'bg-emerald-700 text-white shadow-2xs'
-                : 'text-gray-600 hover:text-emerald-700 hover:bg-emerald-50'
+              activeSubTab === "settlements"
+                ? "bg-emerald-700 text-white shadow-2xs"
+                : "text-gray-600 hover:text-emerald-700 hover:bg-emerald-50"
             }`}
           >
-            <Bank size={15} weight={activeSubTab === 'settlements' ? 'bold' : 'regular'} />
+            <Bank
+              size={15}
+              weight={activeSubTab === "settlements" ? "bold" : "regular"}
+            />
             <span>Liquidaciones PedidosYa</span>
           </button>
         )}
@@ -323,13 +376,16 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
       {/* ========================================================= */}
       {/* 1. RESUMEN POR CANAL                                      */}
       {/* ========================================================= */}
-      {activeSubTab === 'summary' && (
+      {activeSubTab === "summary" && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs">
             <div>
-              <h2 className="text-sm font-bold text-gray-900">Ventas Consolidadas por Canal</h2>
+              <h2 className="text-sm font-bold text-gray-900">
+                Ventas Consolidadas por Canal
+              </h2>
               <p className="text-xs text-gray-500">
-                Comparativa de comprobantes, venta bruta, IVA y ticket promedio por canal de venta.
+                Comparativa de comprobantes, venta bruta, IVA y ticket promedio
+                por canal de venta.
               </p>
             </div>
             <button
@@ -339,14 +395,17 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
               className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
             >
               <DownloadSimple size={15} weight="bold" />
-              <span>{isExportingCsv ? 'Descargando...' : 'Descargar CSV'}</span>
+              <span>{isExportingCsv ? "Descargando..." : "Descargar CSV"}</span>
             </button>
           </div>
 
           {isLoadingSummary ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-28 bg-white rounded-2xl border border-gray-100" />
+                <div
+                  key={i}
+                  className="h-28 bg-white rounded-2xl border border-gray-100"
+                />
               ))}
             </div>
           ) : (
@@ -370,7 +429,10 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                     Total Comprobantes
                   </span>
                   <p className="text-2xl font-bold text-gray-900 font-mono mt-1">
-                    {channelSummaryData?.summary?.reduce((sum, s) => sum + s.count, 0) || 0}
+                    {channelSummaryData?.summary?.reduce(
+                      (sum, s) => sum + s.count,
+                      0,
+                    ) || 0}
                   </p>
                   <span className="text-[11px] text-gray-400 mt-1 block">
                     Ventas facturadas en el período
@@ -383,7 +445,10 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                   </span>
                   <p className="text-2xl font-bold text-gray-900 font-mono mt-1">
                     {formatCurrency(
-                      channelSummaryData?.summary?.reduce((sum, s) => sum + s.tax, 0) || 0
+                      channelSummaryData?.summary?.reduce(
+                        (sum, s) => sum + s.tax,
+                        0,
+                      ) || 0,
                     )}
                   </p>
                   <span className="text-[11px] text-gray-400 mt-1 block">
@@ -397,7 +462,10 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                   </span>
                   <p className="text-2xl font-bold text-gray-900 font-mono mt-1">
                     {formatQuantity(
-                      channelSummaryData?.summary?.reduce((sum, s) => sum + s.units, 0) || 0
+                      channelSummaryData?.summary?.reduce(
+                        (sum, s) => sum + s.units,
+                        0,
+                      ) || 0,
                     )}
                   </p>
                   <span className="text-[11px] text-gray-400 mt-1 block">
@@ -413,7 +481,8 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                     Desglose por Canal
                   </h3>
                   <span className="text-[11px] text-gray-400">
-                    {channelSummaryData?.summary?.length || 0} canales registrados
+                    {channelSummaryData?.summary?.length || 0} canales
+                    registrados
                   </span>
                 </div>
 
@@ -427,13 +496,18 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                         <th className="py-3 px-4 text-right">IVA</th>
                         <th className="py-3 px-4 text-right">Venta Neta</th>
                         <th className="py-3 px-4 text-right">Unidades</th>
-                        <th className="py-3 px-4 text-right">Ticket Promedio</th>
+                        <th className="py-3 px-4 text-right">
+                          Ticket Promedio
+                        </th>
                         <th className="py-3 px-4 text-right">% del Total</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {channelSummaryData?.summary?.map((row) => (
-                        <tr key={row.channel} className="hover:bg-gray-50/50 transition-colors">
+                        <tr
+                          key={row.channel}
+                          className="hover:bg-gray-50/50 transition-colors"
+                        >
                           <td className="py-3.5 px-4 font-medium text-gray-900">
                             <div className="flex items-center gap-2">
                               {channelIcon(row.channel)}
@@ -463,7 +537,9 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                               <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                                 <div
                                   className="h-full bg-brand-600 rounded-full"
-                                  style={{ width: `${Math.min(row.pctOfTotal, 100)}%` }}
+                                  style={{
+                                    width: `${Math.min(row.pctOfTotal, 100)}%`,
+                                  }}
                                 />
                               </div>
                               <span className="font-mono font-semibold text-gray-900 w-10 text-right">
@@ -478,32 +554,50 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                       <tr className="bg-gray-50/90 border-t-2 border-gray-200 font-bold text-gray-900">
                         <td className="py-3 px-4">TOTAL</td>
                         <td className="py-3 px-4 text-right font-mono">
-                          {channelSummaryData?.summary?.reduce((sum, s) => sum + s.count, 0) || 0}
+                          {channelSummaryData?.summary?.reduce(
+                            (sum, s) => sum + s.count,
+                            0,
+                          ) || 0}
                         </td>
                         <td className="py-3 px-4 text-right font-mono">
                           {formatCurrency(channelSummaryData?.totalGross || 0)}
                         </td>
                         <td className="py-3 px-4 text-right font-mono">
                           {formatCurrency(
-                            channelSummaryData?.summary?.reduce((sum, s) => sum + s.tax, 0) || 0
+                            channelSummaryData?.summary?.reduce(
+                              (sum, s) => sum + s.tax,
+                              0,
+                            ) || 0,
                           )}
                         </td>
                         <td className="py-3 px-4 text-right font-mono">
                           {formatCurrency(
-                            channelSummaryData?.summary?.reduce((sum, s) => sum + s.net, 0) || 0
+                            channelSummaryData?.summary?.reduce(
+                              (sum, s) => sum + s.net,
+                              0,
+                            ) || 0,
                           )}
                         </td>
                         <td className="py-3 px-4 text-right font-mono">
                           {formatQuantity(
-                            channelSummaryData?.summary?.reduce((sum, s) => sum + s.units, 0) || 0
+                            channelSummaryData?.summary?.reduce(
+                              (sum, s) => sum + s.units,
+                              0,
+                            ) || 0,
                           )}
                         </td>
                         <td className="py-3 px-4 text-right font-mono">
                           {formatCurrency(
-                            (channelSummaryData?.summary?.reduce((sum, s) => sum + s.count, 0) || 0) > 0
+                            (channelSummaryData?.summary?.reduce(
+                              (sum, s) => sum + s.count,
+                              0,
+                            ) || 0) > 0
                               ? (channelSummaryData?.totalGross || 0) /
-                                  (channelSummaryData?.summary?.reduce((sum, s) => sum + s.count, 0) || 1)
-                              : 0
+                                  (channelSummaryData?.summary?.reduce(
+                                    (sum, s) => sum + s.count,
+                                    0,
+                                  ) || 1)
+                              : 0,
                           )}
                         </td>
                         <td className="py-3 px-4 text-right font-mono">100%</td>
@@ -525,7 +619,8 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                   </span>
                 </div>
 
-                {channelSummaryData?.byDay && channelSummaryData.byDay.length > 0 ? (
+                {channelSummaryData?.byDay &&
+                channelSummaryData.byDay.length > 0 ? (
                   <div className="space-y-2">
                     {channelSummaryData.byDay.map((d, idx) => (
                       <div
@@ -542,7 +637,9 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                           </span>
                         </div>
                         <div className="flex items-center gap-4 text-xs font-mono">
-                          <span className="text-gray-500">{d.count} comprobante(s)</span>
+                          <span className="text-gray-500">
+                            {d.count} comprobante(s)
+                          </span>
                           <span className="font-bold text-gray-900">
                             {formatCurrency(d.gross)}
                           </span>
@@ -564,13 +661,16 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
       {/* ========================================================= */}
       {/* 2. A DOMICILIO                                            */}
       {/* ========================================================= */}
-      {activeSubTab === 'domicilio' && isDeliveryEnabled && (
+      {activeSubTab === "domicilio" && (isDeliveryVisible || isDeliveryEnabled) && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs">
             <div>
-              <h2 className="text-sm font-bold text-gray-900">Ventas a Domicilio</h2>
+              <h2 className="text-sm font-bold text-gray-900">
+                Ventas a Domicilio
+              </h2>
               <p className="text-xs text-gray-500">
-                Pedidos despachados con entrega, desglose de envíos cobrados y rendimiento por repartidor.
+                Pedidos despachados con entrega, desglose de envíos cobrados y
+                rendimiento por repartidor.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -595,7 +695,9 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                 className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
               >
                 <DownloadSimple size={15} weight="bold" />
-                <span>{isExportingCsv ? 'Descargando...' : 'Descargar CSV'}</span>
+                <span>
+                  {isExportingCsv ? "Descargando..." : "Descargar CSV"}
+                </span>
               </button>
             </div>
           </div>
@@ -603,7 +705,10 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
           {isLoadingDomicilio ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-pulse">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-28 bg-white rounded-2xl border border-gray-100" />
+                <div
+                  key={i}
+                  className="h-28 bg-white rounded-2xl border border-gray-100"
+                />
               ))}
             </div>
           ) : (
@@ -655,7 +760,8 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                     <span>Rendimiento por Repartidor</span>
                   </h3>
                   <span className="text-[11px] text-gray-400">
-                    {domicilioData?.byDriver?.length || 0} repartidores con entregas
+                    {domicilioData?.byDriver?.length || 0} repartidores con
+                    entregas
                   </span>
                 </div>
 
@@ -666,23 +772,37 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                         <th className="py-3 px-4">Repartidor</th>
                         <th className="py-3 px-4 text-right">Pedidos</th>
                         <th className="py-3 px-4 text-right">Venta Total</th>
-                        <th className="py-3 px-4 text-right">Envíos Cobrados</th>
-                        <th className="py-3 px-4 text-right">Ticket Promedio</th>
+                        <th className="py-3 px-4 text-right">
+                          Envíos Cobrados
+                        </th>
+                        <th className="py-3 px-4 text-right">
+                          Ticket Promedio
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {domicilioData?.byDriver?.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-6 text-center text-gray-400">
-                            No hay entregas asignadas a repartidores en este período.
+                          <td
+                            colSpan={5}
+                            className="py-6 text-center text-gray-400"
+                          >
+                            No hay entregas asignadas a repartidores en este
+                            período.
                           </td>
                         </tr>
                       ) : (
                         domicilioData?.byDriver?.map((row) => (
-                          <tr key={row.driverId} className="hover:bg-gray-50/50 transition-colors">
+                          <tr
+                            key={row.driverId}
+                            className="hover:bg-gray-50/50 transition-colors"
+                          >
                             <td className="py-3.5 px-4 font-medium text-gray-900 flex items-center gap-2">
-                              <Motorcycle size={15} className="text-gray-400 shrink-0" />
-                              <span>{row.driverName || 'Sin asignar'}</span>
+                              <Motorcycle
+                                size={15}
+                                className="text-gray-400 shrink-0"
+                              />
+                              <span>{row.driverName || "Sin asignar"}</span>
                             </td>
                             <td className="py-3.5 px-4 text-right font-mono text-gray-700">
                               {row.ordersCount}
@@ -705,42 +825,48 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
               </div>
 
               {/* Zonas y Direcciones */}
-              {domicilioData?.byAddress && domicilioData.byAddress.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-2xs overflow-hidden">
-                  <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                      <MapPin size={16} className="text-gray-500" />
-                      <span>Destinos Frecuentes</span>
-                    </h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-gray-50/70 border-b border-gray-100 text-gray-500 text-[11px] uppercase tracking-wider font-semibold">
-                          <th className="py-3 px-4">Dirección</th>
-                          <th className="py-3 px-4 text-right">Pedidos</th>
-                          <th className="py-3 px-4 text-right">Venta Total</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {domicilioData.byAddress.map((addr, i) => (
-                          <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="py-3 px-4 text-gray-800 font-medium">
-                              {addr.address || 'Sin dirección especificada'}
-                            </td>
-                            <td className="py-3 px-4 text-right font-mono text-gray-700">
-                              {addr.ordersCount}
-                            </td>
-                            <td className="py-3 px-4 text-right font-mono font-semibold text-gray-900">
-                              {formatCurrency(addr.totalSales)}
-                            </td>
+              {domicilioData?.byAddress &&
+                domicilioData.byAddress.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-2xs overflow-hidden">
+                    <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                        <MapPin size={16} className="text-gray-500" />
+                        <span>Destinos Frecuentes</span>
+                      </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-gray-50/70 border-b border-gray-100 text-gray-500 text-[11px] uppercase tracking-wider font-semibold">
+                            <th className="py-3 px-4">Dirección</th>
+                            <th className="py-3 px-4 text-right">Pedidos</th>
+                            <th className="py-3 px-4 text-right">
+                              Venta Total
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {domicilioData.byAddress.map((addr, i) => (
+                            <tr
+                              key={i}
+                              className="hover:bg-gray-50/50 transition-colors"
+                            >
+                              <td className="py-3 px-4 text-gray-800 font-medium">
+                                {addr.address || "Sin dirección especificada"}
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono text-gray-700">
+                                {addr.ordersCount}
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold text-gray-900">
+                                {formatCurrency(addr.totalSales)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Listado de Pedidos */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-2xs overflow-hidden">
@@ -769,27 +895,34 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                     <tbody className="divide-y divide-gray-100">
                       {domicilioData?.orders?.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-6 text-center text-gray-400">
+                          <td
+                            colSpan={7}
+                            className="py-6 text-center text-gray-400"
+                          >
                             No hay comprobantes a domicilio en este período.
                           </td>
                         </tr>
                       ) : (
                         domicilioData?.orders?.map((ord) => (
-                          <tr key={ord.id} className="hover:bg-gray-50/50 transition-colors">
+                          <tr
+                            key={ord.id}
+                            className="hover:bg-gray-50/50 transition-colors"
+                          >
                             <td className="py-3 px-4 text-gray-500 font-mono text-[11px]">
-                              {formatManaguaDate(ord.createdAt)} {formatManaguaTime(ord.createdAt)}
+                              {formatManaguaDate(ord.createdAt)}{" "}
+                              {formatManaguaTime(ord.createdAt)}
                             </td>
                             <td className="py-3 px-4 font-mono font-semibold text-gray-900">
                               {ord.invoiceNumber}
                             </td>
                             <td className="py-3 px-4 text-gray-700">
-                              {ord.customerName || 'Cliente general'}
+                              {ord.customerName || "Cliente general"}
                             </td>
                             <td className="py-3 px-4 text-gray-700">
-                              {ord.driverName || 'Sin asignar'}
+                              {ord.driverName || "Sin asignar"}
                             </td>
                             <td className="py-3 px-4 text-gray-600 max-w-xs truncate">
-                              {ord.deliveryAddress || '—'}
+                              {ord.deliveryAddress || "—"}
                             </td>
                             <td className="py-3 px-4 text-right font-mono text-blue-600 font-medium">
                               {formatCurrency(ord.deliveryFee)}
@@ -812,13 +945,16 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
       {/* ========================================================= */}
       {/* 3. PEDIDOSYA                                              */}
       {/* ========================================================= */}
-      {activeSubTab === 'pedidosya' && isPedidosYaEnabled && (
+      {activeSubTab === "pedidosya" && (isPedidosYaVisible || isPedidosYaEnabled) && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs">
             <div>
-              <h2 className="text-sm font-bold text-gray-900">Ventas por PedidosYa</h2>
+              <h2 className="text-sm font-bold text-gray-900">
+                Ventas por PedidosYa
+              </h2>
               <p className="text-xs text-gray-500">
-                Ventas brutas, deducciones de comisión e impuestos, y neto estimado a recibir.
+                Ventas brutas, deducciones de comisión e impuestos, y neto
+                estimado a recibir.
               </p>
             </div>
             <button
@@ -828,14 +964,17 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
               className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
             >
               <DownloadSimple size={15} weight="bold" />
-              <span>{isExportingCsv ? 'Descargando...' : 'Descargar CSV'}</span>
+              <span>{isExportingCsv ? "Descargando..." : "Descargar CSV"}</span>
             </button>
           </div>
 
           {isLoadingPedidosYa ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 animate-pulse">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="h-28 bg-white rounded-2xl border border-gray-100" />
+                <div
+                  key={i}
+                  className="h-28 bg-white rounded-2xl border border-gray-100"
+                />
               ))}
             </div>
           ) : (
@@ -849,7 +988,9 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                   <p className="text-2xl font-bold text-gray-900 font-mono mt-1">
                     {pedidosYaData?.summary?.totalOrders || 0}
                   </p>
-                  <span className="text-[11px] text-gray-400 mt-1 block">Órdenes recibidas</span>
+                  <span className="text-[11px] text-gray-400 mt-1 block">
+                    Órdenes recibidas
+                  </span>
                 </div>
 
                 <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs">
@@ -859,7 +1000,9 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                   <p className="text-2xl font-bold text-gray-900 font-mono mt-1">
                     {formatCurrency(pedidosYaData?.summary?.grossTotal || 0)}
                   </p>
-                  <span className="text-[11px] text-gray-400 mt-1 block">Precio al cliente</span>
+                  <span className="text-[11px] text-gray-400 mt-1 block">
+                    Precio al cliente
+                  </span>
                 </div>
 
                 <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs">
@@ -867,9 +1010,13 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                     Comisión App
                   </span>
                   <p className="text-2xl font-bold text-amber-600 font-mono mt-1">
-                    {formatCurrency(pedidosYaData?.summary?.totalCommission || 0)}
+                    {formatCurrency(
+                      pedidosYaData?.summary?.totalCommission || 0,
+                    )}
                   </p>
-                  <span className="text-[11px] text-gray-400 mt-1 block">Tarifa comercial</span>
+                  <span className="text-[11px] text-gray-400 mt-1 block">
+                    Tarifa comercial
+                  </span>
                 </div>
 
                 <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs">
@@ -879,7 +1026,9 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                   <p className="text-2xl font-bold text-gray-700 font-mono mt-1">
                     {formatCurrency(pedidosYaData?.summary?.totalTax || 0)}
                   </p>
-                  <span className="text-[11px] text-gray-400 mt-1 block">Retención impositiva</span>
+                  <span className="text-[11px] text-gray-400 mt-1 block">
+                    Retención impositiva
+                  </span>
                 </div>
 
                 <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200/80 shadow-2xs">
@@ -909,13 +1058,18 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                         Pago por la App
                       </span>
                       <p className="text-lg font-bold text-gray-900 font-mono mt-0.5">
-                        {formatCurrency(pedidosYaData?.byPaymentMode?.APP?.total || 0)}
+                        {formatCurrency(
+                          pedidosYaData?.byPaymentMode?.APP?.total || 0,
+                        )}
                       </p>
                       <span className="text-[11px] text-gray-500 block mt-1">
                         {pedidosYaData?.byPaymentMode?.APP?.count || 0} pedidos
                       </span>
                       <span className="text-[11px] text-emerald-700 font-semibold block mt-0.5">
-                        Neto: {formatCurrency(pedidosYaData?.byPaymentMode?.APP?.netPayout || 0)}
+                        Neto:{" "}
+                        {formatCurrency(
+                          pedidosYaData?.byPaymentMode?.APP?.netPayout || 0,
+                        )}
                       </span>
                     </div>
 
@@ -924,13 +1078,20 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                         Efectivo al Repartidor
                       </span>
                       <p className="text-lg font-bold text-gray-900 font-mono mt-0.5">
-                        {formatCurrency(pedidosYaData?.byPaymentMode?.EFECTIVO?.total || 0)}
+                        {formatCurrency(
+                          pedidosYaData?.byPaymentMode?.EFECTIVO?.total || 0,
+                        )}
                       </p>
                       <span className="text-[11px] text-gray-500 block mt-1">
-                        {pedidosYaData?.byPaymentMode?.EFECTIVO?.count || 0} pedidos
+                        {pedidosYaData?.byPaymentMode?.EFECTIVO?.count || 0}{" "}
+                        pedidos
                       </span>
                       <span className="text-[11px] text-emerald-700 font-semibold block mt-0.5">
-                        Neto: {formatCurrency(pedidosYaData?.byPaymentMode?.EFECTIVO?.netPayout || 0)}
+                        Neto:{" "}
+                        {formatCurrency(
+                          pedidosYaData?.byPaymentMode?.EFECTIVO?.netPayout ||
+                            0,
+                        )}
                       </span>
                     </div>
                   </div>
@@ -948,13 +1109,22 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                         Pendiente
                       </span>
                       <p className="text-lg font-bold text-amber-900 font-mono mt-0.5">
-                        {formatCurrency(pedidosYaData?.bySettlementStatus?.PENDIENTE?.total || 0)}
+                        {formatCurrency(
+                          pedidosYaData?.bySettlementStatus?.PENDIENTE?.total ||
+                            0,
+                        )}
                       </p>
                       <span className="text-[11px] text-amber-700 block mt-1">
-                        {pedidosYaData?.bySettlementStatus?.PENDIENTE?.count || 0} pedidos por cobrar
+                        {pedidosYaData?.bySettlementStatus?.PENDIENTE?.count ||
+                          0}{" "}
+                        pedidos por cobrar
                       </span>
                       <span className="text-[11px] text-emerald-800 font-semibold block mt-0.5">
-                        Neto: {formatCurrency(pedidosYaData?.bySettlementStatus?.PENDIENTE?.netPayout || 0)}
+                        Neto:{" "}
+                        {formatCurrency(
+                          pedidosYaData?.bySettlementStatus?.PENDIENTE
+                            ?.netPayout || 0,
+                        )}
                       </span>
                     </div>
 
@@ -963,13 +1133,22 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                         Liquidado
                       </span>
                       <p className="text-lg font-bold text-emerald-900 font-mono mt-0.5">
-                        {formatCurrency(pedidosYaData?.bySettlementStatus?.LIQUIDADO?.total || 0)}
+                        {formatCurrency(
+                          pedidosYaData?.bySettlementStatus?.LIQUIDADO?.total ||
+                            0,
+                        )}
                       </p>
                       <span className="text-[11px] text-emerald-700 block mt-1">
-                        {pedidosYaData?.bySettlementStatus?.LIQUIDADO?.count || 0} pedidos liquidados
+                        {pedidosYaData?.bySettlementStatus?.LIQUIDADO?.count ||
+                          0}{" "}
+                        pedidos liquidados
                       </span>
                       <span className="text-[11px] text-emerald-800 font-semibold block mt-0.5">
-                        Neto: {formatCurrency(pedidosYaData?.bySettlementStatus?.LIQUIDADO?.netPayout || 0)}
+                        Neto:{" "}
+                        {formatCurrency(
+                          pedidosYaData?.bySettlementStatus?.LIQUIDADO
+                            ?.netPayout || 0,
+                        )}
                       </span>
                     </div>
                   </div>
@@ -977,40 +1156,50 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
               </div>
 
               {/* Productos Más Vendidos */}
-              {pedidosYaData?.topProducts && pedidosYaData.topProducts.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-2xs overflow-hidden">
-                  <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                      <Tag size={16} className="text-gray-500" />
-                      <span>Productos Más Vendidos en PedidosYa</span>
-                    </h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-gray-50/70 border-b border-gray-100 text-gray-500 text-[11px] uppercase tracking-wider font-semibold">
-                          <th className="py-3 px-4">Producto</th>
-                          <th className="py-3 px-4 text-right">Unidades Vendidas</th>
-                          <th className="py-3 px-4 text-right">Venta Bruta</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {pedidosYaData.topProducts.map((p, i) => (
-                          <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="py-3 px-4 text-gray-800 font-medium">{p.productName}</td>
-                            <td className="py-3 px-4 text-right font-mono text-gray-700">
-                              {formatQuantity(p.units)}
-                            </td>
-                            <td className="py-3 px-4 text-right font-mono font-semibold text-gray-900">
-                              {formatCurrency(p.total)}
-                            </td>
+              {pedidosYaData?.topProducts &&
+                pedidosYaData.topProducts.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-2xs overflow-hidden">
+                    <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                        <Tag size={16} className="text-gray-500" />
+                        <span>Productos Más Vendidos en PedidosYa</span>
+                      </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-gray-50/70 border-b border-gray-100 text-gray-500 text-[11px] uppercase tracking-wider font-semibold">
+                            <th className="py-3 px-4">Producto</th>
+                            <th className="py-3 px-4 text-right">
+                              Unidades Vendidas
+                            </th>
+                            <th className="py-3 px-4 text-right">
+                              Venta Bruta
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {pedidosYaData.topProducts.map((p, i) => (
+                            <tr
+                              key={i}
+                              className="hover:bg-gray-50/50 transition-colors"
+                            >
+                              <td className="py-3 px-4 text-gray-800 font-medium">
+                                {p.productName}
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono text-gray-700">
+                                {formatQuantity(p.units)}
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold text-gray-900">
+                                {formatCurrency(p.total)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Listado de Pedidos PedidosYa */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-2xs overflow-hidden">
@@ -1041,42 +1230,54 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                     <tbody className="divide-y divide-gray-100">
                       {pedidosYaData?.orders?.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="py-6 text-center text-gray-400">
-                            No hay pedidos de PedidosYa registrados en este período.
+                          <td
+                            colSpan={9}
+                            className="py-6 text-center text-gray-400"
+                          >
+                            No hay pedidos de PedidosYa registrados en este
+                            período.
                           </td>
                         </tr>
                       ) : (
                         pedidosYaData?.orders?.map((ord) => (
-                          <tr key={ord.id} className="hover:bg-gray-50/50 transition-colors">
+                          <tr
+                            key={ord.id}
+                            className="hover:bg-gray-50/50 transition-colors"
+                          >
                             <td className="py-3 px-4 text-gray-500 font-mono text-[11px]">
-                              {formatManaguaDate(ord.createdAt)} {formatManaguaTime(ord.createdAt)}
+                              {formatManaguaDate(ord.createdAt)}{" "}
+                              {formatManaguaTime(ord.createdAt)}
                             </td>
                             <td className="py-3 px-4 font-mono font-semibold text-gray-900">
                               {ord.invoiceNumber}
                             </td>
                             <td className="py-3 px-4 font-mono text-gray-700">
-                              {ord.orderNumber ? `#${ord.orderNumber}` : '—'}
+                              {ord.orderNumber ? `#${ord.orderNumber}` : "—"}
                             </td>
                             <td className="py-3 px-4">
                               <span
                                 className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                  ord.paymentMode === 'APP'
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  ord.paymentMode === "APP"
+                                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                    : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                 }`}
                               >
-                                {ord.paymentMode === 'APP' ? 'Pago App' : 'Efectivo'}
+                                {ord.paymentMode === "APP"
+                                  ? "Pago App"
+                                  : "Efectivo"}
                               </span>
                             </td>
                             <td className="py-3 px-4">
                               <span
                                 className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                  ord.settlementStatus === 'LIQUIDADO'
-                                    ? 'bg-gray-100 text-gray-700'
-                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  ord.settlementStatus === "LIQUIDADO"
+                                    ? "bg-gray-100 text-gray-700"
+                                    : "bg-amber-50 text-amber-700 border border-amber-200"
                                 }`}
                               >
-                                {ord.settlementStatus === 'LIQUIDADO' ? 'Liquidado' : 'Pendiente'}
+                                {ord.settlementStatus === "LIQUIDADO"
+                                  ? "Liquidado"
+                                  : "Pendiente"}
                               </span>
                             </td>
                             <td className="py-3 px-4 text-right font-mono font-semibold text-gray-900">
@@ -1106,7 +1307,7 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
       {/* ========================================================= */}
       {/* 4. LIQUIDACIONES DE PEDIDOSYA                            */}
       {/* ========================================================= */}
-      {activeSubTab === 'settlements' && isPedidosYaEnabled && (
+      {activeSubTab === "settlements" && (isPedidosYaVisible || isPedidosYaEnabled) && (
         <div className="space-y-6">
           {/* Header y Acción */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs">
@@ -1115,13 +1316,16 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                 Liquidaciones y Conciliación de PedidosYa
               </h2>
               <p className="text-xs text-gray-500">
-                Verifica pedidos pendientes de cobro, registra el depósito recibido y concilia la
-                diferencia contra el esperado.
+                Verifica pedidos pendientes de cobro, registra el depósito
+                recibido y concilia la diferencia contra el esperado.
               </p>
             </div>
             <button
               type="button"
-              disabled={isLoadingPendingSettlement || (pendingSettlementData?.ordersCount || 0) === 0}
+              disabled={
+                isLoadingPendingSettlement ||
+                (pendingSettlementData?.ordersCount || 0) === 0
+              }
               onClick={handleOpenSettlementModal}
               className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
             >
@@ -1134,7 +1338,10 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
           {isLoadingPendingSettlement ? (
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 animate-pulse">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-28 bg-white rounded-2xl border border-gray-100" />
+                <div
+                  key={i}
+                  className="h-28 bg-white rounded-2xl border border-gray-100"
+                />
               ))}
             </div>
           ) : (
@@ -1151,19 +1358,27 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-[11px] text-gray-500 block">Venta Bruta</span>
+                  <span className="text-[11px] text-gray-500 block">
+                    Venta Bruta
+                  </span>
                   <p className="text-base font-bold font-mono text-gray-900 mt-0.5">
                     {formatCurrency(pendingSettlementData?.grossTotal || 0)}
                   </p>
                 </div>
                 <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-[11px] text-gray-500 block">Comisión Total</span>
+                  <span className="text-[11px] text-gray-500 block">
+                    Comisión Total
+                  </span>
                   <p className="text-base font-bold font-mono text-amber-600 mt-0.5">
-                    {formatCurrency(pendingSettlementData?.commissionTotal || 0)}
+                    {formatCurrency(
+                      pendingSettlementData?.commissionTotal || 0,
+                    )}
                   </p>
                 </div>
                 <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-[11px] text-gray-500 block">Impuesto</span>
+                  <span className="text-[11px] text-gray-500 block">
+                    Impuesto
+                  </span>
                   <p className="text-base font-bold font-mono text-gray-700 mt-0.5">
                     {formatCurrency(pendingSettlementData?.taxTotal || 0)}
                   </p>
@@ -1176,8 +1391,9 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                     {formatCurrency(pendingSettlementData?.netPayout || 0)}
                   </p>
                   <span className="text-[10px] text-emerald-600 mt-0.5 block">
-                    Ventas App ({formatCurrency(pendingSettlementData?.appSales?.net || 0)}) −
-                    Comisiones aplicadas
+                    Ventas App (
+                    {formatCurrency(pendingSettlementData?.appSales?.net || 0)})
+                    − Comisiones aplicadas
                   </span>
                 </div>
               </div>
@@ -1213,27 +1429,36 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                 <tbody className="divide-y divide-gray-100">
                   {isLoadingSettlementsList ? (
                     <tr>
-                      <td colSpan={8} className="py-6 text-center text-gray-400">
+                      <td
+                        colSpan={8}
+                        className="py-6 text-center text-gray-400"
+                      >
                         Cargando historial de liquidaciones...
                       </td>
                     </tr>
                   ) : settlementsListData?.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-6 text-center text-gray-400">
+                      <td
+                        colSpan={8}
+                        className="py-6 text-center text-gray-400"
+                      >
                         No hay liquidaciones registradas en el historial.
                       </td>
                     </tr>
                   ) : (
                     settlementsListData?.map((s) => (
-                      <tr key={s.id} className="hover:bg-gray-50/50 transition-colors">
+                      <tr
+                        key={s.id}
+                        className="hover:bg-gray-50/50 transition-colors"
+                      >
                         <td className="py-3 px-4 font-mono font-medium text-gray-900">
                           {s.depositDate}
                         </td>
                         <td className="py-3 px-4 text-gray-800 font-medium">
-                          {s.bank?.name || '—'}
+                          {s.bank?.name || "—"}
                         </td>
                         <td className="py-3 px-4 font-mono text-gray-600">
-                          {s.reference || '—'}
+                          {s.reference || "—"}
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-gray-900">
                           {formatCurrency(s.depositAmount)}
@@ -1245,20 +1470,22 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] ${
                               s.difference === 0
-                                ? 'bg-gray-100 text-gray-700'
+                                ? "bg-gray-100 text-gray-700"
                                 : s.difference > 0
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-red-50 text-red-700 border border-red-200'
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-red-50 text-red-700 border border-red-200"
                             }`}
                           >
-                            {s.difference > 0 ? `+${formatCurrency(s.difference)}` : formatCurrency(s.difference)}
+                            {s.difference > 0
+                              ? `+${formatCurrency(s.difference)}`
+                              : formatCurrency(s.difference)}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center font-mono text-gray-700">
-                          {s.ordersCount ?? s.sales?.length ?? '—'}
+                          {s.ordersCount ?? s.sales?.length ?? "—"}
                         </td>
                         <td className="py-3 px-4 text-gray-600 text-[11px]">
-                          {s.createdBy?.name || 'Sistema'}
+                          {s.createdBy?.name || "Sistema"}
                         </td>
                       </tr>
                     ))
@@ -1282,7 +1509,8 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                         Registrar Depósito de Liquidación
                       </h3>
                       <p className="text-xs text-gray-500">
-                        Concilia el monto transferido por PedidosYa con los pedidos emitidos
+                        Concilia el monto transferido por PedidosYa con los
+                        pedidos emitidos
                       </p>
                     </div>
                   </div>
@@ -1376,7 +1604,9 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                   {/* Conciliación en vivo */}
                   <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 space-y-2.5">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-500">Monto Esperado ({selectedSaleIds.length} pedidos):</span>
+                      <span className="text-gray-500">
+                        Monto Esperado ({selectedSaleIds.length} pedidos):
+                      </span>
                       <span className="font-mono font-bold text-gray-900">
                         {formatCurrency(expectedAmountInModal)}
                       </span>
@@ -1388,21 +1618,31 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-200">
-                      <span className="font-semibold text-gray-700">Diferencia:</span>
+                      <span className="font-semibold text-gray-700">
+                        Diferencia:
+                      </span>
                       <span
                         className={`font-mono font-bold ${
-                          settlementDifference >= 0 ? 'text-emerald-700' : 'text-red-600'
+                          settlementDifference >= 0
+                            ? "text-emerald-700"
+                            : "text-red-600"
                         }`}
                       >
-                        {settlementDifference > 0 ? `+${formatCurrency(settlementDifference)}` : formatCurrency(settlementDifference)}
+                        {settlementDifference > 0
+                          ? `+${formatCurrency(settlementDifference)}`
+                          : formatCurrency(settlementDifference)}
                       </span>
                     </div>
                     {settlementDifference < -0.01 && (
                       <p className="text-[11px] text-amber-700 flex items-center gap-1.5 mt-1 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                        <WarningCircle size={14} className="shrink-0" weight="fill" />
+                        <WarningCircle
+                          size={14}
+                          className="shrink-0"
+                          weight="fill"
+                        />
                         <span>
-                          El depósito es inferior al monto esperado. La diferencia quedará registrada
-                          en la liquidación.
+                          El depósito es inferior al monto esperado. La
+                          diferencia quedará registrada en la liquidación.
                         </span>
                       </p>
                     )}
@@ -1412,16 +1652,18 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-gray-700">
-                        Pedidos a liquidar ({selectedSaleIds.length} seleccionados)
+                        Pedidos a liquidar ({selectedSaleIds.length}{" "}
+                        seleccionados)
                       </label>
                       <button
                         type="button"
                         onClick={handleSelectAllSales}
                         className="text-xs text-brand-600 hover:text-brand-700 font-semibold"
                       >
-                        {selectedSaleIds.length === (pendingSettlementData?.orders?.length || 0)
-                          ? 'Deseleccionar todos'
-                          : 'Seleccionar todos'}
+                        {selectedSaleIds.length ===
+                        (pendingSettlementData?.orders?.length || 0)
+                          ? "Deseleccionar todos"
+                          : "Seleccionar todos"}
                       </button>
                     </div>
 
@@ -1438,7 +1680,9 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => handleToggleSaleSelection(ord.id)}
+                                onChange={() =>
+                                  handleToggleSaleSelection(ord.id)
+                                }
                                 className="rounded text-brand-600"
                               />
                               <span className="font-mono font-semibold text-gray-900">
@@ -1450,7 +1694,7 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                                 </span>
                               )}
                               <span className="text-[10px] text-gray-400">
-                                {ord.paymentMode === 'APP' ? 'App' : 'Efectivo'}
+                                {ord.paymentMode === "APP" ? "App" : "Efectivo"}
                               </span>
                             </div>
                             <span className="font-mono font-semibold text-emerald-700">
@@ -1472,12 +1716,15 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                     </button>
                     <button
                       type="submit"
-                      disabled={registerSettlementMutation.isPending || selectedSaleIds.length === 0}
+                      disabled={
+                        registerSettlementMutation.isPending ||
+                        selectedSaleIds.length === 0
+                      }
                       className="h-10 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors disabled:opacity-50"
                     >
                       {registerSettlementMutation.isPending
-                        ? 'Registrando...'
-                        : 'Confirmar y Liquidar'}
+                        ? "Registrando..."
+                        : "Confirmar y Liquidar"}
                     </button>
                   </div>
                 </form>

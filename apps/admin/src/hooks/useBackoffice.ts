@@ -256,6 +256,25 @@ export interface BackofficeCashRegisterItem {
   totalSales: number;
   salesCount: number;
   notes?: string | null;
+  deviceId?: string | null;
+  deviceName?: string | null;
+  recountAttempts?: number;
+  discrepancyReason?: string | null;
+  discrepancyNote?: string | null;
+  discrepancyAuthorizedById?: string | null;
+  discrepancyAuthorizedAt?: string | null;
+  discrepancyAuthorizer?: { id: string; name: string; role?: string } | null;
+}
+
+export interface PosOpenCashRegisterItem {
+  id: string;
+  deviceId: string | null;
+  deviceName: string | null;
+  cashierId: string;
+  cashierName: string;
+  openedAt: string;
+  openingCash: number;
+  status: string;
 }
 
 export interface CashRegisterMovement {
@@ -284,6 +303,7 @@ export interface BackofficeCashRegisterDetail extends BackofficeCashRegisterItem
   totalTransfer: number;
   movements: CashRegisterMovement[];
   sales: CashRegisterSaleSummary[];
+  salesByChannel?: Record<string, { count: number; total: number }>;
 }
 
 /* =========================================================================
@@ -429,13 +449,87 @@ export const useBackofficeCashRegisterDetail = (registerId: string | null, busin
     queryFn: async () => {
       if (!registerId) throw new Error('Register ID requerido');
       const params = businessId ? { businessId } : undefined;
-      const res = await apiClient.get<BackofficeCashRegisterDetail>(
-        `/backoffice/cash-registers/${registerId}`,
-        { params }
-      );
-      return res.data;
+
+      try {
+        // El endpoint /pos/cash-register/:id/summary contiene los campos completos de discrepancia y autorización
+        const res = await apiClient.get<any>(
+          `/pos/cash-register/${registerId}/summary`,
+          { params }
+        );
+        const data = res.data;
+        const reg = data.register || data;
+        const summary = data.summary || {};
+
+        return {
+          id: reg.id,
+          status: reg.status,
+          openedAt: reg.openedAt,
+          closedAt: reg.closedAt || null,
+          openedBy: reg.openedBy || (reg.cashier ? { id: reg.cashier.id, name: reg.cashier.name } : null),
+          closedBy: reg.closedBy || null,
+          openingCash: reg.openingCash ?? reg.initialAmount ?? 0,
+          expectedCash: reg.expectedCash ?? summary.currentCash ?? 0,
+          closingCash: reg.closingCash ?? reg.actualAmount ?? null,
+          difference: reg.difference ?? null,
+          closingCashUsd: reg.closingCashUsd ?? null,
+          differenceUsd: reg.differenceUsd ?? null,
+          totalSales: summary.totalSales ?? reg.totalSales ?? 0,
+          totalCash: summary.totalCash ?? reg.totalCash ?? 0,
+          totalCard: summary.totalCard ?? reg.totalCard ?? 0,
+          totalTransfer: summary.totalTransfer ?? reg.totalTransfer ?? 0,
+          salesCount: summary.salesCount ?? reg.salesCount ?? (reg.sales?.length || 0),
+          notes: reg.notes || null,
+          deviceId: reg.deviceId ?? null,
+          deviceName: reg.deviceName ?? null,
+          recountAttempts: reg.recountAttempts ?? 0,
+          discrepancyReason: reg.discrepancyReason ?? null,
+          discrepancyNote: reg.discrepancyNote ?? null,
+          discrepancyAuthorizedById: reg.discrepancyAuthorizedById ?? null,
+          discrepancyAuthorizedAt: reg.discrepancyAuthorizedAt ?? null,
+          discrepancyAuthorizer: reg.discrepancyAuthorizer ?? null,
+          salesByChannel: reg.salesByChannel ?? null,
+          movements: (reg.movements || []).map((m: any) => ({
+            id: m.id,
+            type: m.type === 'SALIDA' ? 'OUT' : (m.type === 'ENTRADA' ? 'IN' : m.type),
+            amount: Number(m.amount ?? 0),
+            currency: m.currency || 'NIO',
+            concept: m.concept || m.reason || null,
+            user: m.user ? { id: m.user.id, name: m.user.name } : null,
+            createdAt: m.createdAt,
+          })),
+          sales: (reg.sales || []).map((s: any) => ({
+            id: s.id,
+            invoiceNumber: s.invoiceNumber || `REC-${s.id.slice(0, 8)}`,
+            createdAt: s.createdAt,
+            total: Number(s.total ?? 0),
+            paymentMethod: s.paymentMethod || null,
+            customerName: s.customerName || null,
+            status: s.status,
+          })),
+        };
+      } catch (err) {
+        // Fallback al endpoint clásico de backoffice
+        const res = await apiClient.get<BackofficeCashRegisterDetail>(
+          `/backoffice/cash-registers/${registerId}`,
+          { params }
+        );
+        return res.data;
+      }
     },
     enabled: Boolean(registerId),
     staleTime: 30000,
+  });
+};
+
+export const usePosOpenCashRegisters = (enabled: boolean = true) => {
+  return useQuery<PosOpenCashRegisterItem[]>({
+    queryKey: ['pos', 'cash-registers', 'open-list'],
+    queryFn: async () => {
+      const res = await apiClient.get<PosOpenCashRegisterItem[]>('/pos/cash-register/open-list');
+      return res.data;
+    },
+    enabled,
+    staleTime: 15000,
+    refetchInterval: 30000,
   });
 };

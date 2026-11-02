@@ -23,6 +23,8 @@ interface ProfitReportTabProps {
   period: PeriodType;
   isLoading: boolean;
   hasActiveChannels?: boolean;
+  hasActiveDelivery?: boolean;
+  hasActivePedidosYa?: boolean;
 }
 
 export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
@@ -30,6 +32,8 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
   period,
   isLoading,
   hasActiveChannels = false,
+  hasActiveDelivery,
+  hasActivePedidosYa,
 }) => {
   const navigate = useNavigate();
 
@@ -98,9 +102,16 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
     total: 0,
   };
 
-  const showChannelCards = Boolean(
-    hasActiveChannels || deliveryRevenue > 0 || (channelFees.total ?? 0) > 0
+  const effectiveDeliveryActive = hasActiveDelivery !== undefined ? hasActiveDelivery : hasActiveChannels;
+  const effectivePedidosYaActive = hasActivePedidosYa !== undefined ? hasActivePedidosYa : hasActiveChannels;
+
+  const showDeliveryCard = Boolean(
+    effectiveDeliveryActive || deliveryRevenue > 0
   );
+  const showPedidosYaCard = Boolean(
+    effectivePedidosYaActive || (channelFees.total ?? 0) > 0
+  );
+  const channelCardsCount = (showDeliveryCard ? 1 : 0) + (showPedidosYaCard ? 1 : 0);
 
   // Fuentes de costo
   const bySource = profitData?.bySource;
@@ -135,7 +146,7 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
   return (
     <div className="space-y-5">
       {/* KPI Cards */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 ${showChannelCards ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-3.5`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${channelCardsCount > 0 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-3.5`}>
         {/* Ganancia Estimada */}
         <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between text-gray-500">
@@ -206,8 +217,8 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
           </div>
         </div>
 
-        {/* 223b: Ingresos por envío (solo si hay canales o hubo envíos/comisiones) */}
-        {showChannelCards && (
+        {/* 223b: Ingresos por envío (solo si el canal está activo o hubo envíos) */}
+        {showDeliveryCard && (
           <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
             <div className="flex items-center justify-between text-gray-500">
               <span className="text-xs font-semibold text-gray-700">Ingresos por envío</span>
@@ -226,8 +237,8 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
           </div>
         )}
 
-        {/* 223b: Comisiones de canal (solo si hay canales o hubo envíos/comisiones) */}
-        {showChannelCards && (
+        {/* 223b: Comisiones de canal (solo si PedidosYa está activo o hubo comisiones) */}
+        {showPedidosYaCard && (
           <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
             <div className="flex items-center justify-between text-gray-500">
               <span className="text-xs font-semibold text-gray-700">Comisiones de canal</span>

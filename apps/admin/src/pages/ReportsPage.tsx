@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from "react";
 import {
   ChartBar,
   TrendUp,
@@ -8,16 +8,16 @@ import {
   ArrowsClockwise,
   Users,
   Motorcycle,
-} from '@phosphor-icons/react';
-import { useAuthStore } from '../store/auth.store';
-import { PeriodType } from '../types/reports';
-import { PeriodSelector } from '../components/reports/PeriodSelector';
-import { SalesOperationsTab } from '../components/reports/SalesOperationsTab';
-import { ProfitReportTab } from '../components/reports/ProfitReportTab';
-import { ControlReportTab } from '../components/reports/ControlReportTab';
-import { WorkshopReportTab } from '../components/reports/WorkshopReportTab';
-import { SellerReportTab } from '../components/reports/SellerReportTab';
-import { ChannelsReportTab } from '../components/reports/ChannelsReportTab';
+} from "@phosphor-icons/react";
+import { useAuthStore } from "../store/auth.store";
+import { PeriodType } from "../types/reports";
+import { PeriodSelector } from "../components/reports/PeriodSelector";
+import { SalesOperationsTab } from "../components/reports/SalesOperationsTab";
+import { ProfitReportTab } from "../components/reports/ProfitReportTab";
+import { ControlReportTab } from "../components/reports/ControlReportTab";
+import { WorkshopReportTab } from "../components/reports/WorkshopReportTab";
+import { SellerReportTab } from "../components/reports/SellerReportTab";
+import { ChannelsReportTab } from "../components/reports/ChannelsReportTab";
 import {
   useReportsOverview,
   useSalesByTime,
@@ -27,43 +27,48 @@ import {
   useControlReport,
   useWorkshopReport,
   useSalesBySeller,
-} from '../hooks/useBackofficeReports';
-import { useQuery } from '@tanstack/react-query';
-import { getMyBusiness, getChannelConfig } from 'api-client';
+  useSalesByChannel,
+} from "../hooks/useBackofficeReports";
+import { useQuery } from "@tanstack/react-query";
+import { getMyBusiness, getChannelConfig } from "api-client";
+import { getVisibleChannels } from "../utils/visibleChannels";
 
-export type ReportTabKey = 'sales' | 'channels' | 'profit' | 'control' | 'workshop' | 'sellers';
+export type ReportTabKey =
+  | "sales"
+  | "channels"
+  | "profit"
+  | "control"
+  | "workshop"
+  | "sellers";
 
 export const ReportsPage: React.FC = () => {
   const user = useAuthStore((state) => state.user);
 
   // Verificación de rol: Solo Encargado y Superadmin pueden consultar reportes
-  const isAllowedRole = user?.role === 'ENCARGADO' || user?.role === 'SUPERADMIN';
+  const isAllowedRole =
+    user?.role === "ENCARGADO" || user?.role === "SUPERADMIN";
 
   // Perfil del negocio para saber si es Taller
   const { data: business } = useQuery({
-    queryKey: ['business', 'me'],
+    queryKey: ["business", "me"],
     queryFn: getMyBusiness,
     staleTime: 60000,
   });
 
   // Configuración de canales de venta (221c)
   const { data: channelConfig } = useQuery({
-    queryKey: ['pos', 'channels-config'],
+    queryKey: ["pos", "channels-config"],
     queryFn: () => getChannelConfig(),
     enabled: isAllowedRole,
     staleTime: 60000,
   });
 
-  const hasActiveChannels = Boolean(
-    channelConfig?.delivery?.enabled || channelConfig?.pedidosYa?.enabled
-  );
-
   // Estado del período (se preserva al alternar entre pestañas)
-  const [period, setPeriod] = useState<PeriodType>('today');
+  const [period, setPeriod] = useState<PeriodType>("today");
   const [customFrom, setCustomFrom] = useState<string | undefined>();
   const [customTo, setCustomTo] = useState<string | undefined>();
-  const [selectedChannel, setSelectedChannel] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<ReportTabKey>('sales');
+  const [selectedChannel, setSelectedChannel] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<ReportTabKey>("sales");
 
   const queryParams = useMemo(
     () => ({
@@ -72,7 +77,7 @@ export const ReportsPage: React.FC = () => {
       to: customTo,
       channel: selectedChannel || undefined,
     }),
-    [period, customFrom, customTo, selectedChannel]
+    [period, customFrom, customTo, selectedChannel],
   );
 
   // Hooks para cada pestaña
@@ -89,19 +94,19 @@ export const ReportsPage: React.FC = () => {
     data: timeData,
     isLoading: isLoadingTime,
     refetch: refetchTime,
-  } = useSalesByTime(queryParams, isAllowedRole && activeTab === 'sales');
+  } = useSalesByTime(queryParams, isAllowedRole && activeTab === "sales");
 
   const {
     data: categoryData,
     isLoading: isLoadingCategory,
     refetch: refetchCategory,
-  } = useSalesByCategory(queryParams, isAllowedRole && activeTab === 'sales');
+  } = useSalesByCategory(queryParams, isAllowedRole && activeTab === "sales");
 
   const {
     data: cashierData,
     isLoading: isLoadingCashier,
     refetch: refetchCashier,
-  } = useSalesByCashier(queryParams, isAllowedRole && activeTab === 'sales');
+  } = useSalesByCashier(queryParams, isAllowedRole && activeTab === "sales");
 
   const {
     data: profitData,
@@ -110,7 +115,10 @@ export const ReportsPage: React.FC = () => {
     error: errorProfit,
     refetch: refetchProfit,
     isFetching: isFetchingProfit,
-  } = useProfitReport(queryParams, isAllowedRole && (activeTab === 'profit' || !reportsData));
+  } = useProfitReport(
+    queryParams,
+    isAllowedRole && (activeTab === "profit" || !reportsData),
+  );
 
   const {
     data: controlData,
@@ -119,7 +127,10 @@ export const ReportsPage: React.FC = () => {
     error: errorControl,
     refetch: refetchControl,
     isFetching: isFetchingControl,
-  } = useControlReport(queryParams, isAllowedRole && (activeTab === 'control' || !reportsData));
+  } = useControlReport(
+    queryParams,
+    isAllowedRole && (activeTab === "control" || !reportsData),
+  );
 
   const {
     data: workshopData,
@@ -142,26 +153,74 @@ export const ReportsPage: React.FC = () => {
     isFetching: isFetchingSeller,
   } = useSalesBySeller(
     queryParams,
-    Boolean(isAllowedRole && hasTwoStepSale && (activeTab === 'sellers' || !reportsData))
+    Boolean(
+      isAllowedRole &&
+      hasTwoStepSale &&
+      (activeTab === "sellers" || !reportsData),
+    ),
   );
+
+  // Consulta de resumen por canal para evaluar la regla de visibilidad
+  const { data: channelReportData } = useSalesByChannel(
+    queryParams,
+    isAllowedRole,
+  );
+
+  const salesByChannelMap = useMemo(() => {
+    const map: Record<string, { count: number; total: number }> = {};
+    if (channelReportData?.summary) {
+      for (const item of channelReportData.summary) {
+        map[item.channel] = { count: item.count, total: item.gross };
+      }
+    }
+    return map;
+  }, [channelReportData]);
+
+  // Regla de visibilidad Ticket 232c: activo en config O con ventas en el período
+  const channelsVisibility = useMemo(() => {
+    return getVisibleChannels(channelConfig, salesByChannelMap);
+  }, [channelConfig, salesByChannelMap]);
 
   // Determinar si el negocio es taller
   const isWorkshop = Boolean(
-    workshopData?.isWorkshop || (business as any)?.salonProfile === 'TALLER'
+    workshopData?.isWorkshop || (business as any)?.salonProfile === "TALLER",
   );
 
   // Si no es taller y estaba en la pestaña de taller, regresar a ventas
   React.useEffect(() => {
-    if (!isWorkshop && activeTab === 'workshop') {
-      setActiveTab('sales');
+    if (!isWorkshop && activeTab === "workshop") {
+      setActiveTab("sales");
     }
-    if (!hasTwoStepSale && activeTab === 'sellers') {
-      setActiveTab('sales');
+    if (!hasTwoStepSale && activeTab === "sellers") {
+      setActiveTab("sales");
     }
-    if (!hasActiveChannels && activeTab === 'channels') {
-      setActiveTab('sales');
+    if (
+      !channelsVisibility.hasAnyNonMostradorChannel &&
+      activeTab === "channels"
+    ) {
+      setActiveTab("sales");
     }
-  }, [isWorkshop, hasTwoStepSale, hasActiveChannels, activeTab]);
+  }, [
+    isWorkshop,
+    hasTwoStepSale,
+    channelsVisibility.hasAnyNonMostradorChannel,
+    activeTab,
+  ]);
+
+  // Si el canal seleccionado ya no es visible en el período actual, resetear a Todos
+  React.useEffect(() => {
+    if (
+      selectedChannel === "DOMICILIO" &&
+      !channelsVisibility.isDeliveryVisible
+    ) {
+      setSelectedChannel("");
+    } else if (
+      selectedChannel === "PEDIDOSYA" &&
+      !channelsVisibility.isPedidosYaVisible
+    ) {
+      setSelectedChannel("");
+    }
+  }, [selectedChannel, channelsVisibility]);
 
   const handlePeriodChange = (p: PeriodType, f?: string, t?: string) => {
     setPeriod(p);
@@ -181,7 +240,11 @@ export const ReportsPage: React.FC = () => {
   };
 
   const isRefreshing =
-    isFetchingOverview || isFetchingProfit || isFetchingControl || isFetchingWorkshop || isFetchingSeller;
+    isFetchingOverview ||
+    isFetchingProfit ||
+    isFetchingControl ||
+    isFetchingWorkshop ||
+    isFetchingSeller;
 
   // Validación de permiso de usuario
   if (!isAllowedRole) {
@@ -190,10 +253,12 @@ export const ReportsPage: React.FC = () => {
         <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto">
           <ShieldCheck size={26} weight="duotone" />
         </div>
-        <h3 className="text-base font-bold text-gray-900">Acceso restringido</h3>
+        <h3 className="text-base font-bold text-gray-900">
+          Acceso restringido
+        </h3>
         <p className="text-xs text-gray-500 leading-relaxed">
-          No tienes permisos para consultar los reportes del negocio. Esta sección es exclusiva
-          para el Encargado o Administrador.
+          No tienes permisos para consultar los reportes del negocio. Esta
+          sección es exclusiva para el Encargado o Administrador.
         </p>
       </div>
     );
@@ -201,19 +266,19 @@ export const ReportsPage: React.FC = () => {
 
   // Captura de errores de API (ej: exceder 366 días)
   const currentError =
-    (activeTab === 'sales' && isErrorOverview ? errorOverview : null) ||
-    (activeTab === 'profit' && isErrorProfit ? errorProfit : null) ||
-    (activeTab === 'control' && isErrorControl ? errorControl : null) ||
-    (activeTab === 'workshop' && isErrorWorkshop ? errorWorkshop : null) ||
-    (activeTab === 'sellers' && isErrorSeller ? errorSeller : null);
+    (activeTab === "sales" && isErrorOverview ? errorOverview : null) ||
+    (activeTab === "profit" && isErrorProfit ? errorProfit : null) ||
+    (activeTab === "control" && isErrorControl ? errorControl : null) ||
+    (activeTab === "workshop" && isErrorWorkshop ? errorWorkshop : null) ||
+    (activeTab === "sellers" && isErrorSeller ? errorSeller : null);
 
   const getErrorMessage = (err: any) => {
-    if (!err) return 'Ocurrió un error al cargar el reporte.';
+    if (!err) return "Ocurrió un error al cargar el reporte.";
     return (
       err?.response?.data?.message ||
       err?.response?.data?.error ||
       err?.message ||
-      'Error de comunicación con el servidor.'
+      "Error de comunicación con el servidor."
     );
   };
 
@@ -226,75 +291,78 @@ export const ReportsPage: React.FC = () => {
             Reportes y Analítica
           </h1>
           <p className="text-xs text-gray-500 mt-0.5">
-            {activeTab === 'sales'
-              ? 'Rendimiento de ventas, cobros, horas pico, categorías y cajeros'
-              : activeTab === 'channels'
-              ? 'Resumen por canal, pedidos a domicilio, ventas por PedidosYa y conciliación de liquidaciones'
-              : activeTab === 'profit'
-              ? 'Margen operativo, costo de lo vendido y rentabilidad de ventas'
-              : activeTab === 'control'
-              ? 'Auditoría de anulaciones, devoluciones, descuentos y arqueos'
-              : activeTab === 'workshop'
-              ? 'Rendimiento de órdenes de taller, servicios y mecánicos'
-              : 'Rendimiento por vendedor, tickets enviados vs. cobrados y productos más vendidos'}
+            {activeTab === "sales"
+              ? "Rendimiento de ventas, cobros, horas pico, categorías y cajeros"
+              : activeTab === "channels"
+                ? "Resumen por canal, pedidos a domicilio, ventas por PedidosYa y conciliación de liquidaciones"
+                : activeTab === "profit"
+                  ? "Margen operativo, costo de lo vendido y rentabilidad de ventas"
+                  : activeTab === "control"
+                    ? "Auditoría de anulaciones, devoluciones, descuentos y arqueos"
+                    : activeTab === "workshop"
+                      ? "Rendimiento de órdenes de taller, servicios y mecánicos"
+                      : "Rendimiento por vendedor, tickets enviados vs. cobrados y productos más vendidos"}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Filtro de Canal (solo visible si el negocio tiene canales activos y está en Ventas o Vendedores) */}
-          {hasActiveChannels && (activeTab === 'sales' || activeTab === 'sellers') && (
-            <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200">
-              <span className="text-[11px] font-semibold text-gray-500 pl-2 pr-1">Canal:</span>
-              <button
-                type="button"
-                onClick={() => setSelectedChannel('')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  selectedChannel === ''
-                    ? 'bg-white text-gray-900 shadow-2xs'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedChannel('MOSTRADOR')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  selectedChannel === 'MOSTRADOR'
-                    ? 'bg-white text-gray-900 shadow-2xs'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                Mostrador
-              </button>
-              {channelConfig?.delivery?.enabled && (
+          {/* Filtro de Canal (solo visible si el negocio tiene canales activos o con ventas en el período y está en Ventas o Vendedores) */}
+          {channelsVisibility.hasAnyNonMostradorChannel &&
+            (activeTab === "sales" || activeTab === "sellers") && (
+              <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200">
+                <span className="text-[11px] font-semibold text-gray-500 pl-2 pr-1">
+                  Canal:
+                </span>
                 <button
                   type="button"
-                  onClick={() => setSelectedChannel('DOMICILIO')}
+                  onClick={() => setSelectedChannel("")}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    selectedChannel === 'DOMICILIO'
-                      ? 'bg-white text-blue-600 shadow-2xs'
-                      : 'text-gray-500 hover:text-blue-600'
+                    selectedChannel === ""
+                      ? "bg-white text-gray-900 shadow-2xs"
+                      : "text-gray-500 hover:text-gray-900"
                   }`}
                 >
-                  Domicilio
+                  Todos
                 </button>
-              )}
-              {channelConfig?.pedidosYa?.enabled && (
                 <button
                   type="button"
-                  onClick={() => setSelectedChannel('PEDIDOSYA')}
+                  onClick={() => setSelectedChannel("MOSTRADOR")}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    selectedChannel === 'PEDIDOSYA'
-                      ? 'bg-white text-red-600 shadow-2xs'
-                      : 'text-gray-500 hover:text-red-600'
+                    selectedChannel === "MOSTRADOR"
+                      ? "bg-white text-gray-900 shadow-2xs"
+                      : "text-gray-500 hover:text-gray-900"
                   }`}
                 >
-                  PedidosYa
+                  Mostrador
                 </button>
-              )}
-            </div>
-          )}
+                {channelsVisibility.isDeliveryVisible && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedChannel("DOMICILIO")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      selectedChannel === "DOMICILIO"
+                        ? "bg-white text-blue-600 shadow-2xs"
+                        : "text-gray-500 hover:text-blue-600"
+                    }`}
+                  >
+                    Domicilio
+                  </button>
+                )}
+                {channelsVisibility.isPedidosYaVisible && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedChannel("PEDIDOSYA")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      selectedChannel === "PEDIDOSYA"
+                        ? "bg-white text-red-600 shadow-2xs"
+                        : "text-gray-500 hover:text-red-600"
+                    }`}
+                  >
+                    PedidosYa
+                  </button>
+                )}
+              </div>
+            )}
 
           {/* Selector de Período Global */}
           <PeriodSelector
@@ -314,29 +382,35 @@ export const ReportsPage: React.FC = () => {
           {/* Pestaña 1: Ventas y Operaciones */}
           <button
             type="button"
-            onClick={() => setActiveTab('sales')}
+            onClick={() => setActiveTab("sales")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'sales'
-                ? 'bg-gray-900 text-white shadow-2xs'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              activeTab === "sales"
+                ? "bg-gray-900 text-white shadow-2xs"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
             }`}
           >
-            <ChartBar size={16} weight={activeTab === 'sales' ? 'bold' : 'regular'} />
+            <ChartBar
+              size={16}
+              weight={activeTab === "sales" ? "bold" : "regular"}
+            />
             <span>Ventas y Operaciones</span>
           </button>
 
-          {/* Pestaña: Canales (solo si hasActiveChannels) */}
-          {hasActiveChannels && (
+          {/* Pestaña: Canales (solo si hay canales activos o con ventas en el período) */}
+          {channelsVisibility.hasAnyNonMostradorChannel && (
             <button
               type="button"
-              onClick={() => setActiveTab('channels')}
+              onClick={() => setActiveTab("channels")}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'channels'
-                  ? 'bg-gray-900 text-white shadow-2xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                activeTab === "channels"
+                  ? "bg-gray-900 text-white shadow-2xs"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               }`}
             >
-              <Motorcycle size={16} weight={activeTab === 'channels' ? 'bold' : 'regular'} />
+              <Motorcycle
+                size={16}
+                weight={activeTab === "channels" ? "bold" : "regular"}
+              />
               <span>Canales</span>
             </button>
           )}
@@ -344,28 +418,34 @@ export const ReportsPage: React.FC = () => {
           {/* Pestaña 2: Ganancias */}
           <button
             type="button"
-            onClick={() => setActiveTab('profit')}
+            onClick={() => setActiveTab("profit")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'profit'
-                ? 'bg-gray-900 text-white shadow-2xs'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              activeTab === "profit"
+                ? "bg-gray-900 text-white shadow-2xs"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
             }`}
           >
-            <TrendUp size={16} weight={activeTab === 'profit' ? 'bold' : 'regular'} />
+            <TrendUp
+              size={16}
+              weight={activeTab === "profit" ? "bold" : "regular"}
+            />
             <span>Ganancias</span>
           </button>
 
           {/* Pestaña 3: Control */}
           <button
             type="button"
-            onClick={() => setActiveTab('control')}
+            onClick={() => setActiveTab("control")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'control'
-                ? 'bg-gray-900 text-white shadow-2xs'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              activeTab === "control"
+                ? "bg-gray-900 text-white shadow-2xs"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
             }`}
           >
-            <ShieldCheck size={16} weight={activeTab === 'control' ? 'bold' : 'regular'} />
+            <ShieldCheck
+              size={16}
+              weight={activeTab === "control" ? "bold" : "regular"}
+            />
             <span>Control</span>
           </button>
 
@@ -373,14 +453,17 @@ export const ReportsPage: React.FC = () => {
           {isWorkshop && (
             <button
               type="button"
-              onClick={() => setActiveTab('workshop')}
+              onClick={() => setActiveTab("workshop")}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'workshop'
-                  ? 'bg-gray-900 text-white shadow-2xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                activeTab === "workshop"
+                  ? "bg-gray-900 text-white shadow-2xs"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               }`}
             >
-              <Wrench size={16} weight={activeTab === 'workshop' ? 'bold' : 'regular'} />
+              <Wrench
+                size={16}
+                weight={activeTab === "workshop" ? "bold" : "regular"}
+              />
               <span>Taller</span>
             </button>
           )}
@@ -389,14 +472,17 @@ export const ReportsPage: React.FC = () => {
           {hasTwoStepSale && (
             <button
               type="button"
-              onClick={() => setActiveTab('sellers')}
+              onClick={() => setActiveTab("sellers")}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'sellers'
-                  ? 'bg-gray-900 text-white shadow-2xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                activeTab === "sellers"
+                  ? "bg-gray-900 text-white shadow-2xs"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               }`}
             >
-              <Users size={16} weight={activeTab === 'sellers' ? 'bold' : 'regular'} />
+              <Users
+                size={16}
+                weight={activeTab === "sellers" ? "bold" : "regular"}
+              />
               <span>Vendedores</span>
             </button>
           )}
@@ -409,7 +495,9 @@ export const ReportsPage: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
             <WarningCircle size={26} weight="fill" />
           </div>
-          <h3 className="text-base font-bold text-gray-900">No se pudieron cargar los datos</h3>
+          <h3 className="text-base font-bold text-gray-900">
+            No se pudieron cargar los datos
+          </h3>
           <p className="text-xs text-red-600 max-w-md mx-auto">
             {getErrorMessage(currentError)}
           </p>
@@ -427,7 +515,7 @@ export const ReportsPage: React.FC = () => {
       ) : (
         <>
           {/* Pestaña 1: Ventas y Operaciones */}
-          {activeTab === 'sales' && (
+          {activeTab === "sales" && (
             <SalesOperationsTab
               reportsData={reportsData}
               timeData={timeData}
@@ -435,31 +523,40 @@ export const ReportsPage: React.FC = () => {
               cashierData={cashierData}
               period={period}
               queryParams={queryParams}
-              isLoading={isLoadingOverview || isLoadingTime || isLoadingCategory || isLoadingCashier}
+              isLoading={
+                isLoadingOverview ||
+                isLoadingTime ||
+                isLoadingCategory ||
+                isLoadingCashier
+              }
             />
           )}
 
           {/* Pestaña: Canales (221c) */}
-          {activeTab === 'channels' && hasActiveChannels && channelConfig && (
-            <ChannelsReportTab
-              queryParams={queryParams}
-              period={period}
-              channelConfig={channelConfig}
-            />
-          )}
+          {activeTab === "channels" &&
+            channelsVisibility.hasAnyNonMostradorChannel &&
+            channelConfig && (
+              <ChannelsReportTab
+                queryParams={queryParams}
+                period={period}
+                channelConfig={channelConfig}
+              />
+            )}
 
           {/* Pestaña 2: Ganancias */}
-          {activeTab === 'profit' && (
+          {activeTab === "profit" && (
             <ProfitReportTab
               profitData={profitData}
               period={period}
               isLoading={isLoadingProfit}
-              hasActiveChannels={hasActiveChannels}
+              hasActiveChannels={channelsVisibility.hasAnyNonMostradorChannel}
+              hasActiveDelivery={channelsVisibility.isDeliveryVisible}
+              hasActivePedidosYa={channelsVisibility.isPedidosYaVisible}
             />
           )}
 
           {/* Pestaña 3: Control */}
-          {activeTab === 'control' && (
+          {activeTab === "control" && (
             <ControlReportTab
               controlData={controlData}
               period={period}
@@ -468,7 +565,7 @@ export const ReportsPage: React.FC = () => {
           )}
 
           {/* Pestaña 4: Taller */}
-          {activeTab === 'workshop' && isWorkshop && (
+          {activeTab === "workshop" && isWorkshop && (
             <WorkshopReportTab
               workshopData={workshopData}
               period={period}
@@ -477,7 +574,7 @@ export const ReportsPage: React.FC = () => {
           )}
 
           {/* Pestaña 5: Vendedores */}
-          {activeTab === 'sellers' && hasTwoStepSale && (
+          {activeTab === "sellers" && hasTwoStepSale && (
             <SellerReportTab
               sellerData={sellerData}
               period={period}
