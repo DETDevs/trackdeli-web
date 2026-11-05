@@ -84,6 +84,11 @@ export interface BusinessItem {
   posVertical?: string | null;
   activeDevices?: number;
   monthly_amount?: number;
+  // 244b: cobertura comercial (acuerdo y mantenimiento gratis)
+  monthly_amount_nio?: number;
+  coverage_source?: 'MAINTENANCE_FREE' | 'MEMBERSHIP' | null;
+  maintenance_free_ends_at?: string | null;
+  commercial_overdue?: boolean;
   is_trial?: boolean;
   products?: Array<{
     id: string;

@@ -58,6 +58,7 @@ import { BusinessProductsSection } from '../components/business/BusinessProducts
 import { BusinessProductFieldsSection } from '../components/business/BusinessProductFieldsSection';
 import { BusinessPosDevicesSection } from '../components/business/BusinessPosDevicesSection';
 import { BusinessOrganizationSection } from '../components/business/BusinessOrganizationSection';
+import { BusinessCommercialSection } from '../components/business/BusinessCommercialSection';
 import { useBusinessProducts, type BusinessProductType } from '../hooks/useBusinessProducts';
 import { useSuperAdminUsers } from '../hooks/useSuperAdminUsers';
 import { type AdminUser } from 'api-client';
@@ -1227,6 +1228,12 @@ export const BusinessDetailPage = () => {
                 </div>
               )}
             </div>
+
+            {/* Acuerdo comercial (Fase 1 - Ticket 244b) */}
+            <BusinessCommercialSection
+              businessId={business.id}
+              businessName={business.name}
+            />
 
             <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between">

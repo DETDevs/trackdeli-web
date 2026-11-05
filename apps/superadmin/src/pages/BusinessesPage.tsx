@@ -29,7 +29,7 @@ import { CreateBusinessWizardModal } from '../components/modals/CreateBusinessWi
 import { DeleteBusinessModal } from '../components/modals/DeleteBusinessModal';
 import { RegisterMembershipModal } from '../components/modals/RegisterMembershipModal';
 import { formatDueText, getMembershipPillInfo, formatDateClean } from '../utils/membershipDates';
-import { formatRelativeTime } from '../utils/format';
+import { formatRelativeTime, formatDateShort, formatCurrency } from '../utils/format';
 
 type TabStatus = 'all' | 'por_vencer' | 'en_gracia' | 'vencido' | 'prueba' | 'inactivo';
 
@@ -247,14 +247,24 @@ export const BusinessesPage = () => {
       accessor: (row) => {
         const pill = getMembershipPillInfo(row.membership_status, row.is_trial, row.isActive);
         const dueText = formatDueText(row.due_date, row.days_until_due);
+        const isMaintenanceFree = row.coverage_source === 'MAINTENANCE_FREE';
 
         return (
           <div className="space-y-0.5 whitespace-nowrap min-w-[130px]">
-            <Badge variant={pill.variant} dot size="sm">
-              {pill.label}
-            </Badge>
-            <p className="text-[11px] text-gray-500 font-medium">
-              {dueText}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Badge variant={pill.variant} dot size="sm">
+                {pill.label}
+              </Badge>
+              {row.commercial_overdue && (
+                <Badge variant="danger" dot size="sm">
+                  Cuota vencida
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 font-medium">
+              {isMaintenanceFree && row.maintenance_free_ends_at
+                ? `Mantenimiento incluido hasta ${formatDateShort(row.maintenance_free_ends_at)}`
+                : dueText}
             </p>
           </div>
         );
@@ -271,14 +281,37 @@ export const BusinessesPage = () => {
           {renderSortIndicator('monthly_amount')}
         </button>
       ),
-      accessor: (row) => (
-        <div className="whitespace-nowrap min-w-[90px]">
-          <span className="font-bold text-xs sm:text-sm text-gray-900 font-mono">
-            ${Number(row.monthly_amount ?? 0).toFixed(2)}
-          </span>
-          <span className="text-[11px] text-gray-400 font-normal"> / mes</span>
-        </div>
-      ),
+      accessor: (row) => {
+        if (row.coverage_source === 'MAINTENANCE_FREE') {
+          return (
+            <div className="whitespace-nowrap min-w-[90px]">
+              <span className="font-semibold text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                Incluido
+              </span>
+            </div>
+          );
+        }
+
+        if (row.monthly_amount_nio != null && row.monthly_amount_nio > 0) {
+          return (
+            <div className="whitespace-nowrap min-w-[90px]">
+              <span className="font-bold text-xs sm:text-sm text-gray-900 font-mono">
+                {formatCurrency(row.monthly_amount_nio, 'NIO')}
+              </span>
+              <span className="text-xs text-gray-400 font-normal"> / mes</span>
+            </div>
+          );
+        }
+
+        return (
+          <div className="whitespace-nowrap min-w-[90px]">
+            <span className="font-bold text-xs sm:text-sm text-gray-900 font-mono">
+              ${Number(row.monthly_amount ?? 0).toFixed(2)}
+            </span>
+            <span className="text-xs text-gray-400 font-normal"> / mes</span>
+          </div>
+        );
+      },
     },
     {
       header: 'PRODUCTOS',

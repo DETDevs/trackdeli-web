@@ -54,3 +54,16 @@ export function getGroupDateHeader(dateString: string | Date): string {
     return 'ANTERIORES';
   }
 }
+
+/**
+ * 244b: Formatea un monto con su símbolo de moneda (USD → US$, NIO → C$).
+ */
+export function formatCurrency(amount: number | null | undefined, currency: string = 'USD'): string {
+  const value = Number(amount ?? 0);
+  const symbol = currency.toUpperCase() === 'NIO' ? 'C$' : 'US$';
+  const formatted = value.toLocaleString('es-NI', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${symbol}${formatted}`;
+}

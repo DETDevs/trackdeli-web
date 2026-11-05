@@ -12,7 +12,7 @@ import {
   Clock,
 } from '@phosphor-icons/react';
 import { formatDueText, getMembershipPillInfo, formatDateClean } from '../../utils/membershipDates';
-import { formatRelativeTime } from '../../utils/format';
+import { formatRelativeTime, formatDateShort, formatCurrency } from '../../utils/format';
 
 interface BusinessCardMobileProps {
   business: BusinessItem;
@@ -139,16 +139,38 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
       {/* Membresía y Monto */}
       <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-100 space-y-1">
         <div className="flex items-center justify-between">
-          <Badge variant={pill.variant} dot size="sm">
-            {pill.label}
-          </Badge>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Badge variant={pill.variant} dot size="sm">
+              {pill.label}
+            </Badge>
+            {business.commercial_overdue && (
+              <Badge variant="danger" dot size="sm">
+                Cuota vencida
+              </Badge>
+            )}
+          </div>
           <span className="font-bold text-xs sm:text-sm text-gray-900">
-            ${Number(business.monthly_amount ?? 0).toFixed(2)}
-            <span className="text-[10px] font-normal text-gray-500"> / mes</span>
+            {business.coverage_source === 'MAINTENANCE_FREE' ? (
+              <span className="font-semibold text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                Incluido
+              </span>
+            ) : business.monthly_amount_nio != null && business.monthly_amount_nio > 0 ? (
+              <>
+                {formatCurrency(business.monthly_amount_nio, 'NIO')}
+                <span className="text-xs font-normal text-gray-500"> / mes</span>
+              </>
+            ) : (
+              <>
+                ${Number(business.monthly_amount ?? 0).toFixed(2)}
+                <span className="text-xs font-normal text-gray-500"> / mes</span>
+              </>
+            )}
           </span>
         </div>
-        <p className="text-[11px] text-gray-500 font-medium">
-          {dueText}
+        <p className="text-xs text-gray-500 font-medium">
+          {business.coverage_source === 'MAINTENANCE_FREE' && business.maintenance_free_ends_at
+            ? `Mantenimiento incluido hasta ${formatDateShort(business.maintenance_free_ends_at)}`
+            : dueText}
         </p>
       </div>
 
