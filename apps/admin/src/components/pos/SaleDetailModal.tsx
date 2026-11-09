@@ -1,13 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Receipt,
   Wrench,
   WarningCircle,
+  ArrowCounterClockwise,
+  ArrowUUpLeft,
 } from '@phosphor-icons/react';
+import { useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { useBackofficeSaleDetail } from '../../hooks/useBackoffice';
 import { formatCurrency, formatQuantity } from '../../utils/formatters';
 import { formatDateTime } from '../../utils/formatDate';
+import { CancelSaleModal } from './sales/CancelSaleModal';
+import { ReturnSaleModal } from './sales/ReturnSaleModal';
+import { ReturnReceiptModal } from './sales/ReturnReceiptModal';
+import { type SaleReturnPrintData } from '../../utils/receiptPdf';
 
 interface SaleDetailModalProps {
   saleId: string | null;
@@ -22,9 +30,53 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
   currency = 'NIO',
   isTallerProfile = false,
 }) => {
+  const queryClient = useQueryClient();
   const { data: sale, isLoading, isError, error } = useBackofficeSaleDetail(saleId);
 
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [returnReceiptData, setReturnReceiptData] = useState<SaleReturnPrintData | null>(null);
+
   if (!saleId) return null;
+
+  const handleVoidSuccess = () => {
+    setIsCancelModalOpen(false);
+    queryClient.invalidateQueries({ queryKey: ['backoffice', 'sales'] });
+    queryClient.invalidateQueries({ queryKey: ['backoffice', 'sale-detail', saleId] });
+    queryClient.invalidateQueries({ queryKey: ['pos'] });
+    toast.success('Comprobante anulado exitosamente');
+  };
+
+  const handleReturnSuccess = (res: any) => {
+    setIsReturnModalOpen(false);
+    queryClient.invalidateQueries({ queryKey: ['backoffice', 'sales'] });
+    queryClient.invalidateQueries({ queryKey: ['backoffice', 'sale-detail', saleId] });
+    queryClient.invalidateQueries({ queryKey: ['pos'] });
+    toast.success('Devolución registrada exitosamente');
+
+    if (res) {
+      const items = (res.items || []).map((it: any) => ({
+        productName: it.productName || it.product?.name || 'Producto',
+        quantity: Number(it.quantity || 1),
+        unitPrice: Number(it.unitPrice || 0),
+        refundAmount: Number(it.refundAmount || 0),
+      }));
+
+      setReturnReceiptData({
+        returnNumber: res.returnNumber || `DEV-${res.id?.slice(-6) || Date.now()}`,
+        invoiceNumber: sale?.invoiceNumber || '',
+        createdAt: res.createdAt || new Date().toISOString(),
+        reason: res.reason || 'Devolución de productos',
+        refundMethod: res.refundMethod || 'EFECTIVO',
+        refundAmount: Number(res.refundAmount || 0),
+        taxRefunded: Number(res.taxRefunded || 0),
+        cashierName: res.createdBy?.name || undefined,
+        approvedByName: res.approvedBy?.name || undefined,
+        items,
+      });
+    }
+  };
+
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -355,18 +407,96 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
             )}
           </div>
 
-          {/* Footer - Solo lectura */}
-          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-end shrink-0">
+          {/* Footer con acciones */}
+          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {sale && !sale.isVoided && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsCancelModalOpen(true)}
+                    className="h-11 px-4 rounded-xl text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <ArrowCounterClockwise size={16} weight="bold" />
+                    <span>Anular comprobante</span>
+                  </button>
+
+                  {(!sale.totalRefunded || sale.totalRefunded < sale.netTotal) && (
+                    <button
+                      type="button"
+                      onClick={() => setIsReturnModalOpen(true)}
+                      className="h-11 px-4 rounded-xl text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/60 font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <ArrowUUpLeft size={16} weight="bold" />
+                      <span>Devolver venta</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-medium transition-colors shadow-2xs"
+              className="h-11 px-5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
             >
               Cerrar
             </button>
           </div>
         </div>
       </div>
+
+      {/* Modal de Anulación */}
+      <CancelSaleModal
+        isOpen={isCancelModalOpen}
+        sale={sale ? {
+          id: sale.id,
+          invoiceNumber: sale.invoiceNumber,
+          netTotal: sale.netTotal,
+          amountPaid: sale.amountPaid,
+          customer: sale.customer ? { name: sale.customer.name || undefined } : null,
+          customerName: sale.customer?.name || undefined,
+        } : null}
+        onClose={() => setIsCancelModalOpen(false)}
+        onSuccess={handleVoidSuccess}
+        currency={currency}
+      />
+
+      {/* Modal de Devolución */}
+      <ReturnSaleModal
+        isOpen={isReturnModalOpen}
+        sale={sale ? {
+          id: sale.id,
+          invoiceNumber: sale.invoiceNumber,
+          createdAt: sale.createdAt,
+          paymentMethod: sale.paymentMethod || undefined,
+          payments: sale.payments,
+          customer: sale.customer ? { name: sale.customer.name || undefined, phone: sale.customer.phone || undefined } : null,
+          customerName: sale.customer?.name || undefined,
+          customerPhone: sale.customer?.phone || undefined,
+          items: sale.items?.map((it: any) => ({
+            id: it.id,
+            productId: it.productId,
+            productName: it.productName,
+            quantity: it.quantity,
+            returnedQty: it.returnedQty,
+            unitPrice: it.unitPrice,
+            total: it.total,
+          })),
+        } : null}
+        onClose={() => setIsReturnModalOpen(false)}
+        onSuccess={handleReturnSuccess}
+        currency={currency}
+      />
+
+      {/* Modal de Comprobante de Devolución */}
+      <ReturnReceiptModal
+        isOpen={Boolean(returnReceiptData)}
+        onClose={() => setReturnReceiptData(null)}
+        returnData={returnReceiptData}
+        customerPhone={sale?.customer?.phone}
+      />
     </div>
   );
 };
+

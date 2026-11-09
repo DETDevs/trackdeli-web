@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Wallet,
@@ -11,9 +11,11 @@ import {
   User,
   CalendarBlank,
 } from '@phosphor-icons/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCreditAccountDetail } from '../../hooks/useFinances';
 import { formatCurrency } from '../../utils/formatters';
 import { formatManaguaDate, formatManaguaDateTime } from '../../utils/dateManagua';
+import { RegisterCreditPaymentModal } from './RegisterCreditPaymentModal';
 
 interface CreditAccountDetailModalProps {
   accountId: string | null;
@@ -28,9 +30,18 @@ export const CreditAccountDetailModal: React.FC<CreditAccountDetailModalProps> =
   onClose,
   currency = 'NIO',
 }) => {
+  const queryClient = useQueryClient();
   const { data: account, isLoading } = useCreditAccountDetail(accountId, isOpen);
+  const [isRegisterPaymentOpen, setIsRegisterPaymentOpen] = useState(false);
 
   if (!isOpen || !accountId) return null;
+
+  const handlePaymentSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['pos', 'credit-accounts', accountId] });
+    queryClient.invalidateQueries({ queryKey: ['pos', 'reports', 'credit-summary'] });
+    queryClient.invalidateQueries({ queryKey: ['customers'] });
+  };
+
 
   const getAccountStatusBadge = () => {
     if (!account) return null;
@@ -273,8 +284,8 @@ export const CreditAccountDetailModal: React.FC<CreditAccountDetailModalProps> =
                   )}
                 </div>
 
-                <div className="border border-gray-200/80 rounded-xl overflow-hidden shadow-2xs">
-                  <table className="w-full text-left text-xs">
+                <div className="border border-gray-200/80 rounded-xl overflow-x-auto shadow-2xs">
+                  <table className="w-full text-left text-xs min-w-[500px]">
                     <thead className="bg-gray-50/80 text-gray-500 border-b border-gray-100 text-[11px] uppercase tracking-wider font-semibold">
                       <tr>
                         <th className="py-2.5 px-3">Cuota</th>
@@ -298,19 +309,19 @@ export const CreditAccountDetailModal: React.FC<CreditAccountDetailModalProps> =
                                 </span>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-gray-600 font-medium">
+                            <td className="py-2.5 px-3 text-gray-600 font-medium whitespace-nowrap">
                               {formatManaguaDate(inst.dueDate)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-medium text-gray-900">
+                            <td className="py-2.5 px-3 text-right font-mono font-medium text-gray-900 whitespace-nowrap">
                               {formatCurrency(inst.amount, currency)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700 font-medium">
+                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700 font-medium whitespace-nowrap">
                               {formatCurrency(inst.paidAmount, currency)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-gray-900">
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-gray-900 whitespace-nowrap">
                               {formatCurrency(instBalance, currency)}
                             </td>
-                            <td className="py-2.5 px-3 text-center">
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
                               {getInstallmentStatusBadge(inst.status, inst.dueDate)}
                             </td>
                           </tr>
@@ -333,8 +344,8 @@ export const CreditAccountDetailModal: React.FC<CreditAccountDetailModalProps> =
                     No se han registrado abonos para esta cuenta.
                   </div>
                 ) : (
-                  <div className="border border-gray-200/80 rounded-xl overflow-hidden shadow-2xs">
-                    <table className="w-full text-left text-xs">
+                  <div className="border border-gray-200/80 rounded-xl overflow-x-auto shadow-2xs">
+                    <table className="w-full text-left text-xs min-w-[500px]">
                       <thead className="bg-gray-50/80 text-gray-500 border-b border-gray-100 text-[11px] uppercase tracking-wider font-semibold">
                         <tr>
                           <th className="py-2.5 px-3">Fecha y Hora</th>
@@ -351,18 +362,18 @@ export const CreditAccountDetailModal: React.FC<CreditAccountDetailModalProps> =
                             <td className="py-2.5 px-3 text-gray-700 whitespace-nowrap">
                               {formatManaguaDateTime(payment.receivedAt)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
                               {formatCurrency(payment.amount, currency)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono text-gray-700">
+                            <td className="py-2.5 px-3 text-right font-mono text-gray-700 whitespace-nowrap">
                               {formatCurrency(payment.principalPortion ?? payment.amount, currency)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono text-purple-700">
+                            <td className="py-2.5 px-3 text-right font-mono text-purple-700 whitespace-nowrap">
                               {payment.interestPortion > 0
                                 ? `+${formatCurrency(payment.interestPortion, currency)}`
                                 : '—'}
                             </td>
-                            <td className="py-2.5 px-3 text-gray-600">
+                            <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">
                               <span className="px-1.5 py-0.5 rounded bg-gray-100 text-[10px] font-semibold text-gray-700">
                                 {payment.paymentMethod}
                               </span>
@@ -382,18 +393,51 @@ export const CreditAccountDetailModal: React.FC<CreditAccountDetailModalProps> =
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between shrink-0 text-xs">
-          <p className="text-[11px] text-gray-400">
-            💡 Los abonos se registran desde la app de escritorio TrackDeli POS en caja registradora.
-          </p>
+        <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs">
+          <div>
+            {account && account.balance > 0.005 ? (
+              <button
+                type="button"
+                onClick={() => setIsRegisterPaymentOpen(true)}
+                className="h-11 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer shadow-2xs"
+              >
+                <Coins size={16} weight="bold" />
+                <span>Registrar abono</span>
+              </button>
+            ) : (
+              <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                <CheckCircle size={14} weight="fill" />
+                <span>Cuenta liquidada</span>
+              </span>
+            )}
+          </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer shadow-2xs"
+            className="h-11 px-5 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer shadow-2xs flex items-center justify-center"
           >
             Cerrar
           </button>
         </div>
       </div>
+
+      {/* Modal de Registro de Abono */}
+      {account && (
+        <RegisterCreditPaymentModal
+          isOpen={isRegisterPaymentOpen}
+          onClose={() => setIsRegisterPaymentOpen(false)}
+          account={{
+            id: account.id,
+            invoiceNumber: account.sale?.invoiceNumber || undefined,
+            sale: account.sale?.invoiceNumber ? { invoiceNumber: account.sale.invoiceNumber } : undefined,
+            customer: account.customer,
+            balance: account.balance,
+            originalAmount: account.originalAmount,
+            installments: account.installments,
+          }}
+          onSuccess={handlePaymentSuccess}
+          currency={currency}
+        />
+      )}
     </div>
   );
 };

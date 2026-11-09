@@ -6,6 +6,8 @@ import {
   DownloadSimple,
   WhatsappLogo,
   CircleNotch,
+  LinkSimple,
+  Check,
 } from '@phosphor-icons/react';
 import { type SaleResponse } from 'api-client';
 import { formatCurrency } from '../../../utils/formatters';
@@ -32,13 +34,16 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
 }) => {
   const [isSharing, setIsSharing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [showWhatsAppFallback, setShowWhatsAppFallback] = useState(false);
+  // whatsapp fallback handled directly
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const methodLabel: Record<string, string> = {
     EFECTIVO: 'Efectivo',
     TARJETA: 'Tarjeta',
     TRANSFERENCIA: 'Transferencia',
+    CREDITO: 'Crédito',
+    MIXTO: 'Pago mixto',
   };
 
   const isPerLine =
@@ -57,6 +62,10 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
   const hasListDiscount = listDiscountTotal > 0 && listPriceTotal > 0;
   const listDiscountPct = hasListDiscount ? Math.round((listDiscountTotal / listPriceTotal) * 100) : 0;
 
+  const creditAccount = (sale as any).creditAccount;
+  const isCredit = sale.paymentMethod === 'CREDITO' || Boolean(creditAccount);
+  const installments = creditAccount?.installments || [];
+
   const handleShareReceipt = async () => {
     setIsSharing(true);
     setStatusMessage(null);
@@ -66,7 +75,7 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
         setStatusMessage('¡Recibo compartido exitosamente!');
       } else if (result.downloaded) {
         setStatusMessage('Recibo descargado en tu dispositivo.');
-        setShowWhatsAppFallback(true);
+        // whatsapp option available
       }
     } catch {
       setStatusMessage('Ocurrió un error al procesar el recibo.');
@@ -81,7 +90,7 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
     try {
       await downloadReceiptPdf(sale, businessInfo, cashierName);
       setStatusMessage('Recibo descargado (recibo-' + (sale.invoiceNumber || sale.id.slice(-6).toUpperCase()) + '.pdf)');
-      setShowWhatsAppFallback(true);
+      // whatsapp option available
     } catch {
       setStatusMessage('Ocurrió un error al descargar el PDF.');
     } finally {
@@ -92,6 +101,24 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
   const handleSendWhatsApp = () => {
     const url = getWhatsAppSummaryUrl(sale, businessInfo?.name, sale.customerPhone);
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleCopyPublicLink = async () => {
+    const token = (sale as any).receiptToken || sale.id;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const url = `${origin}/comprobante/${token}`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+        setCopiedLink(true);
+        setStatusMessage('Enlace público copiado al portapapeles.');
+        setTimeout(() => setCopiedLink(false), 2500);
+      } else {
+        setStatusMessage(url);
+      }
+    } catch {
+      setStatusMessage('No se pudo copiar el enlace.');
+    }
   };
 
   return (
@@ -129,29 +156,97 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
           </div>
 
           <div className="flex justify-between items-center text-gray-600">
-            <span>Método de pago</span>
-            <span className="font-bold text-gray-800">
+            <span>Cliente</span>
+            <span className="font-semibold text-gray-800">
+              {sale.customerName || 'Consumidor final'}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-center text-gray-600">
+            <span>Forma de cobro</span>
+            <span className="font-bold text-gray-900">
               {methodLabel[sale.paymentMethod] || sale.paymentMethod || 'Efectivo'}
             </span>
           </div>
 
-          {sale.paymentMethod === 'EFECTIVO' && sale.amountPaid != null && sale.amountPaid > 0 && (
-            <div className="flex justify-between items-center text-gray-600">
-              <span>Monto recibido</span>
-              <span className="font-medium text-gray-800">
-                {formatCurrency(sale.amountPaid)}
+          {/* Desglose de pagos si existen líneas detalladas */}
+          {sale.payments && sale.payments.length > 0 && (
+            <div className="pt-2 border-t border-gray-200/60 space-y-1.5">
+              <span className="text-xs font-bold text-gray-500 uppercase block">
+                Detalle de pagos recibidos:
               </span>
+              {sale.payments.map((p, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-white p-2 rounded-lg border border-gray-100">
+                  <div className="min-w-0">
+                    <span className="font-bold text-gray-800 block">
+                      {methodLabel[p.method] || p.method}
+                      {p.currency === 'USD' ? ' (US$)' : ''}
+                    </span>
+                    {p.reference && (
+                      <span className="text-xs text-gray-500 block truncate">
+                        Ref: {p.reference}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-gray-900 block">
+                      {p.currency === 'USD' ? `US$ ${Number(p.amount).toFixed(2)}` : formatCurrency(p.amount)}
+                    </span>
+                    {p.currency === 'USD' && p.exchangeRate && (
+                      <span className="text-xs text-gray-500 block">
+                        Tasa: C$ {Number(p.exchangeRate).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
-          {sale.paymentMethod === 'EFECTIVO' && sale.change != null && sale.change > 0 && (
+          {/* Vuelto / Cambio */}
+          {sale.change != null && Number(sale.change) > 0 && (
             <div className="flex justify-between items-center text-emerald-800 font-bold bg-emerald-100/60 p-2 rounded-xl">
-              <span>Cambio / Vuelto</span>
+              <span>Cambio / Vuelto entregado</span>
               <span className="text-sm font-black">{formatCurrency(sale.change)}</span>
             </div>
           )}
 
-          {/* Desglose financiero con formato exacto 206g */}
+          {/* Información del plan de crédito */}
+          {isCredit && (
+            <div className="pt-2 border-t border-emerald-200/80 bg-emerald-50/60 p-3 rounded-xl space-y-2">
+              <div className="flex justify-between items-center text-emerald-950 font-bold">
+                <span>Saldo adeudado:</span>
+                <span className="text-sm font-black text-emerald-900">
+                  {creditAccount?.balance != null ? formatCurrency(creditAccount.balance) : formatCurrency(total)}
+                </span>
+              </div>
+
+              {installments.length > 0 && (
+                <div className="space-y-1 pt-1 border-t border-emerald-200/60">
+                  <span className="text-xs font-bold text-emerald-900 uppercase block">
+                    Plan de pagos ({installments.length} cuotas):
+                  </span>
+                  <div className="max-h-28 overflow-y-auto space-y-1 divide-y divide-emerald-100 text-xs">
+                    {installments.map((inst: any) => {
+                      const dueDateStr = inst.dueDate ? String(inst.dueDate).substring(0, 10) : '';
+                      return (
+                        <div key={inst.installmentNumber} className="flex justify-between items-center py-1">
+                          <span className="text-emerald-950">
+                            Cuota {inst.installmentNumber} ({dueDateStr})
+                          </span>
+                          <span className="font-bold text-emerald-900">
+                            {formatCurrency(inst.amount)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Desglose financiero */}
           <div className="pt-2 border-t border-gray-200/80 space-y-1.5">
             {hasListDiscount ? (
               <>
@@ -240,14 +335,14 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
           </div>
         </div>
 
-        {/* Status notification */}
+        {/* Notificación de estado */}
         {statusMessage && (
           <div className="p-2.5 rounded-xl bg-gray-100 border border-gray-200 text-xs font-semibold text-gray-700 animate-in fade-in duration-150">
             {statusMessage}
           </div>
         )}
 
-        {/* Acciones de Recibo (Req #4) */}
+        {/* Acciones de Recibo y Comprobante */}
         <div className="space-y-2.5 pt-1">
           <div className="grid grid-cols-2 gap-2.5">
             <button
@@ -281,17 +376,29 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
             </button>
           </div>
 
-          {/* Opción de WhatsApp directo si navigator.share no está soportado o se desea enviar resumen */}
-          {showWhatsAppFallback && (
+          <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
               onClick={handleSendWhatsApp}
-              className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-2xs active:scale-98 animate-in fade-in duration-200"
+              className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[44px]"
             >
-              <WhatsappLogo size={17} weight="bold" className="text-emerald-600" />
-              <span>Enviar resumen por WhatsApp</span>
+              <WhatsappLogo size={17} weight="bold" className="text-emerald-600 shrink-0" />
+              <span className="truncate">Enviar WhatsApp</span>
             </button>
-          )}
+
+            <button
+              type="button"
+              onClick={handleCopyPublicLink}
+              className="w-full py-2.5 px-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[44px]"
+            >
+              {copiedLink ? (
+                <Check size={16} weight="bold" className="text-emerald-600 shrink-0" />
+              ) : (
+                <LinkSimple size={16} weight="bold" className="text-gray-500 shrink-0" />
+              )}
+              <span className="truncate">{copiedLink ? '¡Copiado!' : 'Copiar enlace'}</span>
+            </button>
+          </div>
 
           {/* Acción principal: Nueva Venta */}
           <button

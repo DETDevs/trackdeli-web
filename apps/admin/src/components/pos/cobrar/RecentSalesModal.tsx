@@ -10,6 +10,7 @@ import {
   CheckCircle,
   WarningCircle,
   ClockCounterClockwise,
+  Eye,
 } from '@phosphor-icons/react';
 import { getRecentPosSales, type SaleResponse } from 'api-client';
 import { formatCurrency } from '../../../utils/formatters';
@@ -20,6 +21,7 @@ import {
   getWhatsAppSummaryUrl,
   type ReceiptBusinessInfo,
 } from '../../../utils/receiptPdf';
+import { SaleDetailModal } from '../SaleDetailModal';
 
 interface RecentSalesModalProps {
   isOpen: boolean;
@@ -36,6 +38,8 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
 }) => {
   const [activeSaleActionId, setActiveSaleActionId] = useState<string | null>(null);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
+  const [selectedSaleIdForDetail, setSelectedSaleIdForDetail] = useState<string | null>(null);
+
 
   const {
     data: recentSales = [],
@@ -101,7 +105,7 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-gray-900">Ventas Recientes</h3>
-              <p className="text-[11px] text-gray-500">Reimpresión y reenvío de recibos</p>
+              <p className="text-xs text-gray-500">Reimpresión y reenvío de recibos</p>
             </div>
           </div>
           <button
@@ -161,15 +165,15 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
                         <span className="font-mono font-bold text-xs sm:text-sm text-gray-900">
                           {invoice}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-200/80 text-gray-700">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-200/80 text-gray-700">
                           {methodLabel[sale.paymentMethod] || sale.paymentMethod}
                         </span>
                       </div>
-                      <div className="text-[11px] text-gray-500 mt-0.5">
+                      <div className="text-xs text-gray-500 mt-0.5">
                         {formatManaguaDateTime(sale.createdAt)}
                       </div>
                       {sale.customerName && (
-                        <div className="text-[11px] text-gray-600 mt-0.5">
+                        <div className="text-xs text-gray-600 mt-0.5">
                           Cliente: <span className="font-medium text-gray-800">{sale.customerName}</span>
                         </div>
                       )}
@@ -179,14 +183,24 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
                       <div className="text-sm sm:text-base font-black text-gray-900">
                         {formatCurrency(sale.total)}
                       </div>
-                      <div className="text-[10px] text-gray-400">
+                      <div className="text-xs text-gray-400">
                         {(sale.items || []).length} {(sale.items || []).length === 1 ? 'ítem' : 'ítems'}
                       </div>
                     </div>
                   </div>
 
                   {/* Acciones del recibo */}
-                  <div className="pt-2 border-t border-gray-200/70 flex items-center justify-end gap-1.5">
+                  <div className="pt-2 border-t border-gray-200/70 flex flex-wrap items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSaleIdForDetail(sale.id)}
+                      className="px-2.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Ver detalle, anular o devolver"
+                    >
+                      <Eye size={15} weight="bold" />
+                      <span>Detalle</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleWhatsApp(sale)}
@@ -239,12 +253,23 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2.5 px-4 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors cursor-pointer shadow-2xs"
+            className="w-full h-11 px-4 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors cursor-pointer shadow-2xs flex items-center justify-center"
           >
             Cerrar
           </button>
         </div>
       </div>
+
+      {/* Modal de Detalle, Anulación y Devolución */}
+      {selectedSaleIdForDetail && (
+        <SaleDetailModal
+          saleId={selectedSaleIdForDetail}
+          onClose={() => {
+            setSelectedSaleIdForDetail(null);
+            refetch();
+          }}
+        />
+      )}
     </div>
   );
 };

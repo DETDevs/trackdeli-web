@@ -61,18 +61,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="flex items-center gap-1 min-w-0">
           <div className="truncate">
             {isService ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
                 <Wrench size={10} />
                 Servicio
               </span>
             ) : isRecipe ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
                 <Sparkle size={10} />
                 Receta
               </span>
             ) : trackStock ? (
               <span
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-semibold ${
                   isOutOfStock
                     ? 'bg-red-50 text-red-700 border border-red-200/70'
                     : stock <= 5
@@ -84,14 +84,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 {isOutOfStock ? 'Agotado' : `${stock} ${product.unit || 'UND'}`}
               </span>
             ) : (
-              <span className="text-[10px] text-gray-400">Producto</span>
+              <span className="text-xs text-gray-400">Producto</span>
             )}
           </div>
 
           {hasWholesale && (
             <span
               title={`Precio por mayor ${formatCurrency(wholesalePrice!)} desde ${wholesaleMinQty} uds.`}
-              className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-purple-100 text-purple-800 border border-purple-200 shrink-0"
+              className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200 shrink-0"
             >
               Mayor ≥ {wholesaleMinQty}
             </span>
@@ -99,7 +99,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </div>
 
         {quantityInCart > 0 && (
-          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center shrink-0 shadow-2xs">
+          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
             {quantityInCart}
           </span>
         )}
@@ -118,7 +118,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </span>
           {product.listPrice && Number(product.listPrice) > Number(product.price) && (
             <span
-              className="text-[10px] font-medium text-gray-400 line-through truncate"
+              className="text-xs font-medium text-gray-400 line-through truncate"
               title={`Precio de etiqueta: ${formatCurrency(Number(product.listPrice))}`}
             >
               {formatCurrency(Number(product.listPrice))}
@@ -126,7 +126,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           )}
           {hasWholesale && (
             <span
-              className="text-[10px] font-medium text-purple-700 truncate"
+              className="text-xs font-medium text-purple-700 truncate"
               title={`Precio por mayor: ${formatCurrency(wholesalePrice!)}`}
             >
               {formatCurrency(wholesalePrice!)}

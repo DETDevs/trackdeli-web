@@ -8,11 +8,15 @@ import {
   Coins,
   Eye,
   CheckCircle,
+  Truck,
 } from '@phosphor-icons/react';
+import { useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { PayableItem } from '../../types/finances';
 import { usePayablesSummary, usePayables } from '../../hooks/useFinances';
 import { RegisterPayablePaymentModal } from './RegisterPayablePaymentModal';
 import { PayableDetailModal } from './PayableDetailModal';
+import { CreatePurchaseModal } from '../purchases/CreatePurchaseModal';
 import { formatCurrency } from '../../utils/formatters';
 import { formatManaguaDate } from '../../utils/dateManagua';
 
@@ -21,6 +25,7 @@ interface PayablesTabProps {
 }
 
 export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) => {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [page, setPage] = useState<number>(1);
@@ -29,6 +34,8 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
   // Modales
   const [selectedPayableForPayment, setSelectedPayableForPayment] = useState<PayableItem | null>(null);
   const [selectedPayableIdForDetail, setSelectedPayableIdForDetail] = useState<string | null>(null);
+  const [isCreatePurchaseOpen, setIsCreatePurchaseOpen] = useState(false);
+
 
   // Queries
   const { data: summary, isLoading: isLoadingSummary } = usePayablesSummary();
@@ -79,6 +86,27 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
 
   return (
     <div className="space-y-5">
+      {/* Header bar de Compras */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs">
+        <div>
+          <h3 className="text-sm sm:text-base font-bold text-gray-900">
+            Cuentas por Pagar y Compras
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Registro de compras a proveedores y control de facturas por pagar
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsCreatePurchaseOpen(true)}
+          className="h-11 px-4 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-2xs cursor-pointer"
+        >
+          <Truck size={16} weight="bold" />
+          <span>Registrar compra a proveedor</span>
+        </button>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Total por Pagar */}
@@ -421,6 +449,21 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
         }}
         currency={currency}
       />
+
+      {/* Modal de Registro de Compra */}
+      <CreatePurchaseModal
+        isOpen={isCreatePurchaseOpen}
+        onClose={() => setIsCreatePurchaseOpen(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['pos', 'payables'] });
+          queryClient.invalidateQueries({ queryKey: ['pos', 'products'] });
+          queryClient.invalidateQueries({ queryKey: ['pos', 'inventory'] });
+          queryClient.invalidateQueries({ queryKey: ['backoffice'] });
+          toast.success('Compra a proveedor registrada exitosamente');
+        }}
+        currency={currency}
+      />
     </div>
   );
 };
+

@@ -37,9 +37,15 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 
 const RootIndex = () => {
   const { data: productsData, isLoading } = useMyProducts();
+  const user = useAuthStore((state) => state.user);
 
   if (isLoading) {
     return null;
+  }
+
+  // Cajero va directo al POS en pantalla completa (Ticket 251b)
+  if (user?.role === 'CAJERO') {
+    return <Navigate to="/pos/cobrar" replace />;
   }
 
   const isDeliveryActive = productsData?.products?.DELIVERY?.status === 'ACTIVE';

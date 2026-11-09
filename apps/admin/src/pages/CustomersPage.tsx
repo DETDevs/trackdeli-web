@@ -6,6 +6,7 @@ import {
   getCustomerHistory,
   updateCustomer,
   getOrders,
+  getCustomerCreditAccounts,
   type Customer,
   type Order,
 } from 'api-client';
@@ -29,11 +30,18 @@ import {
   CalendarCheck,
   Prohibit,
   Copy,
+  Coins,
+  Wallet,
 } from '@phosphor-icons/react';
 import { PinPicker } from 'map';
 import { toast } from 'react-hot-toast';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatRelative, formatDateTime } from '../utils/formatDate';
+import { formatCurrency } from '../utils/formatters';
+import { formatManaguaDate } from '../utils/dateManagua';
+import { RegisterCreditPaymentModal } from '../components/finances/RegisterCreditPaymentModal';
+import { CreditAccountDetailModal } from '../components/finances/CreditAccountDetailModal';
+
 
 export const CustomersPage = () => {
   const { id: routeCustomerId } = useParams<{ id?: string }>();
@@ -68,6 +76,9 @@ export const CustomersPage = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  const [selectedCreditAccountForPayment, setSelectedCreditAccountForPayment] = useState<any | null>(null);
+  const [selectedCreditAccountIdForDetail, setSelectedCreditAccountIdForDetail] = useState<string | null>(null);
+
   // Query customers
   const { data, isLoading } = useQuery({
     queryKey: ['customers', { search: debouncedSearch, page, limit }],
@@ -95,6 +106,13 @@ export const CustomersPage = () => {
     queryKey: ['orders'],
     queryFn: () => getOrders(),
     staleTime: 30000,
+    enabled: Boolean(selectedCustomer && isHistoryOpen),
+  });
+
+  // Query credit accounts for selected customer
+  const { data: customerCreditData, refetch: refetchCustomerCredit } = useQuery({
+    queryKey: ['pos', 'customers', selectedCustomer?.id, 'credit-accounts'],
+    queryFn: () => (selectedCustomer ? getCustomerCreditAccounts(selectedCustomer.id) : null),
     enabled: Boolean(selectedCustomer && isHistoryOpen),
   });
 
@@ -624,6 +642,90 @@ export const CustomersPage = () => {
                 ) : null}
               </div>
 
+              {/* Credit and Accounts Section */}
+              {customerCreditData?.accounts && customerCreditData.accounts.length > 0 && (
+                <div className="space-y-3 p-4 bg-emerald-50/40 rounded-xl border border-emerald-100">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Wallet size={15} className="text-emerald-700" />
+                      <span>Cuentas de Crédito ({customerCreditData.accounts.length})</span>
+                    </h4>
+                    <span className="text-xs font-mono font-bold text-gray-900">
+                      Saldo total: {formatCurrency(customerCreditData.summary?.totalDebt || 0)}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {customerCreditData.accounts.map((acc: any) => {
+                      const balance = Number(acc.balance || 0);
+                      return (
+                        <div
+                          key={acc.id}
+                          className="p-3 bg-white rounded-xl border border-gray-200/80 shadow-2xs space-y-2"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-xs text-gray-900">
+                                  {acc.sale?.invoiceNumber ? `Comprobante #${acc.sale.invoiceNumber}` : `Crédito #${acc.id.slice(-6)}`}
+                                </span>
+                                {balance <= 0.005 ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    Saldada
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                    Pendiente
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-gray-400 mt-0.5">
+                                Emisión: {formatManaguaDate(acc.createdAt || acc.sale?.createdAt)}
+                              </p>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-400 block uppercase">Saldo</span>
+                              <span className="text-sm font-bold font-mono text-gray-900">
+                                {formatCurrency(balance)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-gray-100 flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCreditAccountIdForDetail(acc.id)}
+                              className="h-9 px-3 rounded-lg border border-gray-200 text-gray-700 font-semibold text-xs hover:bg-gray-50 transition-colors"
+                            >
+                              Ver detalle
+                            </button>
+                            {balance > 0.005 && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCreditAccountForPayment({
+                                  ...acc,
+                                  customer: {
+                                    id: selectedCustomer.id,
+                                    name: selectedCustomer.name,
+                                    phone: selectedCustomer.phone,
+                                  },
+                                })}
+                                className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
+                              >
+                                <Coins size={15} weight="bold" />
+                                <span>Abonar</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+
               {/* Order History Section */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -898,6 +1000,31 @@ export const CustomersPage = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Detalle de Cuenta de Crédito */}
+      <CreditAccountDetailModal
+        accountId={selectedCreditAccountIdForDetail}
+        isOpen={Boolean(selectedCreditAccountIdForDetail)}
+        onClose={() => {
+          setSelectedCreditAccountIdForDetail(null);
+          refetchCustomerCredit();
+        }}
+      />
+
+      {/* Modal de Registro de Abono */}
+      {selectedCreditAccountForPayment && (
+        <RegisterCreditPaymentModal
+          isOpen={Boolean(selectedCreditAccountForPayment)}
+          onClose={() => setSelectedCreditAccountForPayment(null)}
+          account={selectedCreditAccountForPayment}
+          onSuccess={() => {
+            setSelectedCreditAccountForPayment(null);
+            refetchCustomerCredit();
+            queryClient.invalidateQueries({ queryKey: ['customers'] });
+          }}
+        />
+      )}
     </div>
   );
 };
+

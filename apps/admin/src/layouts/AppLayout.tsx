@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useLocation, useNavigate, Navigate, Link } from 'react-router-dom';
 import {
   Package,
   ListChecks,
@@ -22,6 +22,7 @@ import {
   CashRegister,
   CreditCard,
   Bank,
+  ArrowLeft,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { BranchSelector } from '../components/layout/BranchSelector';
@@ -151,7 +152,6 @@ export const AppLayout = () => {
 
   const {
     webAdminEnabled,
-    webBillingEnabled,
     canCobrar,
     isLoading: isLoadingPosAccess,
   } = usePosWebAccess();
@@ -199,6 +199,7 @@ export const AppLayout = () => {
       </div>
     );
   }
+  
 
   // Si no tiene activo ni Delivery ni POS, bloquear acceso
   if (!isDeliveryActive && !isPosActive) {
@@ -211,6 +212,58 @@ export const AppLayout = () => {
   }
 
   const isPosRoute = location.pathname.startsWith('/pos');
+  const isCajero = user?.role === 'CAJERO';
+  const isPosCobrar = location.pathname === '/pos/cobrar';
+  const isFullscreen =
+    isCajero ||
+    (isPosCobrar &&
+      (new URLSearchParams(location.search).get('fullscreen') === 'true' ||
+        localStorage.getItem('pos_fullscreen') === 'true'));
+
+  // 1. Cajero entra directo a /pos/cobrar sin menú administrativo (Ticket 251b)
+  // Permitir también /pos/inventory en modo solo lectura (Ticket 251d)
+  const isAllowedCajeroPos = isPosCobrar || location.pathname === '/pos/inventory';
+  if (isCajero && !isAllowedCajeroPos) {
+    return <Navigate to="/pos/cobrar" replace />;
+  }
+
+  // 2. Modo pantalla completa para POS
+  if (isPosCobrar && isFullscreen) {
+    return (
+      <div className="h-screen w-screen bg-[#FAFAFA] overflow-y-auto">
+        <Outlet />
+      </div>
+    );
+  }
+
+  if (isCajero && location.pathname === '/pos/inventory') {
+    return (
+      <div className="min-h-screen w-full bg-[#FAFAFA] flex flex-col">
+        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/pos/cobrar"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-semibold min-h-[44px]"
+            >
+              <ArrowLeft size={16} />
+              <span>Volver a Cobrar</span>
+            </Link>
+            <h2 className="text-sm font-bold text-gray-900">Catálogo de productos</h2>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-xl font-medium min-h-[44px] cursor-pointer"
+          >
+            <SignOut size={16} />
+            <span>Cerrar sesión</span>
+          </button>
+        </header>
+        <main className="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto">
+          <Outlet />
+        </main>
+      </div>
+    );
+  }
 
   // Si el negocio solo tiene POS y el acceso web básico está apagado
   if (isPosActive && !isDeliveryActive && !webAdminEnabled) {
@@ -336,10 +389,10 @@ export const AppLayout = () => {
                     Finanzas
                   </NavLink>
                 )}
-                {canCobrar && webBillingEnabled && (
+                {canCobrar && (
                   <NavLink to="/pos/cobrar" className={navLinkClass}>
                     <CreditCard size={18} weight="regular" />
-                    Cobrar
+                    Cobrar (POS)
                   </NavLink>
                 )}
               </div>

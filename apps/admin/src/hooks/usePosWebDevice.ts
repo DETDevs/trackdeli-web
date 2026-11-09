@@ -90,14 +90,21 @@ export function usePosWebDevice(enabled: boolean = true) {
     if (code === 'WEB_BILLING_DISABLED') {
       setDeviceError({
         code: 'WEB_BILLING_DISABLED',
-        message: 'El cobro y emisión de comprobantes web no está habilitado para este negocio.',
+        message: 'El cobro web no está habilitado para este negocio.',
+      });
+      return true;
+    }
+    if (code === 'DEVICE_REQUIRED') {
+      setDeviceError({
+        code: 'DEVICE_REQUIRED',
+        message: 'Se requiere registrar este navegador para poder cobrar.',
       });
       return true;
     }
     if (code === 'WEB_DEVICE_LIMIT_REACHED') {
       setDeviceError({
         code: 'WEB_DEVICE_LIMIT_REACHED',
-        message: 'El negocio alcanzó el máximo de dispositivos web. Pedile al encargado que libere uno.',
+        message: 'Este navegador no está autorizado. Pedile al encargado que libere un dispositivo web.',
       });
       return true;
     }
@@ -152,12 +159,17 @@ export function usePosWebDevice(enabled: boolean = true) {
         if (code === 'WEB_DEVICE_LIMIT_REACHED') {
           setDeviceError({
             code: 'WEB_DEVICE_LIMIT_REACHED',
-            message: 'El negocio alcanzó el máximo de dispositivos web. Pedile al encargado que libere uno.',
+            message: 'Este navegador no está autorizado. Pedile al encargado que libere un dispositivo web.',
           });
         } else if (code === 'WEB_BILLING_DISABLED') {
           setDeviceError({
             code: 'WEB_BILLING_DISABLED',
-            message: 'El cobro y emisión de comprobantes web no está habilitado para este negocio.',
+            message: 'El cobro web no está habilitado para este negocio.',
+          });
+        } else if (code === 'DEVICE_REQUIRED') {
+          setDeviceError({
+            code: 'DEVICE_REQUIRED',
+            message: 'Se requiere registrar este navegador para poder cobrar.',
           });
         } else {
           setDeviceError({

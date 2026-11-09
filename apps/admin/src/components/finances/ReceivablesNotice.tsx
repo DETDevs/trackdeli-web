@@ -10,6 +10,7 @@ import {
   Eye,
   CalendarBlank,
   Percent,
+  Coins,
 } from '@phosphor-icons/react';
 import {
   useCreditPortfolioSummary,
@@ -18,6 +19,7 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 import { formatManaguaDate } from '../../utils/dateManagua';
 import { CreditAccountDetailModal } from './CreditAccountDetailModal';
+import { RegisterCreditPaymentModal } from './RegisterCreditPaymentModal';
 
 interface ReceivablesNoticeProps {
   currency?: string;
@@ -30,6 +32,8 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'OVERDUE' | 'CURRENT'>('ALL');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [selectedAccountForPayment, setSelectedAccountForPayment] = useState<any | null>(null);
+
 
   const now = useMemo(() => new Date(), []);
 
@@ -433,17 +437,27 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
 
                       {/* Acción */}
                       <td className="py-3 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedAccountId(acc.id);
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Eye size={13} />
-                          <span>Detalle</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          {acc.balance > 0.005 && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedAccountForPayment(acc)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                              title="Registrar abono"
+                            >
+                              <Coins size={13} weight="bold" />
+                              <span>Abonar</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAccountId(acc.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Eye size={13} />
+                            <span>Detalle</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -453,12 +467,121 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
           </table>
         </div>
 
+        {/* Vista Móvil: Tarjetas legibles a 375 px (<md) */}
+        <div className="block md:hidden divide-y divide-gray-100">
+          {isLoading ? (
+            <div className="py-12 text-center">
+              <div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto" />
+            </div>
+          ) : filteredAccounts.length === 0 ? (
+            <div className="p-8 text-center text-gray-400">
+              <Users size={28} className="mx-auto mb-2 text-gray-300" />
+              <p className="font-semibold text-gray-600 text-xs">No se encontraron cuentas por cobrar</p>
+            </div>
+          ) : (
+            filteredAccounts.map((acc) => {
+              const insts = acc.installments || [];
+              const pendingInsts = insts.filter((i) => i.status !== 'PAID');
+              const nextInst = pendingInsts[0];
+              const overdueCount = insts.filter(
+                (i) => i.status === 'OVERDUE' || (new Date(i.dueDate) < now && i.status !== 'PAID')
+              ).length;
+              const isNextOverdue = nextInst && (nextInst.status === 'OVERDUE' || new Date(nextInst.dueDate) < now);
+
+              return (
+                <div
+                  key={acc.id}
+                  onClick={() => setSelectedAccountId(acc.id)}
+                  className="p-4 space-y-2.5 active:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-xs text-gray-900 truncate">
+                        {acc.customer?.name || 'Cliente general'}
+                      </h4>
+                      <p className="text-[11px] text-gray-400">
+                        {acc.invoiceNumber ? `Comprobante #${acc.invoiceNumber}` : 'Sin comprobante'}
+                        {acc.customer?.phone ? ` · ${acc.customer.phone}` : ''}
+                      </p>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-1">
+                      {overdueCount > 0 && (
+                        <span className="font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded text-[10px] border border-rose-200">
+                          {overdueCount} vencida{overdueCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {getAccountStatusBadge(acc)}
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-gray-400 block uppercase">Saldo pendiente</span>
+                      <span className="text-sm font-bold text-gray-900 font-mono">
+                        {formatCurrency(acc.balance, currency)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-gray-400 block uppercase">Total crédito</span>
+                      <span className="text-xs font-semibold text-gray-600 font-mono">
+                        {formatCurrency(acc.originalAmount, currency)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {nextInst && (
+                    <div className="flex items-center justify-between text-[11px] text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <CalendarBlank size={12} className="text-gray-400" />
+                        <span>Próx. vencimiento: {formatManaguaDate(nextInst.dueDate)}</span>
+                      </span>
+                      {isNextOverdue ? (
+                        <span className="font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded text-[10px]">
+                          Vencida
+                        </span>
+                      ) : (
+                        <span className="font-mono text-gray-700 font-semibold">
+                          {formatCurrency(Math.max(0, nextInst.amount - nextInst.paidAmount), currency)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Acciones móvil con altura >= 44 px */}
+                  <div
+                    className="pt-2 border-t border-gray-100 flex items-center justify-end gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAccountId(acc.id)}
+                      className="h-11 px-3.5 rounded-xl border border-gray-200 text-gray-700 font-semibold text-xs hover:bg-gray-50 transition-colors"
+                    >
+                      Ver detalle
+                    </button>
+                    {acc.balance > 0.005 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAccountForPayment(acc)}
+                        className="h-11 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
+                      >
+                        <Coins size={16} weight="bold" />
+                        <span>Registrar abono</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
         {/* Footer de la tabla */}
         <div className="px-6 py-3 bg-gray-50/60 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
           <span>
             Mostrando {filteredAccounts.length} de {allAccounts.length} cuenta{allAccounts.length === 1 ? '' : 's'}
           </span>
-          <span>💡 Haz clic en una cuenta para ver el desglose y el plan de cuotas</span>
+          <span className="hidden sm:inline">💡 Tocá una cuenta para ver el desglose y el plan de cuotas</span>
         </div>
       </div>
 
@@ -469,6 +592,28 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
         onClose={() => setSelectedAccountId(null)}
         currency={currency}
       />
+
+      {/* Modal de Registro de Abono directo desde Receivables */}
+      {selectedAccountForPayment && (
+        <RegisterCreditPaymentModal
+          isOpen={Boolean(selectedAccountForPayment)}
+          onClose={() => setSelectedAccountForPayment(null)}
+          account={{
+            id: selectedAccountForPayment.id,
+            invoiceNumber: selectedAccountForPayment.invoiceNumber,
+            sale: selectedAccountForPayment.sale,
+            customer: selectedAccountForPayment.customer,
+            balance: selectedAccountForPayment.balance,
+            originalAmount: selectedAccountForPayment.originalAmount,
+            installments: selectedAccountForPayment.installments,
+          }}
+          onSuccess={() => {
+            setSelectedAccountForPayment(null);
+            refetch();
+          }}
+          currency={currency}
+        />
+      )}
     </div>
   );
 };

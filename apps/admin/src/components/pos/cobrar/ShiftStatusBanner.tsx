@@ -32,13 +32,13 @@ export const ShiftStatusBanner: React.FC<ShiftStatusBannerProps> = ({
             <span className="font-bold">Caja abierta</span>
             {cashierName && <span className="text-emerald-700"> · {cashierName}</span>}
             {openedAt && (
-              <span className="text-emerald-600/80 text-[11px] ml-1">
+              <span className="text-emerald-600/80 text-xs ml-1">
                 ({formatManaguaTime(openedAt)})
               </span>
             )}
           </div>
         </div>
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 uppercase tracking-wider shrink-0 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 uppercase tracking-wider shrink-0 bg-emerald-100/70 px-2 py-0.5 rounded-md">
           <CheckCircle size={12} weight="bold" />
           Turno activo
         </span>
@@ -52,7 +52,7 @@ export const ShiftStatusBanner: React.FC<ShiftStatusBannerProps> = ({
         <WarningCircle size={18} className="text-amber-600 shrink-0" weight="fill" />
         <div className="min-w-0">
           <div className="font-bold text-amber-950">Caja cerrada</div>
-          <div className="text-[11px] text-amber-700 truncate">
+          <div className="text-xs text-amber-700 truncate">
             Debes abrir turno para registrar ventas
           </div>
         </div>

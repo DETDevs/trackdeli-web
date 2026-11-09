@@ -91,7 +91,7 @@ export const NetworkErrorModal: React.FC<NetworkErrorModalProps> = ({
               type="button"
               onClick={fetchSales}
               disabled={isLoadingSales}
-              className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-900 cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 cursor-pointer"
             >
               <ArrowClockwise size={12} className={isLoadingSales ? 'animate-spin' : ''} />
               <span>Actualizar</span>
@@ -119,7 +119,7 @@ export const NetworkErrorModal: React.FC<NetworkErrorModalProps> = ({
                     <div className="font-mono font-bold text-gray-900">
                       {s.invoiceNumber || s.id.slice(-6).toUpperCase()}
                     </div>
-                    <div className="text-[11px] text-gray-500">
+                    <div className="text-xs text-gray-500">
                       {formatManaguaTime(s.createdAt)} · {s.paymentMethod || 'Efectivo'}
                       {s.customerName ? ` · ${s.customerName}` : ''}
                     </div>
@@ -131,7 +131,7 @@ export const NetworkErrorModal: React.FC<NetworkErrorModalProps> = ({
                     <button
                       type="button"
                       onClick={() => downloadReceiptPdf(s, businessInfo, cashierName)}
-                      className="px-2 py-1 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-[11px] rounded-lg shadow-2xs transition-colors cursor-pointer"
+                      className="px-2 py-1 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-xs rounded-lg shadow-2xs transition-colors cursor-pointer"
                       title="Descargar recibo PDF"
                     >
                       Recibo

@@ -109,7 +109,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </span>
                     {item.taxable !== undefined && (
                       <span
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold ${
                           item.taxable
                             ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
                             : 'bg-gray-100 text-gray-600'
@@ -119,27 +119,27 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       </span>
                     )}
                     {item.isWholesale && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
                         Precio por mayor
                       </span>
                     )}
                   </div>
-                  <div className="text-[11px] text-gray-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                  <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className={item.isWholesale ? 'font-bold text-purple-700' : ''}>
                       {formatCurrency(item.unitPrice)} c/u
                     </span>
                     {businessContext.useListPrice && item.listPrice && item.listPrice > item.unitPrice && (
-                      <span className="line-through text-gray-400 text-[10px]">
+                      <span className="line-through text-gray-400 text-xs">
                         Etiqueta: {formatCurrency(item.listPrice)}
                       </span>
                     )}
                     {item.isWholesale && item.regularPrice > item.unitPrice && (
-                      <span className="line-through text-gray-400 text-[10px]">
+                      <span className="line-through text-gray-400 text-xs">
                         {formatCurrency(item.regularPrice)}
                       </span>
                     )}
                     {!item.isWholesale && item.wholesaleMinQty && item.wholesalePrice && (
-                      <span className="text-[10px] text-gray-400">
+                      <span className="text-xs text-gray-400">
                         (Mayor: {formatCurrency(item.wholesalePrice)} desde {item.wholesaleMinQty})
                       </span>
                     )}
@@ -198,7 +198,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleDiscountTypeChange('PERCENT')}
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
+                    className={`px-2 py-0.5 rounded text-xs font-bold transition-colors ${
                       discountType === 'PERCENT'
                         ? 'bg-gray-900 text-white shadow-2xs'
                         : 'text-gray-500 hover:text-gray-900'
@@ -209,7 +209,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleDiscountTypeChange('FIXED')}
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
+                    className={`px-2 py-0.5 rounded text-xs font-bold transition-colors ${
                       discountType === 'FIXED'
                         ? 'bg-gray-900 text-white shadow-2xs'
                         : 'text-gray-500 hover:text-gray-900'

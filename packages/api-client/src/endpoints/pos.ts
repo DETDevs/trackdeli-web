@@ -52,6 +52,9 @@ export interface PosCategory {
 export interface PosProductItem {
   id: string;
   name: string;
+  sku?: string;
+  description?: string;
+  imageUrl?: string;
   price: number;
   cost?: number;
   stock?: number;
@@ -60,9 +63,14 @@ export interface PosProductItem {
   unit?: string;
   barcode?: string | null;
   type?: 'PRODUCT' | 'SERVICE';
+  isService?: boolean;
   isRecipe?: boolean;
+  trackStock?: boolean;
   trackInventory?: boolean;
   categoryId?: string | null;
+  category?: { id: string; name: string };
+  supplierId?: string | null;
+  supplier?: { id: string; name: string };
   isActive?: boolean;
   wholesalePrice?: number | null;
   wholesaleMinQty?: number | null;
@@ -71,7 +79,15 @@ export interface PosProductItem {
   wholesale_enabled?: boolean;
   wholesaleEnabled?: boolean;
   listPrice?: number | null;
+  markupPct?: number | null;
   taxable?: boolean;
+  laboratorio?: string;
+  presentacion?: string;
+  principio_activo?: string;
+  attributes?: Record<string, any>;
+  hasBatches?: boolean;
+  tracksBatches?: boolean;
+  batchesCount?: number;
   components?: Array<{
     productId: string;
     quantity: number;
@@ -95,15 +111,75 @@ export interface CreateSaleItemPayload {
 }
 
 export interface CreateSalePaymentPayload {
-  method: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+  method: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'CREDITO';
   amount: number;
   amountTendered?: number;
   reference?: string;
   currency?: string;
+  exchangeRate?: number;
+  bankId?: string;
+  bankName?: string;
+}
+
+export interface CreditPlanPayload {
+  mode?: 'SINGLE' | 'INSTALLMENTS';
+  dueDate?: string;
+  installmentsCount?: number;
+  frequency?: 'SEMANAL' | 'QUINCENAL' | 'MENSUAL';
+  firstDueDate?: string;
+  interestRate?: number;
+  interestAmount?: number;
+  prima?: number;
+  approvalToken?: string;
+}
+
+export interface CustomerCreditSummary {
+  customer: {
+    id: string;
+    name: string;
+    phone: string;
+    ruc?: string | null;
+    creditLimit?: number | null;
+  };
+  summary: {
+    totalDebt: number;
+    overdueDebt: number;
+    activeAccountsCount: number;
+    paidAccountsCount: number;
+    creditLimit?: number | null;
+    availableCredit: number | null;
+  };
+  accounts: any[];
+}
+
+export interface PosCustomer {
+  id: string;
+  name: string;
+  phone?: string | null;
+  ruc?: string | null;
+  creditLimit?: number | null;
+}
+
+export interface PosBankItem {
+  id: string;
+  name: string;
+  code?: string;
+  accountNumber?: string;
+  isActive: boolean;
+  order?: number;
+}
+
+export interface PosExchangeRateData {
+  id: string;
+  businessId: string;
+  quote: string;
+  rate: number;
+  updatedAt: string;
 }
 
 export interface CreateSalePayload {
   cashRegisterId?: string;
+  clientGeneratedId?: string;
   items: CreateSaleItemPayload[];
   discountAmount?: number;
   discount?: number;
@@ -123,12 +199,19 @@ export interface CreateSalePayload {
   clientTaxEnabled?: boolean;
   clientTaxIncluded?: boolean;
   clientTaxAmount?: number;
-  paymentMethod?: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+  paymentMethod?: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'CREDITO' | 'MIXTO';
   amountPaid?: number;
   reference?: string;
+  bankId?: string;
+  bankName?: string;
   payments?: CreateSalePaymentPayload[];
+  customerId?: string;
   customerName?: string;
   customerPhone?: string;
+  customerRuc?: string;
+  creditDueDate?: string;
+  creditPlan?: CreditPlanPayload;
+  approvalToken?: string;
   notes?: string;
 }
 
@@ -208,11 +291,17 @@ export const getPosCategories = async (): Promise<PosCategory[]> => {
 export const getPosProducts = async (params?: {
   categoryId?: string;
   search?: string;
+  lowStock?: boolean;
+  isActive?: boolean;
+  sort?: string;
 }): Promise<PosProductItem[]> => {
   const res = await apiClient.get<PosProductItem[]>('/pos/products', {
     params: {
       categoryId: params?.categoryId || undefined,
       search: params?.search || undefined,
+      lowStock: params?.lowStock !== undefined ? params.lowStock : undefined,
+      isActive: params?.isActive !== undefined ? params.isActive : undefined,
+      sort: params?.sort || undefined,
     },
   });
   return res.data;
@@ -328,4 +417,302 @@ export const updateChannelConfig = async (
   });
   return res.data;
 };
+
+export interface DenominationItemDto {
+  value: number;
+  qty: number;
+}
+
+export interface CloseCashRegisterDto {
+  closingCash?: number;
+  closingCashUsd?: number;
+  actualAmount?: number;
+  amount?: number;
+  counted?: {
+    CASH?: number;
+    CASH_USD?: number;
+    CARD?: number;
+    TRANSFER?: number;
+    OTHER?: number;
+    denominations?: DenominationItemDto[];
+    countMode?: 'DENOMINATIONS' | 'TOTAL';
+  };
+  denominations?: DenominationItemDto[];
+  countMode?: 'DENOMINATIONS' | 'TOTAL';
+  notes?: string;
+  reason?: string;
+  discrepancyReason?: string;
+  discrepancyNote?: string;
+  authorizerPin?: string;
+  authorizerEmail?: string;
+  deviceId?: string;
+}
+
+export interface CashMovementDto {
+  type: 'ENTRADA' | 'SALIDA' | 'IN' | 'OUT';
+  amount: number;
+  concept?: string;
+  reason?: string;
+  currency?: string;
+}
+
+export const closeCashRegister = async (
+  dto: CloseCashRegisterDto,
+  deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string; 'Idempotency-Key'?: string },
+): Promise<any> => {
+  const res = await apiClient.post('/pos/cash-register/close', dto, {
+    headers: deviceHeaders,
+  });
+  return res.data;
+};
+
+export const addCashMovement = async (
+  dto: CashMovementDto,
+  deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string; 'Idempotency-Key'?: string },
+): Promise<any> => {
+  const res = await apiClient.post('/pos/cash-register/movements', dto, {
+    headers: deviceHeaders,
+  });
+  return res.data;
+};
+
+export const getCashRegisterSummary = async (
+  shiftId: string,
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.get(`/pos/cash-register/${shiftId}/summary`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const getCustomerCreditAccounts = async (
+  customerId: string,
+  businessId?: string,
+): Promise<CustomerCreditSummary> => {
+  const res = await apiClient.get<CustomerCreditSummary>(`/pos/customers/${customerId}/credit-accounts`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const getPosExchangeRate = async (
+  businessId?: string,
+): Promise<PosExchangeRateData> => {
+  const res = await apiClient.get<PosExchangeRateData>('/pos/exchange-rate', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const getPosBanks = async (
+  businessId?: string,
+): Promise<PosBankItem[]> => {
+  const res = await apiClient.get<PosBankItem[]>('/pos/banks', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const createPosApprovalToken = async (
+  dto: { action: string; approverEmail: string; approverPassword: string; cashRegisterId?: string; entityType?: string; entityId?: string },
+  businessId?: string,
+): Promise<{ token: string }> => {
+  const res = await apiClient.post<{ token: string }>('/pos/approvals', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const searchPosCustomers = async (
+  q: string,
+  businessId?: string,
+): Promise<any[]> => {
+  const res = await apiClient.get<any[]>('/pos/customers/search', {
+    params: { q, ...(businessId ? { businessId } : {}) },
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const createPosCustomer = async (
+  dto: { name: string; phone?: string; ruc?: string; creditLimit?: number; businessId?: string },
+): Promise<any> => {
+  const res = await apiClient.post<any>('/pos/customers', dto);
+  return res.data;
+};
+
+export const createPosProduct = async (dto: any): Promise<PosProductItem> => {
+  const res = await apiClient.post<PosProductItem>('/pos/products', dto);
+  return res.data;
+};
+
+export const updatePosProduct = async (id: string, dto: any): Promise<PosProductItem> => {
+  const res = await apiClient.put<PosProductItem>(`/pos/products/${id}`, dto);
+  return res.data;
+};
+
+export const deletePosProduct = async (id: string): Promise<any> => {
+  const res = await apiClient.delete<any>(`/pos/products/${id}`);
+  return res.data;
+};
+
+export const adjustPosProductStock = async (
+  id: string,
+  dto: { quantity: number; type?: string; concept: string; cost?: number; reference?: string },
+): Promise<any> => {
+  const res = await apiClient.post<any>(`/pos/products/${id}/stock`, {
+    ...dto,
+    type: dto.type || 'AJUSTE',
+  });
+  return res.data;
+};
+
+export const createPosCategory = async (dto: { name: string; color?: string; icon?: string }): Promise<PosCategory> => {
+  const res = await apiClient.post<PosCategory>('/pos/categories', dto);
+  return res.data;
+};
+
+export const updatePosCategory = async (id: string, dto: { name?: string; color?: string; icon?: string }): Promise<PosCategory> => {
+  const res = await apiClient.patch<PosCategory>(`/pos/categories/${id}`, dto);
+  return res.data;
+};
+
+export const deletePosCategory = async (id: string): Promise<any> => {
+  const res = await apiClient.delete<any>(`/pos/categories/${id}`);
+  return res.data;
+};
+
+export const getPosProductFields = async (businessId?: string): Promise<any[]> => {
+  const res = await apiClient.get<any[]>('/pos/product-fields', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const getPosSuppliers = async (businessId?: string): Promise<any[]> => {
+  const res = await apiClient.get<any[]>('/pos/suppliers', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export interface VoidPosSaleDto {
+  reason: string;
+  restock?: boolean;
+  approvalToken?: string;
+}
+
+export const voidPosSale = async (
+  saleId: string,
+  dto: VoidPosSaleDto,
+  deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string; 'Idempotency-Key'?: string },
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.post<any>(`/pos/sales/${saleId}/void`, dto, {
+    headers: deviceHeaders,
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export interface ReturnPosSaleItemDto {
+  saleItemId: string;
+  qty: number;
+}
+
+export interface ReturnPosSaleDto {
+  items: ReturnPosSaleItemDto[];
+  reason: string;
+  refundMethod: string;
+  approvalToken?: string;
+}
+
+export const returnPosSale = async (
+  saleId: string,
+  dto: ReturnPosSaleDto,
+  deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string; 'Idempotency-Key'?: string },
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.post<any>(`/pos/sales/${saleId}/returns`, dto, {
+    headers: deviceHeaders,
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export interface RegisterCreditPaymentDto {
+  amount: number;
+  paymentMethod: string;
+  notes?: string;
+}
+
+export const registerCreditPayment = async (
+  accountId: string,
+  dto: RegisterCreditPaymentDto,
+  businessId?: string,
+): Promise<{ payment: any; account: any }> => {
+  const res = await apiClient.post<{ payment: any; account: any }>(
+    `/pos/credit-accounts/${accountId}/payments`,
+    dto,
+    {
+      params: businessId ? { businessId } : undefined,
+    }
+  );
+  return res.data;
+};
+
+export interface CreatePurchaseItemDto {
+  productId: string;
+  quantity: number;
+  unitCost: number;
+  lotNumber?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+  updatePrice?: boolean;
+  newPrice?: number;
+}
+
+export interface CreatePurchaseDto {
+  supplierId?: string;
+  invoiceNumber?: string;
+  purchaseDate?: string;
+  notes?: string;
+  paymentCondition?: 'CONTADO' | 'CREDITO';
+  dueDate?: string;
+  downPayment?: number;
+  downPaymentMethod?: string;
+  deductFromCurrentShift?: boolean;
+  items: CreatePurchaseItemDto[];
+}
+
+export const createPosPurchase = async (
+  dto: CreatePurchaseDto,
+  deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string; 'Idempotency-Key'?: string },
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.post<any>('/pos/purchases', dto, {
+    headers: deviceHeaders,
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const getPosPurchases = async (
+  params?: {
+    from?: string;
+    to?: string;
+    supplierId?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+    businessId?: string;
+  }
+): Promise<any> => {
+  const res = await apiClient.get<any>('/pos/purchases', { params });
+  return res.data;
+};
+
+
+
+
 
