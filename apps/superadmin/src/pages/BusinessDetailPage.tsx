@@ -30,6 +30,7 @@ import {
   Info,
   Tag,
   DeviceMobile,
+  Prohibit,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { StatCard } from '../components/ui/StatCard';
@@ -44,8 +45,13 @@ import {
 } from '../hooks/useBusinesses';
 import {
   useBusinessMemberships,
+  useVoidMembership,
   MembershipItem,
+  countPaidMemberships,
+  isTrialMembership,
+  isAutoInitialMembership,
 } from '../hooks/useMemberships';
+
 import { formatDateTime, formatDateShort } from '../utils/format';
 import {
   resolveBusinessBillingInfo,
@@ -71,6 +77,9 @@ import { DeleteBusinessModal } from '../components/modals/DeleteBusinessModal';
 import toast from 'react-hot-toast';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+
+const AUTO_INITIAL_HINT =
+  'Lo creó el asistente al dar de alta el negocio como pago. Si el cliente empezó con prueba gratis, anulalo.';
 
 export const BusinessDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -111,6 +120,27 @@ export const BusinessDetailPage = () => {
   const [isEditDataModalOpen, setIsEditDataModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
+  const [membershipToVoid, setMembershipToVoid] = useState<MembershipItem | null>(null);
+  const [voidReason, setVoidReason] = useState('');
+  const voidMembershipMutation = useVoidMembership(id || '');
+
+  const handleOpenVoidModal = (membership: MembershipItem) => {
+    setMembershipToVoid(membership);
+    setVoidReason('');
+  };
+
+  const handleConfirmVoid = () => {
+    if (!membershipToVoid || voidReason.trim().length < 5) return;
+    voidMembershipMutation.mutate(
+      { id: membershipToVoid.id, reason: voidReason.trim() },
+      {
+        onSuccess: () => {
+          setMembershipToVoid(null);
+          setVoidReason('');
+        },
+      }
+    );
+  };
 
   const handleOpenRegisterPayment = (productType?: BusinessProductType) => {
     setRegisterModalInitialProductType(productType);
@@ -629,7 +659,7 @@ export const BusinessDetailPage = () => {
                       Activo
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                       Inactivo
                     </span>
@@ -683,7 +713,7 @@ export const BusinessDetailPage = () => {
                       Activo
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                       Inactivo
                     </span>
@@ -730,7 +760,7 @@ export const BusinessDetailPage = () => {
                       Activo
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                       Inactivo
                     </span>
@@ -855,7 +885,7 @@ export const BusinessDetailPage = () => {
                       Activo
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                       Inactivo
                     </span>
@@ -904,7 +934,7 @@ export const BusinessDetailPage = () => {
                       Activo
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                       Inactivo
                     </span>
@@ -1240,12 +1270,122 @@ export const BusinessDetailPage = () => {
                 <h3 className="text-sm font-semibold text-gray-900">
                   Historial de Membresías
                 </h3>
-                <span className="text-xs text-gray-400">
-                  {memberships.length} pagos registrados
+                <span className="text-xs text-gray-500">
+                  {(() => {
+                    const paidCount = countPaidMemberships(memberships);
+                    return `${paidCount} ${paidCount === 1 ? 'pago registrado' : 'pagos registrados'}`;
+                  })()}
                 </span>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* Celular: tarjetas */}
+              <div className="md:hidden space-y-3">
+                {memberships.map((m) => {
+                  const mPeriod = getMembershipPeriodDates(m, billingInfo.anchorDay);
+                  const isCancelled = m.status === 'CANCELLED';
+                  const isTrial = isTrialMembership(m);
+                  const isAuto = isAutoInitialMembership(m);
+                  const isCurrent =
+                    !isCancelled &&
+                    m.status === 'ACTIVE' &&
+                    billingInfo.hasMembership &&
+                    billingInfo.dueDateFormatted === mPeriod.dueFormatted;
+
+                  return (
+                    <div
+                      key={m.id}
+                      className={`p-3.5 rounded-xl border space-y-2.5 ${
+                        isCancelled ? 'border-gray-200 bg-gray-50/60' : 'border-gray-200 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p
+                            className={`text-sm font-semibold ${
+                              isCancelled ? 'line-through text-gray-400' : 'text-gray-900'
+                            }`}
+                          >
+                            {mPeriod.periodStr}
+                          </p>
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                            <Badge variant={isTrial ? 'purple' : 'info'} size="sm">
+                              {isTrial ? 'Prueba gratis' : 'Pago'}
+                            </Badge>
+                            {isAuto && !isCancelled && (
+                              <span title={AUTO_INITIAL_HINT}>
+                                <Badge variant="warning" size="sm">Alta automática</Badge>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <Badge
+                          variant={
+                            isCancelled ? 'neutral' : isCurrent ? 'success' : m.status === 'ACTIVE' ? 'neutral' : 'danger'
+                          }
+                          size="sm"
+                        >
+                          {isCancelled ? 'Anulada' : isCurrent ? 'Vigente' : m.status === 'ACTIVE' ? 'Finalizada' : 'Cancelada'}
+                        </Badge>
+                      </div>
+
+                      <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                        <dt className="text-gray-500">Monto</dt>
+                        <dd className="text-right">
+                          {isTrial ? (
+                            <span className="text-gray-500">—</span>
+                          ) : (
+                            <span className={isCancelled ? 'line-through text-gray-400' : 'font-semibold text-gray-900'}>
+                              ${Number(m.amount).toFixed(2)} {m.currency}
+                            </span>
+                          )}
+                        </dd>
+                        {!isTrial && (
+                          <>
+                            <dt className="text-gray-500">Método</dt>
+                            <dd className="text-right text-gray-700">{getPaymentMethodLabel(m.paymentMethod)}</dd>
+                            <dt className="text-gray-500">Recibido</dt>
+                            <dd className="text-right text-gray-700">{formatDateShort(m.paidAt || m.createdAt)}</dd>
+                          </>
+                        )}
+                        <dt className="text-gray-500">Productos</dt>
+                        <dd className="text-right text-gray-700">
+                          {m.products && m.products.length > 0
+                            ? m.products.map((p) => (p.productType === 'CARTERA_COBRO' ? 'Finanzas' : p.name)).join(', ')
+                            : 'Sin especificar'}
+                        </dd>
+                      </dl>
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        {m.paymentProofUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProofUrl(m.paymentProofUrl)}
+                            className="h-11 min-h-[44px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-brand-700 bg-brand-50 border border-brand-200/50 cursor-pointer"
+                          >
+                            <Paperclip size={14} />
+                            Ver comprobante
+                          </button>
+                        )}
+                        {!isCancelled && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenVoidModal(m)}
+                            className="h-11 min-h-[44px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 cursor-pointer"
+                          >
+                            <Prohibit size={14} weight="bold" />
+                            Anular
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {!loadingMemberships && memberships.length === 0 && (
+                  <p className="py-6 text-center text-xs text-gray-500">No hay historial de membresías registrado</p>
+                )}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-medium bg-gray-50/50">
@@ -1257,33 +1397,57 @@ export const BusinessDetailPage = () => {
                       <th className="py-2.5 px-3">Pago recibido</th>
                       <th className="py-2.5 px-3">Comprobante</th>
                       <th className="py-2.5 px-3 text-right">Estado</th>
+                      <th className="py-2.5 px-3 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-gray-700">
                     {memberships.map((m) => {
                       const mPeriod = getMembershipPeriodDates(m, billingInfo.anchorDay);
+                      const isCancelled = m.status === 'CANCELLED';
                       const isCurrent =
+                        !isCancelled &&
                         m.status === 'ACTIVE' &&
                         billingInfo.hasMembership &&
                         billingInfo.dueDateFormatted === mPeriod.dueFormatted;
 
                       return (
-                        <tr key={m.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="py-3 px-3 font-medium text-gray-900 whitespace-nowrap">
-                            {mPeriod.periodStr}
+                        <tr
+                          key={m.id}
+                          className={`transition-colors ${
+                            isCancelled
+                              ? 'bg-gray-50/40 text-gray-400 opacity-75'
+                              : 'hover:bg-gray-50/50 text-gray-700'
+                          }`}
+                        >
+                          <td className="py-3 px-3 font-medium whitespace-nowrap">
+                            <span className={isCancelled ? 'line-through text-gray-400' : 'text-gray-900'}>
+                              {mPeriod.periodStr}
+                            </span>
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <Badge variant={isTrialMembership(m) ? 'purple' : 'info'} size="sm">
+                                {isTrialMembership(m) ? 'Prueba gratis' : 'Pago'}
+                              </Badge>
+                              {isAutoInitialMembership(m) && !isCancelled && (
+                                <span title={AUTO_INITIAL_HINT}>
+                                  <Badge variant="warning" size="sm">Alta automática</Badge>
+                                </span>
+                              )}
+                            </div>
                           </td>
-                          <td className="py-3 px-3 font-medium text-gray-700 whitespace-nowrap">
-                            {mPeriod.dueFormatted}
+                          <td className="py-3 px-3 font-medium whitespace-nowrap">
+                            <span className={isCancelled ? 'text-gray-400' : 'text-gray-700'}>
+                              {mPeriod.dueFormatted}
+                            </span>
                           </td>
                           <td className="py-3 px-3">
                             {m.products && m.products.length > 0 ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className={`flex items-center gap-1.5 flex-wrap ${isCancelled ? 'opacity-60 grayscale' : ''}`}>
                                 {m.products.map((p) => {
                                   if (p.productType === 'DELIVERY') {
                                     return (
                                       <span
                                         key={p.id || p.businessProductSubscriptionId}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-900 border border-amber-200/80"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-900 border border-amber-200/80"
                                       >
                                         <Motorcycle size={11} weight="duotone" className="text-amber-700" />
                                         <span>Delivery</span>
@@ -1294,7 +1458,7 @@ export const BusinessDetailPage = () => {
                                     return (
                                       <span
                                         key={p.id || p.businessProductSubscriptionId}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-900 border border-purple-200/80"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-900 border border-purple-200/80"
                                       >
                                         <Receipt size={11} weight="duotone" className="text-purple-700" />
                                         <span>POS</span>
@@ -1305,7 +1469,7 @@ export const BusinessDetailPage = () => {
                                     return (
                                       <span
                                         key={p.id || p.businessProductSubscriptionId}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80"
                                       >
                                         <Wallet size={11} weight="duotone" className="text-emerald-700" />
                                         <span>Finanzas</span>
@@ -1316,7 +1480,7 @@ export const BusinessDetailPage = () => {
                                     return (
                                       <span
                                         key={p.id || p.businessProductSubscriptionId}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-900 border border-sky-200/80"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-900 border border-sky-200/80"
                                       >
                                         <CalendarBlank size={11} weight="duotone" className="text-sky-700" />
                                         <span>Citas</span>
@@ -1326,7 +1490,7 @@ export const BusinessDetailPage = () => {
                                   return (
                                     <span
                                       key={p.id || p.businessProductSubscriptionId}
-                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-700"
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
                                     >
                                       {p.name}
                                     </span>
@@ -1334,13 +1498,23 @@ export const BusinessDetailPage = () => {
                                 })}
                               </div>
                             ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-500">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">
                                 Sin especificar
                               </span>
                             )}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-gray-900 whitespace-nowrap">
-                            ${Number(m.amount).toFixed(2)} {m.currency}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            {isTrialMembership(m) ? (
+                              <span className="text-gray-500">—</span>
+                            ) : isCancelled ? (
+                              <span className="line-through text-gray-400 font-medium">
+                                ${Number(m.amount).toFixed(2)} {m.currency}
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-gray-900">
+                                ${Number(m.amount).toFixed(2)} {m.currency}
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-3 text-gray-600">
                             {getPaymentMethodLabel(m.paymentMethod)}
@@ -1364,7 +1538,9 @@ export const BusinessDetailPage = () => {
                           <td className="py-3 px-3 text-right">
                             <Badge
                               variant={
-                                isCurrent
+                                isCancelled
+                                  ? 'neutral'
+                                  : isCurrent
                                   ? 'success'
                                   : m.status === 'ACTIVE'
                                   ? 'neutral'
@@ -1372,19 +1548,36 @@ export const BusinessDetailPage = () => {
                               }
                               size="sm"
                             >
-                              {isCurrent
+                              {isCancelled
+                                ? 'Anulada'
+                                : isCurrent
                                 ? 'Vigente'
                                 : m.status === 'ACTIVE'
                                 ? 'Finalizada'
                                 : 'Cancelada'}
                             </Badge>
                           </td>
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
+                            {isCancelled ? (
+                              <span className="text-gray-300 text-xs px-2">—</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenVoidModal(m)}
+                                className="h-11 min-h-[44px] min-w-[44px] px-3 inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
+                                title="Anular este pago de membresía"
+                              >
+                                <Prohibit size={15} weight="bold" />
+                                <span>Anular</span>
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
                     {!loadingMemberships && memberships.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="py-6 text-center text-gray-400">
+                        <td colSpan={9} className="py-6 text-center text-gray-400">
                           No hay historial de membresías registrado
                         </td>
                       </tr>
@@ -1727,6 +1920,84 @@ export const BusinessDetailPage = () => {
         imageUrl={selectedProofUrl}
         title={`Comprobante de Pago — ${business.name}`}
       />
+
+      {/* Modal para anular pago de membresía (Ticket 252b) */}
+      <Modal
+        isOpen={!!membershipToVoid}
+        onClose={() => setMembershipToVoid(null)}
+        title="Anular pago de membresía"
+        subtitle={business?.name ? `Negocio: ${business.name}` : undefined}
+        maxWidth="max-w-md"
+      >
+        {membershipToVoid && (
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200/80 space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">Período:</span>
+                <span className="font-medium text-gray-900">
+                  {getMembershipPeriodDates(membershipToVoid, billingInfo.anchorDay).periodStr}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">Monto:</span>
+                <span className="font-semibold text-gray-900">
+                  ${Number(membershipToVoid.amount).toFixed(2)} {membershipToVoid.currency}
+                </span>
+              </div>
+              {membershipToVoid.paidAt && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Fecha de pago:</span>
+                  <span className="text-gray-700">
+                    {formatDateShort(membershipToVoid.paidAt)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs flex items-start gap-2.5">
+              <Warning size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                Esta membresía dejará de contar para la vigencia. No se borra: queda en el historial como anulada.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Motivo de anulación <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+                placeholder="Ej: Pago duplicado por reintento al subir comprobante..."
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-gray-900 transition-colors resize-none"
+              />
+              <span className="text-[12px] text-gray-400 mt-1 block">
+                Mínimo 5 caracteres ({voidReason.trim().length}/5)
+              </span>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setMembershipToVoid(null)}
+                disabled={voidMembershipMutation.isPending}
+                className="h-11 min-h-[44px] px-4 rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmVoid}
+                disabled={voidReason.trim().length < 5 || voidMembershipMutation.isPending}
+                className="h-11 min-h-[44px] flex items-center justify-center gap-1.5 px-4 rounded-xl bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors cursor-pointer"
+              >
+                {voidMembershipMutation.isPending ? 'Anulando...' : 'Confirmar anulación'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         isOpen={isEditModelModalOpen}

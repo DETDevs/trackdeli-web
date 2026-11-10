@@ -17,6 +17,12 @@ import {
   Info,
   Package,
   Tag,
+  Money,
+  Gift,
+  UploadSimple,
+  FilePdf,
+  X,
+  CircleNotch,
 } from '@phosphor-icons/react';
 import apiClient from '../../lib/apiClient';
 import { Modal } from '../ui/Modal';
@@ -93,6 +99,17 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
   const [encargadoName, setEncargadoName] = useState('');
   const [encargadoEmail, setEncargadoEmail] = useState('');
   const [encargadoPassword, setEncargadoPassword] = useState('');
+  // ¿Cómo empieza este cliente? (Ticket 252b)
+  const [startType, setStartType] = useState<'TRIAL' | 'PAID'>('TRIAL');
+  const [initialTrialDays, setInitialTrialDays] = useState<number>(15);
+  const [initialCustomTrialDays, setInitialCustomTrialDays] = useState('');
+  const [initialPaidAmount, setInitialPaidAmount] = useState('');
+  const [initialPaymentMethod, setInitialPaymentMethod] = useState<
+    'TRANSFERENCIA' | 'EFECTIVO' | 'PAYPAL' | 'BINANCE' | 'OTRO'
+  >('TRANSFERENCIA');
+  const initialPaidAt = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [initialProofFile, setInitialProofFile] = useState<File | null>(null);
+  const [initialProofPreview, setInitialProofPreview] = useState<string | null>(null);
 
   // Errores de validación por paso
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -331,6 +348,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
   ]);
 
   // Validaciones por paso
+
   const validateStep = (step: number): boolean => {
     const newErrors: Record<string, string> = {};
 
@@ -424,6 +442,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
       } else if (encargadoPassword.length < 6) {
         newErrors.encargadoPassword = 'La contraseña debe tener al menos 6 caracteres.';
       }
+
     }
 
     setErrors(newErrors);
@@ -514,12 +533,32 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
           email: encargadoEmail.trim(),
           password: encargadoPassword,
         },
+        startType,
+        trialDays: startType === 'TRIAL' ? initialTrialDays : undefined,
+        firstPayment: startType === 'PAID' ? {
+          amount: initialPaidAmount.trim() ? Number(initialPaidAmount) : totalEstimatedUsd,
+          paymentMethod: initialPaymentMethod,
+          paidAt: initialPaidAt,
+        } : undefined,
       },
       {
         onSuccess: async (data: CreateBusinessResult) => {
           const bizId = data.business.id;
 
           try {
+            if (initialProofFile && (data as any).membership?.id) {
+              try {
+                const formData = new FormData();
+                formData.append('file', initialProofFile);
+                await apiClient.post(
+                  `/superadmin/memberships/${(data as any).membership.id}/proof`,
+                  formData,
+                  { headers: { 'Content-Type': 'multipart/form-data' } }
+                );
+              } catch (proofErr) {
+                console.warn('Error subiendo comprobante inicial:', proofErr);
+              }
+            }
             const activationPromises: Promise<any>[] = [];
 
             if (hasDelivery) {
@@ -648,6 +687,14 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
     setEncargadoName('');
     setEncargadoEmail('');
     setEncargadoPassword('');
+    setStartType('TRIAL');
+    setInitialTrialDays(15);
+    setInitialCustomTrialDays('');
+    setInitialPaidAmount('');
+    setInitialPaymentMethod('TRANSFERENCIA');
+    setInitialProofFile(null);
+    if (initialProofPreview) URL.revokeObjectURL(initialProofPreview);
+    setInitialProofPreview(null);
     setErrors({});
     setIsSubmitting(false);
   };
@@ -667,7 +714,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
             type="button"
             onClick={handlePrev}
             disabled={isSubmitting}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5 h-11 min-h-[44px] px-4 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
           >
             <ArrowLeft size={14} />
             <span>Atrás</span>
@@ -677,7 +724,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
             type="button"
             onClick={handleClose}
             disabled={isSubmitting}
-            className="px-3.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center justify-center h-11 min-h-[44px] px-4 rounded-xl border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
           >
             Cancelar
           </button>
@@ -689,24 +736,31 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
           <button
             type="button"
             onClick={handleNext}
-            className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-black transition-colors shadow-xs cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 h-11 min-h-[44px] px-5 rounded-xl bg-gray-900 text-white text-xs font-semibold hover:bg-black transition-colors shadow-xs cursor-pointer"
           >
             <span>Siguiente</span>
-            <ArrowRight size={14} />
+            <ArrowRight size={15} />
           </button>
         ) : (
           <button
             type="button"
             onClick={handleFinalSubmit}
             disabled={isSubmitting || createMutation.isPending}
-            className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg bg-purple-700 text-white text-xs font-bold hover:bg-purple-800 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 h-11 min-h-[44px] px-6 rounded-xl bg-purple-700 text-white text-xs font-bold hover:bg-purple-800 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
           >
             {isSubmitting || createMutation.isPending ? (
-              <span>Creando negocio...</span>
+              <>
+                <CircleNotch size={16} className="animate-spin" />
+                <span>Creando negocio...</span>
+              </>
             ) : (
               <>
-                <Check size={15} weight="bold" />
-                <span>Crear negocio</span>
+                <Check size={16} weight="bold" />
+                <span>
+                  {startType === 'TRIAL'
+                    ? 'Crear negocio con prueba gratis'
+                    : 'Crear negocio y registrar pago'}
+                </span>
               </>
             )}
           </button>
@@ -740,7 +794,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 <div key={step.num} className="flex flex-col gap-1">
                   <div className="flex items-center gap-1.5">
                     <div
-                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors ${
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
                         isDone
                           ? 'bg-purple-600 text-white'
                           : isCurrent
@@ -751,7 +805,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       {isDone ? <Check size={11} weight="bold" /> : step.num}
                     </div>
                     <span
-                      className={`text-[11px] font-semibold truncate ${
+                      className={`text-xs font-semibold truncate ${
                         isCurrent
                           ? 'text-gray-900'
                           : isDone
@@ -809,7 +863,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 }`}
               />
               {errors.name && (
-                <p className="text-[11px] text-rose-600 mt-1">{errors.name}</p>
+                <p className="text-xs text-rose-600 mt-1">{errors.name}</p>
               )}
             </div>
 
@@ -839,13 +893,13 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       : 'Selecciona o busca un tipo de negocio...'}
                   </span>
                 </div>
-                <span className="text-[10px] text-gray-400 uppercase font-semibold">
+                <span className="text-xs text-gray-400 uppercase font-semibold">
                   {isIndustryDropdownOpen ? 'Cerrar' : 'Elegir'}
                 </span>
               </button>
 
               {errors.industryId && (
-                <p className="text-[11px] text-rose-600 mt-1">{errors.industryId}</p>
+                <p className="text-xs text-rose-600 mt-1">{errors.industryId}</p>
               )}
 
               {/* Dropdown flotante con buscador */}
@@ -896,7 +950,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                               )}
                               <span>{ind.name}</span>
                             </div>
-                            <span className="text-[10px] font-medium text-gray-400">
+                            <span className="text-xs font-medium text-gray-400">
                               {isTaller ? 'Taller' : ind.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'}
                             </span>
                           </div>
@@ -922,7 +976,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                           Detectamos: {selectedIndustry.name} → Sistema POS, perfil{' '}
                           {profileLabel}
                         </p>
-                        <p className="text-[11px] text-purple-800/80 mt-0.5">
+                        <p className="text-xs text-purple-800/80 mt-0.5">
                           {profileDescription}
                         </p>
                       </div>
@@ -943,7 +997,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       <Info size={16} className="text-amber-600 shrink-0" />
                       <span>Este tipo de negocio no tiene un perfil de salón predefinido</span>
                     </div>
-                    <p className="text-[11px] text-amber-800">
+                    <p className="text-xs text-amber-800">
                       Selecciona si operará como restaurante con mesas o como taller automotriz con bahías de servicio:
                     </p>
                     <div className="grid grid-cols-2 gap-2 pt-1">
@@ -986,13 +1040,13 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 {isAdvancedOpen && (
                   <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-3 animate-fade-in">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-gray-800 uppercase tracking-wider">
+                      <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">
                         Opciones avanzadas de POS
                       </span>
                       <button
                         type="button"
                         onClick={handleResetToAutomatic}
-                        className="text-[11px] text-purple-700 hover:text-purple-900 font-medium cursor-pointer"
+                        className="text-xs text-purple-700 hover:text-purple-900 font-medium cursor-pointer"
                       >
                         Restablecer automático
                       </button>
@@ -1000,7 +1054,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
                           Vertical de POS
                         </label>
                         <select
@@ -1017,7 +1071,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
                           Perfil del salón
                         </label>
                         <select
@@ -1049,11 +1103,11 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Selecciona los productos contratados *
               </label>
-              <span className="text-[11px] text-gray-400">Al menos uno obligatorio</span>
+              <span className="text-xs text-gray-400">Al menos uno obligatorio</span>
             </div>
 
             {errors.products && (
-              <p className="text-[11px] text-rose-600 font-medium">{errors.products}</p>
+              <p className="text-xs text-rose-600 font-medium">{errors.products}</p>
             )}
 
             {/* Grid 2x2 de productos */}
@@ -1081,7 +1135,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     </div>
                     <div>
                       <p className="font-bold text-xs text-gray-900 leading-tight">Sistema POS</p>
-                      <p className="text-[11px] text-gray-500">Punto de venta y caja</p>
+                      <p className="text-xs text-gray-500">Punto de venta y caja</p>
                     </div>
                   </div>
                   <div
@@ -1094,7 +1148,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 </div>
 
                 {hasPOS && (
-                  <div className="pt-2 border-t border-purple-200/60 text-[11px] text-purple-950 font-medium">
+                  <div className="pt-2 border-t border-purple-200/60 text-xs text-purple-950 font-medium">
                     Perfil: <span className="font-bold">{profileLabel}</span> • Acceso web configurable en paso 3
                   </div>
                 )}
@@ -1123,7 +1177,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     </div>
                     <div>
                       <p className="font-bold text-xs text-gray-900 leading-tight">TrackDeli (Delivery)</p>
-                      <p className="text-[11px] text-gray-500">Despacho y pedidos a domicilio</p>
+                      <p className="text-xs text-gray-500">Despacho y pedidos a domicilio</p>
                     </div>
                   </div>
                   <div
@@ -1136,7 +1190,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 </div>
 
                 {hasDelivery && (
-                  <div className="pt-2 border-t border-amber-200/60 text-[11px] text-amber-950 font-medium">
+                  <div className="pt-2 border-t border-amber-200/60 text-xs text-amber-950 font-medium">
                     Modelo: <span className="font-bold">{businessType === 'EMPRESA_RIDERS' ? 'Empresa de Riders' : 'Comercio Común'}</span>
                   </div>
                 )}
@@ -1165,7 +1219,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     </div>
                     <div>
                       <p className="font-bold text-xs text-gray-900 leading-tight">Finanzas</p>
-                      <p className="text-[11px] text-gray-500">Cuentas por pagar, gastos y cartera</p>
+                      <p className="text-xs text-gray-500">Cuentas por pagar, gastos y cartera</p>
                     </div>
                   </div>
                   <div
@@ -1178,7 +1232,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 </div>
 
                 {hasCarteraCobro && (
-                  <div className="pt-2 border-t border-emerald-200/60 text-[11px] text-emerald-950 font-medium">
+                  <div className="pt-2 border-t border-emerald-200/60 text-xs text-emerald-950 font-medium">
                     Módulo activo • Tarifa configurable en paso 3
                   </div>
                 )}
@@ -1207,7 +1261,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     </div>
                     <div>
                       <p className="font-bold text-xs text-gray-900 leading-tight">Citas y Reservas</p>
-                      <p className="text-[11px] text-gray-500">Agenda online y reservas</p>
+                      <p className="text-xs text-gray-500">Agenda online y reservas</p>
                     </div>
                   </div>
                   <div
@@ -1220,7 +1274,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 </div>
 
                 {hasCitas && (
-                  <div className="pt-2 border-t border-sky-200/60 text-[11px] text-sky-950 font-medium">
+                  <div className="pt-2 border-t border-sky-200/60 text-xs text-sky-950 font-medium">
                     Módulo activo • Tarifa configurable en paso 3
                   </div>
                 )}
@@ -1239,12 +1293,12 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       Control de lotes y vencimientos
                     </span>
                     {tracksBatches && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                         Activo
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">
+                  <p className="text-xs text-gray-500 leading-relaxed mt-0.5">
                     Agrega Lote y Fecha de Vencimiento a compras, ventas, alertas y a la plantilla Excel.
                   </p>
                 </div>
@@ -1277,12 +1331,12 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       Usar precio de etiqueta
                     </span>
                     {useListPrice && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                         Activo
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">
+                  <p className="text-xs text-gray-500 leading-relaxed mt-0.5">
                     Muestra precio de etiqueta y descuento en productos y comprobantes (farmacias)
                   </p>
                 </div>
@@ -1322,7 +1376,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     }`}
                   >
                     <p className="font-bold">Comercio Común</p>
-                    <p className="text-[10px] text-gray-500">Membresía mensual fija</p>
+                    <p className="text-xs text-gray-500">Membresía mensual fija</p>
                   </button>
 
                   <button
@@ -1335,14 +1389,14 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     }`}
                   >
                     <p className="font-bold">Empresa de Riders</p>
-                    <p className="text-[10px] text-gray-500">Comisión por carrera</p>
+                    <p className="text-xs text-gray-500">Comisión por carrera</p>
                   </button>
                 </div>
 
                 {businessType === 'EMPRESA_RIDERS' && (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-amber-200/60">
                     <div>
-                      <label className="block text-[10px] font-semibold text-gray-700 mb-0.5">
+                      <label className="block text-xs font-semibold text-gray-700 mb-0.5">
                         Comisión (%)
                       </label>
                       <input
@@ -1356,7 +1410,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-gray-700 mb-0.5">
+                      <label className="block text-xs font-semibold text-gray-700 mb-0.5">
                         Distancia Larga (%)
                       </label>
                       <input
@@ -1370,7 +1424,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-gray-700 mb-0.5">
+                      <label className="block text-xs font-semibold text-gray-700 mb-0.5">
                         Distancia (km)
                       </label>
                       <input
@@ -1383,7 +1437,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-gray-700 mb-0.5">
+                      <label className="block text-xs font-semibold text-gray-700 mb-0.5">
                         Timeout (min)
                       </label>
                       <input
@@ -1419,7 +1473,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-[11px] font-semibold text-gray-700">
+                      <label className="block text-xs font-semibold text-gray-700">
                         Computadoras permitidas *
                       </label>
                       <label className="flex items-center gap-1 cursor-pointer text-xs select-none">
@@ -1433,7 +1487,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                           }}
                           className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3 h-3"
                         />
-                        <span className="text-[10px] font-semibold text-gray-600">Sin límite</span>
+                        <span className="text-xs font-semibold text-gray-600">Sin límite</span>
                       </label>
                     </div>
                     <input
@@ -1447,11 +1501,11 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                         isUnlimitedDevices ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
                       }`}
                     />
-                    <p className="text-[10px] text-gray-500 mt-0.5">Equipos de escritorio autorizados</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Equipos de escritorio autorizados</p>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
                       Prueba en horas (opcional)
                     </label>
                     <input
@@ -1462,13 +1516,13 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       placeholder="Ej: 24 (vacío = sin prueba)"
                       className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs bg-white"
                     />
-                    <p className="text-[10px] text-gray-500 mt-0.5">
+                    <p className="text-xs text-gray-500 mt-0.5">
                       Empieza a contar en el primer inicio de sesión
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
                       Tarifa mensual POS en USD
                     </label>
                     <div className="relative">
@@ -1485,7 +1539,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                         className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs bg-white"
                       />
                     </div>
-                    <p className="text-[10px] text-gray-500 mt-0.5">Tarifa sugerida: $45.00</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Tarifa sugerida: $45.00</p>
                   </div>
                 </div>
 
@@ -1505,7 +1559,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                             Web admin básico (reportes y consulta)
                           </span>
                         </div>
-                        <p className="text-[10px] text-purple-800/80 leading-tight">
+                        <p className="text-xs text-purple-800/80 leading-tight">
                           Incluido en la membresía. Acceso a reportes y métricas.
                         </p>
                       </div>
@@ -1551,7 +1605,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                             Facturar desde la web (módulo adicional)
                           </span>
                         </div>
-                        <p className="text-[10px] text-gray-500 leading-tight">
+                        <p className="text-xs text-gray-500 leading-tight">
                           {!webAdminEnabled
                             ? 'Requiere Web admin básico activo.'
                             : 'Permite a los cajeros cobrar desde navegador o celular.'}
@@ -1587,7 +1641,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     <div className="p-3 rounded-xl bg-white border border-purple-200 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-[11px] font-semibold text-gray-700">
+                          <label className="block text-xs font-semibold text-gray-700">
                             Dispositivos web autorizados *
                           </label>
                           <label className="flex items-center gap-1 cursor-pointer text-xs select-none">
@@ -1601,7 +1655,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                               }}
                               className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3 h-3"
                             />
-                            <span className="text-[10px] font-semibold text-gray-600">Ilimitado</span>
+                            <span className="text-xs font-semibold text-gray-600">Ilimitado</span>
                           </label>
                         </div>
                         <input
@@ -1615,13 +1669,13 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                             isUnlimitedWebDevices ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
                           }`}
                         />
-                        <p className="text-[10px] text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-500 mt-0.5">
                           Por defecto: 2 teléfonos/navegadores simultáneos
                         </p>
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
                           Tarifa mensual del módulo en USD (opcional)
                         </label>
                         <div className="relative">
@@ -1638,7 +1692,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                             className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs bg-white"
                           />
                         </div>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-500 mt-0.5">
                           Cuota adicional por emitir cobros desde la web
                         </p>
                       </div>
@@ -1656,7 +1710,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                   <span>Condiciones TrackDeli (Delivery)</span>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Tarifa mensual Delivery en USD (opcional)
                   </label>
                   <div className="relative max-w-xs">
@@ -1685,7 +1739,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                   <span>Condiciones Finanzas</span>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Tarifa mensual Finanzas en USD (opcional)
                   </label>
                   <div className="relative max-w-xs">
@@ -1714,7 +1768,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                   <span>Condiciones Citas y Reservas</span>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Tarifa mensual Citas en USD (opcional)
                   </label>
                   <div className="relative max-w-xs">
@@ -1734,6 +1788,220 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 </div>
               </div>
             )}
+
+            {/* Bloque: ¿Cómo empieza este cliente? (Ticket 252b) */}
+            <div className="p-4 rounded-xl bg-purple-50/50 border border-purple-200/80 space-y-3.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-purple-950 uppercase tracking-wider">
+                <Sparkle size={16} className="text-purple-700" />
+                <span>¿Cómo empieza este cliente?</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Opción A: Prueba gratis */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartType('TRIAL');
+                    if (hasPOS && (!trialHours || trialHours === '0')) {
+                      setTrialHours(String((initialTrialDays || 15) * 24));
+                    }
+                  }}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer min-h-[44px] ${
+                    startType === 'TRIAL'
+                      ? 'border-purple-600 bg-white ring-2 ring-purple-600/20 shadow-xs'
+                      : 'border-purple-200/70 bg-white/70 hover:bg-white hover:border-purple-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
+                      startType === 'TRIAL' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                    }`}>
+                      <Gift size={15} weight="duotone" />
+                    </div>
+                    <span className="text-xs font-bold text-gray-900">Prueba gratis</span>
+                  </div>
+                  <p className="text-xs text-gray-600 leading-snug">
+                    Sin cobro inicial. El cliente goza de vigencia durante la prueba. El día de cobro se fijará al registrar su primer pago real.
+                  </p>
+                </button>
+
+                {/* Opción B: Ya pagó el primer mes */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartType('PAID');
+                    if (!initialPaidAmount && totalEstimatedUsd > 0) {
+                      setInitialPaidAmount(totalEstimatedUsd.toFixed(2));
+                    }
+                  }}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer min-h-[44px] ${
+                    startType === 'PAID'
+                      ? 'border-purple-600 bg-white ring-2 ring-purple-600/20 shadow-xs'
+                      : 'border-purple-200/70 bg-white/70 hover:bg-white hover:border-purple-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
+                      startType === 'PAID' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                    }`}>
+                      <Money size={15} weight="duotone" />
+                    </div>
+                    <span className="text-xs font-bold text-gray-900">Ya pagó el primer mes</span>
+                  </div>
+                  <p className="text-xs text-gray-600 leading-snug">
+                    Se registra el primer ciclo mensual. Fija el día de cobro recurrente en el día de hoy.
+                  </p>
+                </button>
+              </div>
+
+              {/* Configuración si es prueba gratis */}
+              {startType === 'TRIAL' && (
+                <div className="p-3 rounded-xl bg-white border border-purple-200 space-y-2.5 animate-fade-in">
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Duración de la prueba gratis
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[7, 15, 30].map((days) => (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => {
+                          setInitialTrialDays(days);
+                          setInitialCustomTrialDays('');
+                          if (hasPOS) setTrialHours(String(days * 24));
+                        }}
+                        className={`h-11 min-h-[44px] px-3.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                          initialTrialDays === days && !initialCustomTrialDays
+                            ? 'border-purple-600 bg-purple-50 text-purple-900 ring-1 ring-purple-600/30'
+                            : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {days} días
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="1"
+                        value={initialCustomTrialDays}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setInitialCustomTrialDays(v);
+                          const parsed = parseInt(v, 10);
+                          if (parsed > 0) {
+                            setInitialTrialDays(parsed);
+                            if (hasPOS) setTrialHours(String(parsed * 24));
+                          }
+                        }}
+                        placeholder="Otro (días)"
+                        className="h-11 min-h-[44px] w-28 px-3 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-purple-800 leading-tight">
+                    Vigencia de {initialTrialDays} días a partir de hoy. No se fija día de cobro hasta registrar el primer pago.
+                  </p>
+                </div>
+              )}
+
+              {/* Configuración si ya pagó */}
+              {startType === 'PAID' && (
+                <div className="p-3.5 rounded-xl bg-white border border-purple-200 space-y-3 animate-fade-in">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Monto recibido en USD *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={initialPaidAmount || (totalEstimatedUsd > 0 ? totalEstimatedUsd.toFixed(2) : '')}
+                          onChange={(e) => setInitialPaidAmount(e.target.value)}
+                          placeholder={totalEstimatedUsd.toFixed(2)}
+                          className="w-full h-11 min-h-[44px] pl-7 pr-3 rounded-xl border border-gray-200 text-xs font-medium bg-white focus:outline-none focus:border-purple-600"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">Sugerido: ${totalEstimatedUsd.toFixed(2)} USD</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Método de pago *
+                      </label>
+                      <select
+                        value={initialPaymentMethod}
+                        onChange={(e) => setInitialPaymentMethod(e.target.value as any)}
+                        className="w-full h-11 min-h-[44px] px-3 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-purple-600"
+                      >
+                        <option value="TRANSFERENCIA">Transferencia bancaria</option>
+                        <option value="EFECTIVO">Efectivo</option>
+                        <option value="PAYPAL">PayPal</option>
+                        <option value="BINANCE">Binance</option>
+                        <option value="OTRO">Otro</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Comprobante */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Comprobante de pago (opcional)
+                    </label>
+                    {initialProofFile ? (
+                      <div className="p-2.5 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          {initialProofPreview ? (
+                            <img src={initialProofPreview} alt="Comprobante" className="w-10 h-10 object-cover rounded-lg border border-gray-200" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center border border-red-100">
+                              <FilePdf size={20} weight="duotone" />
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-xs font-medium text-gray-900 truncate max-w-[200px]">{initialProofFile.name}</p>
+                            <p className="text-xs text-gray-500">{(initialProofFile.size / 1024).toFixed(1)} KB</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (initialProofPreview) URL.revokeObjectURL(initialProofPreview);
+                            setInitialProofFile(null);
+                            setInitialProofPreview(null);
+                          }}
+                          className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-200 hover:border-purple-600 rounded-xl cursor-pointer bg-white transition-colors min-h-[44px]">
+                        <div className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                          <UploadSimple size={18} className="text-gray-400" />
+                          <span>Adjuntar foto o PDF del comprobante</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,application/pdf"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              const f = e.target.files[0];
+                              setInitialProofFile(f);
+                              if (initialProofPreview) URL.revokeObjectURL(initialProofPreview);
+                              setInitialProofPreview(f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1751,7 +2019,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Nombre completo *
                   </label>
                   <input
@@ -1764,12 +2032,12 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     }`}
                   />
                   {errors.encargadoName && (
-                    <p className="text-[10px] text-rose-600 mt-0.5">{errors.encargadoName}</p>
+                    <p className="text-xs text-rose-600 mt-0.5">{errors.encargadoName}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Correo electrónico *
                   </label>
                   <input
@@ -1782,12 +2050,12 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     }`}
                   />
                   {errors.encargadoEmail && (
-                    <p className="text-[10px] text-rose-600 mt-0.5">{errors.encargadoEmail}</p>
+                    <p className="text-xs text-rose-600 mt-0.5">{errors.encargadoEmail}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Contraseña temporal *
                   </label>
                   <input
@@ -1800,7 +2068,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     }`}
                   />
                   {errors.encargadoPassword && (
-                    <p className="text-[10px] text-rose-600 mt-0.5">{errors.encargadoPassword}</p>
+                    <p className="text-xs text-rose-600 mt-0.5">{errors.encargadoPassword}</p>
                   )}
                 </div>
               </div>
@@ -1812,42 +2080,42 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 <span className="text-xs font-bold text-purple-950 uppercase tracking-wider">
                   Resumen de Contratación
                 </span>
-                <span className="text-[11px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-md">
+                <span className="text-xs font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-md">
                   Listo para crear
                 </span>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                 <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
                     Negocio
                   </span>
                   <p className="font-bold text-gray-900 truncate">{name || 'Sin nombre'}</p>
-                  <p className="text-[11px] text-gray-500">{selectedIndustry?.name}</p>
+                  <p className="text-xs text-gray-500">{selectedIndustry?.name}</p>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
                     Productos Activos
                   </span>
                   <div className="flex items-center gap-1 flex-wrap mt-0.5">
                     {hasPOS && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-900 border border-purple-200">
+                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-900 border border-purple-200">
                         POS
                       </span>
                     )}
                     {hasDelivery && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-200">
                         Delivery
                       </span>
                     )}
                     {hasCarteraCobro && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-900 border border-emerald-200">
                         Finanzas
                       </span>
                     )}
                     {hasCitas && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-900 border border-sky-200">
+                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-sky-100 text-sky-900 border border-sky-200">
                         Citas
                       </span>
                     )}
@@ -1856,13 +2124,13 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
 
                 {hasPOS && (
                   <div>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
                       Perfil & Equipos
                     </span>
                     <p className="font-semibold text-gray-900">
                       Perfil {profileLabel}
                     </p>
-                    <p className="text-[11px] text-gray-500">
+                    <p className="text-xs text-gray-500">
                       {isUnlimitedDevices ? 'Equipos ilimitados' : `${maxDevices || 1} equipo(s)`} •{' '}
                       {trialHours.trim() ? `${trialHours}h prueba` : 'Sin prueba'}
                     </p>
@@ -1871,7 +2139,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
 
                 {hasPOS && (
                   <div className="sm:col-span-2">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
                       Acceso Web POS
                     </span>
                     <p className="font-semibold text-gray-900">
@@ -1887,7 +2155,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 )}
 
                 <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
                     Control de Lotes
                   </span>
                   <p className="font-semibold text-gray-900">
@@ -1897,13 +2165,13 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       <span className="text-gray-500">Desactivado</span>
                     )}
                   </p>
-                  <p className="text-[11px] text-gray-500">
+                  <p className="text-xs text-gray-500">
                     {tracksBatches ? 'Lotes y vencimientos' : 'Sin seguimiento de lotes'}
                   </p>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
                     Precio de Etiqueta
                   </span>
                   <p className="font-semibold text-gray-900">
@@ -1913,35 +2181,35 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       <span className="text-gray-500">Desactivado</span>
                     )}
                   </p>
-                  <p className="text-[11px] text-gray-500">
+                  <p className="text-xs text-gray-500">
                     {useListPrice ? 'Etiqueta y descuentos' : 'Precio regular directo'}
                   </p>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
                     Primer Encargado
                   </span>
                   <p className="font-bold text-gray-900 truncate">{encargadoName || '—'}</p>
-                  <p className="text-[11px] text-gray-500 truncate">{encargadoEmail || '—'}</p>
+                  <p className="text-xs text-gray-500 truncate">{encargadoEmail || '—'}</p>
                 </div>
               </div>
 
               {/* Total mensual estimado en USD */}
               <div className="pt-3 border-t border-purple-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <span className="text-[10px] font-bold text-purple-900 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-purple-900 uppercase tracking-wider block">
                     Total Mensual Estimado
                   </span>
                   {feesList.length > 0 ? (
-                    <p className="text-[11px] text-gray-600">
+                    <p className="text-xs text-gray-600">
                       {feesList.map((f) => `${f.name}: $${f.amount.toFixed(2)}`).join(' + ')}
                     </p>
                   ) : (
-                    <p className="text-[11px] text-gray-500">Sin cuotas fijas mensuales registradas</p>
+                    <p className="text-xs text-gray-500">Sin cuotas fijas mensuales registradas</p>
                   )}
                   {missingFeesList.length > 0 && (
-                    <p className="text-[10px] text-gray-400 italic">
+                    <p className="text-xs text-gray-400 italic">
                       * Estimado. No incluye: {missingFeesList.join(', ')}
                     </p>
                   )}
@@ -1953,6 +2221,46 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     <span className="text-xs font-semibold text-purple-700">USD/mes</span>
                   </span>
                 </div>
+              </div>
+            </div>
+
+            {/* Resumen del inicio de membresía (Ticket 252b) */}
+            <div className={`p-4 rounded-xl border space-y-2.5 ${
+              startType === 'TRIAL' ? 'bg-purple-50/60 border-purple-200' : 'bg-emerald-50/60 border-emerald-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                {startType === 'TRIAL' ? (
+                  <Gift size={20} weight="duotone" className="text-purple-700" />
+                ) : (
+                  <Money size={20} weight="duotone" className="text-emerald-700" />
+                )}
+                <p className="text-sm font-bold text-gray-900">
+                  {startType === 'TRIAL' ? 'Inicio con prueba gratis' : 'Inicio con primer mes pagado'}
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-700">
+                <p>
+                  <span className="font-semibold text-gray-900">Período:</span>{' '}
+                  {startType === 'TRIAL'
+                    ? `Prueba de ${initialTrialDays} días a partir de hoy`
+                    : `Primer ciclo mensual (${new Date().getDate()} de este mes al próximo)`}
+                </p>
+                <p>
+                  <span className="font-semibold text-gray-900">Monto a registrar:</span>{' '}
+                  {startType === 'TRIAL'
+                    ? '$0.00 (sin cobro inicial)'
+                    : `${Number(initialPaidAmount || totalEstimatedUsd).toFixed(2)} USD (${initialPaymentMethod})`}
+                </p>
+                <p>
+                  <span className="font-semibold text-gray-900">Día de cobro:</span>{' '}
+                  {startType === 'TRIAL'
+                    ? 'No fijado (se definirá con el primer pago real)'
+                    : `Fijado en el día ${new Date().getDate()}`}
+                </p>
+                <p>
+                  <span className="font-semibold text-gray-900">Comprobante:</span>{' '}
+                  {initialProofFile ? initialProofFile.name : 'Sin comprobante adjunto'}
+                </p>
               </div>
             </div>
           </div>

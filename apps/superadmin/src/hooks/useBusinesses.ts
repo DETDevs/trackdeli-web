@@ -209,6 +209,15 @@ export interface CreateBusinessInput {
     email: string;
     password: string;
   };
+  startType?: 'TRIAL' | 'PAID';
+  trialDays?: number;
+  firstPayment?: {
+    amount?: number;
+    paymentMethod?: string;
+    paidAt?: string;
+    notes?: string;
+    paymentProofUrl?: string;
+  };
 }
 
 export interface CreateBusinessResult {
@@ -228,6 +237,7 @@ export interface CreateBusinessResult {
     role: string;
     isActive: boolean;
   };
+  membership?: any;
 }
 
 export interface BusinessCounters {
