@@ -24,6 +24,7 @@ import {
   X,
   CircleNotch,
   Warning,
+  Clock,
 } from '@phosphor-icons/react';
 import apiClient from '../../lib/apiClient';
 import { Modal } from '../ui/Modal';
@@ -130,12 +131,36 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
   const [encargadoName, setEncargadoName] = useState('');
   const [encargadoEmail, setEncargadoEmail] = useState('');
   const [encargadoPassword, setEncargadoPassword] = useState('');
-  // ¿Cómo empieza este cliente? (Ticket 252b)
-  // Sin valor por defecto: el superadmin debe elegir explícitamente si es prueba o pago,
-  // para que una prueba gratis nunca quede registrada como pagada (ni al revés).
-  const [startType, setStartType] = useState<'TRIAL' | 'PAID' | null>(null);
-  const [initialTrialDays, setInitialTrialDays] = useState<number>(15);
-  const [initialCustomTrialDays, setInitialCustomTrialDays] = useState('');
+  // ¿Cómo empieza este cliente? (Ticket 252b - horas y días)
+  const [startType, setStartType] = useState<'TRIAL' | 'PAID' | null>('TRIAL');
+  const [trialUnit, setTrialUnit] = useState<'HOURS' | 'DAYS'>('HOURS');
+  const [trialHoursPreset, setTrialHoursPreset] = useState<number>(6);
+  const [customTrialHours, setCustomTrialHours] = useState('');
+  const [trialDaysPreset, setTrialDaysPreset] = useState<number>(15);
+  const [customTrialDays, setCustomTrialDays] = useState('');
+
+  const effectiveTrialHours = useMemo(() => {
+    if (startType !== 'TRIAL') return null;
+    if (trialUnit === 'HOURS') {
+      const v = customTrialHours.trim() ? parseInt(customTrialHours, 10) : trialHoursPreset;
+      return v > 0 ? v : 6;
+    } else {
+      const d = customTrialDays.trim() ? parseInt(customTrialDays, 10) : trialDaysPreset;
+      return (d > 0 ? d : 15) * 24;
+    }
+  }, [startType, trialUnit, trialHoursPreset, customTrialHours, trialDaysPreset, customTrialDays]);
+
+  const effectiveTrialDays = useMemo(() => {
+    if (startType !== 'TRIAL') return 0;
+    if (trialUnit === 'HOURS') {
+      const h = effectiveTrialHours || 6;
+      return Math.max(1, Math.ceil(h / 24));
+    } else {
+      const d = customTrialDays.trim() ? parseInt(customTrialDays, 10) : trialDaysPreset;
+      return d > 0 ? d : 15;
+    }
+  }, [startType, trialUnit, effectiveTrialHours, trialDaysPreset, customTrialDays]);
+
   const [initialPaidAmount, setInitialPaidAmount] = useState('');
   const [initialPaymentMethod, setInitialPaymentMethod] = useState<
     'TRANSFERENCIA' | 'EFECTIVO' | 'PAYPAL' | 'BINANCE' | 'OTRO'
@@ -465,8 +490,16 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
       if (!startType) {
         newErrors.startType = 'Elegí cómo empieza este cliente: prueba gratis o primer mes pagado.';
       } else if (startType === 'TRIAL') {
-        if (!initialTrialDays || initialTrialDays < 1) {
-          newErrors.trialDays = 'La prueba debe durar al menos 1 día.';
+        if (trialUnit === 'HOURS') {
+          const h = effectiveTrialHours;
+          if (!h || h < 1) {
+            newErrors.trialDuration = 'Ingresá una cantidad de horas válida (mínimo 1 hora).';
+          }
+        } else {
+          const d = effectiveTrialDays;
+          if (!d || d < 1) {
+            newErrors.trialDuration = 'Ingresá una cantidad de días válida (mínimo 1 día).';
+          }
         }
       } else {
         const amt = Number(initialPaidAmount || totalEstimatedUsd);
@@ -526,11 +559,11 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
 
     const derivedVertical = posVertical;
     const finalMaxDevices = isUnlimitedDevices ? null : parseInt(maxDevices, 10) || 1;
-    // La prueba del POS se deriva de la decisión del paso 4:
-    // - Prueba gratis: horas = días de prueba × 24.
+    // La prueba del POS y la vigencia se derivan de la decisión del paso 4:
+    // - Prueba gratis: horas y días según lo configurado (en horas o en días).
     // - Primer mes pagado: sin prueba (null), para que el POS no quede en modo prueba.
-    const finalTrialHours =
-      startType === 'TRIAL' && initialTrialDays > 0 ? initialTrialDays * 24 : null;
+    const finalTrialHours = startType === 'TRIAL' ? effectiveTrialHours : null;
+    const finalTrialDays = startType === 'TRIAL' ? effectiveTrialDays : undefined;
     const finalPosMonthlyFee = posMonthlyFee.trim() ? Number(posMonthlyFee) : undefined;
     const finalDeliveryMonthlyFee =
       hasDelivery && businessType === 'NEGOCIO' && deliveryMonthlyFee.trim()
@@ -596,7 +629,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
           password: encargadoPassword,
         },
         startType,
-        trialDays: startType === 'TRIAL' ? initialTrialDays : undefined,
+        trialDays: finalTrialDays,
         firstPayment: startType === 'PAID' ? {
           amount: initialPaidAmount.trim() ? Number(initialPaidAmount) : totalEstimatedUsd,
           paymentMethod: initialPaymentMethod,
@@ -748,9 +781,12 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
     setEncargadoName('');
     setEncargadoEmail('');
     setEncargadoPassword('');
-    setStartType(null);
-    setInitialTrialDays(15);
-    setInitialCustomTrialDays('');
+    setStartType('TRIAL');
+    setTrialUnit('HOURS');
+    setTrialHoursPreset(6);
+    setCustomTrialHours('');
+    setTrialDaysPreset(15);
+    setCustomTrialDays('');
     setInitialPaidAmount('');
     setInitialPaidAt(todayIso);
     setInitialPaymentMethod('TRANSFERENCIA');
@@ -820,7 +856,9 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 <Check size={16} weight="bold" />
                 <span>
                   {startType === 'TRIAL'
-                    ? 'Crear negocio con prueba gratis'
+                    ? trialUnit === 'HOURS'
+                      ? `Crear negocio con prueba gratis (${effectiveTrialHours}h)`
+                      : `Crear negocio con prueba gratis (${effectiveTrialDays} días)`
                     : 'Crear negocio y registrar pago'}
                 </span>
               </>
@@ -843,40 +881,47 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
       <div className="space-y-4">
         {/* Barra de progreso de 5 pasos */}
         <div className="pb-3 border-b border-gray-100">
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5">
             {[
-              { num: 1, label: 'Negocio' },
-              { num: 2, label: 'Productos' },
-              { num: 3, label: 'Condiciones' },
-              { num: 4, label: 'Inicio y cobro' },
-              { num: 5, label: 'Confirmación' },
+              { num: 1, label: 'Negocio', icon: Storefront },
+              { num: 2, label: 'Productos', icon: Package },
+              { num: 3, label: 'Condiciones', icon: Receipt },
+              { num: 4, label: 'Inicio y cobro', icon: Clock },
+              { num: 5, label: 'Confirmación', icon: ShieldCheck },
             ].map((step) => {
               const isDone = currentStep > step.num;
               const isCurrent = currentStep === step.num;
+              const StepIcon = step.icon;
               return (
-                <div key={step.num} className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1.5">
+                <div key={step.num} className="flex flex-col gap-1.5">
+                  <div
+                    className={`flex items-center gap-1.5 p-1 sm:p-1.5 rounded-lg transition-all ${
+                      isCurrent
+                        ? 'bg-purple-50 ring-1 ring-purple-600/30'
+                        : isDone
+                        ? 'bg-gray-50'
+                        : 'opacity-60'
+                    }`}
+                  >
                     <div
-                      className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
+                      className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 transition-colors ${
                         isDone
-                          ? 'bg-purple-600 text-white'
+                          ? 'bg-emerald-600 text-white'
                           : isCurrent
-                          ? 'bg-gray-900 text-white ring-2 ring-purple-100'
-                          : 'bg-gray-100 text-gray-400'
+                          ? 'bg-purple-700 text-white shadow-xs'
+                          : 'bg-gray-200 text-gray-500'
                       }`}
                     >
-                      {isDone ? <Check size={11} weight="bold" /> : step.num}
+                      {isDone ? <Check size={11} weight="bold" /> : <StepIcon size={12} weight={isCurrent ? 'bold' : 'regular'} />}
                     </div>
                     <span
-                      className={`text-xs font-semibold truncate ${
-                        isCurrent ? '' : 'hidden sm:inline'
-                      } ${
+                      className={`text-[11px] font-bold truncate ${
                         isCurrent
-                          ? 'text-gray-900'
+                          ? 'text-purple-950 font-black'
                           : isDone
-                          ? 'text-purple-900'
+                          ? 'text-gray-700'
                           : 'text-gray-400'
-                      }`}
+                      } ${isCurrent ? 'inline' : 'hidden md:inline'}`}
                     >
                       {step.label}
                     </span>
@@ -884,10 +929,10 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                   <div
                     className={`h-1 w-full rounded-full transition-all ${
                       isDone
-                        ? 'bg-purple-600'
+                        ? 'bg-emerald-600'
                         : isCurrent
-                        ? 'bg-gray-900'
-                        : 'bg-gray-100'
+                        ? 'bg-purple-700'
+                        : 'bg-gray-200'
                     }`}
                   />
                 </div>
@@ -1534,8 +1579,8 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                   <span>Condiciones y Acceso Web — Sistema POS</span>
                 </div>
 
-                {/* Computadoras y Prueba */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Computadoras y Tarifa POS */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-xs font-semibold text-gray-700">
@@ -1567,18 +1612,6 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       }`}
                     />
                     <p className="text-xs text-gray-500 mt-0.5">Equipos de escritorio autorizados</p>
-                  </div>
-
-                  <div>
-                    <span className="block text-xs font-semibold text-gray-700 mb-1">
-                      Prueba gratis
-                    </span>
-                    <div className="w-full min-h-8 px-2.5 py-1.5 rounded-lg border border-dashed border-purple-200 bg-white text-xs text-purple-900">
-                      Se define en el paso 4
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      En «Inicio y cobro» elegís si es prueba o pago
-                    </p>
                   </div>
 
                   <div>
@@ -1950,54 +1983,203 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 </button>
               </div>
 
-              {/* Configuración si es prueba gratis */}
+              {/* Configuración si es prueba gratis (horas o días) */}
               {startType === 'TRIAL' && (
-                <div className="p-3 rounded-xl bg-white border border-purple-200 space-y-2.5 animate-fade-in">
-                  <span className="block text-xs font-semibold text-gray-700">
-                    Duración de la prueba gratis
-                  </span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {[3, 7, 15, 30].map((days) => (
+                <div className="p-3.5 rounded-xl bg-white border border-purple-200 space-y-3.5 animate-fade-in shadow-xs">
+                  {/* Selector de modo: Horas vs Días */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-purple-100">
+                    <div>
+                      <span className="block text-xs font-bold text-gray-900">
+                        ¿Cómo querés medir la prueba?
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        Elegí horas para turnos de prueba en POS o días para prueba completa.
+                      </span>
+                    </div>
+
+                    <div className="inline-flex rounded-xl p-1 bg-purple-100/70 border border-purple-200/80 shrink-0">
                       <button
-                        key={days}
                         type="button"
                         onClick={() => {
-                          setInitialTrialDays(days);
-                          setInitialCustomTrialDays('');
+                          setTrialUnit('HOURS');
+                          setCustomTrialHours('');
                         }}
-                        className={`h-11 min-h-[44px] px-3.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-                          initialTrialDays === days && !initialCustomTrialDays
-                            ? 'border-purple-600 bg-purple-50 text-purple-900 ring-1 ring-purple-600/30'
-                            : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                        className={`h-9 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          trialUnit === 'HOURS'
+                            ? 'bg-purple-700 text-white shadow-xs'
+                            : 'text-purple-900 hover:bg-purple-200/60'
                         }`}
                       >
-                        {days} días
+                        <Clock size={14} weight="bold" />
+                        <span>Por Horas (Turno / POS)</span>
                       </button>
-                    ))}
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min="1"
-                        value={initialCustomTrialDays}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setInitialCustomTrialDays(v);
-                          const parsed = parseInt(v, 10);
-                          if (parsed > 0) {
-                            setInitialTrialDays(parsed);
-                          }
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTrialUnit('DAYS');
+                          setCustomTrialDays('');
                         }}
-                        placeholder="Otro (días)"
-                        className="h-11 min-h-[44px] w-28 px-3 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-purple-600"
-                      />
+                        className={`h-9 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          trialUnit === 'DAYS'
+                            ? 'bg-purple-700 text-white shadow-xs'
+                            : 'text-purple-900 hover:bg-purple-200/60'
+                        }`}
+                      >
+                        <CalendarBlank size={14} weight="bold" />
+                        <span>Por Días (Calendario)</span>
+                      </button>
                     </div>
                   </div>
-                  {errors.trialDays && <p className="text-xs text-rose-600">{errors.trialDays}</p>}
-                  <p className="text-xs text-purple-800 leading-snug">
-                    Vigente del {formatShortDate(new Date())} al{' '}
-                    {formatShortDate(new Date(Date.now() + initialTrialDays * 86400000))} ({initialTrialDays} días).
-                    No se registra cobro ni se fija día de pago.
-                  </p>
+
+                  {/* Opciones por Horas */}
+                  {trialUnit === 'HOURS' && (
+                    <div className="space-y-3 animate-fade-in">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-gray-800">
+                          Cantidad de horas autorizadas:
+                        </label>
+                        <span className="text-xs text-purple-700 font-medium">
+                          Empieza a contar en el 1er inicio de sesión
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {[
+                          { val: 6, label: '6 horas', badge: '1 turno' },
+                          { val: 12, label: '12 horas', badge: 'Jornada' },
+                          { val: 24, label: '24 horas', badge: '1 día' },
+                          { val: 48, label: '48 horas', badge: '2 días' },
+                          { val: 72, label: '72 horas', badge: '3 días' },
+                        ].map((item) => {
+                          const isSelected = trialHoursPreset === item.val && !customTrialHours;
+                          return (
+                            <button
+                              key={item.val}
+                              type="button"
+                              onClick={() => {
+                                setTrialHoursPreset(item.val);
+                                setCustomTrialHours('');
+                              }}
+                              className={`h-11 min-h-[44px] px-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                                isSelected
+                                  ? 'border-purple-600 bg-purple-50 text-purple-950 ring-2 ring-purple-600/30 shadow-xs'
+                                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              <span>{item.label}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                                isSelected ? 'bg-purple-200 text-purple-900' : 'bg-gray-100 text-gray-500'
+                              }`}>
+                                {item.badge}
+                              </span>
+                            </button>
+                          );
+                        })}
+
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max="720"
+                            value={customTrialHours}
+                            onChange={(e) => setCustomTrialHours(e.target.value)}
+                            placeholder="Otro (horas)"
+                            className="h-11 min-h-[44px] w-28 px-3 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 font-medium"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Live Banner explicativo */}
+                      <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-200 text-xs text-purple-950 space-y-1">
+                        <div className="flex items-center gap-2 font-bold">
+                          <Clock size={15} className="text-purple-700" weight="bold" />
+                          <span>Prueba de {effectiveTrialHours} horas para Sistema POS</span>
+                        </div>
+                        <p className="text-purple-900/90 text-xs leading-relaxed">
+                          • <strong>En POS:</strong> La cuenta regresiva de {effectiveTrialHours}h se activará cuando el cajero inicie sesión por primera vez en la computadora.
+                          <br />
+                          • <strong>Vigencia en sistema:</strong> Cubierto durante la prueba ({effectiveTrialDays} día{effectiveTrialDays > 1 ? 's' : ''}).
+                          <br />
+                          • <strong>Cobro hoy:</strong> <span className="font-bold text-emerald-700">$0.00 USD</span> (gratis). Sin fecha de cobro fija hasta su primer pago oficial.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Opciones por Días */}
+                  {trialUnit === 'DAYS' && (
+                    <div className="space-y-3 animate-fade-in">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-gray-800">
+                          Cantidad de días de prueba:
+                        </label>
+                        <span className="text-xs text-purple-700 font-medium">
+                          Vigencia por calendario
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {[
+                          { val: 3, label: '3 días', badge: 'Fin de semana' },
+                          { val: 7, label: '7 días', badge: '1 semana' },
+                          { val: 15, label: '15 días', badge: 'Recomendado' },
+                          { val: 30, label: '30 días', badge: '1 mes' },
+                        ].map((item) => {
+                          const isSelected = trialDaysPreset === item.val && !customTrialDays;
+                          return (
+                            <button
+                              key={item.val}
+                              type="button"
+                              onClick={() => {
+                                setTrialDaysPreset(item.val);
+                                setCustomTrialDays('');
+                              }}
+                              className={`h-11 min-h-[44px] px-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                                isSelected
+                                  ? 'border-purple-600 bg-purple-50 text-purple-950 ring-2 ring-purple-600/30 shadow-xs'
+                                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              <span>{item.label}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                                isSelected ? 'bg-purple-200 text-purple-900' : 'bg-gray-100 text-gray-500'
+                              }`}>
+                                {item.badge}
+                              </span>
+                            </button>
+                          );
+                        })}
+
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max="90"
+                            value={customTrialDays}
+                            onChange={(e) => setCustomTrialDays(e.target.value)}
+                            placeholder="Otro (días)"
+                            className="h-11 min-h-[44px] w-28 px-3 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 font-medium"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Live Banner explicativo */}
+                      <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-200 text-xs text-purple-950 space-y-1">
+                        <div className="flex items-center gap-2 font-bold">
+                          <CalendarBlank size={15} className="text-purple-700" weight="bold" />
+                          <span>Prueba de {effectiveTrialDays} días por calendario</span>
+                        </div>
+                        <p className="text-purple-900/90 text-xs leading-relaxed">
+                          • <strong>Vigencia:</strong> Del {formatShortDate(new Date())} al {formatShortDate(new Date(Date.now() + effectiveTrialDays * 86400000))}.
+                          <br />
+                          • <strong>En POS:</strong> {effectiveTrialDays * 24} horas habilitadas para operar en la computadora.
+                          <br />
+                          • <strong>Cobro hoy:</strong> <span className="font-bold text-emerald-700">$0.00 USD</span> (gratis). Sin fecha de cobro recurrente fija.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2264,7 +2446,9 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     <p className="text-xs text-gray-500">
                       {isUnlimitedDevices ? 'Equipos ilimitados' : `${maxDevices || 1} equipo(s)`} •{' '}
                       {startType === 'TRIAL'
-                        ? `Prueba ${initialTrialDays} días`
+                        ? trialUnit === 'HOURS'
+                          ? `Prueba ${effectiveTrialHours}h`
+                          : `Prueba ${effectiveTrialDays} días`
                         : startType === 'PAID'
                         ? 'Sin prueba (pagado)'
                         : 'Inicio sin definir'}
@@ -2377,9 +2561,11 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 <p>
                   <span className="font-semibold text-gray-900">Período:</span>{' '}
                   {startType === 'TRIAL'
-                    ? `Prueba gratis del ${formatShortDate(new Date())} al ${formatShortDate(
-                        new Date(Date.now() + initialTrialDays * 86400000)
-                      )} (${initialTrialDays} días)`
+                    ? trialUnit === 'HOURS'
+                      ? `Prueba de ${effectiveTrialHours} horas para POS (${effectiveTrialDays} día de vigencia inicial)`
+                      : `Prueba gratis de ${effectiveTrialDays} días (hasta ${formatShortDate(
+                          new Date(Date.now() + effectiveTrialDays * 86400000)
+                        )})`
                     : `${formatShortDate(new Date())} → ${formatShortDate(addOneMonth(new Date()))}`}
                 </p>
                 <p>
