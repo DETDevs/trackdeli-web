@@ -58,6 +58,7 @@ import {
   getMembershipPeriodDates,
 } from '../utils/membershipDates';
 import { RegisterMembershipModal } from '../components/modals/RegisterMembershipModal';
+import { EditMembershipModal } from '../components/modals/EditMembershipModal';
 import { DeactivateBusinessModal } from '../components/modals/DeactivateBusinessModal';
 import { ImageViewerModal } from '../components/modals/ImageViewerModal';
 import { BusinessProductsSection } from '../components/business/BusinessProductsSection';
@@ -121,6 +122,7 @@ export const BusinessDetailPage = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
   const [membershipToVoid, setMembershipToVoid] = useState<MembershipItem | null>(null);
+  const [membershipToEdit, setMembershipToEdit] = useState<MembershipItem | null>(null);
   const [voidReason, setVoidReason] = useState('');
   const voidMembershipMutation = useVoidMembership(id || '');
 
@@ -1367,14 +1369,24 @@ export const BusinessDetailPage = () => {
                           </button>
                         )}
                         {!isCancelled && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenVoidModal(m)}
-                            className="h-11 min-h-[44px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 cursor-pointer"
-                          >
-                            <Prohibit size={14} weight="bold" />
-                            Anular
-                          </button>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => setMembershipToEdit(m)}
+                              className="h-11 min-h-[44px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200/80 cursor-pointer"
+                            >
+                              <PencilSimple size={14} weight="bold" />
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenVoidModal(m)}
+                              className="h-11 min-h-[44px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 cursor-pointer"
+                            >
+                              <Prohibit size={14} weight="bold" />
+                              Anular
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1561,15 +1573,26 @@ export const BusinessDetailPage = () => {
                             {isCancelled ? (
                               <span className="text-gray-300 text-xs px-2">—</span>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenVoidModal(m)}
-                                className="h-11 min-h-[44px] min-w-[44px] px-3 inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
-                                title="Anular este pago de membresía"
-                              >
-                                <Prohibit size={15} weight="bold" />
-                                <span>Anular</span>
-                              </button>
+                              <div className="inline-flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setMembershipToEdit(m)}
+                                  className="h-11 min-h-[44px] px-3 inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-gray-700 hover:text-black hover:bg-gray-100 border border-gray-200 transition-colors cursor-pointer"
+                                  title="Editar fechas o datos de este pago"
+                                >
+                                  <PencilSimple size={15} weight="bold" />
+                                  <span>Editar</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenVoidModal(m)}
+                                  className="h-11 min-h-[44px] min-w-[44px] px-3 inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
+                                  title="Anular este pago de membresía"
+                                >
+                                  <Prohibit size={15} weight="bold" />
+                                  <span>Anular</span>
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -1903,6 +1926,14 @@ export const BusinessDetailPage = () => {
         businessName={business.name}
         businessType={business.businessType}
         initialSelectedProductType={registerModalInitialProductType}
+      />
+
+      <EditMembershipModal
+        isOpen={!!membershipToEdit}
+        onClose={() => setMembershipToEdit(null)}
+        membership={membershipToEdit}
+        businessId={business.id}
+        businessName={business.name}
       />
 
       <DeactivateBusinessModal

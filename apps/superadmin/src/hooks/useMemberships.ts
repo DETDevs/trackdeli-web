@@ -336,6 +336,49 @@ export function useVoidMembership(businessId: string) {
   });
 }
 
+export interface UpdateMembershipData {
+  startDate?: string;
+  endDate?: string;
+  amount?: number;
+  currency?: string;
+  paymentMethod?: string;
+  paidAt?: string;
+  notes?: string;
+  status?: string;
+}
+
+export function useUpdateMembership(businessId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: UpdateMembershipData }) => {
+      const res = await apiClient.patch(`/superadmin/memberships/${id}`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success('Membresía actualizada exitosamente');
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-business-memberships', businessId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-business', businessId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['superadmin-business-products', businessId],
+      });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-expiring-memberships'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
+    },
+    onError: (err: any) => {
+      toast.error(
+        err.response?.data?.message || 'Error al actualizar la membresía'
+      );
+    },
+  });
+}
+
 export function useUploadPaymentProof() {
   const queryClient = useQueryClient();
 
