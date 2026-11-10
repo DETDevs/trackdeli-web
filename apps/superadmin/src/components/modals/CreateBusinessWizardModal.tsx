@@ -23,6 +23,7 @@ import {
   FilePdf,
   X,
   CircleNotch,
+  Warning,
 } from '@phosphor-icons/react';
 import apiClient from '../../lib/apiClient';
 import { Modal } from '../ui/Modal';
@@ -32,6 +33,37 @@ import {
   CreateBusinessResult,
 } from '../../hooks/useBusinesses';
 import { useIndustries, Industry } from '../../hooks/useIndustries';
+
+const SHORT_MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** Formatea una fecha como «9 nov 2026». Acepta Date o «YYYY-MM-DD» (sin desfase de zona horaria). */
+function formatShortDate(input: Date | string): string {
+  let d: Date;
+  if (typeof input === 'string') {
+    const [y, m, day] = input.split('-').map(Number);
+    if (!y || !m || !day) return input;
+    d = new Date(y, m - 1, day, 12, 0, 0);
+  } else {
+    d = input;
+  }
+  return `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/** Misma fecha del mes siguiente (ajustada al último día si el mes es más corto). */
+function addOneMonth(from: Date): Date {
+  const y = from.getFullYear();
+  const m = from.getMonth() + 1;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(from.getDate(), lastDay), 12, 0, 0);
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  TRANSFERENCIA: 'Transferencia bancaria',
+  EFECTIVO: 'Efectivo',
+  PAYPAL: 'PayPal',
+  BINANCE: 'Binance',
+  OTRO: 'Otro',
+};
 
 interface CreateBusinessWizardModalProps {
   isOpen: boolean;
@@ -48,8 +80,8 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
   const { data: industries = [] } = useIndustries();
   const activeIndustries = useMemo(() => industries.filter((i) => i.isActive), [industries]);
 
-  // Asistente: paso actual (1 a 4)
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+  // Asistente: paso actual (1 a 5)
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   // Paso 1: Negocio
   const [name, setName] = useState('');
@@ -81,7 +113,6 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
   // POS
   const [maxDevices, setMaxDevices] = useState('1');
   const [isUnlimitedDevices, setIsUnlimitedDevices] = useState(false);
-  const [trialHours, setTrialHours] = useState('');
   const [posMonthlyFee, setPosMonthlyFee] = useState(''); // sugerido: 45.00
   // Acceso Web POS
   const [webAdminEnabled, setWebAdminEnabled] = useState(true);
@@ -100,14 +131,22 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
   const [encargadoEmail, setEncargadoEmail] = useState('');
   const [encargadoPassword, setEncargadoPassword] = useState('');
   // ¿Cómo empieza este cliente? (Ticket 252b)
-  const [startType, setStartType] = useState<'TRIAL' | 'PAID'>('TRIAL');
+  // Sin valor por defecto: el superadmin debe elegir explícitamente si es prueba o pago,
+  // para que una prueba gratis nunca quede registrada como pagada (ni al revés).
+  const [startType, setStartType] = useState<'TRIAL' | 'PAID' | null>(null);
   const [initialTrialDays, setInitialTrialDays] = useState<number>(15);
   const [initialCustomTrialDays, setInitialCustomTrialDays] = useState('');
   const [initialPaidAmount, setInitialPaidAmount] = useState('');
   const [initialPaymentMethod, setInitialPaymentMethod] = useState<
     'TRANSFERENCIA' | 'EFECTIVO' | 'PAYPAL' | 'BINANCE' | 'OTRO'
   >('TRANSFERENCIA');
-  const initialPaidAt = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayIso = useMemo(() => {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}-${dd}`;
+  }, []);
+  const [initialPaidAt, setInitialPaidAt] = useState<string>(todayIso);
   const [initialProofFile, setInitialProofFile] = useState<File | null>(null);
   const [initialProofPreview, setInitialProofPreview] = useState<string | null>(null);
 
@@ -381,12 +420,6 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
             newErrors.maxDevices = 'Ingresa una cantidad válida de computadoras (mínimo 1).';
           }
         }
-        if (trialHours.trim()) {
-          const th = parseInt(trialHours, 10);
-          if (isNaN(th) || th < 1) {
-            newErrors.trialHours = 'Las horas de prueba deben ser un número entero mayor a 0.';
-          }
-        }
         if (posMonthlyFee.trim()) {
           const pmf = Number(posMonthlyFee);
           if (isNaN(pmf) || pmf < 0) {
@@ -429,6 +462,26 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
     }
 
     if (step === 4) {
+      if (!startType) {
+        newErrors.startType = 'Elegí cómo empieza este cliente: prueba gratis o primer mes pagado.';
+      } else if (startType === 'TRIAL') {
+        if (!initialTrialDays || initialTrialDays < 1) {
+          newErrors.trialDays = 'La prueba debe durar al menos 1 día.';
+        }
+      } else {
+        const amt = Number(initialPaidAmount || totalEstimatedUsd);
+        if (isNaN(amt) || amt <= 0) {
+          newErrors.initialPaidAmount = 'Ingresá el monto que el cliente pagó (mayor a 0).';
+        }
+        if (!initialPaidAt) {
+          newErrors.initialPaidAt = 'Indicá la fecha en que se recibió el pago.';
+        } else if (initialPaidAt > todayIso) {
+          newErrors.initialPaidAt = 'La fecha del pago no puede ser futura.';
+        }
+      }
+    }
+
+    if (step === 5) {
       if (!encargadoName.trim()) {
         newErrors.encargadoName = 'Ingresa el nombre del primer encargado.';
       }
@@ -451,24 +504,33 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(4, prev + 1) as 1 | 2 | 3 | 4);
+      setCurrentStep((prev) => Math.min(5, prev + 1) as 1 | 2 | 3 | 4 | 5);
     }
   };
 
   const handlePrev = () => {
     setErrors({});
-    setCurrentStep((prev) => Math.max(1, prev - 1) as 1 | 2 | 3 | 4);
+    setCurrentStep((prev) => Math.max(1, prev - 1) as 1 | 2 | 3 | 4 | 5);
   };
 
   // Creación del negocio
   const handleFinalSubmit = async () => {
-    if (!validateStep(4)) return;
+    if (!validateStep(4)) {
+      setCurrentStep(4);
+      return;
+    }
+    if (!validateStep(5)) return;
+    if (!startType) return;
 
     setIsSubmitting(true);
 
     const derivedVertical = posVertical;
     const finalMaxDevices = isUnlimitedDevices ? null : parseInt(maxDevices, 10) || 1;
-    const finalTrialHours = trialHours.trim() ? parseInt(trialHours, 10) || null : null;
+    // La prueba del POS se deriva de la decisión del paso 4:
+    // - Prueba gratis: horas = días de prueba × 24.
+    // - Primer mes pagado: sin prueba (null), para que el POS no quede en modo prueba.
+    const finalTrialHours =
+      startType === 'TRIAL' && initialTrialDays > 0 ? initialTrialDays * 24 : null;
     const finalPosMonthlyFee = posMonthlyFee.trim() ? Number(posMonthlyFee) : undefined;
     const finalDeliveryMonthlyFee =
       hasDelivery && businessType === 'NEGOCIO' && deliveryMonthlyFee.trim()
@@ -546,7 +608,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
           const bizId = data.business.id;
 
           try {
-            if (initialProofFile && (data as any).membership?.id) {
+            if (startType === 'PAID' && initialProofFile && (data as any).membership?.id) {
               try {
                 const formData = new FormData();
                 formData.append('file', initialProofFile);
@@ -674,7 +736,6 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
     setDispatchTimeoutMin('3');
     setMaxDevices('1');
     setIsUnlimitedDevices(false);
-    setTrialHours('');
     setPosMonthlyFee('');
     setWebAdminEnabled(true);
     setWebBillingEnabled(false);
@@ -687,10 +748,11 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
     setEncargadoName('');
     setEncargadoEmail('');
     setEncargadoPassword('');
-    setStartType('TRIAL');
+    setStartType(null);
     setInitialTrialDays(15);
     setInitialCustomTrialDays('');
     setInitialPaidAmount('');
+    setInitialPaidAt(todayIso);
     setInitialPaymentMethod('TRANSFERENCIA');
     setInitialProofFile(null);
     if (initialProofPreview) URL.revokeObjectURL(initialProofPreview);
@@ -732,7 +794,7 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
       </div>
 
       <div className="flex items-center gap-2">
-        {currentStep < 4 ? (
+        {currentStep < 5 ? (
           <button
             type="button"
             onClick={handleNext}
@@ -779,14 +841,15 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
       footer={modalFooter}
     >
       <div className="space-y-4">
-        {/* Barra de progreso de 4 pasos */}
+        {/* Barra de progreso de 5 pasos */}
         <div className="pb-3 border-b border-gray-100">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {[
               { num: 1, label: 'Negocio' },
               { num: 2, label: 'Productos' },
               { num: 3, label: 'Condiciones' },
-              { num: 4, label: 'Confirmación' },
+              { num: 4, label: 'Inicio y cobro' },
+              { num: 5, label: 'Confirmación' },
             ].map((step) => {
               const isDone = currentStep > step.num;
               const isCurrent = currentStep === step.num;
@@ -806,6 +869,8 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     </div>
                     <span
                       className={`text-xs font-semibold truncate ${
+                        isCurrent ? '' : 'hidden sm:inline'
+                      } ${
                         isCurrent
                           ? 'text-gray-900'
                           : isDone
@@ -1505,19 +1570,14 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Prueba en horas (opcional)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={trialHours}
-                      onChange={(e) => setTrialHours(e.target.value)}
-                      placeholder="Ej: 24 (vacío = sin prueba)"
-                      className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs bg-white"
-                    />
+                    <span className="block text-xs font-semibold text-gray-700 mb-1">
+                      Prueba gratis
+                    </span>
+                    <div className="w-full min-h-8 px-2.5 py-1.5 rounded-lg border border-dashed border-purple-200 bg-white text-xs text-purple-900">
+                      Se define en el paso 4
+                    </div>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Empieza a contar en el primer inicio de sesión
+                      En «Inicio y cobro» elegís si es prueba o pago
                     </p>
                   </div>
 
@@ -1788,23 +1848,48 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 </div>
               </div>
             )}
+          </div>
+        )}
 
+        {/* ============================================================== */}
+        {/* PASO 4: INICIO Y COBRO (prueba gratis vs. primer pago)          */}
+        {/* ============================================================== */}
+        {currentStep === 4 && (
+          <div className="space-y-4 animate-fade-in">
             {/* Bloque: ¿Cómo empieza este cliente? (Ticket 252b) */}
             <div className="p-4 rounded-xl bg-purple-50/50 border border-purple-200/80 space-y-3.5">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-purple-950 uppercase tracking-wider">
-                <Sparkle size={16} className="text-purple-700" />
-                <span>¿Cómo empieza este cliente?</span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 text-sm font-bold text-purple-950">
+                  <Sparkle size={16} className="text-purple-700" />
+                  <span>¿Cómo empieza este cliente? *</span>
+                </div>
+                <p className="text-xs text-gray-600 leading-snug">
+                  Esta decisión define si se registra un cobro y desde qué día se le cobra cada mes.
+                  Si le diste días gratis, elegí <strong>Prueba gratis</strong>: el primer pago lo registrás
+                  después, el día que realmente pague.
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {errors.startType && (
+                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+                  <Warning size={16} className="shrink-0 mt-0.5" />
+                  <span>{errors.startType}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Inicio del cliente">
                 {/* Opción A: Prueba gratis */}
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={startType === 'TRIAL'}
                   onClick={() => {
                     setStartType('TRIAL');
-                    if (hasPOS && (!trialHours || trialHours === '0')) {
-                      setTrialHours(String((initialTrialDays || 15) * 24));
-                    }
+                    setErrors((prev) => {
+                      const copy = { ...prev };
+                      delete copy.startType;
+                      return copy;
+                    });
                   }}
                   className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer min-h-[44px] ${
                     startType === 'TRIAL'
@@ -1813,62 +1898,72 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1.5">
-                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
                       startType === 'TRIAL' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
                     }`}>
-                      <Gift size={15} weight="duotone" />
+                      <Gift size={16} weight="duotone" />
                     </div>
-                    <span className="text-xs font-bold text-gray-900">Prueba gratis</span>
+                    <span className="text-sm font-bold text-gray-900">Prueba gratis</span>
                   </div>
-                  <p className="text-xs text-gray-600 leading-snug">
-                    Sin cobro inicial. El cliente goza de vigencia durante la prueba. El día de cobro se fijará al registrar su primer pago real.
-                  </p>
+                  <ul className="text-xs text-gray-600 leading-snug space-y-0.5 list-disc pl-4">
+                    <li>Se registra con monto $0.00.</li>
+                    <li>No fija día de cobro todavía.</li>
+                    <li>El día que pague, registrás el pago desde «Hoy».</li>
+                  </ul>
                 </button>
 
                 {/* Opción B: Ya pagó el primer mes */}
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={startType === 'PAID'}
                   onClick={() => {
                     setStartType('PAID');
+                    setErrors((prev) => {
+                      const copy = { ...prev };
+                      delete copy.startType;
+                      return copy;
+                    });
                     if (!initialPaidAmount && totalEstimatedUsd > 0) {
                       setInitialPaidAmount(totalEstimatedUsd.toFixed(2));
                     }
                   }}
                   className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer min-h-[44px] ${
                     startType === 'PAID'
-                      ? 'border-purple-600 bg-white ring-2 ring-purple-600/20 shadow-xs'
-                      : 'border-purple-200/70 bg-white/70 hover:bg-white hover:border-purple-300'
+                      ? 'border-emerald-600 bg-white ring-2 ring-emerald-600/20 shadow-xs'
+                      : 'border-purple-200/70 bg-white/70 hover:bg-white hover:border-emerald-300'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1.5">
-                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
-                      startType === 'PAID' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                      startType === 'PAID' ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-700'
                     }`}>
-                      <Money size={15} weight="duotone" />
+                      <Money size={16} weight="duotone" />
                     </div>
-                    <span className="text-xs font-bold text-gray-900">Ya pagó el primer mes</span>
+                    <span className="text-sm font-bold text-gray-900">Ya pagó el primer mes</span>
                   </div>
-                  <p className="text-xs text-gray-600 leading-snug">
-                    Se registra el primer ciclo mensual. Fija el día de cobro recurrente en el día de hoy.
-                  </p>
+                  <ul className="text-xs text-gray-600 leading-snug space-y-0.5 list-disc pl-4">
+                    <li>Registra el pago de hoy con su monto.</li>
+                    <li>Fija el día de cobro en el día {new Date().getDate()}.</li>
+                    <li>Elegilo solo si el dinero ya se recibió.</li>
+                  </ul>
                 </button>
               </div>
 
               {/* Configuración si es prueba gratis */}
               {startType === 'TRIAL' && (
                 <div className="p-3 rounded-xl bg-white border border-purple-200 space-y-2.5 animate-fade-in">
-                  <label className="block text-xs font-semibold text-gray-700">
+                  <span className="block text-xs font-semibold text-gray-700">
                     Duración de la prueba gratis
-                  </label>
+                  </span>
                   <div className="flex flex-wrap items-center gap-2">
-                    {[7, 15, 30].map((days) => (
+                    {[3, 7, 15, 30].map((days) => (
                       <button
                         key={days}
                         type="button"
                         onClick={() => {
                           setInitialTrialDays(days);
                           setInitialCustomTrialDays('');
-                          if (hasPOS) setTrialHours(String(days * 24));
                         }}
                         className={`h-11 min-h-[44px] px-3.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                           initialTrialDays === days && !initialCustomTrialDays
@@ -1890,7 +1985,6 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                           const parsed = parseInt(v, 10);
                           if (parsed > 0) {
                             setInitialTrialDays(parsed);
-                            if (hasPOS) setTrialHours(String(parsed * 24));
                           }
                         }}
                         placeholder="Otro (días)"
@@ -1898,43 +1992,55 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-purple-800 leading-tight">
-                    Vigencia de {initialTrialDays} días a partir de hoy. No se fija día de cobro hasta registrar el primer pago.
+                  {errors.trialDays && <p className="text-xs text-rose-600">{errors.trialDays}</p>}
+                  <p className="text-xs text-purple-800 leading-snug">
+                    Vigente del {formatShortDate(new Date())} al{' '}
+                    {formatShortDate(new Date(Date.now() + initialTrialDays * 86400000))} ({initialTrialDays} días).
+                    No se registra cobro ni se fija día de pago.
                   </p>
                 </div>
               )}
 
               {/* Configuración si ya pagó */}
               {startType === 'PAID' && (
-                <div className="p-3.5 rounded-xl bg-white border border-purple-200 space-y-3 animate-fade-in">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-xl bg-white border border-emerald-200 space-y-3 animate-fade-in">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Monto recibido en USD *
+                      <label htmlFor="wiz-paid-amount" className="block text-xs font-semibold text-gray-700 mb-1">
+                        Monto recibido (USD) *
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">$</span>
                         <input
+                          id="wiz-paid-amount"
                           type="number"
+                          inputMode="decimal"
                           step="0.01"
                           min="0"
-                          value={initialPaidAmount || (totalEstimatedUsd > 0 ? totalEstimatedUsd.toFixed(2) : '')}
+                          value={initialPaidAmount}
                           onChange={(e) => setInitialPaidAmount(e.target.value)}
-                          placeholder={totalEstimatedUsd.toFixed(2)}
-                          className="w-full h-11 min-h-[44px] pl-7 pr-3 rounded-xl border border-gray-200 text-xs font-medium bg-white focus:outline-none focus:border-purple-600"
+                          placeholder={totalEstimatedUsd > 0 ? totalEstimatedUsd.toFixed(2) : '0.00'}
+                          className={`w-full h-11 min-h-[44px] pl-7 pr-3 rounded-xl border text-xs font-medium bg-white focus:outline-none focus:border-emerald-600 ${
+                            errors.initialPaidAmount ? 'border-rose-400' : 'border-gray-200'
+                          }`}
                         />
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">Sugerido: ${totalEstimatedUsd.toFixed(2)} USD</p>
+                      {errors.initialPaidAmount ? (
+                        <p className="text-xs text-rose-600 mt-0.5">{errors.initialPaidAmount}</p>
+                      ) : (
+                        <p className="text-xs text-gray-500 mt-0.5">Tarifa mensual: ${totalEstimatedUsd.toFixed(2)}</p>
+                      )}
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      <label htmlFor="wiz-paid-method" className="block text-xs font-semibold text-gray-700 mb-1">
                         Método de pago *
                       </label>
                       <select
+                        id="wiz-paid-method"
                         value={initialPaymentMethod}
                         onChange={(e) => setInitialPaymentMethod(e.target.value as any)}
-                        className="w-full h-11 min-h-[44px] px-3 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-purple-600"
+                        className="w-full h-11 min-h-[44px] px-3 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-emerald-600"
                       >
                         <option value="TRANSFERENCIA">Transferencia bancaria</option>
                         <option value="EFECTIVO">Efectivo</option>
@@ -1943,6 +2049,31 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                         <option value="OTRO">Otro</option>
                       </select>
                     </div>
+
+                    <div>
+                      <label htmlFor="wiz-paid-at" className="block text-xs font-semibold text-gray-700 mb-1">
+                        Fecha en que se recibió *
+                      </label>
+                      <input
+                        id="wiz-paid-at"
+                        type="date"
+                        max={todayIso}
+                        value={initialPaidAt}
+                        onChange={(e) => setInitialPaidAt(e.target.value)}
+                        className={`w-full h-11 min-h-[44px] px-3 rounded-xl border text-xs bg-white focus:outline-none focus:border-emerald-600 ${
+                          errors.initialPaidAt ? 'border-rose-400' : 'border-gray-200'
+                        }`}
+                      />
+                      {errors.initialPaidAt && (
+                        <p className="text-xs text-rose-600 mt-0.5">{errors.initialPaidAt}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 leading-snug">
+                    Primer período pagado: <strong>{formatShortDate(new Date())}</strong> →{' '}
+                    <strong>{formatShortDate(addOneMonth(new Date()))}</strong>. Se cobrará cada día{' '}
+                    <strong>{new Date().getDate()}</strong> del mes.
                   </div>
 
                   {/* Comprobante */}
@@ -2006,9 +2137,9 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
         )}
 
         {/* ============================================================== */}
-        {/* PASO 4: ENCARGADO Y CONFIRMACIÓN */}
+        {/* PASO 5: ENCARGADO Y CONFIRMACIÓN */}
         {/* ============================================================== */}
-        {currentStep === 4 && (
+        {currentStep === 5 && (
           <div className="space-y-4 animate-fade-in">
             {/* Formulario del encargado */}
             <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
@@ -2132,7 +2263,11 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                     </p>
                     <p className="text-xs text-gray-500">
                       {isUnlimitedDevices ? 'Equipos ilimitados' : `${maxDevices || 1} equipo(s)`} •{' '}
-                      {trialHours.trim() ? `${trialHours}h prueba` : 'Sin prueba'}
+                      {startType === 'TRIAL'
+                        ? `Prueba ${initialTrialDays} días`
+                        : startType === 'PAID'
+                        ? 'Sin prueba (pagado)'
+                        : 'Inicio sin definir'}
                     </p>
                   </div>
                 )}
@@ -2242,14 +2377,18 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 <p>
                   <span className="font-semibold text-gray-900">Período:</span>{' '}
                   {startType === 'TRIAL'
-                    ? `Prueba de ${initialTrialDays} días a partir de hoy`
-                    : `Primer ciclo mensual (${new Date().getDate()} de este mes al próximo)`}
+                    ? `Prueba gratis del ${formatShortDate(new Date())} al ${formatShortDate(
+                        new Date(Date.now() + initialTrialDays * 86400000)
+                      )} (${initialTrialDays} días)`
+                    : `${formatShortDate(new Date())} → ${formatShortDate(addOneMonth(new Date()))}`}
                 </p>
                 <p>
                   <span className="font-semibold text-gray-900">Monto a registrar:</span>{' '}
                   {startType === 'TRIAL'
                     ? '$0.00 (sin cobro inicial)'
-                    : `${Number(initialPaidAmount || totalEstimatedUsd).toFixed(2)} USD (${initialPaymentMethod})`}
+                    : `$${Number(initialPaidAmount || totalEstimatedUsd).toFixed(2)} USD · ${
+                        PAYMENT_METHOD_LABELS[initialPaymentMethod] || initialPaymentMethod
+                      } · recibido el ${formatShortDate(initialPaidAt)}`}
                 </p>
                 <p>
                   <span className="font-semibold text-gray-900">Día de cobro:</span>{' '}
@@ -2259,9 +2398,24 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                 </p>
                 <p>
                   <span className="font-semibold text-gray-900">Comprobante:</span>{' '}
-                  {initialProofFile ? initialProofFile.name : 'Sin comprobante adjunto'}
+                  {startType === 'TRIAL'
+                    ? 'No aplica'
+                    : initialProofFile
+                    ? initialProofFile.name
+                    : 'Sin comprobante adjunto'}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setErrors({});
+                  setCurrentStep(4);
+                }}
+                className="inline-flex items-center gap-1 h-11 min-h-[44px] px-3 -ml-3 rounded-xl text-xs font-semibold text-purple-700 hover:bg-purple-100/60 cursor-pointer"
+              >
+                <ArrowLeft size={14} />
+                Cambiar inicio y cobro
+              </button>
             </div>
           </div>
         )}

@@ -288,14 +288,9 @@ export const EditMembershipModal: React.FC<EditMembershipModalProps> = ({
             className="w-full h-11 px-3 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-black focus:outline-none bg-white"
           >
             <option value="TRANSFERENCIA">Transferencia bancaria</option>
-            <option value="BAC">BAC Credomatic</option>
-            <option value="BANPRO">Banpro</option>
-            <option value="LAFISE">Lafise</option>
-            <option value="FICOHSA">Ficohsa</option>
-            <option value="BDF">BDF</option>
             <option value="EFECTIVO">Efectivo</option>
-            <option value="TARJETA">Tarjeta de crédito/débito</option>
-            <option value="CHEQUE">Cheque</option>
+            <option value="PAYPAL">PayPal</option>
+            <option value="BINANCE">Binance</option>
             <option value="OTRO">Otro</option>
           </select>
         </div>
