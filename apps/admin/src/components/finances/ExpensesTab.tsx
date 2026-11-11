@@ -6,7 +6,14 @@ import {
   MagnifyingGlass,
   ArrowCounterClockwise,
   CheckCircle,
+  Printer,
 } from '@phosphor-icons/react';
+import { useQuery } from '@tanstack/react-query';
+import { getMyBusiness, apiClient } from 'api-client';
+import { useAuthStore } from '../../store/auth.store';
+import { ReportPrintModal } from '../reports/ReportPrintModal';
+import { ReportDocument } from '../../types/report';
+import { buildExpensesReportDocument } from '../../utils/financesTabsPrintBuilders';
 import { ExpenseItem } from '../../types/finances';
 import {
   useExpenses,
@@ -43,6 +50,19 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
   const [expenseToVoid, setExpenseToVoid] = useState<ExpenseItem | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isPreparingReport, setIsPreparingReport] = useState(false);
+  const [reportDocument, setReportDocument] = useState<ReportDocument | null>(null);
+
+  const user = useAuthStore((s) => s.user);
+  const branches = useAuthStore((s) => s.branches);
+  const activeBranch = branches?.find((b) => b.id === user?.businessId);
+
+  const { data: businessData } = useQuery({
+    queryKey: ['business', 'me'],
+    queryFn: getMyBusiness,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Queries
   const { data: categories = [] } = useExpenseCategories();
@@ -96,6 +116,97 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
   const handlePresetClick = (preset: 'today' | 'week' | 'month' | 'all' | 'custom') => {
     setPeriodPreset(preset);
     setPage(1);
+  };
+
+  const handlePrint = async () => {
+    setIsPrintModalOpen(true);
+    setIsPreparingReport(true);
+    setReportDocument(null);
+
+    const fromYmd = resolvedDates.from || '2020-01-01';
+    const toYmd = resolvedDates.to || todayStr;
+    const periodLabel =
+      periodPreset === 'today'
+        ? 'Hoy'
+        : periodPreset === 'week'
+        ? 'Esta semana'
+        : periodPreset === 'month'
+        ? 'Este mes'
+        : periodPreset === 'all'
+        ? 'Histórico completo'
+        : 'Personalizado';
+
+    try {
+      const allExpenses: any[] = [];
+      const seenIds = new Set<string>();
+      const batchLimit = 200;
+      const maxPages = 50;
+
+      for (let p = 1; p <= maxPages; p++) {
+        const res = await apiClient.get<any>('/pos/expenses', {
+          params: {
+            from: resolvedDates.from,
+            to: resolvedDates.to,
+            categoryId: categoryId === 'ALL' ? undefined : categoryId,
+            paymentMethod: paymentMethod === 'ALL' ? undefined : paymentMethod,
+            includeVoided,
+            search: search.trim() || undefined,
+            page: p,
+            pageSize: batchLimit,
+          },
+        });
+        const batch = res.data?.items || [];
+        for (const item of batch) {
+          if (item && item.id && !seenIds.has(item.id)) {
+            seenIds.add(item.id);
+            allExpenses.push(item);
+          }
+        }
+        if (batch.length < batchLimit) break;
+      }
+
+      const selectedCat = categories.find((c) => c.id === categoryId);
+
+      const catTotalsMap: Record<string, number> = {};
+      let calculatedTotal = 0;
+
+      for (const exp of allExpenses) {
+        if (!exp.isVoided) {
+          const cName = exp.category?.name || 'Varios';
+          catTotalsMap[cName] = (catTotalsMap[cName] || 0) + Number(exp.amount || 0);
+          calculatedTotal += Number(exp.amount || 0);
+        }
+      }
+
+      const catTotalsList = Object.entries(catTotalsMap).map(([cName, amt]) => ({
+        categoryName: cName,
+        amount: amt,
+        percent: calculatedTotal > 0 ? (amt / calculatedTotal) * 100 : 0,
+      }));
+
+      const doc = buildExpensesReportDocument({
+        items: allExpenses,
+        totalAmount: calculatedTotal,
+        totalCount: allExpenses.filter((e) => !e.isVoided).length,
+        categoryTotals: catTotalsList,
+        periodLabel,
+        fromYmd,
+        toYmd,
+        categoryFilterName: selectedCat?.name,
+        methodFilter: paymentMethod,
+        search,
+        business: businessData,
+        branchName: activeBranch?.name,
+        user,
+        currency,
+      });
+
+      setReportDocument(doc);
+    } catch (err) {
+      console.error('[ExpensesTab] Error generando reporte:', err);
+    } finally {
+      setIsPreparingReport(false);
+    }
   };
 
   return (
@@ -180,6 +291,17 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
 
         {/* Botones de acción */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePrint}
+            disabled={isLoadingExpenses}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+            title="Imprimir reporte en hoja carta o guardar PDF"
+          >
+            <Printer size={14} weight="bold" />
+            <span>Imprimir</span>
+          </button>
+
           <button
             onClick={() => setIsCategoriesModalOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer shadow-2xs"
@@ -530,6 +652,14 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
         isOpen={Boolean(expenseToVoid)}
         onClose={() => setExpenseToVoid(null)}
         currency={currency}
+      />
+
+      {/* Modal de Impresión de Reporte */}
+      <ReportPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        document={reportDocument}
+        isPreparing={isPreparingReport}
       />
     </div>
   );

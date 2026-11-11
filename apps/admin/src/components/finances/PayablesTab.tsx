@@ -9,8 +9,14 @@ import {
   Eye,
   CheckCircle,
   Truck,
+  Printer,
 } from '@phosphor-icons/react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { getMyBusiness, apiClient } from 'api-client';
+import { useAuthStore } from '../../store/auth.store';
+import { ReportPrintModal } from '../reports/ReportPrintModal';
+import { ReportDocument } from '../../types/report';
+import { buildPayablesReportDocument } from '../../utils/financesTabsPrintBuilders';
 import toast from 'react-hot-toast';
 import { PayableItem } from '../../types/finances';
 import { usePayablesSummary, usePayables } from '../../hooks/useFinances';
@@ -35,6 +41,19 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
   const [selectedPayableForPayment, setSelectedPayableForPayment] = useState<PayableItem | null>(null);
   const [selectedPayableIdForDetail, setSelectedPayableIdForDetail] = useState<string | null>(null);
   const [isCreatePurchaseOpen, setIsCreatePurchaseOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isPreparingReport, setIsPreparingReport] = useState(false);
+  const [reportDocument, setReportDocument] = useState<ReportDocument | null>(null);
+
+  const user = useAuthStore((s) => s.user);
+  const branches = useAuthStore((s) => s.branches);
+  const activeBranch = branches?.find((b) => b.id === user?.businessId);
+
+  const { data: businessData } = useQuery({
+    queryKey: ['business', 'me'],
+    queryFn: getMyBusiness,
+    staleTime: 5 * 60 * 1000,
+  });
 
 
   // Queries
@@ -84,6 +103,40 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
     );
   };
 
+  const handlePrint = async () => {
+    setIsPrintModalOpen(true);
+    setIsPreparingReport(true);
+    setReportDocument(null);
+
+    try {
+      const res = await apiClient.get<any>('/pos/payables', {
+        params: {
+          search: search.trim() || undefined,
+          status: (statusFilter === 'ALL' || statusFilter === 'OVERDUE') ? undefined : statusFilter,
+          onlyOverdue: statusFilter === 'OVERDUE' ? true : undefined,
+          page: 1,
+          pageSize: 100,
+        },
+      });
+      const allItems = res.data?.items || items;
+      const doc = buildPayablesReportDocument({
+        summary,
+        items: allItems,
+        statusFilter,
+        search,
+        business: businessData,
+        branchName: activeBranch?.name,
+        user,
+        currency,
+      });
+      setReportDocument(doc);
+    } catch (err) {
+      console.error('[PayablesTab] Error generando reporte:', err);
+    } finally {
+      setIsPreparingReport(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Header bar de Compras */}
@@ -93,18 +146,31 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
             Cuentas por Pagar y Compras
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Registro de compras a proveedores y control de facturas por pagar
+            Registro de compras a proveedores y control de comprobantes por pagar
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsCreatePurchaseOpen(true)}
-          className="h-11 px-4 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-2xs cursor-pointer"
-        >
-          <Truck size={16} weight="bold" />
-          <span>Registrar compra a proveedor</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePrint}
+            disabled={isLoadingSummary || isLoadingPayables}
+            className="h-11 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+            title="Imprimir reporte en hoja carta o guardar PDF"
+          >
+            <Printer size={16} weight="bold" />
+            <span>Imprimir</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsCreatePurchaseOpen(true)}
+            className="h-11 px-4 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-2xs cursor-pointer"
+          >
+            <Truck size={16} weight="bold" />
+            <span>Registrar compra a proveedor</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -462,6 +528,14 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
           toast.success('Compra a proveedor registrada exitosamente');
         }}
         currency={currency}
+      />
+
+      {/* Modal de Impresión */}
+      <ReportPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        document={reportDocument}
+        isPreparing={isPreparingReport}
       />
     </div>
   );

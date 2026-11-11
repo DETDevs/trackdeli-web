@@ -15,6 +15,7 @@ import {
   MapPin,
   Tag,
   CalendarBlank,
+  Printer,
 } from "@phosphor-icons/react";
 import {
   PeriodType,
@@ -46,6 +47,8 @@ interface ChannelsReportTabProps {
   queryParams: ReportQueryParams;
   period: PeriodType;
   channelConfig: ChannelConfigResponse;
+  onPrint?: () => void;
+  isPreparingPrint?: boolean;
 }
 
 type ChannelSubTab = "summary" | "domicilio" | "pedidosya" | "settlements";
@@ -54,6 +57,8 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
   queryParams,
   period,
   channelConfig,
+  onPrint,
+  isPreparingPrint = false,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<ChannelSubTab>("summary");
 
@@ -388,15 +393,29 @@ export const ChannelsReportTab: React.FC<ChannelsReportTabProps> = ({
                 por canal de venta.
               </p>
             </div>
-            <button
-              type="button"
-              disabled={isExportingCsv || isLoadingSummary}
-              onClick={handleExportSummaryCsv}
-              className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
-            >
-              <DownloadSimple size={15} weight="bold" />
-              <span>{isExportingCsv ? "Descargando..." : "Descargar CSV"}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {onPrint && (
+                <button
+                  type="button"
+                  disabled={isPreparingPrint || isLoadingSummary}
+                  onClick={onPrint}
+                  className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-800 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                  title="Imprimir reporte en PDF carta"
+                >
+                  <Printer size={15} weight="bold" />
+                  <span>{isPreparingPrint ? "Preparando..." : "Imprimir"}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={isExportingCsv || isLoadingSummary}
+                onClick={handleExportSummaryCsv}
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+              >
+                <DownloadSimple size={15} weight="bold" />
+                <span>{isExportingCsv ? "Descargando..." : "Descargar CSV"}</span>
+              </button>
+            </div>
           </div>
 
           {isLoadingSummary ? (

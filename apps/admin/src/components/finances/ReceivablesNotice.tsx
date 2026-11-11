@@ -11,7 +11,14 @@ import {
   CalendarBlank,
   Percent,
   Coins,
+  Printer,
 } from '@phosphor-icons/react';
+import { useQuery } from '@tanstack/react-query';
+import { getMyBusiness } from 'api-client';
+import { useAuthStore } from '../../store/auth.store';
+import { ReportPrintModal } from '../reports/ReportPrintModal';
+import { ReportDocument } from '../../types/report';
+import { buildReceivablesReportDocument } from '../../utils/financesTabsPrintBuilders';
 import {
   useCreditPortfolioSummary,
   usePosCreditPolicies,
@@ -33,6 +40,18 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'OVERDUE' | 'CURRENT'>('ALL');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [selectedAccountForPayment, setSelectedAccountForPayment] = useState<any | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [reportDocument, setReportDocument] = useState<ReportDocument | null>(null);
+
+  const user = useAuthStore((s) => s.user);
+  const branches = useAuthStore((s) => s.branches);
+  const activeBranch = branches?.find((b) => b.id === user?.businessId);
+
+  const { data: businessData } = useQuery({
+    queryKey: ['business', 'me'],
+    queryFn: getMyBusiness,
+    staleTime: 5 * 60 * 1000,
+  });
 
 
   const now = useMemo(() => new Date(), []);
@@ -98,6 +117,29 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
       return customerName.includes(term) || invoiceNumber.includes(term);
     });
   }, [allAccounts, search, filterStatus, now]);
+
+  const handlePrint = () => {
+    const doc = buildReceivablesReportDocument({
+      metrics: summary
+        ? {
+            totalPortfolio: summary.totalPortfolio,
+            overduePortfolio: summary.overduePortfolio,
+            currentPortfolio: summary.currentPortfolio,
+            unpaidAccountsCount: summary.unpaidAccountsCount,
+            customersCount: summary.customersCount ?? 0,
+          }
+        : null,
+      accounts: filteredAccounts,
+      searchQuery: search,
+      filterStatus,
+      business: businessData,
+      branchName: activeBranch?.name,
+      user,
+      currency,
+    });
+    setReportDocument(doc);
+    setIsPrintModalOpen(true);
+  };
 
   const getAccountStatusBadge = (acc: (typeof allAccounts)[0]) => {
     const isOverdue = acc.isOverdue || acc.status === 'OVERDUE' || new Date(acc.dueDate) < now;
@@ -312,6 +354,18 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
               Al corriente ({Math.max(0, allAccounts.length - overdueAccountsCount)})
             </button>
           </div>
+
+          {/* Botón Imprimir */}
+          <button
+            type="button"
+            onClick={handlePrint}
+            disabled={isLoading || isFetching}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+            title="Imprimir cartera por cobrar en hoja carta o guardar PDF"
+          >
+            <Printer size={15} weight="bold" />
+            <span>Imprimir</span>
+          </button>
 
           {/* Botón Refrescar */}
           <button
@@ -614,6 +668,13 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
           currency={currency}
         />
       )}
+
+      {/* Modal de Impresión de Reporte */}
+      <ReportPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        document={reportDocument}
+      />
     </div>
   );
 };

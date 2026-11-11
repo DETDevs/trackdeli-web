@@ -170,11 +170,14 @@ export interface PosBankItem {
 }
 
 export interface PosExchangeRateData {
-  id: string;
-  businessId: string;
-  quote: string;
-  rate: number;
-  updatedAt: string;
+  id?: string;
+  businessId?: string;
+  quote?: string;
+  rate?: number;
+  officialRate?: number;
+  parallelRate?: number | null;
+  updatedAt?: string;
+  [key: string]: any;
 }
 
 export interface CreateSalePayload {
@@ -589,6 +592,32 @@ export const getPosProductFields = async (businessId?: string): Promise<any[]> =
   return Array.isArray(res.data) ? res.data : [];
 };
 
+export const getPosProductFieldOptions = async (
+  fieldId: string,
+  businessId?: string,
+): Promise<any[]> => {
+  const res = await apiClient.get<any[]>(`/pos/product-fields/${fieldId}/options`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export interface CreatePosProductFieldOptionDto {
+  label: string;
+  sortOrder?: number;
+}
+
+export const createPosProductFieldOption = async (
+  fieldId: string,
+  dto: CreatePosProductFieldOptionDto,
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.post<any>(`/pos/product-fields/${fieldId}/options`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
 export const getPosSuppliers = async (businessId?: string): Promise<any[]> => {
   const res = await apiClient.get<any[]>('/pos/suppliers', {
     params: businessId ? { businessId } : undefined,
@@ -709,6 +738,296 @@ export const getPosPurchases = async (
   }
 ): Promise<any> => {
   const res = await apiClient.get<any>('/pos/purchases', { params });
+  return res.data;
+};
+
+export interface PosPoliciesData {
+  businessId?: string;
+  returnsEnabled?: boolean;
+  returnsRequireApproval?: boolean;
+  returnsMaxDays?: number;
+  voidsCompletedEnabled?: boolean;
+  voidsRequireApproval?: boolean;
+  discountsEnabled?: boolean;
+  cashierMaxDiscountPercent?: number;
+  priceOverrideEnabled?: boolean;
+  paymentMethodsEnabled?: string;
+  requireReferenceCard?: boolean;
+  requireReferenceTransfer?: boolean;
+  requireReferenceOther?: boolean;
+  requireBankCardTransfer?: boolean;
+  multiCurrencyEnabled?: boolean;
+  acceptedCurrencies?: string;
+  blindCashClose?: boolean;
+  cashDifferenceTolerance?: number;
+  cashCloseDiscrepancyPolicy?: 'AUTORIZACION' | 'LIBRE';
+  cashCloseTolerance?: number;
+  cashCloseMaxRecounts?: number;
+  noSaleDrawerOpenAllowed?: boolean;
+  allowNegativeStock?: boolean;
+  inventoryAdjustRequireApproval?: boolean;
+  creditLimitOverrideRequiresApproval?: boolean;
+  creditInterestEnabled?: boolean;
+  creditInterestType?: string;
+  creditInterestRate?: number;
+  creditMaxInstallments?: number;
+  creditAllowedFrequencies?: string;
+  requireOpenShiftToSell?: boolean;
+  [key: string]: any;
+}
+
+export const getPosPolicies = async (businessId?: string): Promise<PosPoliciesData> => {
+  const res = await apiClient.get<PosPoliciesData>('/pos/policies', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosPolicies = async (
+  dto: Partial<PosPoliciesData>,
+  businessId?: string,
+): Promise<PosPoliciesData> => {
+  const res = await apiClient.patch<PosPoliciesData>('/pos/policies', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const createPosBank = async (
+  dto: { name: string; code?: string; order?: number; isActive?: boolean },
+  businessId?: string,
+): Promise<PosBankItem> => {
+  const res = await apiClient.post<PosBankItem>('/pos/banks', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosBank = async (
+  id: string,
+  dto: { name?: string; code?: string; order?: number; isActive?: boolean },
+  businessId?: string,
+): Promise<PosBankItem> => {
+  const res = await apiClient.patch<PosBankItem>(`/pos/banks/${id}`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const deletePosBank = async (id: string, businessId?: string): Promise<any> => {
+  const res = await apiClient.delete(`/pos/banks/${id}`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export interface PosSettingsData {
+  id?: string;
+  businessId?: string;
+  taxRate?: number;
+  taxEnabled?: boolean;
+  taxIncluded?: boolean;
+  taxName?: string;
+  invoicePrefix?: string;
+  posAddress?: string;
+  posPhone?: string;
+  posFooter?: string;
+  posVertical?: string;
+  wholesale_enabled?: boolean;
+  [key: string]: any;
+}
+
+export const getPosSettings = async (businessId?: string): Promise<PosSettingsData> => {
+  const res = await apiClient.get<PosSettingsData>('/pos/settings', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosSettings = async (
+  dto: Partial<PosSettingsData>,
+  businessId?: string,
+): Promise<PosSettingsData> => {
+  const res = await apiClient.put<PosSettingsData>('/pos/settings', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export interface PosReceiptSettingsData {
+  id?: string;
+  businessId?: string;
+  logoImage?: string | null;
+  showLogo?: boolean;
+  headerLines?: string[];
+  footerLines?: string[];
+  showBusinessName?: boolean;
+  showAddress?: boolean;
+  showPhone?: boolean;
+  showTaxId?: boolean;
+  showCashier?: boolean;
+  showCustomer?: boolean;
+  showTaxBreakdown?: boolean;
+  showBatches?: boolean;
+  showListPrice?: boolean;
+  paperWidthMm?: number;
+  businessName?: string;
+  businessAddress?: string;
+  businessPhone?: string;
+  businessTaxId?: string;
+  [key: string]: any;
+}
+
+export const getPosReceiptSettings = async (businessId?: string): Promise<PosReceiptSettingsData> => {
+  const res = await apiClient.get<PosReceiptSettingsData>('/pos/receipt-settings', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosReceiptSettings = async (
+  dto: Partial<PosReceiptSettingsData>,
+  businessId?: string,
+): Promise<PosReceiptSettingsData> => {
+  const res = await apiClient.put<PosReceiptSettingsData>('/pos/receipt-settings', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosExchangeRate = async (
+  dto: { officialRate: number; parallelRate?: number },
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.put('/pos/exchange-rate', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const getPosExchangeRateHistory = async (businessId?: string): Promise<any[]> => {
+  const res = await apiClient.get<any[]>('/pos/exchange-rate/history', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export interface PosUserData {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: 'ENCARGADO' | 'SUPERADMIN' | 'CAJERO' | 'WAITER' | 'VENDEDOR';
+  isActive: boolean;
+  hasPin?: boolean;
+  createdAt: string;
+  [key: string]: any;
+}
+
+export const getPosUsers = async (businessId?: string): Promise<PosUserData[]> => {
+  const res = await apiClient.get<PosUserData[]>('/pos/users', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const createPosUser = async (dto: any, businessId?: string): Promise<any> => {
+  const res = await apiClient.post('/pos/users', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosUser = async (id: string, dto: any, businessId?: string): Promise<any> => {
+  const res = await apiClient.patch(`/pos/users/${id}`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const setPosUserPin = async (id: string, pin: string, businessId?: string): Promise<any> => {
+  const res = await apiClient.patch(`/pos/users/${id}/pin`, { pin }, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const activatePosUser = async (id: string, businessId?: string): Promise<any> => {
+  const res = await apiClient.patch(`/pos/users/${id}/activate`, {}, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const deactivatePosUser = async (id: string, businessId?: string): Promise<any> => {
+  const res = await apiClient.patch(`/pos/users/${id}/deactivate`, {}, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const resetPosUserPassword = async (id: string, businessId?: string): Promise<any> => {
+  const res = await apiClient.post(`/pos/users/${id}/reset-password`, {}, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const createPosProductField = async (dto: any, businessId?: string): Promise<any> => {
+  const res = await apiClient.post('/pos/product-fields', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosProductField = async (id: string, dto: any, businessId?: string): Promise<any> => {
+  const res = await apiClient.patch(`/pos/product-fields/${id}`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const activatePosProductField = async (id: string, businessId?: string): Promise<any> => {
+  const res = await apiClient.patch(`/pos/product-fields/${id}/activate`, {}, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const deactivatePosProductField = async (id: string, businessId?: string): Promise<any> => {
+  const res = await apiClient.patch(`/pos/product-fields/${id}/deactivate`, {}, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const deletePosProductField = async (id: string, businessId?: string): Promise<any> => {
+  const res = await apiClient.delete(`/pos/product-fields/${id}`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosProductFieldOption = async (
+  fieldId: string,
+  optionId: string,
+  dto: { label?: string; isActive?: boolean; sortOrder?: number },
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.patch(`/pos/product-fields/${fieldId}/options/${optionId}`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const deletePosProductFieldOption = async (
+  fieldId: string,
+  optionId: string,
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.delete(`/pos/product-fields/${fieldId}/options/${optionId}`, {
+    params: businessId ? { businessId } : undefined,
+  });
   return res.data;
 };
 

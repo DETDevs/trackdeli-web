@@ -13,6 +13,7 @@ import {
   ShoppingBag,
   Motorcycle,
   DeviceMobile,
+  Printer,
 } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import { ProfitReport, PeriodType } from '../../types/reports';
@@ -25,6 +26,8 @@ interface ProfitReportTabProps {
   hasActiveChannels?: boolean;
   hasActiveDelivery?: boolean;
   hasActivePedidosYa?: boolean;
+  onPrint?: () => void;
+  isPreparingPrint?: boolean;
 }
 
 export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
@@ -34,6 +37,8 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
   hasActiveChannels = false,
   hasActiveDelivery,
   hasActivePedidosYa,
+  onPrint,
+  isPreparingPrint = false,
 }) => {
   const navigate = useNavigate();
 
@@ -145,6 +150,21 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
 
   return (
     <div className="space-y-5">
+      {onPrint && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            disabled={isPreparingPrint || isLoading}
+            onClick={onPrint}
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-800 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+            title="Imprimir reporte en PDF carta"
+          >
+            <Printer size={15} weight="bold" />
+            <span>{isPreparingPrint ? 'Preparando...' : 'Imprimir'}</span>
+          </button>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className={`grid grid-cols-1 sm:grid-cols-2 ${channelCardsCount > 0 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-3.5`}>
         {/* Ganancia Estimada */}

@@ -1,908 +1,191 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'react-hot-toast';
+import { useQuery } from '@tanstack/react-query';
 import {
-  getMyBusiness,
-  updateMyBusiness,
-  getPosWholesaleSettings,
-  updatePosWholesaleSettings,
   getChannelConfig,
-  type PricingModel,
-  type UpdateWholesaleSettingsDto,
+  getPosPolicies,
+  type PosPoliciesData,
 } from 'api-client';
-import { PinPicker } from 'map';
 import {
-  CurrencyDollar,
-  MapPin,
-  Calculator,
-  Check,
-  Plus,
-  Trash,
-  Buildings,
-  WhatsappLogo,
-  CheckCircle,
-  Gift,
-  Tag,
-  NavigationArrow,
-  Motorcycle,
-  Info,
-  Lightbulb,
-  Storefront,
+  GearSix,
+  ShareNetwork,
+  ShieldCheck,
+  Receipt,
+  FileText,
+  Package,
+  Users,
+  CurrencyCircleDollar,
+  LockKey,
 } from '@phosphor-icons/react';
-import { calculateFeeClient, getPricingBreakdownClient } from '../lib/pricing';
-import { useMyProducts } from '../hooks/useMyProducts';
 import { useAuthStore } from '../store/auth.store';
-import { SalesChannelsSection } from '../components/settings/SalesChannelsSection';
-import { CashClosePoliciesSection } from '../components/settings/CashClosePoliciesSection';
+import { useMyProducts } from '../hooks/useMyProducts';
+import { GeneralSettingsTab } from '../components/settings/GeneralSettingsTab';
+import { ChannelsSettingsTab } from '../components/settings/ChannelsSettingsTab';
+import { PoliciesSettingsTab } from '../components/settings/PoliciesSettingsTab';
+import { ExchangeRateSettingsTab } from '../components/settings/ExchangeRateSettingsTab';
+import { InvoiceSettingsTab } from '../components/settings/InvoiceSettingsTab';
+import { ReceiptDesignSettingsTab } from '../components/settings/ReceiptDesignSettingsTab';
+import { CatalogSettingsTab } from '../components/settings/CatalogSettingsTab';
+import { StaffSettingsTab } from '../components/settings/StaffSettingsTab';
 
-const mapboxToken = (import.meta as any).env.VITE_MAPBOX_TOKEN;
-
-interface PricingZoneFormItem {
-  id: string;
-  name: string;
-  price: string | number;
-}
-
-interface PricingPreviewProps {
-  model: PricingModel;
-  baseRate: number;
-  ratePerKm: number;
-  freeZoneKm: number;
-  minRate: number;
-  maxRate: number;
-  pricingZones: PricingZoneFormItem[];
-}
-
-const PricingPreview: React.FC<PricingPreviewProps> = ({
-  model,
-  baseRate,
-  ratePerKm,
-  freeZoneKm,
-  minRate,
-  maxRate,
-  pricingZones,
-}) => {
-  if (model === 'RIDER_QUOTE') {
-    return null;
-  }
-
-  const distances = [1, 2, 3, 5, 8, 10];
-
-  return (
-    <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-      <div className="flex items-center justify-between mb-2.5">
-        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-          <Calculator size={14} className="text-brand-600" />
-          <span>Vista previa de tarifas</span>
-        </p>
-        <span className="text-[11px] text-gray-400">
-          {model === 'FREE'
-            ? 'Gratis'
-            : model === 'FIXED'
-            ? pricingZones.length > 0
-              ? 'Fijo con zonas'
-              : 'Fijo único'
-            : 'Por distancia'}
-        </span>
-      </div>
-
-      {model === 'FIXED' && pricingZones.length > 0 ? (
-        <div className="space-y-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {pricingZones.map((z) => (
-              <div
-                key={z.id}
-                className="bg-white p-2.5 rounded-lg border border-gray-100 flex items-center justify-between text-xs"
-              >
-                <span className="text-gray-700 font-medium truncate pr-2 flex items-center gap-1.5">
-                  <MapPin size={13} className="text-gray-400 shrink-0" />
-                  <span>{z.name || 'Sin nombre'}</span>
-                </span>
-                <span className="font-semibold text-gray-900 font-mono shrink-0">
-                  C$ {Number(z.price || 0).toFixed(2)}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="pt-2 text-[11px] text-gray-500 flex justify-between">
-            <span>Tarifa general (otras zonas):</span>
-            <span className="font-semibold text-gray-900 font-mono">
-              C$ {baseRate.toFixed(2)}
-            </span>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {distances.map((km) => {
-            const fee = calculateFeeClient(
-              { model, baseRate, ratePerKm, freeZoneKm, minRate, maxRate },
-              km
-            );
-            return (
-              <div
-                key={km}
-                className="bg-white p-2.5 rounded-lg border border-gray-100 flex items-center justify-between text-xs"
-              >
-                <span className="text-gray-500 font-medium">A {km} km</span>
-                <span className="font-semibold text-gray-900 font-mono">
-                  {fee === 0 ? (
-                    <span className="text-brand-600 font-medium">Gratis</span>
-                  ) : (
-                    `C$ ${fee.toFixed(2)}`
-                  )}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {model === 'PER_KM' && (
-        <div className="mt-3 pt-2.5 border-t border-gray-200/60 text-[11px] text-gray-500 flex items-center gap-1.5">
-          <MapPin size={13} className="text-gray-400 shrink-0" />
-          <span>Ejemplo a 3.5 km:</span>
-          <span className="font-semibold text-gray-900">
-            C$
-            {calculateFeeClient(
-              { model, baseRate, ratePerKm, freeZoneKm, minRate, maxRate },
-              3.5
-            ).toFixed(2)}
-          </span>
-          <span className="text-gray-400">
-            (
-            {getPricingBreakdownClient(
-              { model, baseRate, ratePerKm, freeZoneKm, minRate, maxRate },
-              3.5
-            )}
-            )
-          </span>
-        </div>
-      )}
-    </div>
-  );
-};
+export type SettingsTabId =
+  | 'general'
+  | 'channels'
+  | 'policies'
+  | 'exchange-rate'
+  | 'invoice'
+  | 'receipt-design'
+  | 'catalog'
+  | 'staff';
 
 export const SettingsPage = () => {
-  const queryClient = useQueryClient();
-
-  const { data: business, isLoading } = useQuery({
-    queryKey: ['business', 'me'],
-    queryFn: getMyBusiness,
-  });
-
+  const user = useAuthStore((s) => s.user);
   const { data: productsData } = useMyProducts();
-  const isDeliveryActive = productsData
-    ? productsData.products?.DELIVERY?.status === 'ACTIVE'
-    : true;
+
   const isPosActive = productsData
     ? productsData.products?.POS?.status === 'ACTIVE'
     : true;
+  const isDeliveryActive = productsData
+    ? productsData.products?.DELIVERY?.status === 'ACTIVE'
+    : true;
 
-  const user = useAuthStore((s) => s.user);
-  const canManageWholesale =
-    user?.role === 'ADMIN' || user?.role === 'ENCARGADO' || user?.role === 'SUPERADMIN';
-
-  const { data: wholesaleSettings } = useQuery({
-    queryKey: ['pos', 'wholesale-settings'],
-    queryFn: () => getPosWholesaleSettings(),
-    enabled: isPosActive,
-    retry: false,
-  });
-
-  const canManageChannels =
-    user?.role === 'ADMIN' || user?.role === 'ENCARGADO' || user?.role === 'SUPERADMIN';
+  const role = user?.role || '';
+  const isCajero = role === 'CAJERO';
+  const isManagerOrAdmin =
+    role === 'ADMIN' || role === 'ENCARGADO' || role === 'SUPERADMIN' || role === 'OWNER';
 
   const { data: channelConfig } = useQuery({
     queryKey: ['pos', 'channels-config'],
     queryFn: () => getChannelConfig(),
-    enabled: isPosActive && canManageChannels,
+    enabled: isPosActive && isManagerOrAdmin,
     retry: false,
   });
 
-  const hasAnyActiveChannel = Boolean(
-    channelConfig?.delivery?.enabled || channelConfig?.pedidosYa?.enabled
+  const { data: policies } = useQuery<PosPoliciesData>({
+    queryKey: ['pos', 'policies'],
+    queryFn: () => getPosPolicies(),
+    enabled: isPosActive,
+    retry: false,
+  });
+
+  const isMultiCurrency = Boolean(policies?.multiCurrencyEnabled);
+  const channelsActive = Boolean(
+    isDeliveryActive || channelConfig?.delivery?.enabled || channelConfig?.pedidosYa?.enabled
   );
 
-  const wholesaleMutation = useMutation({
-    mutationFn: (dto: UpdateWholesaleSettingsDto) => updatePosWholesaleSettings(dto),
-    onSuccess: (res) => {
-      toast.success(
-        res.wholesale_enabled
-          ? 'Venta por mayor activada'
-          : 'Venta por mayor desactivada'
-      );
-      queryClient.invalidateQueries({ queryKey: ['pos', 'wholesale-settings'] });
-      queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
-      queryClient.invalidateQueries({ queryKey: ['pos', 'products'] });
-      queryClient.invalidateQueries({ queryKey: ['backoffice'] });
+  // Tab definitions matching desktop POS
+  const tabs: { id: SettingsTabId; label: string; icon: any; visible: boolean }[] = [
+    { id: 'general', label: 'General', icon: GearSix, visible: true },
+    {
+      id: 'channels',
+      label: 'Canales de venta',
+      icon: ShareNetwork,
+      visible: isManagerOrAdmin && channelsActive,
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message;
-      toast.error(msg || 'Error al actualizar configuración de venta por mayor');
+    { id: 'policies', label: 'Políticas', icon: ShieldCheck, visible: isManagerOrAdmin },
+    {
+      id: 'exchange-rate',
+      label: 'Tasa de Cambio',
+      icon: CurrencyCircleDollar,
+      visible: isManagerOrAdmin && isMultiCurrency,
     },
+    {
+      id: 'invoice',
+      label: 'Comprobantes e impuestos',
+      icon: Receipt,
+      visible: !isCajero,
+    },
+    {
+      id: 'receipt-design',
+      label: 'Diseño del ticket',
+      icon: FileText,
+      visible: isManagerOrAdmin,
+    },
+    { id: 'catalog', label: 'Catálogo', icon: Package, visible: !isCajero },
+    { id: 'staff', label: 'Personal', icon: Users, visible: !isCajero },
+  ];
+
+  const visibleTabs = tabs.filter((t) => t.visible);
+
+  const [activeTab, setActiveTab] = useState<SettingsTabId>(() => {
+    const saved = localStorage.getItem('web_settings_last_tab') as SettingsTabId;
+    return saved && tabs.some((t) => t.id === saved && t.visible) ? saved : 'general';
   });
-
-  const [pricingModel, setPricingModel] = useState<PricingModel>('FIXED');
-  const [baseRate, setBaseRate] = useState<string>('50.00');
-  const [ratePerKm, setRatePerKm] = useState<string>('5.00');
-  const [freeZoneKm, setFreeZoneKm] = useState<string>('0');
-  const [minRate, setMinRate] = useState<string>('0');
-  const [maxRate, setMaxRate] = useState<string>('0');
-
-  const [pricingZones, setPricingZones] = useState<PricingZoneFormItem[]>([]);
-
-  const [whatsappDigits, setWhatsappDigits] = useState<string>('');
 
   useEffect(() => {
-    if (business) {
-      setPricingModel(business.pricingModel || 'FIXED');
-      setBaseRate(business.baseRate !== undefined ? String(business.baseRate) : '50.00');
-      setRatePerKm(business.ratePerKm !== undefined ? String(business.ratePerKm) : '5.00');
-      setFreeZoneKm(business.freeZoneKm !== undefined ? String(business.freeZoneKm) : '0');
-      setMinRate(business.minRate !== undefined ? String(business.minRate) : '0');
-      setMaxRate(business.maxRate !== undefined ? String(business.maxRate) : '0');
-      setPricingZones(
-        Array.isArray(business.pricingZones)
-          ? business.pricingZones.map((z) => ({
-              id: z.id || Date.now().toString() + Math.random(),
-              name: z.name || '',
-              price: z.price !== undefined ? String(z.price) : '',
-            }))
-          : []
-      );
-
-      if (business.whatsappNumber) {
-        const raw = business.whatsappNumber.replace(/\D/g, '');
-        if (raw.startsWith('505') && raw.length > 3) {
-          setWhatsappDigits(raw.slice(3));
-        } else {
-          setWhatsappDigits(raw);
-        }
-      } else {
-        setWhatsappDigits('');
-      }
+    if (!visibleTabs.some((t) => t.id === activeTab)) {
+      setActiveTab('general');
     }
-  }, [business]);
+  }, [visibleTabs, activeTab]);
 
-  const locationMutation = useMutation({
-    mutationFn: updateMyBusiness,
-    onSuccess: () => {
-      toast.success('Ubicación guardada');
-      queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message;
-      if (err?.response?.status === 402) {
-        toast.error(msg || 'Membresía inactiva para actualizar ubicación');
-      } else {
-        toast.error(msg || 'Error al guardar la ubicación');
-      }
-    },
-  });
-
-  const whatsappMutation = useMutation({
-    mutationFn: updateMyBusiness,
-    onSuccess: () => {
-      toast.success('WhatsApp guardado');
-      queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message;
-      if (err?.response?.status === 402) {
-        toast.error(msg || 'Membresía inactiva para guardar WhatsApp');
-      } else {
-        toast.error(msg || 'Error al guardar el número de WhatsApp');
-      }
-    },
-  });
-
-  const pricingMutation = useMutation({
-    mutationFn: updateMyBusiness,
-    onSuccess: () => {
-      toast.success('Tarifas guardadas');
-      queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message;
-      if (err?.response?.status === 402) {
-        toast.error(msg || 'Membresía inactiva para guardar tarifas');
-      } else {
-        toast.error(msg || 'Error al guardar la configuración de precios');
-      }
-    },
-  });
-
-  if (isLoading) {
-    return (
-      <div className="animate-pulse space-y-4 max-w-3xl mx-auto">
-        <div className="h-8 bg-gray-100 rounded w-1/4"></div>
-        <div className="h-64 bg-gray-100 rounded w-full"></div>
-        <div className="h-64 bg-gray-100 rounded w-full"></div>
-      </div>
-    );
-  }
-
-  const handleConfirmLocation = (lat: number, lng: number) => {
-    locationMutation.mutate({ latitude: lat, longitude: lng });
-  };
-
-  const handleAddZone = () => {
-    const newZone: PricingZoneFormItem = {
-      id: Date.now().toString(),
-      name: '',
-      price: '',
-    };
-    setPricingZones((prev) => [...prev, newZone]);
-  };
-
-  const handleUpdateZone = (id: string, field: 'name' | 'price', value: string) => {
-    setPricingZones((prev) =>
-      prev.map((z) => (z.id === id ? { ...z, [field]: value } : z))
-    );
-  };
-
-  const handleRemoveZone = (id: string) => {
-    setPricingZones((prev) => prev.filter((z) => z.id !== id));
-  };
-
-  const handleSaveWhatsapp = (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = whatsappDigits.trim().replace(/\D/g, '');
-    if (!clean) {
-      whatsappMutation.mutate({
-        whatsappNumber: undefined,
-        whatsappDisplay: undefined,
-      });
-      return;
-    }
-
-    const fullNumber = clean.startsWith('505') ? clean : `505${clean}`;
-    const localDigits = clean.startsWith('505') ? clean.slice(3) : clean;
-    const formatted =
-      localDigits.length >= 4
-        ? `+505 ${localDigits.slice(0, 4)}-${localDigits.slice(4)}`
-        : `+505 ${localDigits}`;
-
-    whatsappMutation.mutate({
-      whatsappNumber: fullNumber,
-      whatsappDisplay: formatted,
-    });
-  };
-
-  const handleSavePricing = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const filteredZones = pricingZones
-      .filter((z) => z.name.trim() !== '')
-      .map((z) => ({
-        id: z.id,
-        name: z.name.trim(),
-        price: z.price === '' ? 0 : parseFloat(String(z.price)) || 0,
-      }));
-
-    pricingMutation.mutate({
-      pricingModel,
-      baseRate: parseFloat(baseRate) || 0,
-      ratePerKm: parseFloat(ratePerKm) || 0,
-      freeZoneKm: parseFloat(freeZoneKm) || 0,
-      minRate: parseFloat(minRate) || 0,
-      maxRate: parseFloat(maxRate) || 0,
-      pricingZones: filteredZones,
-    });
+  const handleTabChange = (tabId: SettingsTabId) => {
+    setActiveTab(tabId);
+    localStorage.setItem('web_settings_last_tab', tabId);
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 pb-12">
+    <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
+      {/* Header */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-1">Configuración del Negocio</h2>
-        <p className="text-sm text-gray-500">
-          Personaliza la ubicación geográfica, contacto y la configuración de{' '}
-          <strong className="font-semibold text-gray-900">{business?.name}</strong>.
+        <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Configuración</h1>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Administrá las opciones de tu punto de venta y reglas del negocio.
         </p>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-4">
-          <MapPin size={18} className="text-gray-700" />
-          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-            Ubicación principal
-          </h3>
-        </div>
-        <p className="text-xs text-gray-500 mb-4">
-          Ubicación del establecimiento para referencia en el sistema y cálculo de entregas.
-        </p>
-
-        <PinPicker
-          initialLat={business?.latitude || 12.1328}
-          initialLng={business?.longitude || -86.2504}
-          mapboxToken={mapboxToken}
-          onConfirm={handleConfirmLocation}
-        />
-
-        {business?.latitude && business?.longitude && (
-          <div className="mt-4 flex items-center justify-between text-sm text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-100">
-            <span className="text-xs">Ubicación actual guardada:</span>
-            <span className="font-mono text-xs bg-white px-2 py-1 rounded border border-gray-200 text-gray-900">
-              {business.latitude.toFixed(6)}, {business.longitude.toFixed(6)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-        <div className="flex items-center gap-2 mb-1">
-          <WhatsappLogo size={20} className="text-emerald-600" weight="fill" />
-          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-            Contacto del Negocio
-          </h3>
-        </div>
-
-        <div>
-          <p className="text-xs font-semibold text-gray-900">WhatsApp de atención al cliente</p>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Este número recibirá confirmaciones cuando los clientes quieran contactar al negocio.
-          </p>
-        </div>
-
-        <form onSubmit={handleSaveWhatsapp} className="space-y-4 max-w-md pt-1">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">
-              Código de país + número (sin espacios ni símbolos)
-            </label>
-            <div className="flex rounded-xl border border-gray-200 overflow-hidden focus-within:border-gray-900 focus-within:ring-1 focus-within:ring-gray-900 transition-all bg-white">
-              <span className="inline-flex items-center px-3.5 bg-gray-50 text-xs font-semibold text-gray-600 border-r border-gray-200 select-none">
-                +505
-              </span>
-              <input
-                type="tel"
-                value={whatsappDigits}
-                onChange={(e) => setWhatsappDigits(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                placeholder="88068133"
-                className="w-full h-10 px-3 bg-white text-xs text-gray-900 font-mono font-medium focus:outline-none"
-              />
-            </div>
-            <p className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1.5">
-              <Lightbulb size={14} className="text-amber-500 shrink-0" weight="fill" />
-              <span>
-                Ejemplo: Para +505 8806-8133 escribí: <strong>88068133</strong>
-              </span>
+      {/* Aviso de rol para Cajeros */}
+      {isCajero && (
+        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-amber-900 text-xs">
+          <LockKey size={18} className="text-amber-600 shrink-0 mt-0.5" weight="fill" />
+          <div className="space-y-0.5">
+            <span className="font-semibold block">Acceso restringido para rol Cajero</span>
+            <p className="text-amber-700 leading-relaxed">
+              Tu rol de Cajero no tiene permisos para modificar la configuración del negocio ni políticas de caja. Solo podés consultar los datos generales en modo lectura.
             </p>
           </div>
+        </div>
+      )}
 
-          {business?.whatsappDisplay && (
-            <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-100 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-emerald-800">
-                <CheckCircle size={15} className="text-emerald-600 shrink-0" weight="fill" />
-                <span>
-                  Número guardado:{' '}
-                  <strong className="font-semibold font-mono">{business.whatsappDisplay}</strong>
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-start pt-1">
+      {/* Barra de Pestañas con estilo idéntico al desktop */}
+      <div className="border-b border-gray-200 flex space-x-2 sm:space-x-6 overflow-x-auto scrollbar-none pb-px">
+        {visibleTabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
             <button
-              type="submit"
-              disabled={whatsappMutation.isPending}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors shadow-xs disabled:opacity-50"
+              key={tab.id}
+              type="button"
+              onClick={() => handleTabChange(tab.id)}
+              className={`pb-3 text-xs sm:text-sm font-medium transition-colors border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                isActive
+                  ? 'border-gray-900 text-gray-900 font-semibold'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
             >
-              {whatsappMutation.isPending ? (
-                <span>Guardando...</span>
-              ) : (
-                <>
-                  <Check size={14} />
-                  <span>Guardar número de WhatsApp</span>
-                </>
-              )}
+              <Icon size={16} weight={isActive ? 'bold' : 'regular'} />
+              <span>{tab.label}</span>
             </button>
-          </div>
-        </form>
+          );
+        })}
       </div>
 
-      {wholesaleSettings?.available && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
-                <Storefront size={22} weight="duotone" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                    Venta por mayor
-                  </h3>
-                  {wholesaleSettings.wholesale_enabled ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Activa
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
-                      Inactiva
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Permite definir precios por mayor y cantidad mínima en tus productos. Cuando un cliente alcanza la cantidad mínima en caja o facturación web, el precio de línea cambia automáticamente.
-                </p>
-                {!canManageWholesale && (
-                  <p className="text-[11px] text-amber-700 mt-1.5 flex items-center gap-1">
-                    <Info size={13} />
-                    Solo administradores y encargados pueden activar o desactivar esta función.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="shrink-0 pt-1">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={Boolean(wholesaleSettings.wholesale_enabled)}
-                disabled={!canManageWholesale || wholesaleMutation.isPending}
-                onClick={() => {
-                  if (!canManageWholesale) return;
-                  wholesaleMutation.mutate({
-                    wholesale_enabled: !wholesaleSettings.wholesale_enabled,
-                  });
-                }}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  wholesaleSettings.wholesale_enabled ? 'bg-purple-600' : 'bg-gray-200'
-                } ${(!canManageWholesale || wholesaleMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <span className="sr-only">Venta por mayor</span>
-                <span
-                  aria-hidden="true"
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    wholesaleSettings.wholesale_enabled ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {canManageChannels && hasAnyActiveChannel && channelConfig && (
-        <SalesChannelsSection channelConfig={channelConfig} />
-      )}
-
-      {isPosActive && canManageChannels && (
-        <CashClosePoliciesSection />
-      )}
-
-      {isDeliveryActive && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <div className="flex items-center gap-2 mb-2">
-          <CurrencyDollar size={20} className="text-brand-600" />
-          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-            Configuración de Entrega y Tarifas
-          </h3>
-        </div>
-        <p className="text-xs text-gray-500 mb-6">
-          Define cómo se calculará el cobro de envío para tus clientes en cada pedido.
-        </p>
-
-        <form onSubmit={handleSavePricing} className="space-y-6">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 uppercase tracking-wider mb-3">
-              Modelo de precios
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {[
-                {
-                  value: 'FREE' as const,
-                  label: 'Envío gratis',
-                  description: 'Todos tus envíos son gratuitos para el cliente',
-                  icon: <Gift size={18} className="text-emerald-600 shrink-0" weight="duotone" />,
-                },
-                {
-                  value: 'FIXED' as const,
-                  label: 'Precio fijo',
-                  description: 'Siempre cobrás el mismo monto sin importar la distancia',
-                  icon: <Tag size={18} className="text-indigo-600 shrink-0" weight="duotone" />,
-                },
-                {
-                  value: 'PER_KM' as const,
-                  label: 'Por distancia',
-                  description: 'El precio varía según los kilómetros al cliente',
-                  icon: <NavigationArrow size={18} className="text-amber-600 shrink-0" weight="duotone" />,
-                },
-                {
-                  value: 'RIDER_QUOTE' as const,
-                  label: 'Rider pone el precio',
-                  description: 'Cada repartidor propone su tarifa y vos elegís la mejor oferta',
-                  icon: <Motorcycle size={18} className="text-blue-600 shrink-0" weight="duotone" />,
-                },
-              ].map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                    pricingModel === opt.value
-                      ? 'border-brand-500 bg-brand-50/20 shadow-xs ring-1 ring-brand-500/20'
-                      : 'border-gray-200 hover:border-gray-300 bg-white'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="pricingModel"
-                    value={opt.value}
-                    checked={pricingModel === opt.value}
-                    onChange={() => setPricingModel(opt.value)}
-                    className="mt-1 text-brand-600 focus:ring-brand-500 h-4 w-4"
-                  />
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-gray-900 flex items-center gap-2">
-                      {opt.icon}
-                      <span>{opt.label}</span>
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {pricingModel === 'RIDER_QUOTE' && (
-            <div className="pt-4 border-t border-gray-100 animate-in fade-in duration-150">
-              <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-100 flex items-start gap-3">
-                <Info size={20} className="text-blue-600 shrink-0 mt-0.5" weight="fill" />
-                <p className="text-xs text-blue-800 leading-relaxed">
-                  Con esta opción, cuando creés un pedido los repartidores cercanos verán el pedido y podrán enviarte su precio. Vos elegís la mejor oferta antes de confirmar.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {pricingModel === 'FIXED' && (
-            <div className="pt-4 border-t border-gray-100 space-y-5 animate-in fade-in duration-150">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  Tarifa fija general (por defecto)
-                </label>
-                <div className="relative max-w-xs">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                    C$
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={baseRate}
-                    onChange={(e) => setBaseRate(e.target.value)}
-                    required
-                    placeholder="50.00"
-                    className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 font-mono font-medium focus:outline-none focus:border-gray-900"
-                  />
-                </div>
-                <p className="text-[11px] text-gray-400 mt-1">
-                  Se aplica cuando una entrega no corresponde a ninguna zona específica.
-                </p>
-              </div>
-
-              <div className="pt-3 border-t border-gray-100/80">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-900 flex items-center gap-1.5">
-                      <Buildings size={15} className="text-brand-600" />
-                      <span>Tarifas personalizadas por Zona / Barrio</span>
-                    </label>
-                    <p className="text-[11px] text-gray-500 mt-0.5">
-                      Agrega las zonas de tu ciudad con su precio de envío correspondiente.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddZone}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-xs font-medium text-gray-700 transition-colors shadow-2xs"
-                  >
-                    <Plus size={13} weight="bold" />
-                    <span>Agregar zona</span>
-                  </button>
-                </div>
-
-                {pricingZones.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-gray-50 border border-dashed border-gray-200 text-center text-xs text-gray-400">
-                    No tienes zonas específicas creadas. Se cobrará la tarifa fija general de C${' '}
-                    {parseFloat(baseRate || '0').toFixed(2)}.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-12 gap-2 text-[11px] font-medium text-gray-400 uppercase tracking-wider px-1">
-                      <div className="col-span-7">Nombre de la Zona / Sector</div>
-                      <div className="col-span-4">Precio (C$)</div>
-                      <div className="col-span-1 text-center"></div>
-                    </div>
-
-                    {pricingZones.map((zone, idx) => (
-                      <div
-                        key={zone.id || idx}
-                        className="grid grid-cols-12 gap-2 items-center bg-gray-50/50 p-2 rounded-xl border border-gray-100"
-                      >
-                        <div className="col-span-7">
-                          <input
-                            type="text"
-                            value={zone.name}
-                            onChange={(e) => handleUpdateZone(zone.id, 'name', e.target.value)}
-                            placeholder="Ej. Centro, Altamira, Bello Horizonte"
-                            className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900"
-                          />
-                        </div>
-                        <div className="col-span-4 relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                            C$
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={zone.price}
-                            onChange={(e) =>
-                              handleUpdateZone(
-                                zone.id,
-                                'price',
-                                e.target.value
-                              )
-                            }
-                            placeholder="0.00"
-                            className="w-full h-9 pl-8 pr-2.5 rounded-lg border border-gray-200 bg-white text-xs text-gray-900 font-mono font-medium focus:outline-none focus:border-gray-900"
-                          />
-                        </div>
-                        <div className="col-span-1 flex justify-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveZone(zone.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors"
-                            title="Eliminar zona"
-                          >
-                            <Trash size={15} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {pricingModel === 'PER_KM' && (
-            <div className="pt-4 border-t border-gray-100 space-y-4 animate-in fade-in duration-150">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Tarifa base
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                      C$
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={baseRate}
-                      onChange={(e) => setBaseRate(e.target.value)}
-                      required
-                      placeholder="20.00"
-                      className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 font-mono font-medium focus:outline-none focus:border-gray-900"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Precio por km adicional
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                      C$
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={ratePerKm}
-                      onChange={(e) => setRatePerKm(e.target.value)}
-                      required
-                      placeholder="5.00"
-                      className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 font-mono font-medium focus:outline-none focus:border-gray-900"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Zona gratis hasta (km)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={freeZoneKm}
-                    onChange={(e) => setFreeZoneKm(e.target.value)}
-                    placeholder="1.0"
-                    className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 font-mono focus:outline-none focus:border-gray-900"
-                  />
-                  <span className="text-[10px] text-gray-400 mt-0.5 block">0 = sin zona gratis</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Tarifa mínima (C$)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                      C$
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={minRate}
-                      onChange={(e) => setMinRate(e.target.value)}
-                      placeholder="15.00"
-                      className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 font-mono focus:outline-none focus:border-gray-900"
-                    />
-                  </div>
-                  <span className="text-[10px] text-gray-400 mt-0.5 block">0 = sin mínimo</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Tarifa máxima (C$)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                      C$
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={maxRate}
-                      onChange={(e) => setMaxRate(e.target.value)}
-                      placeholder="100.00"
-                      className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 font-mono focus:outline-none focus:border-gray-900"
-                    />
-                  </div>
-                  <span className="text-[10px] text-gray-400 mt-0.5 block">0 = sin tope máx</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <PricingPreview
-            model={pricingModel}
-            baseRate={parseFloat(baseRate) || 0}
-            ratePerKm={parseFloat(ratePerKm) || 0}
-            freeZoneKm={parseFloat(freeZoneKm) || 0}
-            minRate={parseFloat(minRate) || 0}
-            maxRate={parseFloat(maxRate) || 0}
-            pricingZones={pricingZones}
+      {/* Contenido de la pestaña activa */}
+      <div className="pt-1">
+        {activeTab === 'general' && <GeneralSettingsTab isReadOnly={isCajero} />}
+        {activeTab === 'channels' && <ChannelsSettingsTab isReadOnly={isCajero} />}
+        {activeTab === 'policies' && <PoliciesSettingsTab isReadOnly={isCajero} />}
+        {activeTab === 'exchange-rate' && <ExchangeRateSettingsTab isReadOnly={isCajero} />}
+        {activeTab === 'invoice' && (
+          <InvoiceSettingsTab
+            isReadOnly={isCajero}
+            onNavigateToReceiptDesign={() => handleTabChange('receipt-design')}
           />
-
-          <div className="pt-3 border-t border-gray-100 flex justify-end">
-            <button
-              type="submit"
-              disabled={pricingMutation.isPending}
-              className="flex items-center gap-2 h-10 px-5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors shadow-xs disabled:opacity-50"
-            >
-              {pricingMutation.isPending ? (
-                <span>Guardando...</span>
-              ) : (
-                <>
-                  <Check size={16} />
-                  <span>Guardar configuración de precios</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+        )}
+        {activeTab === 'receipt-design' && (
+          <ReceiptDesignSettingsTab isReadOnly={isCajero} />
+        )}
+        {activeTab === 'catalog' && <CatalogSettingsTab isReadOnly={isCajero} />}
+        {activeTab === 'staff' && <StaffSettingsTab isReadOnly={isCajero} />}
       </div>
-      )}
     </div>
   );
 };

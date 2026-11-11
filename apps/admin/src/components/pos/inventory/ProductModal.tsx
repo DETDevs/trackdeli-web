@@ -19,6 +19,7 @@ import {
   isPharmacyIndustry,
   validateProductForIndustry,
 } from '../../../utils/productIndustryRules';
+import { ListFieldSelect } from './ListFieldSelect';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -87,6 +88,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [minStock, setMinStock] = useState('0');
 
   // Industry / Dynamic Attributes (Pharmacy etc.)
+  const [attributes, setAttributes] = useState<Record<string, any>>({});
   const [laboratorio, setLaboratorio] = useState('');
   const [presentacion, setPresentacion] = useState('');
   const [principioActivo, setPrincipioActivo] = useState('');
@@ -102,6 +104,75 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const isPharmacy = useMemo(() => {
     return isPharmacyIndustry(business, dynamicFields);
   }, [business, dynamicFields]);
+
+  const activeFields = useMemo(() => {
+    let fields = (dynamicFields || []).filter((f: any) => f.isActive !== false && !f.key?.endsWith('_id'));
+
+    // En rubro farmacia, asegurar que existan los 3 campos dinámicos obligatorios
+    if (isPharmacy) {
+      const existingKeys = new Set(fields.map((f: any) => f.key?.toLowerCase() || ''));
+      const synthFields: any[] = [];
+      if (!existingKeys.has('laboratorio') && !existingKeys.has('laboratory')) {
+        synthFields.push({
+          id: 'synth_laboratorio',
+          key: 'laboratorio',
+          label: 'Laboratorio',
+          dataType: 'LIST',
+          isActive: true,
+          required: true,
+          order: 1,
+          allowCreateInline: true,
+        });
+      }
+      if (!existingKeys.has('presentacion') && !existingKeys.has('presentation')) {
+        synthFields.push({
+          id: 'synth_presentacion',
+          key: 'presentacion',
+          label: 'Presentación',
+          dataType: 'LIST',
+          isActive: true,
+          required: true,
+          order: 2,
+          allowCreateInline: true,
+        });
+      }
+      if (
+        !existingKeys.has('principio_activo') &&
+        !existingKeys.has('active_ingredient') &&
+        !existingKeys.has('activeingredient') &&
+        !existingKeys.has('principioactivo')
+      ) {
+        synthFields.push({
+          id: 'synth_principio_activo',
+          key: 'principio_activo',
+          label: 'Principio activo',
+          dataType: 'TEXT',
+          isActive: true,
+          required: true,
+          order: 3,
+        });
+      }
+      if (synthFields.length > 0) {
+        fields = [...fields, ...synthFields];
+      }
+    }
+
+    const priorityMap: Record<string, number> = {
+      laboratorio: 1,
+      presentacion: 2,
+      principio_activo: 3,
+      principioactivo: 3,
+      requiere_receta: 4,
+      requierereceta: 4,
+      receta: 4,
+    };
+    return [...fields].sort((a: any, b: any) => {
+      const aPri = priorityMap[a.key?.toLowerCase() || ''] ?? 50;
+      const bPri = priorityMap[b.key?.toLowerCase() || ''] ?? 50;
+      if (aPri !== bPri) return aPri - bPri;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+  }, [dynamicFields, isPharmacy]);
 
   // Load suppliers and fields
   useEffect(() => {
@@ -168,17 +239,29 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setStock(product.stock != null ? String(product.stock) : '0');
       setMinStock(product.minStock != null ? String(product.minStock) : '0');
 
-      // Pharmacy attributes
-      const attrs = product.attributes || {};
-      setLaboratorio(product.laboratorio || attrs.laboratorio || attrs.laboratory || '');
-      setPresentacion(product.presentacion || attrs.presentacion || attrs.presentation || '');
-      setPrincipioActivo(
+      // Attributes & Rubro fields
+      const rawAttrs =
+        product.attributes && typeof product.attributes === 'object' && !Array.isArray(product.attributes)
+          ? { ...product.attributes }
+          : {};
+
+      const lab = product.laboratorio || rawAttrs.laboratorio || rawAttrs.laboratory || '';
+      const pres = product.presentacion || rawAttrs.presentacion || rawAttrs.presentation || '';
+      const pa =
         product.principio_activo ||
-          attrs.principio_activo ||
-          attrs.activeIngredient ||
-          attrs.active_ingredient ||
-          '',
-      );
+        rawAttrs.principio_activo ||
+        rawAttrs.activeIngredient ||
+        rawAttrs.active_ingredient ||
+        '';
+
+      if (lab && !rawAttrs.laboratorio) rawAttrs.laboratorio = lab;
+      if (pres && !rawAttrs.presentacion) rawAttrs.presentacion = pres;
+      if (pa && !rawAttrs.principio_activo) rawAttrs.principio_activo = pa;
+
+      setAttributes(rawAttrs);
+      setLaboratorio(lab);
+      setPresentacion(pres);
+      setPrincipioActivo(pa);
     } else {
       // New product defaults
       setName('');
@@ -200,6 +283,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setTrackStock(true);
       setStock('0');
       setMinStock('0');
+      setAttributes({});
       setLaboratorio('');
       setPresentacion('');
       setPrincipioActivo('');
@@ -309,23 +393,31 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     }
 
     // Industry validation (Pharmacy, etc.)
+    const labVal = (attributes.laboratorio || laboratorio || '').trim();
+    const presVal = (attributes.presentacion || presentacion || '').trim();
+    const paVal = (attributes.principio_activo || principioActivo || '').trim();
+
+    const mergedAttributes: Record<string, any> = {
+      ...(product?.attributes || {}),
+      ...attributes,
+    };
+    if (labVal) mergedAttributes.laboratorio = labVal;
+    if (presVal) mergedAttributes.presentacion = presVal;
+    if (paVal) mergedAttributes.principio_activo = paVal;
+
     const industryKey = business?.industryCode || business?.industry?.code || (isPharmacy ? 'farmacia' : '');
     const validationValues = {
       name: trimmedName,
-      laboratorio: laboratorio.trim(),
-      presentacion: presentacion.trim(),
-      principio_activo: principioActivo.trim(),
+      laboratorio: labVal,
+      presentacion: presVal,
+      principio_activo: paVal,
       listPrice: numListPrice,
       cost: numCost,
       price: numPrice,
       stock: numStock,
       minStock: numMinStock,
       supplierId: supplierId || null,
-      attributes: {
-        laboratorio: laboratorio.trim(),
-        presentacion: presentacion.trim(),
-        principio_activo: principioActivo.trim(),
-      },
+      attributes: mergedAttributes,
     };
 
     const industryValidation = validateProductForIndustry(
@@ -334,9 +426,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       validationValues,
     );
 
-    if (!industryValidation.isValid) {
-      setFormErrors(industryValidation.errors);
-      const firstErr = Object.values(industryValidation.errors)[0];
+    const combinedErrors: Record<string, string> = { ...industryValidation.errors };
+    if (!isService) {
+      for (const field of activeFields) {
+        if (field.required && !field.key?.endsWith('_id')) {
+          const val = mergedAttributes[field.key];
+          if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) {
+            if (!combinedErrors[field.key]) {
+              combinedErrors[field.key] = `${field.label} es obligatorio.`;
+            }
+          }
+        }
+      }
+    }
+
+    if (Object.keys(combinedErrors).length > 0) {
+      setFormErrors(combinedErrors);
+      const firstErr = Object.values(combinedErrors)[0];
       setError(firstErr || 'Por favor completa todos los campos obligatorios del rubro.');
       return;
     }
@@ -359,15 +465,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       minStock: isService ? 0 : numMinStock,
       wholesalePrice: enableWholesale ? numWholesalePrice : null,
       wholesaleMinQty: enableWholesale ? numWholesaleMinQty : null,
-      laboratorio: laboratorio.trim() || undefined,
-      presentacion: presentacion.trim() || undefined,
-      principio_activo: principioActivo.trim() || undefined,
-      attributes: {
-        ...(product?.attributes || {}),
-        laboratorio: laboratorio.trim() || undefined,
-        presentacion: presentacion.trim() || undefined,
-        principio_activo: principioActivo.trim() || undefined,
-      },
+      laboratorio: labVal || undefined,
+      presentacion: presVal || undefined,
+      principio_activo: paVal || undefined,
+      attributes: mergedAttributes,
     };
 
     setIsSaving(true);
@@ -854,75 +955,142 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </div>
           )}
 
-          {/* 4. Campos del Rubro (Farmacia / Especializados) */}
-          {isPharmacy && !isService && (
+          {/* 4. Campos del Rubro (Farmacia / Especializados de cualquier vertical) */}
+          {!isService && activeFields.length > 0 && (
             <div className="space-y-3 pt-2 border-t border-gray-100">
               <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                4. Datos del rubro (Farmacia)
+                4. Datos del rubro{isPharmacy ? ' (Farmacia)' : (business?.industry?.name ? ` (${business.industry.name})` : '')}
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Laboratorio */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Laboratorio <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={laboratorio}
-                    onChange={(e) => setLaboratorio(e.target.value)}
-                    placeholder="Ej. Bayer, Pfizer..."
-                    className={`w-full h-11 px-3 rounded-xl border text-xs text-gray-900 bg-white focus:outline-none focus:border-purple-600 shadow-2xs ${
-                      formErrors.laboratorio ? 'border-red-500' : 'border-gray-200'
-                    }`}
-                    required
-                  />
-                  {formErrors.laboratorio && (
-                    <p className="text-xs text-red-600 mt-1">{formErrors.laboratorio}</p>
-                  )}
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {activeFields.map((f: any) => {
+                  const isFarmaciaReq =
+                    isPharmacy &&
+                    !isService &&
+                    ['laboratorio', 'presentacion', 'principio_activo'].includes(f.key.toLowerCase());
+                  const isRequired = f.required || isFarmaciaReq;
+                  const fieldError = formErrors[f.key];
 
-                {/* Presentación */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Presentación <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={presentacion}
-                    onChange={(e) => setPresentacion(e.target.value)}
-                    placeholder="Ej. Caja 30 tabletas..."
-                    className={`w-full h-11 px-3 rounded-xl border text-xs text-gray-900 bg-white focus:outline-none focus:border-purple-600 shadow-2xs ${
-                      formErrors.presentacion ? 'border-red-500' : 'border-gray-200'
-                    }`}
-                    required
-                  />
-                  {formErrors.presentacion && (
-                    <p className="text-xs text-red-600 mt-1">{formErrors.presentacion}</p>
-                  )}
-                </div>
+                  return (
+                    <div key={f.id || f.key} className="flex flex-col justify-start">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        {f.label} {isRequired && <span className="text-red-500">*</span>}
+                      </label>
 
-                {/* Principio activo */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Principio activo <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={principioActivo}
-                    onChange={(e) => setPrincipioActivo(e.target.value)}
-                    placeholder="Ej. Ibuprofeno 400mg..."
-                    className={`w-full h-11 px-3 rounded-xl border text-xs text-gray-900 bg-white focus:outline-none focus:border-purple-600 shadow-2xs ${
-                      formErrors.principio_activo ? 'border-red-500' : 'border-gray-200'
-                    }`}
-                    required
-                  />
-                  {formErrors.principio_activo && (
-                    <p className="text-xs text-red-600 mt-1">
-                      {formErrors.principio_activo}
-                    </p>
-                  )}
-                </div>
+                      {f.dataType === 'BOOLEAN' ? (
+                        <div className="flex items-center h-11">
+                          <label className="flex items-center space-x-2.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(attributes[f.key])}
+                              onChange={(e) => {
+                                setAttributes((prev) => ({ ...prev, [f.key]: e.target.checked }));
+                                if (formErrors[f.key]) {
+                                  setFormErrors((prev) => ({ ...prev, [f.key]: undefined as any }));
+                                }
+                              }}
+                              className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-0 cursor-pointer"
+                            />
+                            <span className="text-xs text-gray-700 font-medium">
+                              {f.key.toLowerCase().includes('receta')
+                                ? attributes[f.key]
+                                  ? 'Requiere receta médica'
+                                  : 'Venta libre (sin receta)'
+                                : f.label}
+                            </span>
+                          </label>
+                        </div>
+                      ) : f.dataType === 'LIST' ? (
+                        <ListFieldSelect
+                          field={f}
+                          value={attributes[f.key] || ''}
+                          hasError={Boolean(fieldError)}
+                          businessId={business?.id}
+                          onOptionCreated={(newOpt) => {
+                            setDynamicFields((prev) =>
+                              prev.map((item) =>
+                                item.id === f.id
+                                  ? {
+                                      ...item,
+                                      fieldOptions: [...(item.fieldOptions || []), newOpt].sort(
+                                        (a, b) =>
+                                          (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+                                          a.label.localeCompare(b.label),
+                                      ),
+                                    }
+                                  : item,
+                              ),
+                            );
+                          }}
+                          onChange={(label, optionId) => {
+                            setAttributes((prev) => ({
+                              ...prev,
+                              [f.key]: label,
+                              ...(optionId ? { [`${f.key}_id`]: optionId } : {}),
+                            }));
+                            if (f.key === 'laboratorio') setLaboratorio(label);
+                            if (f.key === 'presentacion') setPresentacion(label);
+                            if (formErrors[f.key]) {
+                              setFormErrors((prev) => ({ ...prev, [f.key]: undefined as any }));
+                            }
+                          }}
+                        />
+                      ) : f.dataType === 'SELECT' ? (
+                        <select
+                          value={attributes[f.key] || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setAttributes((prev) => ({ ...prev, [f.key]: val }));
+                            if (formErrors[f.key]) {
+                              setFormErrors((prev) => ({ ...prev, [f.key]: undefined as any }));
+                            }
+                          }}
+                          className={`w-full h-11 px-3 rounded-xl border text-xs text-gray-900 bg-white focus:outline-none focus:border-purple-600 shadow-2xs ${
+                            fieldError ? 'border-red-500' : 'border-gray-200'
+                          }`}
+                        >
+                          <option value="">Seleccionar...</option>
+                          {(Array.isArray(f.options)
+                            ? f.options
+                            : typeof f.options === 'string'
+                            ? f.options.split(',').map((s: string) => s.trim())
+                            : []
+                          ).map((opt: string) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={f.dataType === 'NUMBER' ? 'number' : f.dataType === 'DATE' ? 'date' : 'text'}
+                          value={attributes[f.key] ?? ''}
+                          onChange={(e) => {
+                            const val =
+                              f.dataType === 'NUMBER'
+                                ? parseFloat(e.target.value) || 0
+                                : e.target.value;
+                            setAttributes((prev) => ({ ...prev, [f.key]: val }));
+                            if (f.key === 'principio_activo') setPrincipioActivo(e.target.value);
+                            if (formErrors[f.key]) {
+                              setFormErrors((prev) => ({ ...prev, [f.key]: undefined as any }));
+                            }
+                          }}
+                          placeholder={
+                            f.key === 'principio_activo'
+                              ? 'Ej. Ibuprofeno 400mg...'
+                              : `Ingresá ${(f.label || '').toLowerCase()}...`
+                          }
+                          className={`w-full h-11 px-3 rounded-xl border text-xs text-gray-900 bg-white focus:outline-none focus:border-purple-600 shadow-2xs ${
+                            fieldError ? 'border-red-500' : 'border-gray-200'
+                          }`}
+                        />
+                      )}
+
+                      {fieldError && <p className="text-xs text-red-600 mt-1">{fieldError}</p>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

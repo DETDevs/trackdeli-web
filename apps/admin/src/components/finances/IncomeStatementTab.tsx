@@ -9,7 +9,14 @@ import {
   Coins,
   Percent,
   ArrowsClockwise,
+  Printer,
 } from '@phosphor-icons/react';
+import { useQuery } from '@tanstack/react-query';
+import { getMyBusiness } from 'api-client';
+import { useAuthStore } from '../../store/auth.store';
+import { ReportPrintModal } from '../reports/ReportPrintModal';
+import { ReportDocument } from '../../types/report';
+import { buildIncomeStatementReportDocument } from '../../utils/incomeStatementReportBuilder';
 import { useIncomeStatement } from '../../hooks/useFinances';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 import { formatManaguaDate } from '../../utils/dateManagua';
@@ -24,6 +31,18 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
   const [customFrom, setCustomFrom] = useState<string>('');
   const [customTo, setCustomTo] = useState<string>('');
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [reportDocument, setReportDocument] = useState<ReportDocument | null>(null);
+
+  const user = useAuthStore((s) => s.user);
+  const branches = useAuthStore((s) => s.branches);
+  const activeBranch = branches?.find((b) => b.id === user?.businessId);
+
+  const { data: businessData } = useQuery({
+    queryKey: ['business', 'me'],
+    queryFn: getMyBusiness,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const {
     data: statement,
@@ -103,6 +122,22 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
     );
   };
 
+  const handlePrint = () => {
+    if (!statement) return;
+    const doc = buildIncomeStatementReportDocument({
+      data: statement,
+      periodType: period,
+      customFrom: period === 'custom' ? customFrom : undefined,
+      customTo: period === 'custom' ? customTo : undefined,
+      business: businessData,
+      branchName: activeBranch?.name,
+      user,
+      currency,
+    });
+    setReportDocument(doc);
+    setIsPrintModalOpen(true);
+  };
+
   return (
     <div className="space-y-5">
       {/* Controles: Selector de período y botón refrescar */}
@@ -130,15 +165,29 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
           ))}
         </div>
 
-        {/* Refrescar */}
-        <button
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer self-end sm:self-auto shadow-2xs disabled:opacity-50"
-        >
-          <ArrowsClockwise size={14} className={isFetching ? 'animate-spin' : ''} />
-          <span>Actualizar</span>
-        </button>
+        {/* Acciones: Imprimir y Actualizar */}
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          <button
+            type="button"
+            onClick={handlePrint}
+            disabled={isFetching || !statement}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+            title="Imprimir estado de resultados en hoja carta o guardar PDF"
+          >
+            <Printer size={14} weight="bold" />
+            <span>Imprimir</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+          >
+            <ArrowsClockwise size={14} className={isFetching ? 'animate-spin' : ''} />
+            <span>Actualizar</span>
+          </button>
+        </div>
       </div>
 
       {/* Rango de fechas personalizado si aplica */}
@@ -635,6 +684,13 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
           </div>
         </>
       )}
+
+      {/* Modal de Impresión */}
+      <ReportPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        document={reportDocument}
+      />
     </div>
   );
 };

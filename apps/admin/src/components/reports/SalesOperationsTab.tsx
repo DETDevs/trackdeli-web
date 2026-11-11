@@ -14,6 +14,7 @@ import {
   Coins,
   CheckCircle,
   DownloadSimple,
+  Printer,
 } from '@phosphor-icons/react';
 import {
   ReportsSummary,
@@ -37,6 +38,8 @@ interface SalesOperationsTabProps {
   period: PeriodType;
   queryParams?: ReportQueryParams;
   isLoading: boolean;
+  onPrint?: () => void;
+  isPreparingPrint?: boolean;
 }
 
 export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
@@ -47,6 +50,8 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
   period,
   queryParams,
   isLoading,
+  onPrint,
+  isPreparingPrint = false,
 }) => {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -158,7 +163,19 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
   return (
     <div className="space-y-5">
       {queryParams && (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-2">
+          {onPrint && (
+            <button
+              type="button"
+              disabled={isPreparingPrint || isLoading}
+              onClick={onPrint}
+              className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-800 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+              title="Imprimir reporte en PDF carta"
+            >
+              <Printer size={15} weight="bold" />
+              <span>{isPreparingPrint ? 'Preparando...' : 'Imprimir'}</span>
+            </button>
+          )}
           <button
             type="button"
             disabled={isExporting}

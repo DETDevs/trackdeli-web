@@ -8,9 +8,17 @@ import {
   ArrowsClockwise,
   Users,
   Motorcycle,
+  Printer,
 } from "@phosphor-icons/react";
 import { useAuthStore } from "../store/auth.store";
-import { PeriodType } from "../types/reports";
+import {
+  PeriodType,
+  ReportsSummary,
+  SalesByTimeReport,
+  SalesByCategoryReport,
+  SalesByCashierReport,
+  ProfitReport,
+} from "../types/reports";
 import { PeriodSelector } from "../components/reports/PeriodSelector";
 import { SalesOperationsTab } from "../components/reports/SalesOperationsTab";
 import { ProfitReportTab } from "../components/reports/ProfitReportTab";
@@ -18,6 +26,15 @@ import { ControlReportTab } from "../components/reports/ControlReportTab";
 import { WorkshopReportTab } from "../components/reports/WorkshopReportTab";
 import { SellerReportTab } from "../components/reports/SellerReportTab";
 import { ChannelsReportTab } from "../components/reports/ChannelsReportTab";
+import { ReportPrintModal } from "../components/reports/ReportPrintModal";
+import { ReportDocument } from "../types/report";
+import {
+  buildSalesOperationsReportDocument,
+  buildChannelsReportDocument,
+  buildProfitReportDocument,
+  ProfitSummaryReport,
+  ProfitProductsResponse,
+} from "../utils/reportsTabsPrintBuilders";
 import {
   useReportsOverview,
   useSalesByTime,
@@ -28,10 +45,12 @@ import {
   useWorkshopReport,
   useSalesBySeller,
   useSalesByChannel,
+  buildReportQueryString,
 } from "../hooks/useBackofficeReports";
 import { useQuery } from "@tanstack/react-query";
-import { getMyBusiness, getChannelConfig } from "api-client";
+import { apiClient, getMyBusiness, getChannelConfig } from "api-client";
 import { getVisibleChannels } from "../utils/visibleChannels";
+import { toast } from "react-hot-toast";
 
 export type ReportTabKey =
   | "sales"
@@ -246,6 +265,111 @@ export const ReportsPage: React.FC = () => {
     isFetchingWorkshop ||
     isFetchingSeller;
 
+  // Estados para impresión de reportes (Ticket 257d)
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isPreparingReport, setIsPreparingReport] = useState(false);
+  const [reportDocument, setReportDocument] = useState<ReportDocument | null>(null);
+
+  const handleTriggerPrint = async () => {
+    setIsPrintModalOpen(true);
+    setIsPreparingReport(true);
+    setReportDocument(null);
+
+    const qs = buildReportQueryString(queryParams);
+
+    try {
+      if (activeTab === "sales") {
+        const [repRes, tRes, catRes, cashRes] = await Promise.all([
+          reportsData
+            ? Promise.resolve({ data: reportsData })
+            : apiClient.get<ReportsSummary>(`/pos/reports?${qs}`),
+          timeData
+            ? Promise.resolve({ data: timeData })
+            : apiClient.get<SalesByTimeReport>(`/pos/reports/sales-by-time?${qs}`),
+          categoryData
+            ? Promise.resolve({ data: categoryData })
+            : apiClient.get<SalesByCategoryReport>(`/pos/reports/sales-by-category?${qs}`),
+          cashierData
+            ? Promise.resolve({ data: cashierData })
+            : apiClient.get<SalesByCashierReport>(`/pos/reports/sales-by-cashier?${qs}`),
+        ]);
+
+        const doc = buildSalesOperationsReportDocument({
+          reportsData: repRes.data,
+          timeData: tRes.data,
+          categoryData: catRes.data,
+          cashierData: cashRes.data,
+          period,
+          from: customFrom,
+          to: customTo,
+          channel: selectedChannel || undefined,
+          business,
+          branchName: null,
+          user,
+        });
+        setReportDocument(doc);
+      } else if (activeTab === "channels") {
+        const [chRes, domRes, pyRes, settRes] = await Promise.all([
+          channelReportData
+            ? Promise.resolve({ data: channelReportData })
+            : apiClient.get<any>(`/pos/reports/sales-by-channel?${qs}`),
+          apiClient.get<any>(`/pos/reports/domicilio?${qs}`).catch(() => ({ data: null })),
+          apiClient.get<any>(`/pos/reports/pedidosya?${qs}`).catch(() => ({ data: null })),
+          apiClient
+            .get<any>(`/pos/reports/pedidosya/settlements/pending?status=PENDIENTE`)
+            .catch(() => ({ data: null })),
+        ]);
+
+        const doc = buildChannelsReportDocument({
+          channelSummary: chRes.data,
+          domicilioData: domRes.data,
+          pedidosYaData: pyRes.data,
+          settlementData: settRes.data,
+          period,
+          from: customFrom,
+          to: customTo,
+          business,
+          branchName: null,
+          user,
+        });
+        setReportDocument(doc);
+      } else if (activeTab === "profit") {
+        const [sumRes, prodRes, profRes] = await Promise.all([
+          apiClient
+            .get<ProfitSummaryReport>(`/pos/reports/profit/summary?${qs}`)
+            .catch(() => ({ data: null })),
+          apiClient
+            .get<ProfitProductsResponse>(`/pos/reports/profit/products?${qs}&pageSize=5000`)
+            .catch(() => ({ data: null })),
+          profitData
+            ? Promise.resolve({ data: profitData })
+            : apiClient
+                .get<ProfitReport>(`/pos/reports/profit?${qs}`)
+                .catch(() => ({ data: null })),
+        ]);
+
+        const doc = buildProfitReportDocument({
+          summary: sumRes.data,
+          allProductsResponse: prodRes.data,
+          profitData: profRes.data,
+          period,
+          from: customFrom,
+          to: customTo,
+          business,
+          branchName: null,
+          user,
+        });
+        setReportDocument(doc);
+      }
+    } catch (err: any) {
+      console.error("[ReportsPage] Error al generar documento de impresión:", err);
+      toast.error("Error al preparar la impresión del reporte.");
+      setIsPrintModalOpen(false);
+    } finally {
+      setIsPreparingReport(false);
+    }
+  };
+
   // Validación de permiso de usuario
   if (!isAllowedRole) {
     return (
@@ -373,6 +497,20 @@ export const ReportsPage: React.FC = () => {
             onRefresh={handleRefresh}
             isRefreshing={isRefreshing}
           />
+
+          {/* Botón Imprimir (solo para pestañas con soporte: sales, channels, profit; Control, Vendedores y Taller NO) */}
+          {(activeTab === "sales" || activeTab === "channels" || activeTab === "profit") && (
+            <button
+              type="button"
+              onClick={handleTriggerPrint}
+              disabled={isPreparingReport}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-white hover:bg-gray-50 text-gray-800 text-xs font-semibold rounded-xl border border-gray-200 shadow-2xs transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+              title="Imprimir reporte con el período y filtros activos"
+            >
+              <Printer size={15} weight="bold" />
+              <span>{isPreparingReport ? "Preparando..." : "Imprimir"}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -529,6 +667,8 @@ export const ReportsPage: React.FC = () => {
                 isLoadingCategory ||
                 isLoadingCashier
               }
+              onPrint={handleTriggerPrint}
+              isPreparingPrint={isPreparingReport}
             />
           )}
 
@@ -540,6 +680,8 @@ export const ReportsPage: React.FC = () => {
                 queryParams={queryParams}
                 period={period}
                 channelConfig={channelConfig}
+                onPrint={handleTriggerPrint}
+                isPreparingPrint={isPreparingReport}
               />
             )}
 
@@ -552,6 +694,8 @@ export const ReportsPage: React.FC = () => {
               hasActiveChannels={channelsVisibility.hasAnyNonMostradorChannel}
               hasActiveDelivery={channelsVisibility.isDeliveryVisible}
               hasActivePedidosYa={channelsVisibility.isPedidosYaVisible}
+              onPrint={handleTriggerPrint}
+              isPreparingPrint={isPreparingReport}
             />
           )}
 
@@ -583,6 +727,14 @@ export const ReportsPage: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Modal de Impresión de Reporte */}
+      <ReportPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        document={reportDocument}
+        isPreparing={isPreparingReport}
+      />
     </div>
   );
 };
