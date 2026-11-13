@@ -353,6 +353,40 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
                 </div>
               </>
             )}
+            {sale.tip &&
+              sale.tip.status !== 'VOIDED' &&
+              Number(sale.tip.amountBase ?? sale.tip.amount ?? 0) > 0 && (() => {
+                const tipBase = Number(sale.tip!.amountBase ?? sale.tip!.amount ?? 0);
+                const tipMethodLabel =
+                  sale.tip!.paymentMethod === 'TARJETA'
+                    ? 'Tarjeta'
+                    : sale.tip!.paymentMethod === 'TRANSFERENCIA'
+                      ? 'Transferencia'
+                      : 'Efectivo';
+                return (
+                  <div className="pt-2 border-t border-gray-200 space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-amber-800 font-semibold">
+                      <span>
+                        Propina (voluntaria) · {tipMethodLabel}
+                        {sale.tip!.currency === 'USD'
+                          ? ` (US$ ${Number(sale.tip!.amount || 0).toFixed(2)})`
+                          : ''}
+                      </span>
+                      <span className="whitespace-nowrap tabular-nums shrink-0">
+                        {formatCurrency(tipBase)}
+                      </span>
+                    </div>
+                    <div className="pt-1.5 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
+                      <span className="text-xs sm:text-sm font-black text-gray-900">
+                        TOTAL PAGADO
+                      </span>
+                      <span className="text-xl font-black text-gray-900 whitespace-nowrap tabular-nums shrink-0">
+                        {formatCurrency(total + tipBase)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
           </div>
         </div>
 

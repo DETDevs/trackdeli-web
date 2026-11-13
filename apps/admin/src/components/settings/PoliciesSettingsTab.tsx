@@ -8,6 +8,7 @@ import {
   createPosBank,
   updatePosBank,
   deletePosBank,
+  getMyBusiness,
   type PosPoliciesData,
   type PosBankItem,
 } from 'api-client';
@@ -56,6 +57,12 @@ export const PoliciesSettingsTab: React.FC<PoliciesSettingsTabProps> = ({ isRead
   const hasCarteraCobro = Boolean(
     (user as any)?.business?.hasCarteraCobro || productsData?.products?.CARTERA_COBRO
   );
+
+  const { data: business } = useQuery({
+    queryKey: ['business', 'me'],
+    queryFn: getMyBusiness,
+    staleTime: 60000,
+  });
 
   const { data: serverPolicies, isLoading } = useQuery<PosPoliciesData>({
     queryKey: ['pos', 'policies'],
@@ -257,6 +264,20 @@ export const PoliciesSettingsTab: React.FC<PoliciesSettingsTabProps> = ({ isRead
   const enabledMethods = (draft.paymentMethodsEnabled || 'EFECTIVO,TARJETA,TRANSFERENCIA')
     .split(',')
     .map((s) => s.trim());
+
+  const businessVertical = (business as any)?.tracksBatches
+    ? 'FARMACIA'
+    : String(
+        (business as any)?.posVertical || (user as any)?.business?.posVertical || 'RETAIL',
+      ).toUpperCase();
+  const salonProfile = String(
+    (business as any)?.salonProfile || (user as any)?.business?.salonProfile || 'RESTAURANTE',
+  ).toUpperCase();
+  const showTipsCard =
+    (businessVertical === 'RESTAURANTE' && salonProfile !== 'TALLER') ||
+    businessVertical === 'BAR' ||
+    salonProfile === 'BAR' ||
+    Boolean(draft.tipEnabled);
 
   return (
     <div className="space-y-6">
@@ -982,6 +1003,88 @@ export const PoliciesSettingsTab: React.FC<PoliciesSettingsTabProps> = ({ isRead
             </label>
           </div>
         </div>
+
+        {/* 8. Propina voluntaria (Restaurante o bar) */}
+        {showTipsCard && (
+          <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+              <HandCoins size={20} className="text-gray-700" />
+              <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider">
+                Propina voluntaria
+              </h3>
+            </div>
+
+            <div className="divide-y divide-gray-100">
+              <div className="py-3 flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-medium text-gray-800 block">
+                    Ofrecer propina en el cobro
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    Permite registrar propinas voluntarias en mostrador separadas de ventas, IVA y ganancias.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    disabled={isReadOnly}
+                    checked={Boolean(draft.tipEnabled)}
+                    onChange={() =>
+                      setDraft({
+                        ...draft,
+                        tipEnabled: !Boolean(draft.tipEnabled),
+                        tipDefaultPercent:
+                          !Boolean(draft.tipEnabled) && !draft.tipDefaultPercent
+                            ? 10
+                            : draft.tipDefaultPercent ?? 10,
+                      })
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+
+              {draft.tipEnabled && (
+                <div className="py-3 flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <label
+                      htmlFor="tip-default-percent-input"
+                      className="text-xs font-medium text-gray-800 block"
+                    >
+                      Porcentaje sugerido (%)
+                    </label>
+                    <p className="text-xs text-gray-500">
+                      Porcentaje rápido ofrecido al cajero al cobrar (entre 1 % y 30 %).
+                    </p>
+                  </div>
+                  <div className="w-24 shrink-0">
+                    <input
+                      id="tip-default-percent-input"
+                      type="number"
+                      min="1"
+                      max="30"
+                      step="1"
+                      disabled={isReadOnly}
+                      value={draft.tipDefaultPercent ?? 10}
+                      onChange={(e) => {
+                        const raw = Number(e.target.value);
+                        const clamped = Number.isFinite(raw)
+                          ? Math.min(30, Math.max(1, Math.round(raw)))
+                          : 10;
+                        setDraft({
+                          ...draft,
+                          tipDefaultPercent: clamped,
+                        });
+                      }}
+                      className="w-full text-xs py-1.5 px-3 border border-gray-200 rounded-xl text-right font-mono min-h-[40px]"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </form>
 
       {/* Modal: Advertencia de política sensible */}

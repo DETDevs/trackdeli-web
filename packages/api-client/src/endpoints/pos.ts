@@ -27,12 +27,32 @@ export interface RegisterWebDeviceResponse {
   secret: string;
 }
 
+export interface CashRegisterTipsByBank {
+  bankId: string | null;
+  bankName: string;
+  card: number;
+  transfer: number;
+  totalBase: number;
+}
+
+export interface CashRegisterTipsSummary {
+  cashNio: number;
+  cashUsd: number;
+  card: number;
+  transfer: number;
+  totalBase: number;
+  byBank: CashRegisterTipsByBank[];
+}
+
 export interface CashRegisterStatusResponse {
   isOpen: boolean;
   shiftId: string | null;
   openedAt: string | null;
   cashierName: string | null;
-  shift?: any;
+  shift?: {
+    tipsSummary?: CashRegisterTipsSummary | null;
+    [key: string]: any;
+  } | null;
 }
 
 export interface OpenCashRegisterDto {
@@ -192,9 +212,40 @@ export interface PosExchangeRateData {
   [key: string]: any;
 }
 
+export interface CreateSaleTipPayload {
+  mode: 'PERCENT' | 'CUSTOM';
+  percent?: number;
+  amount?: number;
+  currency?: 'NIO' | 'USD';
+  exchangeRate?: number;
+  paymentMethod: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+  bankId?: string;
+  reference?: string;
+  waiterId?: string;
+}
+
+export interface PosTipData {
+  id: string;
+  saleId: string;
+  cashRegisterId?: string | null;
+  waiterId?: string | null;
+  waiterName?: string | null;
+  amount: number;
+  currency: 'NIO' | 'USD' | string;
+  exchangeRate?: number | null;
+  amountBase: number;
+  paymentMethod: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | string;
+  bankId?: string | null;
+  bankName?: string | null;
+  reference?: string | null;
+  status: 'ACTIVE' | 'VOIDED' | string;
+  createdAt: string;
+}
+
 export interface CreateSalePayload {
   cashRegisterId?: string;
   clientGeneratedId?: string;
+  channel?: string;
   items: CreateSaleItemPayload[];
   discountAmount?: number;
   discount?: number;
@@ -220,6 +271,7 @@ export interface CreateSalePayload {
   bankId?: string;
   bankName?: string;
   payments?: CreateSalePaymentPayload[];
+  tip?: CreateSaleTipPayload;
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
@@ -251,6 +303,7 @@ export interface SaleResponse {
   notes?: string;
   items: any[];
   payments: any[];
+  tip?: PosTipData | null;
   cashier?: {
     id: string;
     name: string;
@@ -804,6 +857,8 @@ export interface PosPoliciesData {
   creditMaxInstallments?: number;
   creditAllowedFrequencies?: string;
   requireOpenShiftToSell?: boolean;
+  tipEnabled?: boolean;
+  tipDefaultPercent?: number;
   [key: string]: any;
 }
 
@@ -1221,6 +1276,85 @@ export const getPosInventoryAdjustments = async (params?: {
   businessId?: string;
 }): Promise<any> => {
   const res = await apiClient.get<any>('/pos/inventory/adjustments', { params });
+  return res.data;
+};
+
+export const getPosSaleById = async (
+  saleId: string,
+  businessId?: string,
+): Promise<SaleResponse> => {
+  const res = await apiClient.get<SaleResponse>(`/pos/sales/${saleId}`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export interface PosTipsReportByMethodItem {
+  paymentMethod: string;
+  count: number;
+  baseTotal: number;
+}
+
+export interface PosTipsReportByCurrencyItem {
+  currency: string;
+  count: number;
+  amount: number;
+  baseTotal: number;
+}
+
+export interface PosTipsReportByWaiterItem {
+  waiterId: string | null;
+  waiterName: string;
+  count: number;
+  baseTotal: number;
+}
+
+export interface PosTipsReportResponse {
+  period: {
+    from: string;
+    to: string;
+  };
+  totals: {
+    count: number;
+    baseTotal: number;
+    byMethod: PosTipsReportByMethodItem[];
+    byCurrency: PosTipsReportByCurrencyItem[];
+  };
+  byWaiter: PosTipsReportByWaiterItem[];
+}
+
+export interface PosTipsReportParams {
+  period?: string;
+  from?: string;
+  to?: string;
+  waiterId?: string;
+  paymentMethod?: string;
+  cashRegisterId?: string;
+  businessId?: string;
+}
+
+export const getPosTipsReport = async (
+  params: PosTipsReportParams,
+): Promise<PosTipsReportResponse> => {
+  const res = await apiClient.get<PosTipsReportResponse>('/pos/reports/tips', { params });
+  return res.data;
+};
+
+export interface PosWaiterData {
+  id: string;
+  businessId?: string;
+  name: string;
+  active?: boolean;
+  openOrdersCount?: number;
+  available?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const getPosWaiters = async (businessId?: string): Promise<PosWaiterData[]> => {
+  const res = await apiClient.get<PosWaiterData[]>('/pos/waiters', {
+    params: businessId ? { businessId } : undefined,
+  });
   return res.data;
 };
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   X,
   Printer,
@@ -36,6 +36,10 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+
+  useEffect(() => {
+    setFeedback(null);
+  }, [isOpen, document]);
 
   const previewHtml = useMemo(() => {
     if (!document) return '';
@@ -81,9 +85,7 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
     setFeedback(null);
 
     try {
-      // Intentamos descarga directa con jsPDF o con el diálogo de guardado del navegador
-      const previewEl = window.document.getElementById('report-letter-preview-content');
-      await downloadReportPdfDocument(document, previewEl);
+      await downloadReportPdfDocument(document);
       setFeedback({
         type: 'success',
         message: `PDF preparado: ${suggestedPdfName}`,
@@ -219,20 +221,6 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
                 title="Vista previa del reporte"
                 srcDoc={previewHtml}
                 className="w-full h-[62vh] border-0"
-              />
-
-              {/* Elemento oculto renderizado para jsPDF html2canvas */}
-              <div
-                id="report-letter-preview-content"
-                style={{
-                  position: 'absolute',
-                  left: '-9999px',
-                  top: '0',
-                  width: '794px',
-                  background: '#FFFFFF',
-                  padding: '20px',
-                }}
-                dangerouslySetInnerHTML={{ __html: previewHtml }}
               />
             </div>
           )}

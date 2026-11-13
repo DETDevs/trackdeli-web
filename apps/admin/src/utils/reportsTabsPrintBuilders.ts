@@ -27,6 +27,7 @@ import {
   formatManaguaDate,
   getManaguaTodayYMD,
 } from './dateManagua';
+import type { PosTipsReportResponse } from 'api-client';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAPA OFICIAL DE FUENTES DE COSTO (INGLÉS → ESPAÑOL)
@@ -1380,5 +1381,159 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
     sections,
     footerText: DEFAULT_REPORT_FOOTER_TEXT,
     rowCount,
+  };
+}
+
+export interface BuildTipsReportParams {
+  tipsData: PosTipsReportResponse | null | undefined;
+  period: PeriodType | string;
+  from?: string;
+  to?: string;
+  waiterName?: string | null;
+  paymentMethod?: string | null;
+  business: any;
+  branchName?: string | null;
+  user: any;
+}
+
+const TIP_METHOD_LABELS_ES: Record<string, string> = {
+  EFECTIVO: 'Efectivo',
+  TARJETA: 'Tarjeta',
+  TRANSFERENCIA: 'Transferencia',
+};
+
+export function formatTipPaymentMethodEs(method: string | null | undefined): string {
+  if (!method) return 'Todos';
+  const clean = String(method).trim().toUpperCase();
+  return TIP_METHOD_LABELS_ES[clean] || sanitizeForbiddenPrintTerms(method);
+}
+
+/**
+ * Construye el documento imprimible (hoja carta / PDF) para el reporte de Propinas.
+ */
+export function buildTipsReportDocument(params: BuildTipsReportParams): ReportDocument {
+  const {
+    tipsData,
+    period,
+    from,
+    to,
+    waiterName,
+    paymentMethod,
+    business,
+    branchName,
+    user,
+  } = params;
+
+  const { periodInfo, periodLabel } = buildStandardPeriodInfo(
+    period,
+    from,
+    to,
+    tipsData?.period || null,
+  );
+
+  const totalBase = Number(tipsData?.totals?.baseTotal || 0);
+  const totalCount = Number(tipsData?.totals?.count || 0);
+  const byMethod = tipsData?.totals?.byMethod || [];
+  const byCurrency = tipsData?.totals?.byCurrency || [];
+  const byWaiter = tipsData?.byWaiter || [];
+
+  const summaryRows: ReportKeyValueRow[] = [
+    {
+      label: 'Total de propinas (base C$)',
+      value: formatCurrency(totalBase),
+      isTotal: true,
+    },
+    {
+      label: 'Cantidad de propinas registradas',
+      value: String(totalCount),
+    },
+  ];
+
+  for (const c of byCurrency) {
+    if (Number(c.count || 0) <= 0) continue;
+    summaryRows.push({
+      label: c.currency === 'USD' ? 'Recibido en dólares (US$)' : 'Recibido en córdobas (C$)',
+      value:
+        c.currency === 'USD'
+          ? `US$ ${Number(c.amount || 0).toFixed(2)} (equiv. ${formatCurrency(c.baseTotal || 0)})`
+          : formatCurrency(c.amount || 0),
+    });
+  }
+
+  const methodRows: ReportTableRow[] = byMethod
+    .filter((m) => Number(m.count || 0) > 0 || Number(m.baseTotal || 0) > 0)
+    .map((m) => {
+      const pct = totalBase > 0 ? (Number(m.baseTotal || 0) / totalBase) * 100 : 0;
+      return {
+        cells: {
+          method: formatTipPaymentMethodEs(m.paymentMethod),
+          count: String(m.count || 0),
+          pct: `${pct.toFixed(1)}%`,
+          total: formatCurrency(m.baseTotal || 0),
+        },
+      };
+    });
+
+  const waiterRows: ReportTableRow[] = byWaiter.map((w) => {
+    const pct = totalBase > 0 ? (Number(w.baseTotal || 0) / totalBase) * 100 : 0;
+    return {
+      cells: {
+        waiter: sanitizeForbiddenPrintTerms(w.waiterName || 'Sin mesero asignado'),
+        count: String(w.count || 0),
+        pct: `${pct.toFixed(1)}%`,
+        total: formatCurrency(w.baseTotal || 0),
+      },
+    };
+  });
+
+  const sections: ReportSection[] = [
+    {
+      type: 'keyValue',
+      title: 'Resumen general de propinas',
+      notice: 'Las propinas son voluntarias y se registran aparte de las ventas, el IVA y las ganancias.',
+      rows: summaryRows,
+    },
+    {
+      type: 'table',
+      title: 'Totales por método de pago',
+      emptyMessage: 'Sin propinas registradas en el período',
+      columns: [
+        { key: 'method', label: 'Método', align: 'left' },
+        { key: 'count', label: 'Cantidad', align: 'right', mono: true },
+        { key: 'pct', label: '%', align: 'right', mono: true },
+        { key: 'total', label: 'Total (C$)', align: 'right', mono: true },
+      ],
+      rows: methodRows,
+    },
+    {
+      type: 'table',
+      title: `Propinas por mesero (${waiterRows.length})`,
+      emptyMessage: 'Sin propinas registradas por mesero en el período',
+      columns: [
+        { key: 'waiter', label: 'Mesero / Origen', align: 'left' },
+        { key: 'count', label: 'Cantidad', align: 'right', mono: true },
+        { key: 'pct', label: '%', align: 'right', mono: true },
+        { key: 'total', label: 'Total (C$)', align: 'right', mono: true },
+      ],
+      rows: waiterRows,
+    },
+  ];
+
+  const filterParts = [`Período: ${periodLabel}`];
+  if (waiterName) filterParts.push(`Mesero: ${sanitizeForbiddenPrintTerms(waiterName)}`);
+  if (paymentMethod) filterParts.push(`Método: ${formatTipPaymentMethodEs(paymentMethod)}`);
+
+  return {
+    reportKey: 'tips',
+    title: 'Propinas',
+    reportSlug: 'Propinas',
+    business: buildReportBusinessHeader(business, branchName, user),
+    period: periodInfo,
+    filtersText: filterParts.join(' · '),
+    printedBy: user?.name || user?.email || 'Usuario',
+    printedAt: formatManaguaDateTime(new Date()),
+    sections,
+    footerText: DEFAULT_REPORT_FOOTER_TEXT,
+    rowCount: methodRows.length + waiterRows.length,
   };
 }

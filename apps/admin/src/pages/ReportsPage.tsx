@@ -9,6 +9,7 @@ import {
   Users,
   Motorcycle,
   Printer,
+  HandCoins,
 } from "@phosphor-icons/react";
 import { useAuthStore } from "../store/auth.store";
 import {
@@ -26,12 +27,14 @@ import { ControlReportTab } from "../components/reports/ControlReportTab";
 import { WorkshopReportTab } from "../components/reports/WorkshopReportTab";
 import { SellerReportTab } from "../components/reports/SellerReportTab";
 import { ChannelsReportTab } from "../components/reports/ChannelsReportTab";
+import { TipsReportTab } from "../components/reports/TipsReportTab";
 import { ReportPrintModal } from "../components/reports/ReportPrintModal";
 import { ReportDocument } from "../types/report";
 import {
   buildSalesOperationsReportDocument,
   buildChannelsReportDocument,
   buildProfitReportDocument,
+  buildTipsReportDocument,
   ProfitSummaryReport,
   ProfitProductsResponse,
 } from "../utils/reportsTabsPrintBuilders";
@@ -45,11 +48,20 @@ import {
   useWorkshopReport,
   useSalesBySeller,
   useSalesByChannel,
+  useTipsReport,
   buildReportQueryString,
 } from "../hooks/useBackofficeReports";
+import { usePosPolicies } from "../hooks/usePosPolicies";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient, getMyBusiness, getChannelConfig } from "api-client";
+import {
+  apiClient,
+  getMyBusiness,
+  getChannelConfig,
+  getPosWaiters,
+  type PosTipsReportResponse,
+} from "api-client";
 import { getVisibleChannels } from "../utils/visibleChannels";
+import { getManaguaTodayYMD } from "../utils/dateManagua";
 import { toast } from "react-hot-toast";
 
 export type ReportTabKey =
@@ -58,7 +70,8 @@ export type ReportTabKey =
   | "profit"
   | "control"
   | "workshop"
-  | "sellers";
+  | "sellers"
+  | "tips";
 
 export const ReportsPage: React.FC = () => {
   const user = useAuthStore((state) => state.user);
@@ -87,7 +100,11 @@ export const ReportsPage: React.FC = () => {
   const [customFrom, setCustomFrom] = useState<string | undefined>();
   const [customTo, setCustomTo] = useState<string | undefined>();
   const [selectedChannel, setSelectedChannel] = useState<string>("");
+  const [selectedTipWaiterId, setSelectedTipWaiterId] = useState<string>("");
+  const [selectedTipMethod, setSelectedTipMethod] = useState<string>("");
   const [activeTab, setActiveTab] = useState<ReportTabKey>("sales");
+
+  const { tipEnabled } = usePosPolicies(isAllowedRole);
 
   const queryParams = useMemo(
     () => ({
@@ -185,6 +202,64 @@ export const ReportsPage: React.FC = () => {
     isAllowedRole,
   );
 
+  // Sonda de historial de propinas (dentro del máximo de 366 días permitido por el API)
+  const tipHistoryProbeParams = useMemo(() => {
+    const to = getManaguaTodayYMD();
+    const [y, m, d] = to.split("-").map(Number);
+    const past = new Date(Date.UTC(y, m - 1, d - 364));
+    const from = past.toISOString().split("T")[0];
+    return { period: "custom" as PeriodType, from, to };
+  }, []);
+
+  const { data: tipHistoryProbe } = useTipsReport(
+    tipHistoryProbeParams,
+    isAllowedRole && !tipEnabled,
+  );
+
+  const hasTipHistory = Number(tipHistoryProbe?.totals?.count || 0) > 0;
+  const showTipsTab = Boolean(tipEnabled || hasTipHistory);
+
+  const tipsQueryParams = useMemo(
+    () => ({
+      period,
+      from: customFrom,
+      to: customTo,
+      waiterId: selectedTipWaiterId || undefined,
+      paymentMethod: selectedTipMethod || undefined,
+    }),
+    [period, customFrom, customTo, selectedTipWaiterId, selectedTipMethod],
+  );
+
+  const {
+    data: tipsReportData,
+    isLoading: isLoadingTips,
+    isError: isErrorTips,
+    error: errorTips,
+    refetch: refetchTips,
+    isFetching: isFetchingTips,
+  } = useTipsReport(
+    tipsQueryParams,
+    isAllowedRole && showTipsTab && activeTab === "tips",
+  );
+
+  const { data: waitersList = [] } = useQuery({
+    queryKey: ["pos", "waiters"],
+    queryFn: () => getPosWaiters(),
+    enabled: isAllowedRole && showTipsTab,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const waiterUsers = useMemo(
+    () =>
+      [...waitersList].sort((a, b) => {
+        const aActive = a.active !== false ? 0 : 1;
+        const bActive = b.active !== false ? 0 : 1;
+        if (aActive !== bActive) return aActive - bActive;
+        return a.name.localeCompare(b.name, "es");
+      }),
+    [waitersList],
+  );
+
   const salesByChannelMap = useMemo(() => {
     const map: Record<string, { count: number; total: number }> = {};
     if (channelReportData?.summary) {
@@ -219,10 +294,14 @@ export const ReportsPage: React.FC = () => {
     ) {
       setActiveTab("sales");
     }
+    if (!showTipsTab && activeTab === "tips") {
+      setActiveTab("sales");
+    }
   }, [
     isWorkshop,
     hasTwoStepSale,
     channelsVisibility.hasAnyNonMostradorChannel,
+    showTipsTab,
     activeTab,
   ]);
 
@@ -256,6 +335,7 @@ export const ReportsPage: React.FC = () => {
     refetchControl();
     refetchWorkshop();
     refetchSeller();
+    if (showTipsTab) refetchTips();
   };
 
   const isRefreshing =
@@ -263,7 +343,8 @@ export const ReportsPage: React.FC = () => {
     isFetchingProfit ||
     isFetchingControl ||
     isFetchingWorkshop ||
-    isFetchingSeller;
+    isFetchingSeller ||
+    isFetchingTips;
 
   // Estados para impresión de reportes (Ticket 257d)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -360,6 +441,25 @@ export const ReportsPage: React.FC = () => {
           user,
         });
         setReportDocument(doc);
+      } else if (activeTab === "tips") {
+        const tipsQs = buildReportQueryString(tipsQueryParams);
+        const tData =
+          tipsReportData ||
+          (await apiClient.get<PosTipsReportResponse>(`/pos/reports/tips?${tipsQs}`)).data;
+
+        const selectedWaiterObj = waiterUsers.find((w) => w.id === selectedTipWaiterId);
+        const doc = buildTipsReportDocument({
+          tipsData: tData,
+          period,
+          from: customFrom,
+          to: customTo,
+          waiterName: selectedWaiterObj?.name || null,
+          paymentMethod: selectedTipMethod || null,
+          business,
+          branchName: null,
+          user,
+        });
+        setReportDocument(doc);
       }
     } catch (err: any) {
       console.error("[ReportsPage] Error al generar documento de impresión:", err);
@@ -394,7 +494,8 @@ export const ReportsPage: React.FC = () => {
     (activeTab === "profit" && isErrorProfit ? errorProfit : null) ||
     (activeTab === "control" && isErrorControl ? errorControl : null) ||
     (activeTab === "workshop" && isErrorWorkshop ? errorWorkshop : null) ||
-    (activeTab === "sellers" && isErrorSeller ? errorSeller : null);
+    (activeTab === "sellers" && isErrorSeller ? errorSeller : null) ||
+    (activeTab === "tips" && isErrorTips ? errorTips : null);
 
   const getErrorMessage = (err: any) => {
     if (!err) return "Ocurrió un error al cargar el reporte.";
@@ -425,7 +526,9 @@ export const ReportsPage: React.FC = () => {
                     ? "Auditoría de anulaciones, devoluciones, descuentos y arqueos"
                     : activeTab === "workshop"
                       ? "Rendimiento de órdenes de taller, servicios y mecánicos"
-                      : "Rendimiento por vendedor, tickets enviados vs. cobrados y productos más vendidos"}
+                      : activeTab === "tips"
+                        ? "Propinas voluntarias por método de pago y mesero (aparte de las ventas)"
+                        : "Rendimiento por vendedor, tickets enviados vs. cobrados y productos más vendidos"}
           </p>
         </div>
 
@@ -498,8 +601,11 @@ export const ReportsPage: React.FC = () => {
             isRefreshing={isRefreshing}
           />
 
-          {/* Botón Imprimir (solo para pestañas con soporte: sales, channels, profit; Control, Vendedores y Taller NO) */}
-          {(activeTab === "sales" || activeTab === "channels" || activeTab === "profit") && (
+          {/* Botón Imprimir (sales, channels, profit, tips; Control, Vendedores y Taller NO) */}
+          {(activeTab === "sales" ||
+            activeTab === "channels" ||
+            activeTab === "profit" ||
+            activeTab === "tips") && (
             <button
               type="button"
               onClick={handleTriggerPrint}
@@ -624,6 +730,25 @@ export const ReportsPage: React.FC = () => {
               <span>Vendedores</span>
             </button>
           )}
+
+          {/* Pestaña 6: Propinas (visible si tipEnabled está activo o si hay historial de propinas) */}
+          {showTipsTab && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("tips")}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === "tips"
+                  ? "bg-gray-900 text-white shadow-2xs"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              }`}
+            >
+              <HandCoins
+                size={16}
+                weight={activeTab === "tips" ? "bold" : "regular"}
+              />
+              <span>Propinas</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -723,6 +848,21 @@ export const ReportsPage: React.FC = () => {
               sellerData={sellerData}
               period={period}
               isLoading={isLoadingSeller}
+            />
+          )}
+
+          {/* Pestaña 6: Propinas */}
+          {activeTab === "tips" && showTipsTab && (
+            <TipsReportTab
+              tipsData={tipsReportData}
+              isLoading={isLoadingTips}
+              waiterId={selectedTipWaiterId}
+              paymentMethod={selectedTipMethod}
+              waiters={waiterUsers}
+              onChangeWaiterId={setSelectedTipWaiterId}
+              onChangePaymentMethod={setSelectedTipMethod}
+              onPrint={handleTriggerPrint}
+              isPreparingPrint={isPreparingReport}
             />
           )}
         </>

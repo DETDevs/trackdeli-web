@@ -23,6 +23,8 @@ export interface PosPoliciesData {
   creditMaxInstallments?: number;
   creditAllowedFrequencies?: string;
   creditLimitOverrideRequiresApproval?: boolean;
+  tipEnabled?: boolean;
+  tipDefaultPercent?: number;
   [key: string]: any;
 }
 
@@ -71,6 +73,12 @@ export function usePosPolicies(enabled: boolean = true) {
     .map((f) => f.trim().toUpperCase())
     .filter(Boolean);
   const creditLimitOverrideRequiresApproval = policies?.creditLimitOverrideRequiresApproval !== false;
+  const tipEnabled = Boolean(policies?.tipEnabled);
+  const rawTipPercent = Number(policies?.tipDefaultPercent);
+  const tipDefaultPercent =
+    Number.isFinite(rawTipPercent) && rawTipPercent >= 1 && rawTipPercent <= 30
+      ? rawTipPercent
+      : 10;
 
   return {
     ...query,
@@ -91,5 +99,7 @@ export function usePosPolicies(enabled: boolean = true) {
     creditMaxInstallments,
     creditAllowedFrequencies,
     creditLimitOverrideRequiresApproval,
+    tipEnabled,
+    tipDefaultPercent,
   };
 }

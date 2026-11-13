@@ -15,6 +15,7 @@ import { useBackofficeCashRegisterDetail } from '../../hooks/useBackoffice';
 import { formatCurrency } from '../../utils/formatters';
 import { formatDateTime } from '../../utils/formatDate';
 import { formatDiscrepancyReason, getVisibleChannels } from '../../utils/visibleChannels';
+import { TipsSummaryBlock } from './TipsSummaryBlock';
 
 interface CashRegisterDetailModalProps {
   registerId: string | null;
@@ -301,6 +302,11 @@ export const CashRegisterDetailModal: React.FC<CashRegisterDetailModalProps> = (
                     </div>
                   </div>
                 </div>
+
+                {/* Propinas del turno (aparte de las ventas; oculto para cajero/vendedor en cierre ciego) */}
+                {reg.tipsSummary != null && (
+                  <TipsSummaryBlock tipsSummary={reg.tipsSummary} currency={currency} />
+                )}
 
                 {/* Desglose de Ventas por Canal (oculto si solo MOSTRADOR tiene ventas) */}
                 {channelsVisibility.shouldShowChannelsBlock && reg.salesByChannel && (

@@ -14,6 +14,9 @@ export interface ReportQueryParams {
   driverId?: string;
   status?: string;
   paymentMode?: string;
+  waiterId?: string;
+  paymentMethod?: string;
+  cashRegisterId?: string;
 }
 
 export interface ReportComparisonMetric {

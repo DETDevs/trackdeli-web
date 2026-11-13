@@ -743,6 +743,18 @@ export const generateReceiptHtml = (
         }
         return out;
       })()}
+      ${(() => {
+        const t = sale.tip;
+        if (!t || t.status === 'VOIDED') return '';
+        const tipBase = Number(t.amountBase ?? t.amount ?? 0);
+        if (!(tipBase > 0)) return '';
+        const totalPaid = Number(sale.total || 0) + tipBase;
+        const usdSuffix = t.currency === 'USD' ? ` (US$ ${Number(t.amount || 0).toFixed(2)})` : '';
+        return `
+          <div class="summary-row" style="margin-top: 3px;"><span>Propina (voluntaria)${escapeHtml(usdSuffix)}:</span><span>C$${tipBase.toFixed(2)}</span></div>
+          <div class="summary-row total-row"><span>TOTAL PAGADO:</span><span>C$${totalPaid.toFixed(2)}</span></div>
+        `;
+      })()}
     </div>
 
     ${paymentsText ? `
@@ -809,20 +821,37 @@ export function printReceiptViaIframe(html: string, title?: string): Promise<voi
 
     document.body.appendChild(iframe);
 
-    const cleanup = () => {
-      setTimeout(() => {
-        if (iframe.parentNode) {
-          iframe.parentNode.removeChild(iframe);
-        }
-        resolve();
-      }, 500);
+    let settled = false;
+    let removeTimer: ReturnType<typeof setTimeout> | null = null;
+    const removeIframe = () => {
+      if (removeTimer) {
+        clearTimeout(removeTimer);
+        removeTimer = null;
+      }
+      if (iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    };
+
+    const resolveOnce = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    const scheduleSafeCleanup = () => {
+      // En Android Chrome / Safari móvil cw.print() retorna de inmediato mientras
+      // el servicio de impresión lee el iframe; esperar afterprint o 60s antes de removerlo.
+      removeTimer = setTimeout(removeIframe, 60000);
+      setTimeout(resolveOnce, 400);
     };
 
     iframe.onload = () => {
       try {
         const cw = iframe.contentWindow;
         if (!cw) {
-          cleanup();
+          removeIframe();
+          resolveOnce();
           return;
         }
 
@@ -830,12 +859,14 @@ export function printReceiptViaIframe(html: string, title?: string): Promise<voi
           cw.document.title = title;
         }
 
+        cw.addEventListener('afterprint', removeIframe, { once: true });
         cw.focus();
         cw.print();
-        cleanup();
+        scheduleSafeCleanup();
       } catch (err) {
         console.error('[printReceiptViaIframe] Error al invocar print:', err);
-        cleanup();
+        removeIframe();
+        resolveOnce();
       }
     };
 
@@ -845,7 +876,8 @@ export function printReceiptViaIframe(html: string, title?: string): Promise<voi
       doc.write(html);
       doc.close();
     } else {
-      cleanup();
+      removeIframe();
+      resolveOnce();
     }
   });
 }

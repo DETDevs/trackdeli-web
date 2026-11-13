@@ -304,6 +304,20 @@ export interface BackofficeCashRegisterDetail extends BackofficeCashRegisterItem
   movements: CashRegisterMovement[];
   sales: CashRegisterSaleSummary[];
   salesByChannel?: Record<string, { count: number; total: number }>;
+  tipsSummary?: {
+    cashNio: number;
+    cashUsd: number;
+    card: number;
+    transfer: number;
+    totalBase: number;
+    byBank: Array<{
+      bankId: string | null;
+      bankName: string;
+      card: number;
+      transfer: number;
+      totalBase: number;
+    }>;
+  } | null;
 }
 
 /* =========================================================================
@@ -488,6 +502,10 @@ export const useBackofficeCashRegisterDetail = (registerId: string | null, busin
           discrepancyAuthorizedAt: reg.discrepancyAuthorizedAt ?? null,
           discrepancyAuthorizer: reg.discrepancyAuthorizer ?? null,
           salesByChannel: reg.salesByChannel ?? null,
+          tipsSummary:
+            summary.tipsSummary !== undefined
+              ? summary.tipsSummary
+              : (reg.tipsSummary !== undefined ? reg.tipsSummary : null),
           movements: (reg.movements || []).map((m: any) => ({
             id: m.id,
             type: m.type === 'SALIDA' ? 'OUT' : (m.type === 'ENTRADA' ? 'IN' : m.type),

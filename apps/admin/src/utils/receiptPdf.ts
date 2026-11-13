@@ -1,5 +1,9 @@
 import { jsPDF } from 'jspdf';
-import { type SaleResponse, uploadPosReceiptPdf } from 'api-client';
+import {
+  type SaleResponse,
+  type CashRegisterTipsSummary,
+  uploadPosReceiptPdf,
+} from 'api-client';
 import { formatCurrency } from './formatters';
 import { formatManaguaDateTime } from './dateManagua';
 import {
@@ -447,6 +451,7 @@ export interface ShiftClosePrintData {
   difference: number;
   closingCashUsd?: number | null;
   differenceUsd?: number | null;
+  tipsSummary?: CashRegisterTipsSummary | null;
   notes?: string | null;
   discrepancyReason?: string | null;
   discrepancyNote?: string | null;
@@ -565,6 +570,27 @@ export async function generateShiftClosePdfBlob(
       drawDivider(true);
       drawRow('Total ventas turno:', formatCurrency(data.totalSales), true, 9);
     }
+  }
+
+  // 5b. Propinas del turno (separadas de las ventas; omitidas en cierre ciego para cajero/vendedor)
+  if (data.tipsSummary && Number(data.tipsSummary.totalBase || 0) > 0) {
+    drawDivider();
+    centerText('PROPINAS DEL TURNO', 8.5, true);
+    cursorY += 1;
+    if (data.tipsSummary.cashNio > 0) {
+      drawRow('Efectivo C$:', formatCurrency(data.tipsSummary.cashNio));
+    }
+    if (data.tipsSummary.cashUsd > 0) {
+      drawRow('Efectivo US$:', `US$ ${Number(data.tipsSummary.cashUsd).toFixed(2)}`);
+    }
+    if (data.tipsSummary.card > 0) {
+      drawRow('Tarjeta:', formatCurrency(data.tipsSummary.card));
+    }
+    if (data.tipsSummary.transfer > 0) {
+      drawRow('Transferencia:', formatCurrency(data.tipsSummary.transfer));
+    }
+    drawDivider(true);
+    drawRow('Total propinas (base C$):', formatCurrency(data.tipsSummary.totalBase), true, 9);
   }
 
   // 6. Descuadre y autorización

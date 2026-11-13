@@ -131,6 +131,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         batches: it.batches || it.batchAllocations,
       })),
       payments: sale.payments || [],
+      tip: s.tip ?? null,
       creditAccount: sale.creditAccount,
       isVoided: Boolean(sale.isVoided || sale.status === "CANCELLED"),
     };

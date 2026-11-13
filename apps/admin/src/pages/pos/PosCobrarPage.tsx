@@ -660,6 +660,7 @@ export const PosCobrarPage: React.FC = () => {
         : `sale-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
 
     const salePayload: any = {
+      channel: 'MOSTRADOR',
       items: itemsPayload,
       subtotal: currentCalc.subtotal,
       discountAmount: currentCalc.discountAmount > 0 ? currentCalc.discountAmount : undefined,
@@ -693,6 +694,7 @@ export const PosCobrarPage: React.FC = () => {
       creditPlan: paymentData.creditPlan,
       approvalToken: paymentData.approvalToken,
       payments: paymentData.payments,
+      tip: paymentData.tip,
       clientGeneratedId: idempotencyKey,
     };
 
@@ -727,30 +729,41 @@ export const PosCobrarPage: React.FC = () => {
         return;
       }
 
-      const errCode = err?.response?.data?.code;
-      const errMsg = err?.response?.data?.message;
+      const rawData = err?.response?.data;
+      const rawMessage = rawData?.message;
+      const errCode =
+        rawData?.code ??
+        (typeof rawMessage === 'object' && rawMessage !== null ? rawMessage.code : undefined);
+      const errMsg =
+        typeof rawMessage === 'string'
+          ? rawMessage
+          : typeof rawMessage?.message === 'string'
+            ? rawMessage.message
+            : Array.isArray(rawMessage)
+              ? rawMessage.join(', ')
+              : undefined;
 
       if (errCode === 'PRICE_MISMATCH') {
         setSaleErrorMessage(
-          typeof errMsg === 'string'
-            ? errMsg
-            : 'El catálogo de precios cambió. Recargá los productos para actualizar los precios.',
+          errMsg || 'El catálogo de precios cambió. Recargá los productos para actualizar los precios.',
+        );
+      } else if (errCode === 'TIP_DISABLED') {
+        setSaleErrorMessage(errMsg || 'Las propinas están desactivadas para este negocio.');
+      } else if (errCode === 'TIP_NOT_ALLOWED_FOR_CHANNEL') {
+        setSaleErrorMessage(errMsg || 'Las propinas solo están permitidas para ventas en mostrador.');
+      } else if (err?.response?.status === 400) {
+        setSaleErrorMessage(
+          errMsg || 'Los datos de la venta o propina no son válidos. Revisá e intentá de nuevo.',
         );
       } else if (err?.response?.status === 422 || errCode === 'INSUFFICIENT_STOCK') {
         setSaleErrorMessage(
-          typeof errMsg === 'string'
-            ? errMsg
-            : 'Uno o más productos no cuentan con stock suficiente para completar la venta.',
+          errMsg || 'Uno o más productos no cuentan con stock suficiente para completar la venta.',
         );
       } else if (err?.response?.status === 409 || errCode === 'NO_OPEN_SHIFT') {
-        setSaleErrorMessage('La caja está cerrada. Debes abrir un turno para registrar ventas.');
+        setSaleErrorMessage('La caja está cerrada. Debés abrir un turno para registrar ventas.');
         refetchShift();
       } else {
-        setSaleErrorMessage(
-          typeof errMsg === 'string'
-            ? errMsg
-            : 'No se pudo completar la venta. Revisá los datos ingresados.',
-        );
+        setSaleErrorMessage(errMsg || 'No se pudo completar la venta. Revisá los datos ingresados.');
       }
     } finally {
       setIsSubmittingSale(false);
@@ -1133,6 +1146,7 @@ export const PosCobrarPage: React.FC = () => {
         isOpen={isCartDrawerOpen}
         onClose={() => setIsCartDrawerOpen(false)}
         onProceedToPayment={() => {
+          setSaleErrorMessage(null);
           setIsCartDrawerOpen(false);
           setIsPaymentModalOpen(true);
         }}
@@ -1141,7 +1155,10 @@ export const PosCobrarPage: React.FC = () => {
       {/* Modal de Cobro Completo */}
       <PaymentModal
         isOpen={isPaymentModalOpen}
-        onClose={() => setIsPaymentModalOpen(false)}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setSaleErrorMessage(null);
+        }}
         total={total}
         subtotal={subtotal}
         discountAmount={discountAmount}
@@ -1155,6 +1172,7 @@ export const PosCobrarPage: React.FC = () => {
         }}
         userRole={user?.role}
         carteraActive={Boolean((user as any)?.business?.hasCarteraCobro || (businessData as any)?.products?.CARTERA_COBRO || true)}
+        channel="MOSTRADOR"
       />
 
       {/* Modal de Apertura de Caja */}
@@ -1183,6 +1201,7 @@ export const PosCobrarPage: React.FC = () => {
           openedAt: openedAt || new Date().toISOString(),
           openingCash: Number(statusData?.shift?.openingCash ?? statusData?.shift?.initialAmount ?? 0),
           expectedCash: Number(statusData?.shift?.expectedCash ?? statusData?.shift?.openingCash ?? 0),
+          tipsSummary: statusData?.shift?.tipsSummary ?? null,
         }}
         policies={{
           blindCashClose,

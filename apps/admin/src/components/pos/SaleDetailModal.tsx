@@ -18,6 +18,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   getMyBusiness,
+  getPosSaleById,
   getPosSaleReceipt,
   type SaleResponse,
 } from "api-client";
@@ -71,6 +72,15 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
     staleTime: 5 * 60 * 1000,
   });
 
+  // Consulta complementaria de venta POS para obtener propina (el endpoint de backoffice la omite)
+  const { data: posSaleData } = useQuery({
+    queryKey: ["pos", "sale", saleId],
+    queryFn: () => getPosSaleById(saleId!),
+    enabled: Boolean(saleId),
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isSharingPdf, setIsSharingPdf] = useState(false);
@@ -121,9 +131,10 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
         listPrice: it.listPrice,
       })),
       payments: sale.payments || [],
+      tip: posSaleData?.tip ?? s.tip ?? null,
       isVoided: Boolean(sale.isVoided || sale.status === "CANCELLED"),
     } as SaleResponse;
-  }, [sale]);
+  }, [sale, posSaleData]);
 
   const isReceiptWorking = isDownloadingPdf || isSharingPdf || isPreparingLink;
   const isVoided = Boolean(sale?.isVoided || sale?.status === "CANCELLED");
@@ -649,10 +660,45 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
 
                   <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-sm font-bold text-gray-900">
                     <span>Total:</span>
-                    <span className="text-base text-gray-900">
+                    <span className="text-base text-gray-900 whitespace-nowrap tabular-nums">
                       {formatCurrency(sale.netTotal, currency)}
                     </span>
                   </div>
+
+                  {adaptedSale?.tip &&
+                    adaptedSale.tip.status !== "VOIDED" &&
+                    Number(adaptedSale.tip.amountBase ?? adaptedSale.tip.amount ?? 0) > 0 && (() => {
+                      const tipBase = Number(
+                        adaptedSale.tip!.amountBase ?? adaptedSale.tip!.amount ?? 0,
+                      );
+                      const tipMethodLabel =
+                        adaptedSale.tip!.paymentMethod === "TARJETA"
+                          ? "Tarjeta"
+                          : adaptedSale.tip!.paymentMethod === "TRANSFERENCIA"
+                            ? "Transferencia"
+                            : "Efectivo";
+                      return (
+                        <div className="pt-2 border-t border-gray-200 space-y-1.5">
+                          <div className="flex flex-wrap justify-between items-center gap-2 text-xs font-semibold text-amber-800">
+                            <span>
+                              Propina (voluntaria) · {tipMethodLabel}
+                              {adaptedSale.tip!.currency === "USD"
+                                ? ` (US$ ${Number(adaptedSale.tip!.amount || 0).toFixed(2)})`
+                                : ""}
+                            </span>
+                            <span className="whitespace-nowrap tabular-nums">
+                              {formatCurrency(tipBase, currency)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm font-black text-gray-900">
+                            <span>TOTAL PAGADO:</span>
+                            <span className="whitespace-nowrap tabular-nums">
+                              {formatCurrency(Number(sale.netTotal || 0) + tipBase, currency)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                   <div className="flex justify-between text-[11px] text-gray-500 pt-1">
                     <span>

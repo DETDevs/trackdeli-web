@@ -18,10 +18,11 @@ import {
   getPosBanks,
   type PosBankItem,
   type CreateSalePaymentPayload,
+  type CreateSaleTipPayload,
   type CreditPlanPayload,
 } from 'api-client';
 import { formatCurrency } from '../../../utils/formatters';
-import type { CalculatedSaleSummary } from '../../../utils/saleCalculation';
+import { calculateTipFromTotal, type CalculatedSaleSummary } from '../../../utils/saleCalculation';
 import { usePosPolicies } from '../../../hooks/usePosPolicies';
 import {
   computeCreditPlanPreview,
@@ -51,6 +52,7 @@ export interface FinalPaymentSubmission {
   creditPlan?: CreditPlanPayload;
   approvalToken?: string;
   payments: CreateSalePaymentPayload[];
+  tip?: CreateSaleTipPayload;
   clientGeneratedId: string;
 }
 
@@ -67,6 +69,7 @@ interface PaymentModalProps {
   onReloadProducts?: () => void;
   userRole?: string;
   carteraActive?: boolean;
+  channel?: string;
 }
 
 interface MixedPaymentLine {
@@ -90,6 +93,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onReloadProducts,
   userRole = 'CAJERO',
   carteraActive = true,
+  channel = 'MOSTRADOR',
 }) => {
   const {
     enabledPaymentMethods,
@@ -103,6 +107,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     creditMaxInstallments,
     creditAllowedFrequencies,
     creditLimitOverrideRequiresApproval,
+    tipEnabled,
+    tipDefaultPercent,
   } = usePosPolicies(isOpen);
 
   // Cliente seleccionado (por defecto Consumidor final)
@@ -157,7 +163,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   // Clave de Idempotencia por intento (se mantiene en reintentos mientras el modal esté abierto)
   const idempotencyKeyRef = useRef<string>('');
 
+  // Propina voluntaria
+  const [tipMode, setTipMode] = useState<'NONE' | 'PERCENT' | 'CUSTOM'>('NONE');
+  const [tipMethod, setTipMethod] = useState<'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA'>('EFECTIVO');
+  const [tipCurrency, setTipCurrency] = useState<'NIO' | 'USD'>('NIO');
+  const [tipCustomAmountStr, setTipCustomAmountStr] = useState<string>('');
+  const [tipBankId, setTipBankId] = useState<string>('');
+  const [tipReference, setTipReference] = useState<string>('');
+
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const tipBlockedByChannel = ['PEDIDOSYA', 'DOMICILIO', 'WHATSAPP'].includes(channel);
+  const canOfferTip = Boolean(tipEnabled && !tipBlockedByChannel);
 
   // Inicializar estado cuando se abre el modal
   useEffect(() => {
@@ -175,18 +192,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setLocalError(null);
       setApprovalToken(null);
       setCreditPrimaStr('0');
+      setTipMode('NONE');
+      setTipMethod('EFECTIVO');
+      setTipCurrency('NIO');
+      setTipCustomAmountStr('');
+      setTipBankId('');
+      setTipReference('');
 
-      // Si multimoneda está activa, cargar tasa de cambio
-      if (multiCurrencyEnabled) {
-        
+      // Si multimoneda o propina están activas, cargar tasa de cambio
+      if (multiCurrencyEnabled || tipEnabled) {
         getPosExchangeRate()
           .then((rateData) => {
             if (rateData && typeof rateData.rate === 'number') {
               setExchangeRate(rateData.rate);
             }
           })
-          .catch(() => {})
-          ;
+          .catch(() => {});
       }
 
       // Cargar bancos si se requieren
@@ -195,6 +216,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           setBanks(bList || []);
           if (bList && bList.length > 0) {
             setSelectedBankId(bList[0].id);
+            setTipBankId(bList[0].id);
           }
         })
         .catch(() => {});
@@ -224,7 +246,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       // Limpiar clave cuando se cierra
       idempotencyKeyRef.current = '';
     }
-  }, [isOpen, total, multiCurrencyEnabled]);
+  }, [isOpen, total, multiCurrencyEnabled, tipEnabled]);
 
   // Actualizar primera fecha de pago de crédito cuando cambia la frecuencia
   useEffect(() => {
@@ -238,6 +260,32 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const totalInUsd = useMemo(() => {
     return Math.ceil((total / exchangeRate) * 100) / 100;
   }, [total, exchangeRate]);
+
+  // Cálculos de propina voluntaria (siempre separada de payments[])
+  const tipPercentAmountNio = useMemo(() => {
+    return calculateTipFromTotal(total, tipDefaultPercent);
+  }, [total, tipDefaultPercent]);
+
+  const effectiveTipCurrency: 'NIO' | 'USD' =
+    tipMode === 'CUSTOM' && tipMethod === 'EFECTIVO' ? tipCurrency : 'NIO';
+
+  const parsedCustomTipAmount = useMemo(() => {
+    const val = parseFloat(tipCustomAmountStr);
+    return Number.isFinite(val) ? val : 0;
+  }, [tipCustomAmountStr]);
+
+  const tipPreviewNio = useMemo(() => {
+    if (!canOfferTip || tipMode === 'NONE') return 0;
+    if (tipMode === 'PERCENT') return tipPercentAmountNio;
+    if (parsedCustomTipAmount <= 0) return 0;
+    if (effectiveTipCurrency === 'USD') {
+      return Math.round(parsedCustomTipAmount * exchangeRate * 100) / 100;
+    }
+    return Math.round(parsedCustomTipAmount * 100) / 100;
+  }, [canOfferTip, tipMode, tipPercentAmountNio, parsedCustomTipAmount, effectiveTipCurrency, exchangeRate]);
+
+  const isTipCustomInvalid = canOfferTip && tipMode === 'CUSTOM' && parsedCustomTipAmount <= 0;
+  const totalWithTip = Math.round((total + tipPreviewNio) * 100) / 100;
 
   // Monto recibido
   const amountTendered = useMemo(() => {
@@ -408,6 +456,46 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           : `pos-${Date.now()}`;
     }
 
+    // Validación de propina voluntaria (nunca se mezcla con payments[])
+    let tipPayload: CreateSaleTipPayload | undefined = undefined;
+    if (canOfferTip && tipMode !== 'NONE') {
+      const cleanBankId =
+        (tipMethod === 'TARJETA' || tipMethod === 'TRANSFERENCIA') && tipBankId
+          ? tipBankId
+          : undefined;
+      const cleanRef =
+        (tipMethod === 'TARJETA' || tipMethod === 'TRANSFERENCIA') && tipReference.trim()
+          ? tipReference.trim()
+          : undefined;
+
+      if (tipMode === 'PERCENT') {
+        if (tipPercentAmountNio > 0) {
+          tipPayload = {
+            mode: 'PERCENT',
+            percent: tipDefaultPercent,
+            currency: 'NIO',
+            paymentMethod: tipMethod,
+            bankId: cleanBankId,
+            reference: cleanRef,
+          };
+        }
+      } else if (tipMode === 'CUSTOM') {
+        if (!Number.isFinite(parsedCustomTipAmount) || parsedCustomTipAmount <= 0) {
+          setLocalError('Ingresá un monto de propina mayor a cero.');
+          return;
+        }
+        tipPayload = {
+          mode: 'CUSTOM',
+          amount: Math.round(parsedCustomTipAmount * 100) / 100,
+          currency: effectiveTipCurrency,
+          exchangeRate: effectiveTipCurrency === 'USD' ? exchangeRate : undefined,
+          paymentMethod: tipMethod,
+          bankId: cleanBankId,
+          reference: cleanRef,
+        };
+      }
+    }
+
     // 1. Validaciones Pago Mixto
     if (activeTab === 'MIXTO') {
       if (!mixedSummary.isCovered) {
@@ -456,6 +544,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         customerRuc: selectedCustomer.ruc || undefined,
         notes: notes.trim() || undefined,
         payments: paymentsPayload,
+        tip: tipPayload,
         clientGeneratedId: idempotencyKeyRef.current,
       };
 
@@ -562,6 +651,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       creditPlan: creditPlanPayload,
       approvalToken: approvalToken || undefined,
       payments: [paymentLine],
+      tip: tipPayload,
       clientGeneratedId: idempotencyKeyRef.current,
     };
 
@@ -603,14 +693,25 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* Display de Total */}
           <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 text-center">
             <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block mb-0.5">
-              {calcSummary && calcSummary.taxAmount > 0 ? 'Total a cobrar (con IVA)' : 'Total a cobrar'}
+              {calcSummary && calcSummary.taxAmount > 0
+                ? 'Total de la venta (con IVA)'
+                : 'Total de la venta'}
             </span>
-            <div className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight">
+            <div className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight tabular-nums whitespace-nowrap">
               {formatCurrency(total)}
             </div>
+            {tipPreviewNio > 0 && (
+              <div className="mt-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 tabular-nums">
+                <span>+ Propina: {formatCurrency(tipPreviewNio)}</span>
+                <span className="text-amber-500">•</span>
+                <span className="text-emerald-950 font-black">
+                  Total a cobrar: {formatCurrency(totalWithTip)}
+                </span>
+              </div>
+            )}
             {multiCurrencyEnabled && (
-              <div className="text-xs text-emerald-900/80 font-bold mt-1 inline-flex items-center gap-1.5 bg-emerald-100/60 px-2.5 py-0.5 rounded-lg border border-emerald-200/60">
-                <span>Equivalente: US$ {totalInUsd.toFixed(2)}</span>
+              <div className="text-xs text-emerald-900/80 font-bold mt-1.5 inline-flex items-center gap-1.5 bg-emerald-100/60 px-2.5 py-0.5 rounded-lg border border-emerald-200/60">
+                <span>Equivalente venta: US$ {totalInUsd.toFixed(2)}</span>
                 <span className="text-gray-400">•</span>
                 <span className="text-xs font-medium text-emerald-800">
                   Tasa: C$ {exchangeRate.toFixed(2)}
@@ -1282,6 +1383,209 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           )}
 
+          {/* Sección Propina voluntaria (aparte del total de la venta) */}
+          {canOfferTip && (
+            <div className="p-3.5 bg-amber-50/50 border border-amber-200/80 rounded-2xl space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-xs font-bold text-gray-900">
+                  Propina (voluntaria)
+                </label>
+                {tipPreviewNio > 0 && (
+                  <span className="text-xs font-extrabold text-amber-800 tabular-nums whitespace-nowrap">
+                    + {formatCurrency(tipPreviewNio)}
+                    {effectiveTipCurrency === 'USD' && parsedCustomTipAmount > 0
+                      ? ` (US$ ${parsedCustomTipAmount.toFixed(2)})`
+                      : ''}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTipMode('NONE')}
+                  className={`min-h-[44px] px-2.5 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                    tipMode === 'NONE'
+                      ? 'bg-gray-900 text-white border-gray-900 shadow-xs'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  Sin propina
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipMode('PERCENT');
+                    setTipCurrency('NIO');
+                  }}
+                  className={`min-h-[44px] px-2 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer flex flex-col items-center justify-center leading-tight ${
+                    tipMode === 'PERCENT'
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                      : 'bg-white text-gray-800 border-gray-200 hover:bg-amber-50'
+                  }`}
+                >
+                  <span>{tipDefaultPercent} %</span>
+                  <span
+                    className={`text-xs font-medium tabular-nums whitespace-nowrap ${
+                      tipMode === 'PERCENT' ? 'text-amber-100' : 'text-gray-500'
+                    }`}
+                  >
+                    {formatCurrency(tipPercentAmountNio)}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipMode('CUSTOM')}
+                  className={`min-h-[44px] px-2.5 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                    tipMode === 'CUSTOM'
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                      : 'bg-white text-gray-800 border-gray-200 hover:bg-amber-50'
+                  }`}
+                >
+                  Otro monto
+                </button>
+              </div>
+
+              {tipMode !== 'NONE' && (
+                <div className="space-y-2.5 pt-1 border-t border-amber-200/70">
+                  {tipMode === 'CUSTOM' && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex-1 min-w-[140px]">
+                        <label
+                          htmlFor="tip-custom-amount"
+                          className="block text-xs font-semibold text-gray-700 mb-1"
+                        >
+                          Monto de propina ({effectiveTipCurrency === 'USD' ? 'US$' : 'C$'})
+                        </label>
+                        <input
+                          id="tip-custom-amount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={tipCustomAmountStr}
+                          onChange={(e) => setTipCustomAmountStr(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-900 tabular-nums focus:outline-hidden focus:border-amber-600 min-h-[44px]"
+                        />
+                      </div>
+
+                      <div>
+                        <span className="block text-xs font-semibold text-gray-700 mb-1">
+                          Moneda
+                        </span>
+                        <div className="inline-flex rounded-xl border border-gray-300 bg-white overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setTipCurrency('NIO')}
+                            className={`min-h-[44px] px-3 text-xs font-bold cursor-pointer ${
+                              effectiveTipCurrency === 'NIO'
+                                ? 'bg-gray-900 text-white'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            C$
+                          </button>
+                          <button
+                            type="button"
+                            disabled={tipMethod !== 'EFECTIVO'}
+                            onClick={() => setTipCurrency('USD')}
+                            title={
+                              tipMethod !== 'EFECTIVO'
+                                ? 'La propina en US$ solo se acepta en efectivo'
+                                : 'Propina en dólares'
+                            }
+                            className={`min-h-[44px] px-3 text-xs font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                              effectiveTipCurrency === 'USD'
+                                ? 'bg-gray-900 text-white'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            US$
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {effectiveTipCurrency === 'USD' && parsedCustomTipAmount > 0 && (
+                    <p className="text-xs text-gray-600 tabular-nums">
+                      Equivale a {formatCurrency(tipPreviewNio)} (tasa C$ {exchangeRate.toFixed(2)})
+                    </p>
+                  )}
+
+                  <div>
+                    <span className="block text-xs font-semibold text-gray-700 mb-1">
+                      Método de pago de la propina
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                        [
+                          { id: 'EFECTIVO', label: 'Efectivo' },
+                          { id: 'TARJETA', label: 'Tarjeta' },
+                          { id: 'TRANSFERENCIA', label: 'Transferencia' },
+                        ] as const
+                      ).map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            setTipMethod(m.id);
+                            if (m.id !== 'EFECTIVO') {
+                              setTipCurrency('NIO');
+                            }
+                          }}
+                          className={`min-h-[44px] px-2 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                            tipMethod === m.id
+                              ? 'bg-gray-900 text-white border-gray-900'
+                              : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {(tipMethod === 'TARJETA' || tipMethod === 'TRANSFERENCIA') && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {banks.length > 0 && (
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
+                            Banco (opcional)
+                          </label>
+                          <select
+                            value={tipBankId}
+                            onChange={(e) => setTipBankId(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-medium text-gray-900 min-h-[44px]"
+                          >
+                            <option value="">Sin especificar</option>
+                            {banks.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Referencia (opcional)
+                        </label>
+                        <input
+                          type="text"
+                          value={tipReference}
+                          onChange={(e) => setTipReference(e.target.value)}
+                          placeholder="Número de voucher o ref."
+                          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs text-gray-900 min-h-[44px]"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Notas de la Venta */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
@@ -1296,12 +1600,37 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             />
           </div>
 
+          {/* Resumen final cuando aplica propina */}
+          {canOfferTip && (
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-1 text-xs">
+              <div className="flex items-center justify-between gap-2 text-gray-700">
+                <span>Total de la venta</span>
+                <span className="font-bold text-gray-900 tabular-nums whitespace-nowrap">
+                  {formatCurrency(total)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-gray-700">
+                <span>Propina (voluntaria)</span>
+                <span className="font-bold text-amber-800 tabular-nums whitespace-nowrap">
+                  {formatCurrency(tipPreviewNio)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-200 text-sm font-black text-emerald-900">
+                <span>Total a cobrar</span>
+                <span className="tabular-nums whitespace-nowrap">
+                  {formatCurrency(totalWithTip)}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Botón de confirmar cobro */}
           <div className="pt-2">
             <button
               type="submit"
               disabled={
                 isSubmitting ||
+                isTipCustomInvalid ||
                 (activeTab === 'SIMPLE' && singleMethod === 'EFECTIVO' && isSingleShort) ||
                 (activeTab === 'SIMPLE' && singleMethod === 'CREDITO' && !creditValidation.valid) ||
                 (activeTab === 'MIXTO' && !mixedSummary.isCovered)
@@ -1314,7 +1643,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <span>Cobrando...</span>
                 </>
               ) : (
-                <span>Confirmar y Cobrar {formatCurrency(total)}</span>
+                <span className="tabular-nums whitespace-nowrap">
+                  Confirmar y cobrar {formatCurrency(totalWithTip)}
+                </span>
               )}
             </button>
           </div>

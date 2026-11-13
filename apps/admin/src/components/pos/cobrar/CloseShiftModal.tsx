@@ -14,8 +14,10 @@ import {
 import {
   type CloseCashRegisterDto,
   type DenominationItemDto,
+  type CashRegisterTipsSummary,
 } from 'api-client';
 import { formatCurrency } from '../../../utils/formatters';
+import { TipsSummaryBlock } from '../TipsSummaryBlock';
 import {
   downloadShiftClosePdf,
   type ShiftClosePrintData,
@@ -32,6 +34,7 @@ interface CloseShiftModalProps {
     openedAt: string;
     openingCash?: number;
     expectedCash?: number;
+    tipsSummary?: CashRegisterTipsSummary | null;
     [key: string]: any;
   } | null;
   policies: {
@@ -212,6 +215,15 @@ export const CloseShiftModal: React.FC<CloseShiftModalProps> = ({
 
       const result = await onCloseShift(payload);
 
+      const closedTipsSummary: CashRegisterTipsSummary | null =
+        result?.closingBreakdown && 'tipsSummary' in result.closingBreakdown
+          ? result.closingBreakdown.tipsSummary ?? null
+          : result && 'tipsSummary' in result
+            ? result.tipsSummary ?? null
+            : !isBlind
+              ? currentShift?.tipsSummary ?? null
+              : null;
+
       // Preparar datos para reporte PDF
       const printData: ShiftClosePrintData = {
         shiftId: currentShift?.shiftId || currentShift?.id || 'TURNO',
@@ -223,6 +235,7 @@ export const CloseShiftModal: React.FC<CloseShiftModalProps> = ({
         closingCash: effectiveClosingCash,
         difference: result?.difference ?? difference,
         closingCashUsd: policies.multiCurrencyEnabled ? effectiveClosingCashUsd : undefined,
+        tipsSummary: closedTipsSummary,
         notes: notes.trim() || null,
         discrepancyReason: hasDiscrepancy ? discrepancyReason : null,
         discrepancyNote: hasDiscrepancy ? discrepancyNote.trim() : null,
@@ -252,7 +265,7 @@ export const CloseShiftModal: React.FC<CloseShiftModalProps> = ({
   if (closedResultData) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none">
-        <div className="bg-white rounded-3xl w-full max-w-md p-6 text-center space-y-5 shadow-2xl border border-gray-200">
+        <div className="bg-white rounded-3xl w-full max-w-md max-h-[92vh] overflow-y-auto p-6 text-center space-y-5 shadow-2xl border border-gray-200">
           <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100">
             <CheckCircle size={36} weight="duotone" />
           </div>
@@ -297,6 +310,10 @@ export const CloseShiftModal: React.FC<CloseShiftModalProps> = ({
               </span>
             </div>
           </div>
+
+          {closedResultData.tipsSummary != null && (
+            <TipsSummaryBlock tipsSummary={closedResultData.tipsSummary} compact />
+          )}
 
           <div className="space-y-2 pt-1">
             <button
@@ -371,11 +388,16 @@ export const CloseShiftModal: React.FC<CloseShiftModalProps> = ({
               )}
             </div>
           ) : (
-            <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between text-xs text-gray-700">
-              <span className="text-gray-500">Efectivo esperado según ventas:</span>
-              <span className="font-mono font-bold text-gray-900">
-                {formatCurrency(expectedCash)}
-              </span>
+            <div className="space-y-3">
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between text-xs text-gray-700">
+                <span className="text-gray-500">Efectivo esperado según ventas:</span>
+                <span className="font-mono font-bold text-gray-900">
+                  {formatCurrency(expectedCash)}
+                </span>
+              </div>
+              {currentShift?.tipsSummary != null && (
+                <TipsSummaryBlock tipsSummary={currentShift.tipsSummary} compact />
+              )}
             </div>
           )}
 

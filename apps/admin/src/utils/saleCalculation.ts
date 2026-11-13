@@ -282,3 +282,13 @@ export function calculateSaleTotals(
     lines,
   };
 }
+
+/**
+ * Calcula la previsualización de propina porcentual en centavos con la misma fórmula exacta del API.
+ */
+export function calculateTipFromTotal(total: number, percent: number): number {
+  const totalCents = Math.round(Number(total || 0) * 100);
+  const percentBps = Math.round(Number(percent || 0) * 100);
+  if (totalCents <= 0 || percentBps <= 0) return 0;
+  return Math.round((totalCents * percentBps) / 10000) / 100;
+}

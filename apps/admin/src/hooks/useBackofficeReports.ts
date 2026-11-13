@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from 'api-client';
+import { apiClient, type PosTipsReportResponse } from 'api-client';
 import {
   ReportsSummary,
   SalesByTimeReport,
@@ -45,6 +45,15 @@ export const buildReportQueryString = (params: ReportQueryParams) => {
   }
   if (params.paymentMode) {
     query.set('paymentMode', params.paymentMode);
+  }
+  if (params.waiterId) {
+    query.set('waiterId', params.waiterId);
+  }
+  if (params.paymentMethod) {
+    query.set('paymentMethod', params.paymentMethod);
+  }
+  if (params.cashRegisterId) {
+    query.set('cashRegisterId', params.cashRegisterId);
   }
   return query.toString();
 };
@@ -361,5 +370,22 @@ export const downloadReportCsv = async (
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(downloadUrl);
+};
+
+/**
+ * Hook para el reporte de Propinas voluntarias (GET /pos/reports/tips)
+ */
+export const useTipsReport = (params: ReportQueryParams, enabled = true) => {
+  return useQuery<PosTipsReportResponse>({
+    queryKey: ['pos-reports', 'tips', params],
+    queryFn: async () => {
+      const qs = buildReportQueryString(params);
+      const res = await apiClient.get<PosTipsReportResponse>(`/pos/reports/tips?${qs}`);
+      return res.data;
+    },
+    enabled,
+    staleTime: 30000,
+    retry: 1,
+  });
 };
 

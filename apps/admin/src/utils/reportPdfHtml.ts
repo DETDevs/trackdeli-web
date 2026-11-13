@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import {
   ReportChartTableSection,
   ReportDocument,
@@ -13,6 +14,14 @@ import {
   DEFAULT_REPORT_FOOTER_TEXT,
   sanitizeForbiddenPrintTerms,
 } from './reportHelpers';
+
+if (typeof window !== 'undefined') {
+  (window as any).html2canvas = html2canvas;
+}
+
+function stripNonWinAnsiEmojis(text: string): string {
+  return text.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, '').replace(/\s{2,}/g, ' ').trim();
+}
 
 function escapeHtml(text: string | null | undefined): string {
   if (!text) return '';
@@ -530,9 +539,15 @@ export function buildReportPdfHtml(doc: ReportDocument): string {
       page-break-inside: avoid;
       break-inside: avoid;
     }
+    @media screen {
+      body {
+        padding: 18px 20px;
+      }
+    }
     @media print {
       body {
         background: transparent !important;
+        padding: 0;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
@@ -616,20 +631,37 @@ export function printReportHtmlViaIframe(html: string, title?: string): Promise<
 
     document.body.appendChild(iframe);
 
-    const cleanup = () => {
-      setTimeout(() => {
-        if (iframe.parentNode) {
-          iframe.parentNode.removeChild(iframe);
-        }
-        resolve();
-      }, 500);
+    let settled = false;
+    let removeTimer: ReturnType<typeof setTimeout> | null = null;
+    const removeIframe = () => {
+      if (removeTimer) {
+        clearTimeout(removeTimer);
+        removeTimer = null;
+      }
+      if (iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
     };
 
-    iframe.onload = () => {
+    const resolveOnce = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    const scheduleSafeCleanup = () => {
+      // En móviles/Android cw.print() es asíncrono y el spooler de impresión lee el iframe
+      // durante varios segundos; evitar destruirlo a los 500ms.
+      removeTimer = setTimeout(removeIframe, 60000);
+      setTimeout(resolveOnce, 400);
+    };
+
+    const triggerPrint = () => {
       try {
         const cw = iframe.contentWindow;
         if (!cw) {
-          cleanup();
+          removeIframe();
+          resolveOnce();
           return;
         }
 
@@ -637,14 +669,18 @@ export function printReportHtmlViaIframe(html: string, title?: string): Promise<
           cw.document.title = title;
         }
 
+        cw.addEventListener('afterprint', removeIframe, { once: true });
         cw.focus();
         cw.print();
-        cleanup();
+        scheduleSafeCleanup();
       } catch (err) {
         console.error('[printReportHtmlViaIframe] Error al invocar print:', err);
-        cleanup();
+        removeIframe();
+        resolveOnce();
       }
     };
+
+    iframe.onload = triggerPrint;
 
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
     if (doc) {
@@ -652,23 +688,124 @@ export function printReportHtmlViaIframe(html: string, title?: string): Promise<
       doc.write(html);
       doc.close();
     } else {
-      cleanup();
+      removeIframe();
+      resolveOnce();
     }
   });
 }
 
+function buildIsolatedReportDom(html: string, targetPx: number): {
+  wrapper: HTMLDivElement;
+  container: HTMLDivElement;
+} {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const styleEl = parsed.querySelector('style');
+  let scopedCss = styleEl ? styleEl.textContent || '' : '';
+
+  // Encapsular estilos al contenedor para evitar fugas CSS hacia/desde Tailwind
+  scopedCss = scopedCss
+    .replace(/@page\s*\{[\s\S]*?\}/g, '')
+    .replace(/(^|[\s,}])body(?=[\s,{:])/gi, '$1.report-pdf-root')
+    .replace(/^\s*\*\s*\{/gm, '.report-pdf-root, .report-pdf-root * {');
+
+  // El HTML incluye .doc-footer ("Página 1") para ventana de impresión del navegador;
+  // en PDF generado por jsPDF estampamos el paginado real ("Página X de Y") en cada hoja.
+  // Usar Arial/Helvetica en .report-pdf-root coincide métricamente con las fuentes estándar de jsPDF
+  // para evitar palabras pegadas en negrita o recortes en texto alineado a la derecha.
+  scopedCss += `
+    .report-pdf-root {
+      width: ${targetPx - 8}px;
+      background: #FFFFFF;
+      color: #111827;
+      padding: 0 4px 0 0 !important;
+      margin: 0 !important;
+      font-family: Arial, Helvetica, sans-serif !important;
+    }
+    .report-pdf-root .kv-value,
+    .report-pdf-root .cell-mono,
+    .report-pdf-root .sub-row-right {
+      font-family: 'Courier New', Courier, monospace !important;
+    }
+    .report-pdf-root .doc-footer {
+      display: none !important;
+    }
+  `;
+
+  // Contenedor anclado dentro del viewport (nunca left:-9999px, porque html2canvas clona
+  // estilos computados del nodo y desplazaría todo el contenido fuera del lienzo -> PDF blanco).
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.left = '0';
+  wrapper.style.top = '0';
+  wrapper.style.width = `${targetPx}px`;
+  wrapper.style.height = '0';
+  wrapper.style.overflow = 'hidden';
+  wrapper.style.pointerEvents = 'none';
+  wrapper.style.zIndex = '-1';
+  wrapper.style.background = '#FFFFFF';
+
+  const container = document.createElement('div');
+  container.className = 'report-pdf-root';
+  container.innerHTML = `<style>${scopedCss}</style>${parsed.body.innerHTML}`;
+
+  wrapper.appendChild(container);
+  document.body.appendChild(wrapper);
+
+  return { wrapper, container };
+}
+
+async function waitForReportImages(container: HTMLElement): Promise<void> {
+  const imgs = Array.from(container.querySelectorAll('img'));
+  if (imgs.length === 0) return;
+
+  await Promise.all(
+    imgs.map((img) => {
+      const src = img.getAttribute('src') || '';
+      if (src && !src.startsWith('data:') && !src.startsWith('blob:')) {
+        img.crossOrigin = 'anonymous';
+        // Reasignar src fuerza recarga CORS si ya estaba en caché sin CORS headers
+        img.src = src;
+      }
+
+      if (img.complete && img.naturalWidth > 0) {
+        return Promise.resolve();
+      }
+
+      return new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          resolve();
+        }, 4000);
+        img.onload = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        img.onerror = () => {
+          clearTimeout(timer);
+          // Evitar que una imagen fallida rompa la captura de html2canvas
+          img.style.display = 'none';
+          resolve();
+        };
+      });
+    })
+  );
+}
+
 /**
- * Genera y descarga el archivo PDF en hoja carta usando jsPDF.
+ * Genera el Blob PDF en hoja carta usando jsPDF + html2canvas desde un DOM aislado.
  * Pagina el documento y estampa "Página X de Y" y la leyenda institucional en cada hoja.
  */
-export async function downloadReportPdfDocument(
-  doc: ReportDocument,
-  previewElement?: HTMLElement | null
-): Promise<void> {
-  const filename = buildSuggestedReportPdfName(doc);
+export async function generateReportPdfBlob(doc: ReportDocument): Promise<Blob> {
+  if (typeof window !== 'undefined' && !(window as any).html2canvas) {
+    (window as any).html2canvas = html2canvas;
+  }
 
-  // Si se provee el elemento visual del preview, usamos doc.html con html2canvas integrado
-  if (previewElement) {
+  const html = buildReportPdfHtml(doc);
+  const targetPx = 794; // 794px ≈ 210mm a 96 DPI; escala limpia para hoja carta
+  const { wrapper, container } = buildIsolatedReportDom(html, targetPx);
+
+  try {
+    await waitForReportImages(container);
+
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -677,16 +814,25 @@ export async function downloadReportPdfDocument(
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 15;
-    const contentWidth = pageWidth - margin * 2;
+    const marginTop = 14;
+    const marginRight = 14;
+    const marginBottom = 18;
+    const marginLeft = 14;
+    const contentWidth = pageWidth - marginLeft - marginRight;
+    const footerText = stripNonWinAnsiEmojis(doc.footerText || DEFAULT_REPORT_FOOTER_TEXT);
 
-    await new Promise<void>((resolve, reject) => {
-      pdf.html(previewElement, {
-        x: margin,
-        y: margin,
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      pdf.html(container, {
+        margin: [marginTop, marginRight, marginBottom, marginLeft],
         width: contentWidth,
-        windowWidth: 794, // 794px es el ancho estándar de hoja carta a 96 DPI
+        windowWidth: targetPx,
         autoPaging: 'text',
+        html2canvas: {
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#FFFFFF',
+          logging: false,
+        },
         callback: (generatedPdf) => {
           try {
             const totalPages = generatedPdf.getNumberOfPages();
@@ -696,32 +842,51 @@ export async function downloadReportPdfDocument(
               generatedPdf.setTextColor(107, 114, 128); // #6B7280
 
               // Pie de página institucional y numeración Página X de Y
-              const footerY = pageHeight - 8;
-              generatedPdf.text(
-                doc.footerText || DEFAULT_REPORT_FOOTER_TEXT,
-                margin,
-                footerY
-              );
+              const footerY = pageHeight - 9;
+              generatedPdf.text(footerText, marginLeft, footerY);
               generatedPdf.text(
                 `Página ${i} de ${totalPages}`,
-                pageWidth - margin,
+                pageWidth - marginRight,
                 footerY,
                 { align: 'right' }
               );
             }
-            generatedPdf.save(filename);
-            resolve();
+            resolve(generatedPdf.output('blob'));
           } catch (e) {
             reject(e);
           }
         },
       });
     });
-    return;
-  }
 
-  // Si no hay elemento DOM de preview, usamos el renderizado mediante iframe para guardar/imprimir
-  const html = buildReportPdfHtml(doc);
-  await printReportHtmlViaIframe(html, filename.replace(/\.pdf$/, ''));
+    return blob;
+  } finally {
+    if (wrapper.parentNode) {
+      wrapper.parentNode.removeChild(wrapper);
+    }
+  }
+}
+
+/**
+ * Genera y descarga el archivo PDF en hoja carta usando jsPDF.
+ * Pagina el documento y estampa "Página X de Y" y la leyenda institucional en cada hoja.
+ */
+export async function downloadReportPdfDocument(
+  doc: ReportDocument,
+  _previewElement?: HTMLElement | null
+): Promise<void> {
+  const filename = buildSuggestedReportPdfName(doc);
+  const blob = await generateReportPdfBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1500);
 }
 

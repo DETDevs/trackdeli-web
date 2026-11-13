@@ -278,7 +278,7 @@ export function buildIncomeStatementReportDocument(
 
   sections.push({
     type: 'keyValue',
-    title: '5. Utilidad Neta del Ejercicio',
+    title: otrosRows.length > 0 ? '6. Utilidad Neta del Ejercicio' : '5. Utilidad Neta del Ejercicio',
     rows: netIncomeRows,
   });
 
