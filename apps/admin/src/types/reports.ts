@@ -521,3 +521,167 @@ export interface PosBank {
   isActive?: boolean;
 }
 
+// -------------------------------------------------------------
+// Ganancias unificado (264a/264c - /pos/reports/profit/summary & /products)
+// -------------------------------------------------------------
+
+export interface ProfitChannelFees {
+  commission: number;
+  tax: number;
+  total: number;
+}
+
+export interface ProfitChannelColumn {
+  sales: number;
+  coveredSales: number;
+  uncoveredSales: number;
+  cost: number | null;
+  channelFees: ProfitChannelFees | null;
+  netSales: number;
+  productProfit: number | null;
+  marginPercent: number | null;
+}
+
+export interface ProfitChannelSummary {
+  own: ProfitChannelColumn;
+  pedidosYa: ProfitChannelColumn | null;
+  total: ProfitChannelColumn;
+  deliveryRevenue: number;
+  totalProfit: number | null;
+}
+
+export interface ProfitSummaryTotals {
+  sales: number;
+  coveredSales: number;
+  cost: number | null;
+  grossProfit: number | null;
+  marginPercent: number | null;
+  discounts: number;
+  receipts: number;
+  uncoveredRevenue: number;
+  deliveryRevenue?: number;
+  totalProfit?: number | null;
+}
+
+export interface ProfitByDayItem {
+  date: string;
+  sales: number;
+  coveredSales: number;
+  cost: number;
+  profit: number;
+  marginPercent: number | null;
+}
+
+export interface ProfitByHourItem {
+  hour: number;
+  date: string;
+  sales: number;
+  coveredSales: number;
+  cost: number;
+  profit: number;
+  marginPercent: number | null;
+}
+
+export interface ProfitByCategoryItem {
+  categoryId: string | null;
+  name: string;
+  sales: number;
+  coveredSales: number;
+  cost: number;
+  profit: number;
+  marginPercent: number | null;
+  salesSharePercent?: number;
+  sharePercent?: number | null;
+}
+
+export interface ProfitByCustomerItem {
+  customerId: string | null;
+  name: string;
+  receipts: number;
+  sales: number;
+  profit: number;
+}
+
+export interface ProfitAlerts {
+  lossProducts?: {
+    count: number;
+    lossAmount: number;
+  };
+  lowMarginProducts?: {
+    count: number;
+  };
+  missingCost?: {
+    count: number;
+    revenue: number;
+    products?: Array<{ productId: string | null; name: string }>;
+  };
+}
+
+export interface ProfitSummaryReport {
+  period: { from: string; to: string };
+  previousPeriod?: { from: string; to: string };
+  totals: ProfitSummaryTotals;
+  channelSummary?: ProfitChannelSummary;
+  previous?: ProfitSummaryTotals | null;
+  costBasis?: 'HISTORICAL' | 'CURRENT' | 'MIXED';
+  historicalSharePercent?: number;
+  costBasisNote?: string;
+  expenses?: { total: number; byCategory?: any[]; categories?: any[] } | null;
+  netProfit?: number | null;
+  netProfitNote?: string | null;
+  byDay?: ProfitByDayItem[];
+  byHour?: ProfitByHourItem[];
+  byCategory?: ProfitByCategoryItem[];
+  byCustomer?: ProfitByCustomerItem[];
+  counterSales?: {
+    receipts: number;
+    sales: number;
+    profit: number;
+  };
+  alerts?: ProfitAlerts;
+  bestDay?: { date: string; profit: number } | null;
+}
+
+export interface ProfitProductItem {
+  productId: string | null;
+  name: string;
+  category?: string;
+  categoryId?: string | null;
+  unit?: string;
+  unitsSold: number;
+  sales: number;
+  cost: number | null;
+  profit: number | null;
+  marginPercent: number | null;
+  salesSharePercent?: number;
+  sharePercent?: number | null;
+  hasCost: boolean;
+  cost_source?: string;
+  costSource?: string;
+}
+
+export interface ProfitProductsResponse {
+  items: ProfitProductItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totals?: {
+    sales: number;
+    coveredSales: number;
+    cost: number | null;
+    profit: number | null;
+    marginPercent: number | null;
+    unitsSold: number;
+  };
+}
+
+export interface ProfitProductsQueryParams extends ReportQueryParams {
+  page?: number;
+  pageSize?: number;
+  sort?: string;
+  dir?: string;
+  search?: string;
+  categoryId?: string;
+  filter?: string;
+}
+

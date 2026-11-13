@@ -6,6 +6,9 @@ import {
   SalesByCategoryReport,
   SalesByCashierReport,
   ProfitReport,
+  ProfitSummaryReport,
+  ProfitProductsResponse,
+  ProfitProductsQueryParams,
   ControlReport,
   WorkshopReport,
   SalesBySellerReport,
@@ -127,7 +130,7 @@ export const useSalesByCashier = (params: ReportQueryParams, enabled = true) => 
 };
 
 /**
- * Hook para el reporte de Ganancias y Cobertura de Costos
+ * Hook para el reporte de Ganancias y Cobertura de Costos (legado /pos/reports/profit)
  */
 export const useProfitReport = (params: ReportQueryParams, enabled = true) => {
   return useQuery<ProfitReport>({
@@ -135,6 +138,49 @@ export const useProfitReport = (params: ReportQueryParams, enabled = true) => {
     queryFn: async () => {
       const qs = buildReportQueryString(params);
       const res = await apiClient.get<ProfitReport>(`/pos/reports/profit?${qs}`);
+      return res.data;
+    },
+    enabled,
+    staleTime: 30000,
+    retry: 1,
+  });
+};
+
+/**
+ * Hook para el resumen unificado de Ganancias (/pos/reports/profit/summary)
+ */
+export const useProfitSummary = (params: ReportQueryParams, enabled = true) => {
+  return useQuery<ProfitSummaryReport>({
+    queryKey: ['pos-reports', 'profit-summary', params],
+    queryFn: async () => {
+      const qs = buildReportQueryString(params);
+      const res = await apiClient.get<ProfitSummaryReport>(`/pos/reports/profit/summary?${qs}`);
+      return res.data;
+    },
+    enabled,
+    staleTime: 30000,
+    retry: 1,
+  });
+};
+
+/**
+ * Hook para la tabla paginada de Ganancias por producto (/pos/reports/profit/products)
+ */
+export const useProfitProducts = (params: ProfitProductsQueryParams, enabled = true) => {
+  return useQuery<ProfitProductsResponse>({
+    queryKey: ['pos-reports', 'profit-products', params],
+    queryFn: async () => {
+      const query = new URLSearchParams(buildReportQueryString(params));
+      if (params.page !== undefined) query.set('page', String(params.page));
+      if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+      if (params.sort) query.set('sort', params.sort);
+      if (params.dir) query.set('dir', params.dir);
+      if (params.search && params.search.trim()) query.set('search', params.search.trim());
+      if (params.categoryId) query.set('categoryId', params.categoryId);
+      if (params.filter && params.filter !== 'all') query.set('filter', params.filter);
+      const res = await apiClient.get<ProfitProductsResponse>(
+        `/pos/reports/profit/products?${query.toString()}`
+      );
       return res.data;
     },
     enabled,

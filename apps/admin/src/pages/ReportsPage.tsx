@@ -18,7 +18,6 @@ import {
   SalesByTimeReport,
   SalesByCategoryReport,
   SalesByCashierReport,
-  ProfitReport,
 } from "../types/reports";
 import { PeriodSelector } from "../components/reports/PeriodSelector";
 import { SalesOperationsTab } from "../components/reports/SalesOperationsTab";
@@ -43,7 +42,7 @@ import {
   useSalesByTime,
   useSalesByCategory,
   useSalesByCashier,
-  useProfitReport,
+  useProfitSummary,
   useControlReport,
   useWorkshopReport,
   useSalesBySeller,
@@ -145,14 +144,18 @@ export const ReportsPage: React.FC = () => {
   } = useSalesByCashier(queryParams, isAllowedRole && activeTab === "sales");
 
   const {
-    data: profitData,
+    data: profitSummaryData,
     isLoading: isLoadingProfit,
     isError: isErrorProfit,
     error: errorProfit,
     refetch: refetchProfit,
     isFetching: isFetchingProfit,
-  } = useProfitReport(
-    queryParams,
+  } = useProfitSummary(
+    {
+      period,
+      from: period === "custom" ? customFrom : undefined,
+      to: period === "custom" ? customTo : undefined,
+    },
     isAllowedRole && (activeTab === "profit" || !reportsData),
   );
 
@@ -415,27 +418,31 @@ export const ReportsPage: React.FC = () => {
         });
         setReportDocument(doc);
       } else if (activeTab === "profit") {
-        const [sumRes, prodRes, profRes] = await Promise.all([
-          apiClient
-            .get<ProfitSummaryReport>(`/pos/reports/profit/summary?${qs}`)
-            .catch(() => ({ data: null })),
-          apiClient
-            .get<ProfitProductsResponse>(`/pos/reports/profit/products?${qs}&pageSize=5000`)
-            .catch(() => ({ data: null })),
-          profitData
-            ? Promise.resolve({ data: profitData })
+        const profitQs = buildReportQueryString({
+          period,
+          from: period === "custom" ? customFrom : undefined,
+          to: period === "custom" ? customTo : undefined,
+        });
+        const [sumRes, prodRes] = await Promise.all([
+          profitSummaryData
+            ? Promise.resolve({ data: profitSummaryData })
             : apiClient
-                .get<ProfitReport>(`/pos/reports/profit?${qs}`)
+                .get<ProfitSummaryReport>(`/pos/reports/profit/summary?${profitQs}`)
                 .catch(() => ({ data: null })),
+          apiClient
+            .get<ProfitProductsResponse>(
+              `/pos/reports/profit/products?${profitQs}&pageSize=5000`,
+            )
+            .catch(() => ({ data: null })),
         ]);
 
         const doc = buildProfitReportDocument({
           summary: sumRes.data,
           allProductsResponse: prodRes.data,
-          profitData: profRes.data,
           period,
           from: customFrom,
           to: customTo,
+          hasActiveDelivery: channelsVisibility.isDeliveryVisible,
           business,
           branchName: null,
           user,
@@ -813,10 +820,13 @@ export const ReportsPage: React.FC = () => {
           {/* Pestaña 2: Ganancias */}
           {activeTab === "profit" && (
             <ProfitReportTab
-              profitData={profitData}
+              summaryData={profitSummaryData}
               period={period}
+              from={period === "custom" ? customFrom : undefined}
+              to={period === "custom" ? customTo : undefined}
               isLoading={isLoadingProfit}
-              hasActiveChannels={channelsVisibility.hasAnyNonMostradorChannel}
+              isError={isErrorProfit}
+              onRetry={refetchProfit}
               hasActiveDelivery={channelsVisibility.isDeliveryVisible}
               hasActivePedidosYa={channelsVisibility.isPedidosYaVisible}
               onPrint={handleTriggerPrint}

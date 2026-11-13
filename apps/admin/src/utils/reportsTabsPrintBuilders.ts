@@ -12,7 +12,16 @@ import {
   SalesByCategoryReport,
   SalesByCashierReport,
   PeriodType,
-  ProfitReport,
+  ProfitSummaryTotals,
+  ProfitByDayItem,
+  ProfitByHourItem,
+  ProfitByCategoryItem,
+  ProfitByCustomerItem,
+  ProfitAlerts,
+  ProfitSummaryReport,
+  ProfitProductItem,
+  ProfitProductsResponse,
+  ProfitChannelColumn,
 } from '../types/reports';
 import { formatCurrency } from './formatters';
 import {
@@ -54,134 +63,18 @@ export function formatCostSourceEs(source: string | null | undefined): string {
 // TIPOS AUXILIARES PARA GANANCIAS COMPLETO (PROFIT SUMMARY & PRODUCTS)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface ProfitSummaryTotals {
-  sales: number;
-  coveredSales: number;
-  cost: number | null;
-  grossProfit: number;
-  marginPercent: number | null;
-  discounts: number;
-  receipts: number;
-  uncoveredRevenue: number;
-}
-
-export interface ProfitByDayItem {
-  date: string;
-  sales: number;
-  coveredSales: number;
-  cost: number;
-  profit: number;
-  marginPercent: number | null;
-}
-
-export interface ProfitByHourItem {
-  hour: number;
-  date: string;
-  sales: number;
-  coveredSales: number;
-  cost: number;
-  profit: number;
-  marginPercent: number | null;
-}
-
-export interface ProfitByCategoryItem {
-  categoryId: string | null;
-  name: string;
-  sales: number;
-  coveredSales: number;
-  cost: number;
-  profit: number;
-  marginPercent: number | null;
-  salesSharePercent?: number;
-  sharePercent?: number | null;
-}
-
-export interface ProfitByCustomerItem {
-  customerId: string | null;
-  name: string;
-  receipts: number;
-  sales: number;
-  profit: number;
-}
-
-export interface ProfitAlerts {
-  lossProducts?: {
-    count: number;
-    lossAmount: number;
-  };
-  lowMarginProducts?: {
-    count: number;
-  };
-  missingCost?: {
-    count: number;
-    revenue: number;
-    products?: Array<{ productId: string | null; name: string }>;
-  };
-}
-
-export interface ProfitSummaryReport {
-  period: { from: string; to: string };
-  previousPeriod?: { from: string; to: string };
-  totals: ProfitSummaryTotals;
-  previous?: {
-    sales: number;
-    coveredSales?: number;
-    cost: number | null;
-    grossProfit: number;
-    marginPercent: number | null;
-    discounts?: number;
-    receipts?: number;
-    uncoveredRevenue?: number;
-  } | null;
-  costBasis?: 'HISTORICAL' | 'CURRENT' | 'MIXED';
-  historicalSharePercent?: number;
-  costBasisNote?: string;
-  expenses?: { total: number; categories?: any[] } | null;
-  netProfit?: number | null;
-  netProfitNote?: string | null;
-  byDay?: ProfitByDayItem[];
-  byHour?: ProfitByHourItem[];
-  byCategory?: ProfitByCategoryItem[];
-  byCustomer?: ProfitByCustomerItem[];
-  counterSales?: {
-    receipts: number;
-    sales: number;
-    profit: number;
-  };
-  alerts?: ProfitAlerts;
-  bestDay?: { date: string; profit: number } | null;
-}
-
-export interface ProfitProductItem {
-  productId: string | null;
-  name: string;
-  category?: string;
-  categoryId?: string | null;
-  unit?: string;
-  unitsSold: number;
-  sales: number;
-  cost: number | null;
-  profit: number | null;
-  marginPercent: number | null;
-  hasCost: boolean;
-  cost_source?: string;
-  costSource?: string;
-}
-
-export interface ProfitProductsResponse {
-  items: ProfitProductItem[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totals?: {
-    sales: number;
-    coveredSales: number;
-    cost: number | null;
-    profit: number | null;
-    marginPercent: number | null;
-    unitsSold: number;
-  };
-}
+// Re-exportación de tipos de Ganancias desde types/reports.ts por compatibilidad
+export type {
+  ProfitSummaryTotals,
+  ProfitByDayItem,
+  ProfitByHourItem,
+  ProfitByCategoryItem,
+  ProfitByCustomerItem,
+  ProfitAlerts,
+  ProfitSummaryReport,
+  ProfitProductItem,
+  ProfitProductsResponse,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER PERÍODO ESTÁNDAR
@@ -941,8 +834,8 @@ export function buildChannelsReportDocument(params: BuildChannelsReportParams): 
 
 export interface BuildProfitReportParams {
   summary?: ProfitSummaryReport | null;
-  profitData?: ProfitReport | null;
   allProductsResponse?: ProfitProductsResponse | null;
+  hasActiveDelivery?: boolean;
   period: PeriodType | string;
   from?: string;
   to?: string;
@@ -951,11 +844,32 @@ export interface BuildProfitReportParams {
   user: any;
 }
 
+const formatMoneyOrDash = (val: number | null | undefined): string => {
+  if (val === null || val === undefined || isNaN(Number(val))) return '—';
+  return formatCurrency(Number(val));
+};
+
+const formatNegativeMoneyOrDash = (
+  val: number | null | undefined,
+  treatNullOrZeroCoverage = false
+): string => {
+  if (treatNullOrZeroCoverage || val === null || val === undefined || isNaN(Number(val))) {
+    return '—';
+  }
+  const num = Number(val);
+  return num > 0 ? `-${formatCurrency(num)}` : formatCurrency(num);
+};
+
+const formatChannelMarginOrDash = (val: number | null | undefined): string => {
+  if (val === null || val === undefined || isNaN(Number(val))) return '—';
+  return `${Number(val).toFixed(1)}%`;
+};
+
 export function buildProfitReportDocument(params: BuildProfitReportParams): ReportDocument {
   const {
     summary,
-    profitData,
     allProductsResponse,
+    hasActiveDelivery = false,
     period,
     from,
     to,
@@ -964,15 +878,32 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
     user,
   } = params;
 
-  const apiPeriod = summary?.period || profitData?.period || null;
+  const apiPeriod = summary?.period || null;
   const { periodInfo, periodLabel } = buildStandardPeriodInfo(period, from, to, apiPeriod);
 
   const totals = summary?.totals;
-  const hasSales = Boolean(totals && (totals.sales > 0 || totals.receipts > 0));
+  const channelSummary = summary?.channelSummary;
+  const pyCol = channelSummary?.pedidosYa ?? null;
+  const hasPedidosYa = Boolean(pyCol);
+  const deliveryRevenue = channelSummary?.deliveryRevenue ?? totals?.deliveryRevenue ?? 0;
+  const showDelivery = Boolean(hasActiveDelivery || deliveryRevenue > 0);
+  const resolvedTotalProfit =
+    channelSummary?.totalProfit !== undefined
+      ? channelSummary.totalProfit
+      : totals?.totalProfit !== undefined
+      ? totals.totalProfit
+      : totals?.grossProfit ?? null;
 
-  // Evaluar cobertura de costos
-  const coveragePercent = profitData?.coveragePercent ?? (totals && totals.sales > 0 ? (totals.coveredSales / totals.sales) * 100 : 0);
-  const isZeroCoverage = coveragePercent === 0 || (totals?.coveredSales === 0 && (totals?.sales || 0) > 0);
+  const hasSales = Boolean(
+    totals && (totals.sales > 0 || totals.receipts > 0 || deliveryRevenue > 0)
+  );
+
+  // Evaluar cobertura 0% directamente desde las cifras del API
+  const isZeroCoverage = Boolean(
+    totals &&
+      ((totals.coveredSales === 0 && totals.sales > 0) ||
+        (resolvedTotalProfit === null && totals.sales > 0))
+  );
 
   const periodHuman =
     period === 'today'
@@ -985,12 +916,18 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
 
   let narrativeSummary = 'Sin datos en el período';
   if (hasSales && totals) {
-    if (isZeroCoverage) {
-      narrativeSummary = `En ${periodHuman} se vendieron ${formatCurrency(totals.sales)}, pero ningún producto cuenta con costo de compra registrado en el catálogo. No se calcula ganancia inventada.`;
+    if (isZeroCoverage || resolvedTotalProfit === null) {
+      narrativeSummary = `En ${periodHuman} se vendieron ${formatCurrency(
+        totals.sales
+      )}, pero ningún producto cuenta con costo de compra registrado en el catálogo. No se calcula ganancia inventada.`;
     } else if (totals.uncoveredRevenue > 0) {
-      narrativeSummary = `De ${formatCurrency(totals.coveredSales)} vendidos con costo conocido, la mercadería te costó ${formatCurrency(
+      narrativeSummary = `De ${formatCurrency(
+        totals.coveredSales
+      )} vendidos con costo conocido, la mercadería te costó ${formatCurrency(
         totals.cost || 0
-      )} y te quedó una ganancia de ${formatCurrency(totals.grossProfit)}. Además vendiste ${formatCurrency(
+      )} y te quedó una ganancia total de ${formatCurrency(
+        resolvedTotalProfit
+      )}. Además vendiste ${formatCurrency(
         totals.uncoveredRevenue
       )} en productos sin costo registrado, que no entran en la ganancia.`;
     } else {
@@ -998,9 +935,13 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
         totals.marginPercent !== null && totals.marginPercent !== undefined
           ? Number(totals.marginPercent).toFixed(2)
           : '0.00';
-      narrativeSummary = `En ${periodHuman} vendiste ${formatCurrency(totals.sales)}. Esa mercadería te costó ${formatCurrency(
+      narrativeSummary = `En ${periodHuman} vendiste ${formatCurrency(
+        totals.sales
+      )}. Esa mercadería te costó ${formatCurrency(
         totals.cost || 0
-      )}. Te quedó una ganancia de ${formatCurrency(totals.grossProfit)}: por cada C$100 que vendés, ganás C$${marginStr}.`;
+      )}. Te quedó una ganancia total de ${formatCurrency(
+        resolvedTotalProfit
+      )}: por cada C$100 en ventas con costo, ganás C$${marginStr} sobre productos.`;
     }
   }
 
@@ -1009,6 +950,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
   const indicatorRows: ReportKeyValueRow[] = [];
   if (hasSales && totals) {
     const summaryUncovered = totals.uncoveredRevenue ?? 0;
+    const totalFees = channelSummary?.total.channelFees ?? null;
 
     indicatorRows.push(
       {
@@ -1017,7 +959,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
         sublabel: `${totals.receipts} ${totals.receipts === 1 ? 'comprobante' : 'comprobantes'}`,
       },
       {
-        label: 'Ventas sin costo registrado:',
+        label: 'Ventas sin costo registrado',
         value: formatCurrency(summaryUncovered),
         sublabel: '(no entran en la ganancia)',
         tone: summaryUncovered > 0 ? 'warning' : 'default',
@@ -1026,18 +968,38 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
         label: 'Ventas con costo',
         value: formatCurrency(totals.coveredSales),
         isTotal: true,
+      }
+    );
+
+    if (hasPedidosYa && totalFees) {
+      indicatorRows.push({
+        label: '(−) Comisión e impuesto de PedidosYa',
+        value: totalFees.total > 0 ? `-${formatCurrency(totalFees.total)}` : formatCurrency(0),
+        sublabel: `Comisión: ${formatCurrency(totalFees.commission)} · Impuesto: ${formatCurrency(
+          totalFees.tax
+        )}`,
+        tone: totalFees.total > 0 ? 'negative' : 'default',
+      });
+    }
+
+    indicatorRows.push(
+      {
+        label: '(−) Costo de lo vendido',
+        value: formatNegativeMoneyOrDash(totals.cost, isZeroCoverage),
+        tone: isZeroCoverage || totals.cost === null ? 'default' : 'negative',
       },
       {
-        label: 'Costo de lo vendido',
-        value: isZeroCoverage ? '—' : `-${formatCurrency(totals.cost || 0)}`,
-        tone: isZeroCoverage ? 'default' : 'negative',
-      },
-      {
-        label: summary?.costBasis === 'HISTORICAL' ? 'Ganancia' : 'Ganancia estimada',
-        value: isZeroCoverage ? '—' : formatCurrency(totals.grossProfit),
-        isTotal: true,
-        doubleHeight: summary?.netProfit === null || summary?.netProfit === undefined,
-        tone: isZeroCoverage ? 'default' : totals.grossProfit >= 0 ? 'positive' : 'negative',
+        label:
+          summary?.costBasis === 'HISTORICAL'
+            ? 'Ganancia de productos'
+            : 'Ganancia estimada de productos',
+        value: isZeroCoverage ? '—' : formatMoneyOrDash(totals.grossProfit),
+        tone:
+          isZeroCoverage || totals.grossProfit === null
+            ? 'default'
+            : totals.grossProfit >= 0
+            ? 'positive'
+            : 'negative',
       },
       {
         label: 'Margen',
@@ -1045,6 +1007,30 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
           isZeroCoverage || totals.marginPercent === null || totals.marginPercent === undefined
             ? '—'
             : `${Number(totals.marginPercent).toFixed(1)}%`,
+      }
+    );
+
+    if (showDelivery) {
+      indicatorRows.push({
+        label: '(+) Ingresos por envío cobrados',
+        value: deliveryRevenue > 0 ? `+${formatCurrency(deliveryRevenue)}` : formatCurrency(0),
+        sublabel: 'Incluido en la ganancia total',
+        tone: deliveryRevenue > 0 ? 'positive' : 'default',
+      });
+    }
+
+    indicatorRows.push(
+      {
+        label: summary?.costBasis === 'HISTORICAL' ? 'Ganancia total' : 'Ganancia total estimada',
+        value: isZeroCoverage ? '—' : formatMoneyOrDash(resolvedTotalProfit),
+        isTotal: true,
+        doubleHeight: summary?.netProfit === null || summary?.netProfit === undefined,
+        tone:
+          isZeroCoverage || resolvedTotalProfit === null
+            ? 'default'
+            : resolvedTotalProfit >= 0
+            ? 'positive'
+            : 'negative',
       },
       {
         label: 'Descuentos otorgados',
@@ -1059,16 +1045,196 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
       });
     }
 
-    if (summary?.netProfit !== null && summary?.netProfit !== undefined) {
+    if (summary?.netProfit !== undefined && summary?.expenses !== null && summary?.expenses !== undefined) {
       indicatorRows.push({
         label: 'Utilidad neta',
-        value: isZeroCoverage ? '—' : formatCurrency(summary.netProfit),
+        value: isZeroCoverage || summary.netProfit === null ? '—' : formatCurrency(summary.netProfit),
         isTotal: true,
         doubleHeight: true,
-        tone: isZeroCoverage ? 'default' : summary.netProfit >= 0 ? 'positive' : 'negative',
+        tone:
+          isZeroCoverage || summary.netProfit === null
+            ? 'default'
+            : summary.netProfit >= 0
+            ? 'positive'
+            : 'negative',
         sublabel: summary.netProfitNote
           ? sanitizeForbiddenPrintTerms(summary.netProfitNote)
           : undefined,
+      });
+    }
+  }
+
+  // Sección "Resumen por canal" (solo si hay PedidosYa o envíos)
+  const showChannelSummarySection = Boolean(channelSummary && (hasPedidosYa || showDelivery));
+  const channelSectionNotes: string[] = [];
+  if (hasPedidosYa) {
+    channelSectionNotes.push(
+      'Las ventas se muestran sin IVA; PedidosYa calcula su comisión sobre el total cobrado.'
+    );
+  }
+  if (showDelivery) {
+    channelSectionNotes.push(
+      'Incluye lo cobrado por envío. Si pagás al repartidor por aparte, registralo en Gastos.'
+    );
+  }
+
+  const colZeroCov = (col: ProfitChannelColumn) =>
+    Boolean((col.sales > 0 && col.coveredSales === 0) || col.productProfit === null);
+
+  const channelSummaryRows: ReportTableRow[] = [];
+  if (showChannelSummarySection && channelSummary) {
+    const own = channelSummary.own;
+    const total = channelSummary.total;
+    const ownZeroCov = colZeroCov(own);
+    const pyZeroCov = pyCol ? colZeroCov(pyCol) : false;
+    const totalZeroCov = colZeroCov(total);
+
+    if (hasPedidosYa && pyCol) {
+      channelSummaryRows.push({
+        cells: {
+          concept: 'Ventas',
+          own: formatCurrency(own.sales),
+          pedidosYa: formatCurrency(pyCol.sales),
+          total: formatCurrency(total.sales),
+        },
+      });
+
+      channelSummaryRows.push({
+        cells: {
+          concept: '(−) Comisión e impuesto de PedidosYa',
+          own: '—',
+          pedidosYa: pyCol.channelFees
+            ? pyCol.channelFees.total > 0
+              ? `-${formatCurrency(pyCol.channelFees.total)}`
+              : formatCurrency(0)
+            : '—',
+          total: total.channelFees
+            ? total.channelFees.total > 0
+              ? `-${formatCurrency(total.channelFees.total)}`
+              : formatCurrency(0)
+            : '—',
+        },
+        ...(pyCol.channelFees && pyCol.channelFees.total > 0
+          ? {
+              subRows: [
+                {
+                  left: `Detalle PedidosYa: Comisión ${formatCurrency(
+                    pyCol.channelFees.commission
+                  )} + Impuesto ${formatCurrency(pyCol.channelFees.tax)}`,
+                  right: `-${formatCurrency(pyCol.channelFees.total)}`,
+                  tone: 'negative' as const,
+                },
+              ],
+            }
+          : {}),
+      });
+
+      channelSummaryRows.push(
+        {
+          cells: {
+            concept: 'Ventas netas',
+            own: formatCurrency(own.netSales),
+            pedidosYa: formatCurrency(pyCol.netSales),
+            total: formatCurrency(total.netSales),
+          },
+        },
+        {
+          cells: {
+            concept: '(−) Costo de lo vendido',
+            own: formatNegativeMoneyOrDash(own.cost, ownZeroCov),
+            pedidosYa: formatNegativeMoneyOrDash(pyCol.cost, pyZeroCov),
+            total: formatNegativeMoneyOrDash(total.cost, totalZeroCov),
+          },
+        },
+        {
+          cells: {
+            concept: 'Ganancia de productos',
+            own: formatMoneyOrDash(own.productProfit),
+            pedidosYa: formatMoneyOrDash(pyCol.productProfit),
+            total: formatMoneyOrDash(total.productProfit),
+          },
+        },
+        {
+          cells: {
+            concept: 'Margen',
+            own: formatChannelMarginOrDash(own.marginPercent),
+            pedidosYa: formatChannelMarginOrDash(pyCol.marginPercent),
+            total: formatChannelMarginOrDash(total.marginPercent),
+          },
+        }
+      );
+
+      if (showDelivery) {
+        channelSummaryRows.push({
+          cells: {
+            concept: '(+) Ingresos por envío cobrados',
+            own: '—',
+            pedidosYa: '—',
+            total:
+              deliveryRevenue > 0 ? `+${formatCurrency(deliveryRevenue)}` : formatCurrency(0),
+          },
+        });
+      }
+
+      channelSummaryRows.push({
+        cells: {
+          concept: 'Ganancia total',
+          own: '—',
+          pedidosYa: '—',
+          total: isZeroCoverage ? '—' : formatMoneyOrDash(channelSummary.totalProfit),
+        },
+        highlight: true,
+      });
+    } else {
+      channelSummaryRows.push(
+        {
+          cells: {
+            concept: 'Ventas',
+            total: formatCurrency(total.sales),
+          },
+        },
+        {
+          cells: {
+            concept: 'Ventas netas',
+            total: formatCurrency(total.netSales),
+          },
+        },
+        {
+          cells: {
+            concept: '(−) Costo de lo vendido',
+            total: formatNegativeMoneyOrDash(total.cost, totalZeroCov),
+          },
+        },
+        {
+          cells: {
+            concept: 'Ganancia de productos',
+            total: formatMoneyOrDash(total.productProfit),
+          },
+        },
+        {
+          cells: {
+            concept: 'Margen',
+            total: formatChannelMarginOrDash(total.marginPercent),
+          },
+        }
+      );
+
+      if (showDelivery) {
+        channelSummaryRows.push({
+          cells: {
+            concept: '(+) Ingresos por envío cobrados',
+            total:
+              deliveryRevenue > 0 ? `+${formatCurrency(deliveryRevenue)}` : formatCurrency(0),
+          },
+        });
+      }
+
+      channelSummaryRows.push({
+        cells: {
+          concept: 'Ganancia total',
+          total: isZeroCoverage ? '—' : formatMoneyOrDash(channelSummary.totalProfit),
+        },
+        highlight: true,
       });
     }
   }
@@ -1109,20 +1275,6 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
         ]
       : [];
 
-  // Desglose por fuente de costo (traducidas al español)
-  const bySource = profitData?.bySource;
-  const sourceRows: ReportTableRow[] =
-    bySource && Object.keys(bySource).length > 0
-      ? Object.entries(bySource).map(([srcKey, srcVal]) => ({
-          cells: {
-            source: formatCostSourceEs(srcKey),
-            lines: `${srcVal.lines || 0}`,
-            revenue: formatCurrency(srcVal.revenue || 0),
-            cost: formatCurrency(srcVal.cost || 0),
-          },
-        }))
-      : [];
-
   // Ganancia por día (o por hora si es un solo día)
   const byHourActive = (summary?.byHour || []).filter((h) => h.sales > 0 || h.profit !== 0);
   const byDayActive = (summary?.byDay || []).filter((d) => d.sales > 0 || d.profit !== 0);
@@ -1137,7 +1289,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
           sales: formatCurrency(h.sales),
           cost: formatCurrency(h.cost),
           margin: h.marginPercent != null ? `${Number(h.marginPercent).toFixed(1)}%` : '—',
-          profit: formatCurrency(h.profit),
+          profit: formatMoneyOrDash(h.profit),
         },
       }))
     : byDayActive.map((d) => ({
@@ -1146,7 +1298,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
           sales: formatCurrency(d.sales),
           cost: formatCurrency(d.cost),
           margin: d.marginPercent != null ? `${Number(d.marginPercent).toFixed(1)}%` : '—',
-          profit: formatCurrency(d.profit),
+          profit: formatMoneyOrDash(d.profit),
         },
       }));
 
@@ -1154,7 +1306,8 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
   const productItems = allProductsResponse?.items || [];
   const productTotals = allProductsResponse?.totals;
   const productRows: ReportTableRow[] = productItems.map((it) => {
-    const rawCostSource = (it as any).cost_source || (it as any).costSource || (it.hasCost ? 'PRODUCT' : 'UNKNOWN');
+    const rawCostSource =
+      (it as any).cost_source || (it as any).costSource || (it.hasCost ? 'PRODUCT' : 'UNKNOWN');
     return {
       cells: {
         name: sanitizeForbiddenPrintTerms(it.name),
@@ -1175,8 +1328,8 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
     productItems.length > 0 && productTotals
       ? [
           {
-            label: `Total productos (${productItems.length}) — Unidades`,
-            value: `${productTotals.unitsSold ?? productItems.reduce((acc, it) => acc + (it.unitsSold || 0), 0)}`,
+            label: `Total productos (${allProductsResponse?.total ?? productItems.length}) — Unidades`,
+            value: `${productTotals.unitsSold ?? 0}`,
           },
           {
             label: 'Ventas',
@@ -1226,7 +1379,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
       sales: formatCurrency(c.sales),
       cost: formatCurrency(c.cost),
       margin: c.marginPercent != null ? `${Number(c.marginPercent).toFixed(1)}%` : '—',
-      profit: formatCurrency(c.profit),
+      profit: formatMoneyOrDash(c.profit),
     },
   }));
 
@@ -1238,7 +1391,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
       customer: sanitizeForbiddenPrintTerms(c.name || 'Cliente'),
       receipts: `${c.receipts}`,
       sales: formatCurrency(c.sales),
-      profit: formatCurrency(c.profit),
+      profit: formatMoneyOrDash(c.profit),
     },
   }));
 
@@ -1248,7 +1401,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
         customer: 'Ventas de mostrador (sin cliente)',
         receipts: `${counterSales.receipts}`,
         sales: formatCurrency(counterSales.sales),
-        profit: formatCurrency(counterSales.profit),
+        profit: formatMoneyOrDash(counterSales.profit),
       },
       highlight: true,
     });
@@ -1270,6 +1423,28 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
     },
   ];
 
+  if (showChannelSummarySection && channelSummaryRows.length > 0) {
+    sections.push({
+      type: 'table',
+      title: 'Resumen por canal',
+      subtitle:
+        channelSectionNotes.length > 0 ? channelSectionNotes.join(' ') : undefined,
+      emptyMessage: 'Sin datos en el período',
+      columns: hasPedidosYa
+        ? [
+            { key: 'concept', label: 'Concepto', align: 'left' },
+            { key: 'own', label: 'Ventas propias', align: 'right', mono: true },
+            { key: 'pedidosYa', label: 'PedidosYa', align: 'right', mono: true },
+            { key: 'total', label: 'Total', align: 'right', mono: true },
+          ]
+        : [
+            { key: 'concept', label: 'Concepto', align: 'left' },
+            { key: 'total', label: 'Total', align: 'right', mono: true },
+          ],
+      rows: channelSummaryRows,
+    });
+  }
+
   if (alertRows.length > 0) {
     sections.push({
       type: 'keyValue',
@@ -1279,20 +1454,9 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
     });
   }
 
-  if (sourceRows.length > 0) {
-    sections.push({
-      type: 'table',
-      title: 'Desglose por fuente de costo',
-      emptyMessage: 'Sin datos en el período',
-      columns: [
-        { key: 'source', label: 'Fuente de costo', align: 'left' },
-        { key: 'lines', label: 'Líneas vendidas', align: 'right', mono: true },
-        { key: 'revenue', label: 'Venta', align: 'right', mono: true },
-        { key: 'cost', label: 'Costo de lo vendido', align: 'right', mono: true },
-      ],
-      rows: sourceRows,
-    });
-  }
+  const beforeChannelNote = hasPedidosYa
+    ? 'Ganancia de productos antes de la comisión del canal.'
+    : undefined;
 
   sections.push(
     {
@@ -1300,7 +1464,9 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
       title: useHourlySeries ? 'Ganancia por día (detalle horario de hoy)' : 'Ganancia por día',
       subtitle:
         summary?.bestDay && summary.bestDay.profit > 0
-          ? `Mejor día: ${formatShortDateEs(summary.bestDay.date)} (${formatCurrency(summary.bestDay.profit)})`
+          ? `Mejor día: ${formatShortDateEs(summary.bestDay.date)} (${formatCurrency(
+              summary.bestDay.profit
+            )})`
           : undefined,
       emptyMessage: 'Sin datos en el período',
       columns: [
@@ -1315,6 +1481,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
     {
       type: 'table',
       title: `Rentabilidad por producto (${productItems.length})`,
+      subtitle: beforeChannelNote,
       emptyMessage: 'Sin datos en el período',
       columns: [
         { key: 'name', label: 'Producto', align: 'left' },
@@ -1335,6 +1502,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
     sections.push({
       type: 'table',
       title: 'Ganancia por categoría',
+      subtitle: beforeChannelNote,
       emptyMessage: 'Sin datos en el período',
       columns: [
         { key: 'category', label: 'Categoría', align: 'left' },
@@ -1351,6 +1519,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
     sections.push({
       type: 'table',
       title: 'Top de clientes y ventas de mostrador',
+      subtitle: beforeChannelNote,
       emptyMessage: 'Sin datos en el período',
       columns: [
         { key: 'customer', label: 'Cliente', align: 'left' },
@@ -1363,7 +1532,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
   }
 
   const rowCount =
-    sourceRows.length +
+    channelSummaryRows.length +
     timeSeriesRows.length +
     productRows.length +
     categoryRows.length +
