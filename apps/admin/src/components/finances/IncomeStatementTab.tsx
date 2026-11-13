@@ -479,6 +479,27 @@ export const IncomeStatementTab: React.FC<IncomeStatementTabProps> = ({ currency
                     </span>
                   </div>
 
+                  {/* Comisión e impuesto de PedidosYa (Ticket 264f) */}
+                  {statement.channelFees !== null && statement.channelFees !== undefined && (
+                    <div className="flex flex-wrap justify-between items-baseline gap-x-3 gap-y-1 text-gray-700 pt-1.5 border-t border-gray-200/40">
+                      <div className="min-w-0 flex-1">
+                        <span>(−) Comisión e impuesto de PedidosYa</span>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-600 mt-0.5 tabular-nums">
+                          <span className="whitespace-nowrap">
+                            Comisión: {formatCurrency(statement.channelFees.commission, currency)}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span className="whitespace-nowrap">
+                            Impuesto: {formatCurrency(statement.channelFees.tax, currency)}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="ml-auto font-mono font-medium text-rose-700 whitespace-nowrap tabular-nums shrink-0">
+                        -{formatCurrency(statement.channelFees.total, currency)}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Línea secundaria cuando hay ventas sin costo */}
                   {hasMissingCost && (
                     <div className="flex flex-wrap justify-between items-baseline gap-x-3 gap-y-1 text-amber-800 text-xs pt-1.5 border-t border-gray-200/40 font-medium">

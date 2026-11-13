@@ -221,6 +221,11 @@ export interface IncomeStatementResponse {
   coveredRevenue?: number;
   uncoveredRevenue?: number;
   costOfGoodsSold: number;
+  channelFees?: {
+    commission: number;
+    tax: number;
+    total: number;
+  } | null;
   grossProfit: number;
   grossMarginPercent: number;
   operatingExpenses: {

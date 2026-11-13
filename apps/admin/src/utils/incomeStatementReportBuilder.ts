@@ -155,6 +155,15 @@ export function buildIncomeStatementReportDocument(
     },
   ];
 
+  if (data.channelFees !== null && data.channelFees !== undefined) {
+    cogsRows.push({
+      label: '(−) Comisión e impuesto de PedidosYa:',
+      sublabel: `Comisión: ${formatCurrency(data.channelFees.commission, currency)} · Impuesto: ${formatCurrency(data.channelFees.tax, currency)}`,
+      value: `-${formatCurrency(data.channelFees.total, currency)}`,
+      tone: 'negative',
+    });
+  }
+
   if (isPartial && hasUncoveredRevenue) {
     cogsRows.push({
       label: 'Ventas sin costo registrado:',
