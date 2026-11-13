@@ -142,7 +142,7 @@ export const generateReceiptHtml = (
 ): string => {
   const sale = normalizeDeliverySale(saleInput || {});
   const s = receiptSettings;
-  const format = options?.format || 'carta' === options?.format ? 'carta' : 'ticket';
+  const format = options?.format === 'carta' ? 'carta' : 'ticket';
   const paperWidthMm = options?.paperWidthMm === 58 ? 58 : (s?.paperWidthMm === 58 ? 58 : 80);
 
   const isVoided = Boolean(options?.isVoided || sale.isVoided || sale.status === 'CANCELLED');
@@ -852,7 +852,7 @@ export function printReceiptViaIframe(html: string, title?: string): Promise<voi
 
 /**
  * Genera un Blob en formato PDF a partir del HTML usando jsPDF y html2canvas.
- * Cumple con el criterio de peso (≤ 300 KB para 40 líneas) y fidelidad visual 100% idéntica.
+ * Cumple con el criterio de peso (≤ 500 KB) y fidelidad visual idéntica al preview.
  */
 export async function generateReceiptPdfBlob(
   html: string,
@@ -863,74 +863,130 @@ export async function generateReceiptPdfBlob(
 ): Promise<Blob> {
   const isCarta = options?.format === 'carta';
   const paperWidthMm = options?.paperWidthMm === 58 ? 58 : 80;
+  const targetPx = isCarta ? 794 : paperWidthMm === 58 ? 220 : 302;
 
-  // Creamos contenedor temporal para renderizar el DOM
+  // Contenedor aislador invisible en el viewport sin colapsar ancho (width: targetPx) ni usar left:-9999px
+  // (jsPDF.html clona el hijo y mantiene `left`, lo que sacaría el recibo del área capturada).
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.left = '0';
+  wrapper.style.top = '0';
+  wrapper.style.width = `${targetPx}px`;
+  wrapper.style.height = '0';
+  wrapper.style.overflow = 'hidden';
+  wrapper.style.pointerEvents = 'none';
+  wrapper.style.zIndex = '-1';
+
   const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.left = '-9999px';
-  container.style.top = '0';
-  container.style.zIndex = '-1';
+  container.className = 'receipt-pdf-root';
+  container.style.width = `${targetPx}px`;
+  container.style.maxWidth = 'none';
   container.style.backgroundColor = '#ffffff';
+  container.style.color = '#0f172a';
+  container.style.boxSizing = 'border-box';
 
-  // Configuración de dimensiones
-  let pdf: jsPDF;
-  let renderWidth: number;
-  let windowWidth: number;
-
-  if (isCarta) {
-    // Hoja Carta estándar: 215.9 x 279.4 mm
-    container.style.width = '794px'; // 794px = 210mm a 96 DPI
-    container.innerHTML = html;
-    document.body.appendChild(container);
-
-    pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'letter',
+  if (typeof DOMParser !== 'undefined') {
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    const styleTags = Array.from(parsed.querySelectorAll('style'));
+    if (styleTags.length > 0) {
+      const scopedStyle = document.createElement('style');
+      scopedStyle.textContent = styleTags
+        .map((s) =>
+          (s.textContent || '').replace(/(^|[\s,}])body(?=[\s,{:])/gi, '$1.receipt-pdf-root')
+        )
+        .join('\n');
+      container.appendChild(scopedStyle);
+    }
+    Array.from(parsed.body?.childNodes || []).forEach((node) => {
+      container.appendChild(document.importNode(node, true));
     });
-    renderWidth = pdf.internal.pageSize.getWidth();
-    windowWidth = 794;
+
+    // Las fuentes estándar WinAnsi de jsPDF convierten emojis (📍, 📞) en caracteres corruptos ("Ø=Ü")
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let textNode: Node | null;
+    while ((textNode = walker.nextNode())) {
+      if (textNode.parentElement?.tagName === 'STYLE') continue;
+      if (textNode.nodeValue) {
+        textNode.nodeValue = textNode.nodeValue
+          .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\uFE0F]/gu, '')
+          .replace(/^\s+/, (m) => (m.includes('\n') ? m : ''));
+      }
+    }
   } else {
-    // Ticket térmico: 80 mm o 58 mm con altura continua
-    const targetPx = paperWidthMm === 58 ? 220 : 288;
-    container.style.width = `${targetPx}px`;
     container.innerHTML = html;
-    document.body.appendChild(container);
-
-    const pxHeight = container.scrollHeight;
-    const mmHeight = Math.ceil(pxHeight * 0.264583) + 12;
-
-    pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: [paperWidthMm, mmHeight],
-    });
-    renderWidth = paperWidthMm;
-    windowWidth = targetPx;
   }
 
+  wrapper.appendChild(container);
+  document.body.appendChild(wrapper);
+
   try {
+    // Esperar imágenes (logo del negocio) antes de medir alto y rasterizar
+    const images = Array.from(container.querySelectorAll('img'));
+    if (images.length > 0) {
+      await Promise.race([
+        Promise.all(
+          images.map((img) =>
+            img.complete
+              ? Promise.resolve()
+              : new Promise<void>((res) => {
+                  img.onload = () => res();
+                  img.onerror = () => res();
+                })
+          )
+        ),
+        new Promise<void>((res) => setTimeout(res, 2000)),
+      ]);
+    }
+
+    let pdf: jsPDF;
+    let renderWidth: number;
+    const windowWidth = targetPx;
+
+    if (isCarta) {
+      // Hoja Carta estándar: 215.9 x 279.4 mm
+      pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'letter',
+      });
+      renderWidth = pdf.internal.pageSize.getWidth();
+    } else {
+      // Ticket térmico: 80 mm o 58 mm con altura continua ajustada al contenido real
+      const pxHeight = Math.max(container.scrollHeight, container.offsetHeight, 120);
+      const mmHeight = Math.max(60, Math.ceil(pxHeight * (paperWidthMm / targetPx)) + 8);
+
+      pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [paperWidthMm, mmHeight],
+      });
+      renderWidth = paperWidthMm;
+    }
+
+    // Importante: no fijar `html2canvas.scale` manualmente; jsPDF calcula `scale = width / windowWidth`.
     await new Promise<void>((resolve, reject) => {
-      pdf.html(container, {
-        x: 0,
-        y: 0,
-        width: renderWidth,
-        windowWidth: windowWidth,
-        autoPaging: isCarta ? 'text' : false,
-        callback: () => resolve(),
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-        },
-      }).catch(reject);
+      pdf
+        .html(container, {
+          x: 0,
+          y: 0,
+          width: renderWidth,
+          windowWidth,
+          autoPaging: isCarta ? 'text' : false,
+          callback: () => resolve(),
+          html2canvas: {
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+          },
+        })
+        .catch(reject);
     });
 
     const arrayBuffer = pdf.output('arraybuffer');
     return new Blob([arrayBuffer], { type: 'application/pdf' });
   } finally {
-    if (container.parentNode) {
-      container.parentNode.removeChild(container);
+    if (wrapper.parentNode) {
+      wrapper.parentNode.removeChild(wrapper);
     }
   }
 }
