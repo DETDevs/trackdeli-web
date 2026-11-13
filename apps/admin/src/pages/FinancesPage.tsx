@@ -103,28 +103,28 @@ export const FinancesPage: React.FC = () => {
       </div>
 
       {/* Navegación por pestañas */}
-      <div className="border-b border-gray-200 overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-1 sm:gap-2 min-w-max">
+      <div className="border-b border-gray-200">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1">
           {[
             {
               id: 'payables' as const,
               label: 'Por pagar',
-              icon: <CreditCard size={16} weight="regular" />,
+              icon: <CreditCard size={16} weight="regular" className="shrink-0" />,
             },
             {
               id: 'expenses' as const,
               label: 'Gastos',
-              icon: <Receipt size={16} weight="regular" />,
+              icon: <Receipt size={16} weight="regular" className="shrink-0" />,
             },
             {
               id: 'income-statement' as const,
               label: 'Estado de resultados',
-              icon: <ChartBar size={16} weight="regular" />,
+              icon: <ChartBar size={16} weight="regular" className="shrink-0" />,
             },
             {
               id: 'receivables' as const,
               label: 'Por cobrar',
-              icon: <Wallet size={16} weight="regular" />,
+              icon: <Wallet size={16} weight="regular" className="shrink-0" />,
             },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
@@ -132,10 +132,10 @@ export const FinancesPage: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 min-h-[44px] text-xs sm:text-sm font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                   isActive
                     ? 'border-gray-900 text-gray-900'
-                    : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                 }`}
               >
                 {tab.icon}

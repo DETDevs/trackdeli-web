@@ -655,11 +655,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
 
           {/* 2. Modalidad: Simple vs Mixto */}
-          <div className="flex rounded-xl bg-gray-100 p-1 border border-gray-200 text-xs font-bold">
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1 border border-gray-200 text-xs font-bold">
             <button
               type="button"
               onClick={() => setActiveTab('SIMPLE')}
-              className={`flex-1 py-2 rounded-lg transition-all min-h-[44px] cursor-pointer ${
+              className={`px-3 py-2 rounded-lg transition-all min-h-[44px] flex items-center justify-center text-center leading-tight whitespace-normal cursor-pointer ${
                 activeTab === 'SIMPLE' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -668,7 +668,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('MIXTO')}
-              className={`flex-1 py-2 rounded-lg transition-all min-h-[44px] cursor-pointer ${
+              className={`px-3 py-2 rounded-lg transition-all min-h-[44px] flex items-center justify-center text-center leading-tight whitespace-normal cursor-pointer ${
                 activeTab === 'MIXTO' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -976,11 +976,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   )}
 
                   {/* Selector modalidad de crédito: Un solo pago vs En cuotas */}
-                  <div className="flex rounded-xl bg-white p-0.5 border border-emerald-200 text-xs font-bold">
+                  <div className="grid grid-cols-2 gap-1 rounded-xl bg-white p-1 border border-emerald-200 text-xs font-bold">
                     <button
                       type="button"
                       onClick={() => setCreditMode('SINGLE')}
-                      className={`flex-1 py-2 rounded-lg transition-colors cursor-pointer min-h-[40px] ${
+                      className={`px-3 py-2 rounded-lg transition-colors cursor-pointer min-h-[44px] flex items-center justify-center text-center leading-tight whitespace-normal ${
                         creditMode === 'SINGLE'
                           ? 'bg-emerald-800 text-white shadow-xs'
                           : 'text-gray-700 hover:bg-emerald-50'
@@ -991,7 +991,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setCreditMode('INSTALLMENTS')}
-                      className={`flex-1 py-2 rounded-lg transition-colors cursor-pointer min-h-[40px] ${
+                      className={`px-3 py-2 rounded-lg transition-colors cursor-pointer min-h-[44px] flex items-center justify-center text-center leading-tight whitespace-normal ${
                         creditMode === 'INSTALLMENTS'
                           ? 'bg-emerald-800 text-white shadow-xs'
                           : 'text-gray-700 hover:bg-emerald-50'
@@ -1015,9 +1015,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-3 bg-white p-3 rounded-xl border border-emerald-100">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
                             Prima / Abono inicial (C$)
                           </label>
                           <input
@@ -1032,7 +1032,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
                             Número de cuotas
                           </label>
                           <select
@@ -1051,9 +1051,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
                             Frecuencia de pago
                           </label>
                           <select
@@ -1076,7 +1076,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
                             Primera fecha de vencimiento
                           </label>
                           <input
@@ -1091,9 +1091,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       {/* Vista previa de cuotas */}
                       {creditPlanPreview && (
                         <div className="pt-2 border-t border-gray-100 space-y-2">
-                          <div className="flex items-center justify-between text-xs">
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                             <span className="font-semibold text-gray-700">Monto por cuota:</span>
-                            <span className="font-black text-emerald-800 text-sm">
+                            <span className="font-black text-emerald-800 text-sm whitespace-nowrap tabular-nums shrink-0">
                               {formatCurrency(creditPlanPreview.cuotas[0]?.amount || 0)}
                             </span>
                           </div>
@@ -1102,12 +1102,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                             {creditPlanPreview.cuotas.map((c) => (
                               <div
                                 key={c.installmentNumber}
-                                className="px-2.5 py-1.5 flex items-center justify-between bg-white hover:bg-gray-50"
+                                className="px-2.5 py-1.5 flex items-center justify-between gap-2 bg-white hover:bg-gray-50"
                               >
-                                <span className="font-medium text-gray-700">
+                                <span className="font-medium text-gray-700 min-w-0">
                                   Cuota {c.installmentNumber} ({formatCalendarDate(c.dueDate)})
                                 </span>
-                                <span className="font-bold text-gray-900">
+                                <span className="font-bold text-gray-900 whitespace-nowrap tabular-nums shrink-0">
                                   {formatCurrency(c.amount)}
                                 </span>
                               </div>

@@ -204,69 +204,69 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
               <Coins size={16} weight="duotone" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-gray-900 tracking-tight">
+          <div className="text-2xl font-bold text-gray-900 tracking-tight whitespace-nowrap tabular-nums">
             {formatCurrency(totalCollected)}
           </div>
-          <div className="flex items-center justify-between pt-0.5 text-[11px] text-gray-400">
+          <div className="flex flex-wrap items-center justify-between gap-1 pt-0.5 text-xs text-gray-600">
             <span>Total cobrado en caja</span>
             {renderComparisonBadge(reportsData?.comparison?.totalSales?.changePercent)}
           </div>
         </div>
 
         {/* Ventas Netas (sin impuesto, con descuentos y devoluciones) */}
-        <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
+        <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5 min-w-0">
           <div className="flex items-center justify-between text-gray-500">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
               <span className="text-xs font-semibold text-gray-700">Ventas netas (sin impuesto)</span>
               <TooltipInfo
                 text="Ingreso neto del negocio sin impuestos, deduciendo descuentos y devoluciones del período."
                 align="left"
               />
             </div>
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
               <Receipt size={16} weight="duotone" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-blue-900 tracking-tight">
+          <div className="text-2xl font-bold text-blue-900 tracking-tight whitespace-nowrap tabular-nums">
             {formatCurrency(netRevenue)}
           </div>
-          <div className="flex items-center justify-between pt-0.5 text-[11px] text-gray-400">
-            <span title="Deduce impuestos, devoluciones y descuentos">
+          <div className="flex flex-wrap items-center justify-between gap-1 pt-0.5 text-xs text-gray-600">
+            <span title="Deduce impuestos, devoluciones y descuentos" className="tabular-nums">
               {totalDiscount > 0 ? `Desc: -${formatCurrency(totalDiscount)}` : 'Ventas netas reales'}
             </span>
-            {totalTax > 0 && <span className="text-gray-400">Imp: {formatCurrency(totalTax)}</span>}
+            {totalTax > 0 && <span className="text-gray-600 whitespace-nowrap tabular-nums">Imp: {formatCurrency(totalTax)}</span>}
           </div>
         </div>
 
         {/* Transacciones / Tickets */}
-        <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
+        <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5 min-w-0">
           <div className="flex items-center justify-between text-gray-500">
             <span className="text-xs font-semibold text-gray-700">Número de ventas</span>
-            <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
               <Receipt size={16} weight="duotone" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-gray-900 tracking-tight">
+          <div className="text-2xl font-bold text-gray-900 tracking-tight tabular-nums">
             {reportsData?.salesCount || 0}
           </div>
-          <div className="flex items-center justify-between pt-0.5 text-[11px] text-gray-400">
+          <div className="flex flex-wrap items-center justify-between gap-1 pt-0.5 text-xs text-gray-600">
             <span>Tickets completados</span>
             {renderComparisonBadge(reportsData?.comparison?.salesCount?.changePercent)}
           </div>
         </div>
 
         {/* Ticket Promedio */}
-        <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5">
+        <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs space-y-1.5 min-w-0">
           <div className="flex items-center justify-between text-gray-500">
             <span className="text-xs font-semibold text-gray-700">Ticket promedio</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
               <Money size={16} weight="duotone" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-gray-900 tracking-tight">
+          <div className="text-2xl font-bold text-gray-900 tracking-tight whitespace-nowrap tabular-nums">
             {formatCurrency(reportsData?.averageTicket || 0)}
           </div>
-          <div className="flex items-center justify-between pt-0.5 text-[11px] text-gray-400">
+          <div className="flex flex-wrap items-center justify-between gap-1 pt-0.5 text-xs text-gray-600">
             <span>Por ticket concretado</span>
             {renderComparisonBadge(reportsData?.comparison?.averageTicket?.changePercent)}
           </div>
@@ -285,14 +285,14 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                 align="left"
               />
             </div>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
+            <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/60 shrink-0 whitespace-nowrap">
               15% IVA
             </span>
           </div>
-          <div className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+          <div className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight whitespace-nowrap tabular-nums">
             {formatCurrency(taxableSales)}
           </div>
-          <p className="text-[11px] text-gray-400">
+          <p className="text-xs text-gray-600">
             Base imponible gravada
           </p>
         </div>
@@ -307,14 +307,14 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                 align="left"
               />
             </div>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+            <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60 shrink-0 whitespace-nowrap">
               Exento
             </span>
           </div>
-          <div className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+          <div className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight whitespace-nowrap tabular-nums">
             {formatCurrency(exemptSales)}
           </div>
-          <p className="text-[11px] text-gray-400">
+          <p className="text-xs text-gray-600">
             Medicamentos y productos exentos
           </p>
         </div>
@@ -329,14 +329,14 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                 align="left"
               />
             </div>
-            <div className="w-6 h-6 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-[10px]">
+            <div className="w-6 h-6 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-xs shrink-0">
               %
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-bold text-purple-900 tracking-tight">
+          <div className="text-xl sm:text-2xl font-bold text-purple-900 tracking-tight whitespace-nowrap tabular-nums">
             {formatCurrency(totalTax)}
           </div>
-          <p className="text-[11px] text-gray-400">
+          <p className="text-xs text-gray-600">
             Impuesto del período
           </p>
         </div>
@@ -348,7 +348,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
           <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
             Distribución por Método de Pago
           </h3>
-          <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+          <div className="flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap tabular-nums">
             <span>Total recaudado: {formatCurrency(totalPaymentMethods)}</span>
             <TooltipInfo
               text="Total efectivamente ingresado en caja por medios de pago. Puede diferir de 'Ventas cobradas' si se realizaron ventas al crédito (cuentas por cobrar) cuyo pago aún no entra a caja."
@@ -378,43 +378,43 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
 
         {/* Desglose en tarjetas */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-          <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
+          <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
                 <Coins size={16} weight="bold" />
               </div>
-              <div>
-                <span className="text-[11px] font-medium text-emerald-900 block">Efectivo</span>
-                <span className="text-[10px] text-emerald-700">{cashPct.toFixed(1)}% del total</span>
+              <div className="min-w-0">
+                <span className="text-xs font-medium text-emerald-900 block">Efectivo</span>
+                <span className="text-xs text-emerald-700 tabular-nums">{cashPct.toFixed(1)}% del total</span>
               </div>
             </div>
-            <span className="font-bold text-xs text-emerald-950">{formatCurrency(cashAmount)}</span>
+            <span className="font-bold text-xs text-emerald-950 whitespace-nowrap tabular-nums shrink-0">{formatCurrency(cashAmount)}</span>
           </div>
 
-          <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center">
+          <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
                 <CreditCard size={16} weight="bold" />
               </div>
-              <div>
-                <span className="text-[11px] font-medium text-blue-900 block">Tarjeta</span>
-                <span className="text-[10px] text-blue-700">{cardPct.toFixed(1)}% del total</span>
+              <div className="min-w-0">
+                <span className="text-xs font-medium text-blue-900 block">Tarjeta</span>
+                <span className="text-xs text-blue-700 tabular-nums">{cardPct.toFixed(1)}% del total</span>
               </div>
             </div>
-            <span className="font-bold text-xs text-blue-950">{formatCurrency(cardAmount)}</span>
+            <span className="font-bold text-xs text-blue-950 whitespace-nowrap tabular-nums shrink-0">{formatCurrency(cardAmount)}</span>
           </div>
 
-          <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-800 flex items-center justify-center">
+          <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-100 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-800 flex items-center justify-center shrink-0">
                 <Bank size={16} weight="bold" />
               </div>
-              <div>
-                <span className="text-[11px] font-medium text-purple-900 block">Transferencia</span>
-                <span className="text-[10px] text-purple-700">{transferPct.toFixed(1)}% del total</span>
+              <div className="min-w-0">
+                <span className="text-xs font-medium text-purple-900 block">Transferencia</span>
+                <span className="text-xs text-purple-700 tabular-nums">{transferPct.toFixed(1)}% del total</span>
               </div>
             </div>
-            <span className="font-bold text-xs text-purple-950">{formatCurrency(transferAmount)}</span>
+            <span className="font-bold text-xs text-purple-950 whitespace-nowrap tabular-nums shrink-0">{formatCurrency(transferAmount)}</span>
           </div>
         </div>
       </div>
@@ -429,7 +429,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                 Ventas por Día
               </h3>
             </div>
-            <span className="text-[11px] text-gray-400">
+            <span className="text-xs text-gray-600 whitespace-nowrap">
               {reportsData.summary.byDay.length}{' '}
               {reportsData.summary.byDay.length === 1 ? 'día con actividad' : 'días con actividad'}
             </span>
@@ -443,7 +443,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                   const pct = Math.max(8, Math.round((d.revenue / maxDayRev) * 100));
                   return (
                     <div key={d.date} className="flex-1 flex flex-col items-center gap-1.5 group">
-                      <div className="text-[10px] font-semibold text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                      <div className="text-xs font-semibold text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap tabular-nums">
                         {formatCurrency(d.revenue)}
                       </div>
                       <div className="w-full flex-1 flex items-end">
@@ -453,7 +453,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                           title={`${d.date}: ${formatCurrency(d.revenue)} (${d.count} comprobantes)`}
                         />
                       </div>
-                      <span className="text-[10px] text-gray-500 font-medium truncate max-w-full">
+                      <span className="text-xs text-gray-600 font-medium truncate max-w-full">
                         {formatManaguaDate(d.date).slice(0, 5)}
                       </span>
                     </div>
@@ -469,7 +469,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Ventas por Hora (00 a 23) */}
         <div className="bg-white rounded-2xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-3 flex flex-col">
-          <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Clock size={16} className="text-gray-700" weight="bold" />
               <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
@@ -477,14 +477,14 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
               </h3>
             </div>
             {timeData?.peakHour && timeData.peakHour.count > 0 && (
-              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/60 whitespace-nowrap">
                 Pico: {String(timeData.peakHour.hour).padStart(2, '0')}:00 hrs
               </span>
             )}
           </div>
 
           {!timeData?.byHour || timeData.byHour.every((h) => h.count === 0) ? (
-            <div className="p-8 text-center text-xs text-gray-400">
+            <div className="p-8 text-center text-xs text-gray-600">
               No hay datos de horario para este período.
             </div>
           ) : (
@@ -508,7 +508,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                           title={`${String(h.hour).padStart(2, '0')}:00 - ${formatCurrency(h.revenue)} (${h.count} tickets)`}
                         />
                       </div>
-                      <span className="text-[9px] text-gray-400 font-mono">
+                      <span className="text-xs text-gray-600 font-mono">
                         {h.hour % 3 === 0 ? `${h.hour}h` : ''}
                       </span>
                     </div>
@@ -521,7 +521,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
 
         {/* Ventas por Día de la Semana */}
         <div className="bg-white rounded-2xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-3 flex flex-col">
-          <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <CalendarBlank size={16} className="text-gray-700" weight="bold" />
               <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
@@ -529,7 +529,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
               </h3>
             </div>
             {timeData?.peakDay && timeData.peakDay.count > 0 && (
-              <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60">
+              <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200/60 whitespace-nowrap">
                 Pico: {timeData.peakDay.dayName}
               </span>
             )}
@@ -546,12 +546,12 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                 const isPeak = timeData.peakDay?.dayOfWeek === d.dayOfWeek && d.count > 0;
                 return (
                   <div key={d.dayOfWeek} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                       <span className={`font-semibold ${isPeak ? 'text-blue-900' : 'text-gray-700'}`}>
                         {d.dayName}
                       </span>
-                      <div className="text-right space-x-2">
-                        <span className="text-gray-400 text-[11px]">{d.count} tickets</span>
+                      <div className="text-right space-x-2 ml-auto whitespace-nowrap tabular-nums">
+                        <span className="text-gray-600 text-xs">{d.count} tickets</span>
                         <span className="font-bold text-gray-900">{formatCurrency(d.revenue)}</span>
                       </div>
                     </div>
@@ -582,25 +582,25 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                 Ventas por Categoría
               </h3>
             </div>
-            <span className="text-[11px] text-gray-400">Participación en ingresos</span>
+            <span className="text-xs text-gray-600">Participación en ingresos</span>
           </div>
 
           {!categoryData?.categories || categoryData.categories.length === 0 ? (
-            <div className="p-8 text-center text-xs text-gray-400">
+            <div className="p-8 text-center text-xs text-gray-600">
               No hay ventas categorizadas en este período.
             </div>
           ) : (
             <div className="space-y-3 pt-2 max-h-80 overflow-y-auto flex-1">
               {categoryData.categories.map((c) => (
                 <div key={c.categoryId || c.categoryName} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-gray-900 truncate pr-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-xs">
+                    <span className="font-semibold text-gray-900 min-w-0 leading-snug break-words">
                       {c.categoryName}
                     </span>
-                    <div className="text-right space-x-2 shrink-0">
-                      <span className="text-gray-400 text-[11px]">{c.quantity} un.</span>
+                    <div className="ml-auto text-right space-x-2 shrink-0 whitespace-nowrap tabular-nums">
+                      <span className="text-gray-600 text-xs">{c.quantity} un.</span>
                       <span className="font-bold text-gray-900">{formatCurrency(c.revenue)}</span>
-                      <span className="text-blue-700 font-bold text-[11px] bg-blue-50 px-1.5 py-0.5 rounded">
+                      <span className="text-blue-700 font-bold text-xs bg-blue-50 px-1.5 py-0.5 rounded">
                         {c.percentage}%
                       </span>
                     </div>
@@ -626,38 +626,38 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                 Ventas por Cajero
               </h3>
             </div>
-            <span className="text-[11px] text-gray-400">Desempeño individual</span>
+            <span className="text-xs text-gray-600">Desempeño individual</span>
           </div>
 
           {!cashierData?.cashiers || cashierData.cashiers.length === 0 ? (
-            <div className="p-8 text-center text-xs text-gray-400">
+            <div className="p-8 text-center text-xs text-gray-600">
               No hay ventas por cajero registradas en este período.
             </div>
           ) : (
             <div className="overflow-x-auto max-h-80 overflow-y-auto pt-1 flex-1">
               <table className="w-full text-xs text-left">
                 <thead>
-                  <tr className="border-b border-gray-100 text-gray-400 text-[11px]">
-                    <th className="py-2 px-2 font-semibold">Cajero</th>
-                    <th className="py-2 px-2 font-semibold text-center">Tickets</th>
-                    <th className="py-2 px-2 font-semibold text-right">Total Cobrado</th>
-                    <th className="py-2 px-2 font-semibold text-right">Promedio</th>
-                    <th className="py-2 px-2 font-semibold text-right">%</th>
+                  <tr className="border-b border-gray-100 text-gray-600 text-xs">
+                    <th className="py-2 px-2 font-semibold whitespace-nowrap">Cajero</th>
+                    <th className="py-2 px-2 font-semibold text-center whitespace-nowrap">Tickets</th>
+                    <th className="py-2 px-2 font-semibold text-right whitespace-nowrap">Total Cobrado</th>
+                    <th className="py-2 px-2 font-semibold text-right whitespace-nowrap">Promedio</th>
+                    <th className="py-2 px-2 font-semibold text-right whitespace-nowrap">%</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {cashierData.cashiers.map((c) => (
                     <tr key={c.cashierId} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="py-2.5 px-2 font-semibold text-gray-900">{c.cashierName}</td>
-                      <td className="py-2.5 px-2 text-center text-gray-600">{c.salesCount}</td>
-                      <td className="py-2.5 px-2 text-right font-bold text-gray-900">
-                        {formatCurrency(c.totalSales)}
+                      <td className="py-2.5 px-2 font-semibold text-gray-900 whitespace-nowrap">{c.cashierName}</td>
+                      <td className="py-2.5 px-2 text-center text-gray-600 tabular-nums whitespace-nowrap">{c.salesCount}</td>
+                      <td className="py-2.5 px-2 text-right font-bold text-gray-900 whitespace-nowrap tabular-nums">
+                        <span className="whitespace-nowrap tabular-nums">{formatCurrency(c.totalSales)}</span>
                       </td>
-                      <td className="py-2.5 px-2 text-right text-gray-600">
-                        {formatCurrency(c.averageTicket)}
+                      <td className="py-2.5 px-2 text-right text-gray-600 whitespace-nowrap tabular-nums">
+                        <span className="whitespace-nowrap tabular-nums">{formatCurrency(c.averageTicket)}</span>
                       </td>
-                      <td className="py-2.5 px-2 text-right font-semibold text-blue-700">
-                        {c.percentage}%
+                      <td className="py-2.5 px-2 text-right font-semibold text-blue-700 whitespace-nowrap tabular-nums">
+                        <span className="whitespace-nowrap tabular-nums">{c.percentage}%</span>
                       </td>
                     </tr>
                   ))}
@@ -676,20 +676,20 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
             <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
               Productos Más Vendidos
             </h3>
-            <span className="text-[11px] text-gray-400">Por ventas</span>
+            <span className="text-xs text-gray-600">Por ventas</span>
           </div>
 
           {!reportsData?.topProducts || reportsData.topProducts.length === 0 ? (
-            <div className="p-8 text-center text-xs text-gray-400">
+            <div className="p-8 text-center text-xs text-gray-600">
               No hay productos vendidos en este período.
             </div>
           ) : (
             <div className="divide-y divide-gray-100 flex-1">
               {reportsData.topProducts.map((p, idx) => (
-                <div key={p.productId || p.productName} className="p-3.5 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
+                <div key={p.productId || p.productName} className="p-3.5 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-3 min-w-0">
                     <span
-                      className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center text-[11px] ${
+                      className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center text-xs shrink-0 ${
                         idx === 0
                           ? 'bg-amber-100 text-amber-900'
                           : idx === 1
@@ -701,12 +701,12 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                     >
                       {idx + 1}
                     </span>
-                    <div>
-                      <div className="font-bold text-gray-900">{p.productName}</div>
-                      <div className="text-[11px] text-gray-400">{p.quantity} unidades vendidas</div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-gray-900 leading-snug break-words">{p.productName}</div>
+                      <div className="text-xs text-gray-600">{p.quantity} unidades vendidas</div>
                     </div>
                   </div>
-                  <div className="text-right font-bold text-gray-900">
+                  <div className="text-right font-bold text-gray-900 whitespace-nowrap tabular-nums shrink-0">
                     {formatCurrency(p.revenue)}
                   </div>
                 </div>
@@ -724,7 +724,7 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
                 Alertas de Stock Bajo
               </h3>
             </div>
-            <span className="text-[11px] text-gray-400">Reposición sugerida</span>
+            <span className="text-xs text-gray-600">Reposición sugerida</span>
           </div>
 
           {!reportsData?.lowStockProducts || reportsData.lowStockProducts.length === 0 ? (
@@ -735,16 +735,16 @@ export const SalesOperationsTab: React.FC<SalesOperationsTabProps> = ({
           ) : (
             <div className="divide-y divide-gray-100 flex-1 max-h-80 overflow-y-auto">
               {reportsData.lowStockProducts.map((prod) => (
-                <div key={prod.id} className="p-3.5 flex items-center justify-between text-xs">
-                  <div>
-                    <div className="font-bold text-gray-900">{prod.name}</div>
-                    <div className="text-[11px] text-gray-400">
+                <div key={prod.id} className="p-3.5 flex items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <div className="font-bold text-gray-900 leading-snug break-words">{prod.name}</div>
+                    <div className="text-xs text-gray-600">
                       Mínimo requerido: {prod.minStock || 0} {prod.unit || 'und'}
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${
                         prod.stock <= 0
                           ? 'bg-red-50 text-red-700 border border-red-200'
                           : 'bg-amber-50 text-amber-700 border border-amber-200'

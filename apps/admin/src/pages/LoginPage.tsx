@@ -122,16 +122,16 @@ export const LoginPage = () => {
 
             <Button 
               type="submit" 
-              className="w-full mt-2" 
+              className="w-full mt-2 min-h-[44px]" 
               disabled={isLoading}
             >
               {isLoading ? 'Ingresando...' : 'Ingresar'}
             </Button>
           </form>
 
-          <div className="mt-8 text-center text-sm text-gray-500">
+          <div className="mt-8 text-center text-sm text-gray-600">
             ¿No tenés cuenta?{' '}
-            <a href="#" className="text-gray-900 font-medium hover:underline">
+            <a href="#" className="inline-flex items-center min-h-[44px] px-1.5 text-gray-900 font-medium hover:underline">
               Contactar soporte
             </a>
           </div>

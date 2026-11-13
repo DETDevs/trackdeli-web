@@ -168,16 +168,16 @@ export const PosAnalyticsPage: React.FC = () => {
               Ranking de Productos ({sortedProducts.length})
             </span>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-gray-400">Ordenar por:</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-600">Ordenar por:</span>
               <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-gray-200 shadow-2xs">
                 <button
                   type="button"
                   onClick={() => setProductSortBy('revenue')}
-                  className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                  className={`px-3 py-1.5 min-h-[38px] rounded text-xs font-medium transition-colors ${
                     productSortBy === 'revenue'
                       ? 'bg-gray-900 text-white'
-                      : 'text-gray-600 hover:text-gray-900'
+                      : 'text-gray-700 hover:text-gray-900'
                   }`}
                 >
                   Ingresos ({currency === 'USD' ? '$' : 'C$'})
@@ -185,10 +185,10 @@ export const PosAnalyticsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setProductSortBy('quantity')}
-                  className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                  className={`px-3 py-1.5 min-h-[38px] rounded text-xs font-medium transition-colors ${
                     productSortBy === 'quantity'
                       ? 'bg-gray-900 text-white'
-                      : 'text-gray-600 hover:text-gray-900'
+                      : 'text-gray-700 hover:text-gray-900'
                   }`}
                 >
                   Cantidad
@@ -200,7 +200,7 @@ export const PosAnalyticsPage: React.FC = () => {
           {isLoadingProducts ? (
             <div className="p-12 text-center space-y-2">
               <div className="w-7 h-7 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-xs text-gray-400">Calculando ranking de productos...</p>
+              <p className="text-xs text-gray-600">Calculando ranking de productos...</p>
             </div>
           ) : isErrorProducts ? (
             <div className="p-8 text-center text-red-700">
@@ -211,7 +211,7 @@ export const PosAnalyticsPage: React.FC = () => {
             <div className="p-12 text-center space-y-2">
               <Package size={32} className="mx-auto text-gray-300" />
               <p className="font-semibold text-xs text-gray-900">No hay ventas registradas</p>
-              <p className="text-[11px] text-gray-400">
+              <p className="text-xs text-gray-600">
                 No se registraron ventas en el rango de fechas seleccionado.
               </p>
             </div>
@@ -224,7 +224,7 @@ export const PosAnalyticsPage: React.FC = () => {
                 return (
                   <div key={p.productId || p.productName} className="p-4 hover:bg-gray-50/50 transition-colors space-y-2">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
                         {/* Badge de posición */}
                         <div
                           className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${
@@ -234,17 +234,17 @@ export const PosAnalyticsPage: React.FC = () => {
                               ? 'bg-gray-200 text-gray-800'
                               : index === 2
                               ? 'bg-amber-50 text-amber-700'
-                              : 'bg-gray-50 text-gray-500'
+                              : 'bg-gray-50 text-gray-600'
                           }`}
                         >
                           {index + 1}
                         </div>
 
-                        <div className="min-w-0">
-                          <p className="font-semibold text-xs text-gray-900 truncate">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-xs text-gray-900 leading-snug break-words">
                             {p.productName}
                           </p>
-                          <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-600 mt-0.5">
                             <span>{p.category}</span>
                             {p.barcode && <span>· Cod: {p.barcode}</span>}
                             <span>· {p.timesSold} {p.timesSold === 1 ? 'ticket' : 'tickets'}</span>
@@ -254,10 +254,10 @@ export const PosAnalyticsPage: React.FC = () => {
 
                       {/* Montos y Cantidad */}
                       <div className="text-right shrink-0">
-                        <span className="font-bold text-xs text-gray-900 block">
+                        <span className="font-bold text-xs text-gray-900 block whitespace-nowrap tabular-nums">
                           {formatCurrency(p.revenue, currency)}
                         </span>
-                        <span className="text-[11px] text-gray-500">
+                        <span className="text-xs text-gray-600 whitespace-nowrap tabular-nums">
                           {p.quantity.toLocaleString('es-NI')} unid.
                         </span>
                       </div>

@@ -443,7 +443,7 @@ export const CustomersPage = () => {
                   <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-1.5">
                     <span>{customer.name}</span>
                     {customer.isBlocked && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-700">
+                      <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">
                         Bloqueado
                       </span>
                     )}
@@ -491,7 +491,7 @@ export const CustomersPage = () => {
                 </div>
               )}
 
-              <div className="flex items-center justify-between text-[11px] text-gray-400 pt-2 border-t border-gray-50">
+              <div className="flex items-center justify-between text-xs text-gray-600 pt-2 border-t border-gray-50">
                 <span>Última actividad:</span>
                 <span className="font-medium text-gray-600">
                   {customer.lastConfirmedAt
@@ -670,23 +670,23 @@ export const CustomersPage = () => {
                                   {acc.sale?.invoiceNumber ? `Comprobante #${acc.sale.invoiceNumber}` : `Crédito #${acc.id.slice(-6)}`}
                                 </span>
                                 {balance <= 0.005 ? (
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                     Saldada
                                   </span>
                                 ) : (
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                                     Pendiente
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[11px] text-gray-400 mt-0.5">
+                              <p className="text-xs text-gray-600 mt-0.5">
                                 Emisión: {formatManaguaDate(acc.createdAt || acc.sale?.createdAt)}
                               </p>
                             </div>
 
                             <div className="text-right">
-                              <span className="text-[10px] text-gray-400 block uppercase">Saldo</span>
-                              <span className="text-sm font-bold font-mono text-gray-900">
+                              <span className="text-xs text-gray-600 block uppercase">Saldo</span>
+                              <span className="text-sm font-bold font-mono text-gray-900 whitespace-nowrap tabular-nums">
                                 {formatCurrency(balance)}
                               </span>
                             </div>

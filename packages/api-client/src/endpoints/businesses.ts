@@ -67,7 +67,18 @@ export interface Business {
   whatsappDisplay?: string;
   wholesaleEnabled?: boolean;
   wholesale_enabled?: boolean;
+  tracksBatches?: boolean;
   useListPrice?: boolean;
+  defaultMarkupPct?: number | null;
+  autoUpdatePriceOnPurchase?: boolean;
+  posVertical?: string;
+  salonProfile?: string | null;
+  industryCode?: string;
+  industry?: {
+    id?: string;
+    code?: string;
+    name?: string;
+  } | null;
   twoStepSaleEnabled?: boolean;
   twoStepTicketTtlHours?: number;
   twoStepMinVersion?: string | null;

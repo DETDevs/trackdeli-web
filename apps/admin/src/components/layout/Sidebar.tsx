@@ -203,7 +203,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const getNavLinkClass = (isActive: boolean, collapsed: boolean) =>
     `flex items-center ${
       collapsed ? 'justify-center px-2' : 'space-x-3 px-3'
-    } py-2.5 rounded-lg text-xs font-medium transition-colors ${
+    } py-2 min-h-[44px] rounded-lg text-xs font-medium transition-colors ${
       isActive
         ? 'bg-[#0F0F0F] text-white shadow-xs'
         : 'text-gray-600 hover:bg-gray-50 hover:text-[#0F0F0F]'
@@ -284,7 +284,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={onToggleCollapse}
             className={`w-full flex items-center ${
               isCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'
-            } py-2 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer`}
+            } py-2 min-h-[44px] rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer`}
             title={isCollapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral'}
           >
             {isCollapsed ? (
@@ -302,7 +302,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={onLogout}
             className={`w-full flex items-center ${
               isCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'
-            } py-2.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer`}
+            } py-2 min-h-[44px] rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer`}
             title="Cerrar sesión"
           >
             <SignOut size={20} weight="regular" className="shrink-0" />
@@ -365,7 +365,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onCloseMobile();
               onLogout();
             }}
-            className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+            className="w-full flex items-center space-x-3 px-3 py-2 min-h-[44px] rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
           >
             <SignOut size={20} weight="regular" className="shrink-0" />
             <span>Cerrar sesión</span>

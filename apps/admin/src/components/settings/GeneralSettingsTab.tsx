@@ -185,23 +185,23 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({ isReadOn
               </p>
             </div>
           </div>
-          <span className="text-[11px] font-semibold text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
+          <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0">
             {vertical}
           </span>
         </div>
 
         <div className="p-4 bg-gray-50/70 rounded-xl border border-gray-100 flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-gray-900">{verticalInfo.label}</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
                 Activa
               </span>
             </div>
             <p className="text-xs text-gray-600 leading-relaxed">{verticalInfo.desc}</p>
           </div>
         </div>
-        <p className="text-[11px] text-gray-400">
+        <p className="text-xs text-gray-600">
           La modalidad del negocio fue asignada al crearse la cuenta. Para modificarla, contactá al soporte técnico.
         </p>
       </div>
@@ -275,7 +275,7 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({ isReadOn
                 className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-gray-900 text-xs font-mono"
               />
             </div>
-            <p className="text-[11px] text-gray-400 mt-1">
+            <p className="text-xs text-gray-600 mt-1">
               Ingresá los 8 dígitos de tu número móvil.
             </p>
           </div>
@@ -284,7 +284,7 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({ isReadOn
             <button
               type="submit"
               disabled={whatsappMutation.isPending}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
             >
               {whatsappMutation.isPending ? (
                 <CircleNotch size={14} className="animate-spin" />
@@ -325,7 +325,7 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({ isReadOn
           </div>
 
           {business?.latitude && business?.longitude && (
-            <p className="text-[11px] text-gray-500 font-mono">
+            <p className="text-xs text-gray-600 font-mono">
               Coordenadas actuales: {Number(business.latitude).toFixed(6)}, {Number(business.longitude).toFixed(6)}
             </p>
           )}

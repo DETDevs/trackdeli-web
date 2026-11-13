@@ -236,8 +236,8 @@ export const PinPicker: React.FC<PinPickerProps> = ({
               >
                 <MapPin size={15} className="text-gray-400 shrink-0 mt-0.5" weight="fill" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-xs text-gray-900 truncate">{res.text}</p>
-                  <p className="text-[11px] text-gray-500 truncate">{res.place_name}</p>
+                  <p className="font-semibold text-xs text-gray-900">{res.text}</p>
+                  <p className="text-xs text-gray-600 leading-snug break-words">{res.place_name}</p>
                 </div>
               </button>
             ))}
@@ -256,7 +256,7 @@ export const PinPicker: React.FC<PinPickerProps> = ({
         }}
       >
         <div className="relative flex flex-col items-center">
-          <div className="bg-gray-950/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-md mb-1 whitespace-nowrap tracking-wide flex items-center gap-1 border border-white/20">
+          <div className="bg-gray-950/90 text-white text-xs font-bold px-2.5 py-0.5 rounded-md shadow-md mb-1 whitespace-nowrap tracking-wide flex items-center gap-1 border border-white/20">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
             <span>Fijar acá</span>
           </div>
@@ -291,7 +291,7 @@ export const PinPicker: React.FC<PinPickerProps> = ({
       >
         <div className="bg-white/95 backdrop-blur-xs border border-gray-200/90 rounded-xl px-3.5 py-2 shadow-md flex items-center gap-2.5">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-100" />
-          <p className="text-[11px] text-gray-800 truncate font-semibold flex-1">
+          <p className="text-xs text-gray-800 font-semibold flex-1 leading-snug break-words">
             {isGeocoding ? 'Obteniendo dirección del mapa...' : currentAddress}
           </p>
         </div>

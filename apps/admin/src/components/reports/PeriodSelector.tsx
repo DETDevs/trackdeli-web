@@ -73,7 +73,7 @@ export const PeriodSelector: React.FC<PeriodSelectorProps> = ({
     <div className="flex flex-col gap-2 w-full sm:w-auto">
       <div className="flex flex-wrap items-center gap-2">
         {/* Pills de período */}
-        <div className="inline-flex items-center bg-gray-100 p-1 rounded-xl gap-0.5 max-w-full overflow-x-auto">
+        <div className="inline-flex flex-wrap items-center bg-gray-100 p-1 rounded-xl gap-1 max-w-full">
           {(
             [
               { id: 'today', label: 'Hoy' },
@@ -86,10 +86,10 @@ export const PeriodSelector: React.FC<PeriodSelectorProps> = ({
               key={p.id}
               type="button"
               onClick={() => handlePeriodClick(p.id)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-1.5 min-h-[40px] text-xs font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 period === p.id
                   ? 'bg-gray-900 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
+                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60'
               }`}
             >
               {p.label}
@@ -102,11 +102,12 @@ export const PeriodSelector: React.FC<PeriodSelectorProps> = ({
           <button
             type="button"
             onClick={onRefresh}
-            className="flex items-center justify-center p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-colors shadow-2xs cursor-pointer shrink-0"
+            className="flex items-center justify-center min-w-[44px] min-h-[44px] p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-colors shadow-2xs cursor-pointer shrink-0"
             title="Refrescar reportes"
+            aria-label="Refrescar reportes"
           >
             <ArrowsClockwise
-              size={15}
+              size={16}
               weight="bold"
               className={isRefreshing ? 'animate-spin text-gray-900' : 'text-gray-600'}
             />
@@ -120,7 +121,7 @@ export const PeriodSelector: React.FC<PeriodSelectorProps> = ({
           <CalendarBlank size={16} className="text-gray-500 shrink-0" weight="bold" />
 
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-gray-500 text-[11px] font-medium shrink-0">Desde:</span>
+            <span className="text-gray-600 text-xs font-medium shrink-0">Desde:</span>
             <input
               type="date"
               value={customFrom}
@@ -130,12 +131,12 @@ export const PeriodSelector: React.FC<PeriodSelectorProps> = ({
                 setCustomFrom(val);
                 validateAndApply(val, customTo);
               }}
-              className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-800 bg-gray-50/50 focus:bg-white focus:outline-none focus:border-gray-900 shadow-2xs"
+              className="border border-gray-200 rounded-lg px-2 py-1.5 min-h-[40px] text-xs text-gray-800 bg-gray-50/50 focus:bg-white focus:outline-none focus:border-gray-900 shadow-2xs"
             />
           </div>
 
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-gray-500 text-[11px] font-medium shrink-0">Hasta:</span>
+            <span className="text-gray-600 text-xs font-medium shrink-0">Hasta:</span>
             <input
               type="date"
               value={customTo}
@@ -145,12 +146,12 @@ export const PeriodSelector: React.FC<PeriodSelectorProps> = ({
                 setCustomTo(val);
                 validateAndApply(customFrom, val);
               }}
-              className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-800 bg-gray-50/50 focus:bg-white focus:outline-none focus:border-gray-900 shadow-2xs"
+              className="border border-gray-200 rounded-lg px-2 py-1.5 min-h-[40px] text-xs text-gray-800 bg-gray-50/50 focus:bg-white focus:outline-none focus:border-gray-900 shadow-2xs"
             />
           </div>
 
           {errorMsg && (
-            <div className="flex items-center text-red-600 text-[11px] gap-1 w-full sm:w-auto font-medium">
+            <div className="flex items-center text-red-600 text-xs gap-1 w-full sm:w-auto font-medium">
               <WarningCircle size={14} weight="fill" className="shrink-0 text-red-500" />
               <span>{errorMsg}</span>
             </div>

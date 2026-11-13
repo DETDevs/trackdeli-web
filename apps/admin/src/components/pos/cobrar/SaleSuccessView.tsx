@@ -287,52 +287,52 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
                 )}
                 <div className="flex justify-between text-gray-700 font-medium pt-1 border-t border-gray-200/60">
                   <span>Subtotal antes de IVA</span>
-                  <span>{formatCurrency(subtotalBeforeTax)}</span>
+                  <span className="whitespace-nowrap tabular-nums shrink-0">{formatCurrency(subtotalBeforeTax)}</span>
                 </div>
                 {hasTaxable && (
-                  <div className="flex justify-between text-gray-600">
+                  <div className="flex justify-between gap-2 text-gray-600">
                     <span>IVA 15 %</span>
-                    <span>{formatCurrency(taxAmount)}</span>
+                    <span className="whitespace-nowrap tabular-nums shrink-0">{formatCurrency(taxAmount)}</span>
                   </div>
                 )}
-                <div className="pt-1.5 border-t border-gray-200 flex justify-between items-center">
-                  <span className="text-sm font-bold text-gray-900">
+                <div className="pt-2 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">
                     {hasTaxable ? 'TOTAL A PAGAR (con IVA)' : 'Total cobrado'}
                   </span>
-                  <span className="text-lg font-black text-emerald-800">
+                  <span className="text-xl font-black text-emerald-800 whitespace-nowrap tabular-nums shrink-0">
                     {formatCurrency(total)}
                   </span>
                 </div>
               </>
             ) : isPerLine || hasTaxable ? (
               <>
-                <div className="flex justify-between text-gray-600">
+                <div className="flex justify-between gap-2 text-gray-600">
                   <span>Subtotal</span>
-                  <span className="font-semibold text-gray-800">{formatCurrency(sale.subtotal)}</span>
+                  <span className="font-semibold text-gray-800 whitespace-nowrap tabular-nums shrink-0">{formatCurrency(sale.subtotal)}</span>
                 </div>
                 {discountManual > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-medium">
+                  <div className="flex justify-between gap-2 text-emerald-700 font-medium">
                     <span>Descuento</span>
-                    <span>-{formatCurrency(discountManual)}</span>
+                    <span className="whitespace-nowrap tabular-nums shrink-0">-{formatCurrency(discountManual)}</span>
                   </div>
                 )}
                 {hasTaxable && (
                   <>
-                    <div className="flex justify-between text-gray-700 font-medium pt-1 border-t border-gray-200/60">
+                    <div className="flex justify-between gap-2 text-gray-700 font-medium pt-1 border-t border-gray-200/60">
                       <span>Subtotal antes de IVA</span>
-                      <span>{formatCurrency(subtotalBeforeTax)}</span>
+                      <span className="whitespace-nowrap tabular-nums shrink-0">{formatCurrency(subtotalBeforeTax)}</span>
                     </div>
-                    <div className="flex justify-between text-gray-600">
+                    <div className="flex justify-between gap-2 text-gray-600">
                       <span>IVA 15 %</span>
-                      <span>{formatCurrency(taxAmount)}</span>
+                      <span className="whitespace-nowrap tabular-nums shrink-0">{formatCurrency(taxAmount)}</span>
                     </div>
                   </>
                 )}
-                <div className="pt-1.5 border-t border-gray-200 flex justify-between items-center">
-                  <span className="text-sm font-bold text-gray-900">
+                <div className="pt-2 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">
                     {hasTaxable ? 'TOTAL A PAGAR (con IVA)' : 'Total cobrado'}
                   </span>
-                  <span className="text-lg font-black text-emerald-800">
+                  <span className="text-xl font-black text-emerald-800 whitespace-nowrap tabular-nums shrink-0">
                     {formatCurrency(total)}
                   </span>
                 </div>
@@ -340,14 +340,14 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
             ) : (
               <>
                 {discountManual > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-medium">
+                  <div className="flex justify-between gap-2 text-emerald-700 font-medium">
                     <span>Descuento</span>
-                    <span>-{formatCurrency(discountManual)}</span>
+                    <span className="whitespace-nowrap tabular-nums shrink-0">-{formatCurrency(discountManual)}</span>
                   </div>
                 )}
-                <div className="pt-1 border-t border-gray-200 flex justify-between items-center">
-                  <span className="text-sm font-bold text-gray-900">Total cobrado</span>
-                  <span className="text-lg font-black text-emerald-800">
+                <div className="pt-2 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">Total cobrado</span>
+                  <span className="text-xl font-black text-emerald-800 whitespace-nowrap tabular-nums shrink-0">
                     {formatCurrency(total)}
                   </span>
                 </div>
@@ -380,13 +380,13 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
               type="button"
               onClick={handleShareReceipt}
               disabled={isSharing || isDownloading}
-              className="py-2.5 px-3 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98 disabled:opacity-50 min-h-[44px]"
+              className="w-full h-full py-2.5 px-2.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98 disabled:opacity-50 min-h-[44px] text-center leading-tight"
               title="Compartir recibo PDF vía WhatsApp o el selector del sistema"
             >
               {isSharing ? (
-                <CircleNotch size={16} className="animate-spin" />
+                <CircleNotch size={16} className="animate-spin shrink-0" />
               ) : (
-                <ShareNetwork size={16} weight="bold" />
+                <ShareNetwork size={16} weight="bold" className="shrink-0" />
               )}
               <span>Compartir</span>
             </button>
@@ -395,38 +395,36 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
               type="button"
               onClick={handleDownloadReceipt}
               disabled={isSharing || isDownloading}
-              className="py-2.5 px-3 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98 disabled:opacity-50 min-h-[44px]"
+              className="w-full h-full py-2.5 px-2.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98 disabled:opacity-50 min-h-[44px] text-center leading-tight"
               title="Descargar archivo PDF"
             >
               {isDownloading ? (
-                <CircleNotch size={16} className="animate-spin" />
+                <CircleNotch size={16} className="animate-spin shrink-0" />
               ) : (
-                <DownloadSimple size={16} weight="bold" />
+                <DownloadSimple size={16} weight="bold" className="shrink-0" />
               )}
               <span>Descargar PDF</span>
             </button>
-          </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
               onClick={handleSendWhatsApp}
               disabled={isPreparingLink || isSharing || isDownloading}
-              className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[44px] disabled:opacity-50"
+              className="w-full h-full py-2.5 px-2.5 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[44px] disabled:opacity-50 text-center leading-tight"
             >
               {isPreparingLink ? (
                 <CircleNotch size={17} className="animate-spin text-emerald-600 shrink-0" />
               ) : (
                 <WhatsappLogo size={17} weight="bold" className="text-emerald-600 shrink-0" />
               )}
-              <span className="truncate">{isPreparingLink ? 'Preparando enlace...' : 'Enviar WhatsApp'}</span>
+              <span>{isPreparingLink ? 'Preparando...' : 'WhatsApp'}</span>
             </button>
 
             <button
               type="button"
               onClick={handleCopyPublicLink}
               disabled={isPreparingLink || isSharing || isDownloading}
-              className="w-full py-2.5 px-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[44px] disabled:opacity-50"
+              className="w-full h-full py-2.5 px-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[44px] disabled:opacity-50 text-center leading-tight"
             >
               {isPreparingLink ? (
                 <CircleNotch size={16} className="animate-spin text-gray-500 shrink-0" />
@@ -435,7 +433,7 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
               ) : (
                 <LinkSimple size={16} weight="bold" className="text-gray-500 shrink-0" />
               )}
-              <span className="truncate">{isPreparingLink ? 'Preparando enlace...' : copiedLink ? '¡Copiado!' : 'Copiar enlace'}</span>
+              <span>{isPreparingLink ? 'Preparando...' : copiedLink ? '¡Copiado!' : 'Copiar enlace'}</span>
             </button>
           </div>
 

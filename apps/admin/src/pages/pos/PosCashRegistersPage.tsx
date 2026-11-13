@@ -123,26 +123,26 @@ export const PosCashRegistersPage: React.FC = () => {
       {/* Bloque Cajas abiertas ahora (solo ENCARGADO y SUPERADMIN) */}
       {isManagerOrAdmin && (
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-2xs space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
                 Cajas abiertas ahora ({openRegisters.length})
               </h3>
             </div>
-            <span className="text-[11px] text-gray-400">
+            <span className="text-xs text-gray-600">
               Vista en vivo por computadora
             </span>
           </div>
 
           {isLoadingOpenList ? (
-            <div className="py-4 text-center text-xs text-gray-400">
+            <div className="py-4 text-center text-xs text-gray-600">
               Cargando cajas activas...
             </div>
           ) : openRegisters.length === 0 ? (
-            <div className="py-3 px-4 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-500 flex items-center justify-between">
+            <div className="py-3 px-4 rounded-xl bg-gray-50 border border-gray-100 text-xs text-gray-600 flex flex-wrap items-center justify-between gap-2">
               <span>No hay ninguna caja abierta en este momento.</span>
-              <span className="text-[11px] text-gray-400">Todos los turnos están cerrados</span>
+              <span className="text-xs text-gray-600">Todos los turnos están cerrados</span>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -152,30 +152,30 @@ export const PosCashRegistersPage: React.FC = () => {
                   className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-200/80 flex flex-col justify-between space-y-2.5"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 min-w-0">
                       <div className="flex items-center gap-1.5 font-bold text-xs text-gray-900">
                         <Desktop size={14} className="text-brand-600 shrink-0" />
                         <span>{op.deviceName || 'Caja sin nombre'}</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] text-gray-500">
-                        <User size={12} className="text-gray-400" />
-                        <span>Cajero: <strong className="text-gray-700 font-medium">{op.cashierName || 'Cajero'}</strong></span>
+                      <div className="flex items-center gap-1 text-xs text-gray-600">
+                        <User size={12} className="text-gray-500 shrink-0" />
+                        <span>Cajero: <strong className="text-gray-800 font-medium">{op.cashierName || 'Cajero'}</strong></span>
                       </div>
                     </div>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
                       Abierta
                     </span>
                   </div>
 
-                  <div className="pt-2 border-t border-gray-200/60 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1 text-[11px] text-gray-400">
-                      <Clock size={12} />
+                  <div className="pt-2 border-t border-gray-200/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1 text-xs text-gray-600">
+                      <Clock size={12} className="shrink-0" />
                       <span>{formatDateTime(op.openedAt)}</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-gray-400 uppercase block">Fondo inicial</span>
-                      <span className="font-semibold text-gray-900 font-mono">
+                    <div className="text-right ml-auto">
+                      <span className="text-xs text-gray-600 uppercase block">Fondo inicial</span>
+                      <span className="font-semibold text-gray-900 font-mono whitespace-nowrap tabular-nums">
                         {formatCurrency(op.openingCash, currency)}
                       </span>
                     </div>
@@ -344,7 +344,7 @@ export const PosCashRegistersPage: React.FC = () => {
 
                         <td className="px-4 py-3 text-right font-bold text-gray-900 whitespace-nowrap font-mono">
                           {formatCurrency(reg.totalSales, currency)}
-                          <span className="text-[10px] text-gray-400 font-normal block font-sans">
+                          <span className="text-xs text-gray-600 font-normal block font-sans">
                             {reg.salesCount} ventas
                           </span>
                         </td>
@@ -352,7 +352,7 @@ export const PosCashRegistersPage: React.FC = () => {
                         <td className="px-4 py-3 text-right whitespace-nowrap font-mono">
                           {reg.difference !== null ? (
                             <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-md font-semibold text-[11px] ${
+                              className={`inline-flex items-center px-2 py-0.5 rounded-md font-semibold text-xs ${
                                 reg.difference === 0
                                   ? 'bg-emerald-50 text-emerald-800'
                                   : reg.difference > 0
@@ -409,11 +409,11 @@ export const PosCashRegistersPage: React.FC = () => {
                           #{reg.id.slice(0, 8).toUpperCase()}
                         </span>
                         {reg.status === 'OPEN' ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Abierta
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
                             Cerrada
                           </span>
                         )}
@@ -424,16 +424,16 @@ export const PosCashRegistersPage: React.FC = () => {
                         <span className="font-medium">{reg.deviceName || 'Caja sin nombre'}</span>
                       </div>
 
-                      <p className="text-[11px] text-gray-400">
+                      <p className="text-xs text-gray-600">
                         Apertura: {formatDateTime(reg.openedAt)}
                       </p>
                     </div>
 
                     <div className="text-right shrink-0">
-                      <span className="text-sm font-bold text-gray-900 block font-mono">
+                      <span className="text-sm font-bold text-gray-900 block font-mono whitespace-nowrap tabular-nums">
                         {formatCurrency(reg.totalSales, currency)}
                       </span>
-                      <span className="text-[10px] text-gray-400">
+                      <span className="text-xs text-gray-600 tabular-nums">
                         {reg.salesCount} ventas
                       </span>
                     </div>
@@ -441,7 +441,7 @@ export const PosCashRegistersPage: React.FC = () => {
 
                   {hasAuthorizedDiscrepancy && (
                     <div className="pt-1">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                         <ShieldCheck size={12} className="text-amber-700" />
                         <span>Descuadre autorizado</span>
                       </span>
@@ -450,17 +450,17 @@ export const PosCashRegistersPage: React.FC = () => {
 
                   <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
                     <div>
-                      <span className="text-[10px] text-gray-400 uppercase block">Cajero</span>
-                      <span className="text-gray-700 font-medium">
+                      <span className="text-xs text-gray-600 uppercase block">Cajero</span>
+                      <span className="text-gray-800 font-medium">
                         {reg.closedBy?.name || reg.openedBy?.name || 'Cajero'}
                       </span>
                     </div>
 
                     <div className="text-right">
-                      <span className="text-[10px] text-gray-400 uppercase block">Diferencia</span>
+                      <span className="text-xs text-gray-600 uppercase block">Diferencia</span>
                       {reg.difference !== null ? (
                         <span
-                          className={`font-semibold text-xs font-mono ${
+                          className={`font-semibold text-xs font-mono whitespace-nowrap tabular-nums ${
                             reg.difference === 0
                               ? 'text-emerald-700'
                               : reg.difference > 0
@@ -472,7 +472,7 @@ export const PosCashRegistersPage: React.FC = () => {
                           {formatCurrency(reg.difference, currency)}
                         </span>
                       ) : (
-                        <span className="text-gray-400 font-sans">En curso</span>
+                        <span className="text-gray-600 font-sans">En curso</span>
                       )}
                     </div>
                   </div>

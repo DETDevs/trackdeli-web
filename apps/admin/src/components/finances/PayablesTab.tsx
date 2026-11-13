@@ -183,59 +183,59 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
               <CreditCard size={15} weight="duotone" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-bold text-gray-900 font-mono">
+          <div className="text-lg sm:text-xl font-bold text-gray-900 font-mono whitespace-nowrap tabular-nums">
             {isLoadingSummary ? '—' : formatCurrency(summary?.totalPayable || 0, currency)}
           </div>
-          <p className="text-[11px] text-gray-400">Deuda activa con proveedores</p>
+          <p className="text-xs text-gray-600">Deuda activa con proveedores</p>
         </div>
 
         {/* Total Vencido */}
         <div className="p-4 rounded-2xl bg-white border border-gray-200/80 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-rose-600">Cartera vencida</span>
-            <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center">
+            <span className="text-xs font-semibold text-rose-700">Cartera vencida</span>
+            <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center shrink-0">
               <WarningCircle size={15} weight="duotone" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-bold text-rose-700 font-mono">
+          <div className="text-lg sm:text-xl font-bold text-rose-700 font-mono whitespace-nowrap tabular-nums">
             {isLoadingSummary ? '—' : formatCurrency(summary?.totalOverdue || 0, currency)}
           </div>
-          <p className="text-[11px] text-gray-400">Requiere pago inmediato</p>
+          <p className="text-xs text-gray-600">Requiere pago inmediato</p>
         </div>
 
         {/* Vence en 7 días */}
         <div className="p-4 rounded-2xl bg-white border border-gray-200/80 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-600">Vence en 7 días</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+            <span className="text-xs font-semibold text-amber-700">Vence en 7 días</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
               <Clock size={15} weight="duotone" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-bold text-amber-700 font-mono">
+          <div className="text-lg sm:text-xl font-bold text-amber-700 font-mono whitespace-nowrap tabular-nums">
             {isLoadingSummary ? '—' : formatCurrency(summary?.dueNext7Days || 0, currency)}
           </div>
-          <p className="text-[11px] text-gray-400">Compromisos de la semana</p>
+          <p className="text-xs text-gray-600">Compromisos de la semana</p>
         </div>
 
         {/* Proveedores con deuda */}
         <div className="p-4 rounded-2xl bg-white border border-gray-200/80 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Proveedores</span>
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
+            <span className="text-xs font-semibold text-gray-600">Proveedores</span>
+            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
               <Users size={15} weight="duotone" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-bold text-gray-900 font-mono">
+          <div className="text-lg sm:text-xl font-bold text-gray-900 font-mono tabular-nums">
             {isLoadingSummary ? '—' : summary?.suppliersWithDebt || 0}
           </div>
-          <p className="text-[11px] text-gray-400">Proveedores con saldo pendiente</p>
+          <p className="text-xs text-gray-600">Proveedores con saldo pendiente</p>
         </div>
       </div>
 
       {/* Barra de Filtros y Búsqueda */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {/* Pills de estado */}
-        <div className="inline-flex items-center bg-gray-100 p-1 rounded-xl gap-0.5 overflow-x-auto max-w-full">
+        <div className="inline-flex flex-wrap items-center bg-gray-100 p-1 rounded-xl gap-1 max-w-full">
           {[
             { id: 'ALL', label: 'Todas' },
             { id: 'PENDING', label: 'Pendientes' },
@@ -249,10 +249,10 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
                 setStatusFilter(pill.id);
                 setPage(1);
               }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-1.5 min-h-[40px] text-xs font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 statusFilter === pill.id
                   ? 'bg-gray-900 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
+                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60'
               }`}
             >
               {pill.label}
@@ -403,10 +403,10 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <h4 className="font-bold text-xs text-gray-900 truncate">
+                        <h4 className="font-bold text-xs text-gray-900 leading-snug break-words">
                           {item.supplier.name}
                         </h4>
-                        <p className="text-[11px] text-gray-400">
+                        <p className="text-xs text-gray-600">
                           {item.invoiceNumber || `Compra #${item.purchaseId.slice(-6)}`} •{' '}
                           {formatManaguaDate(item.purchaseDate)}
                         </p>
@@ -416,11 +416,11 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
 
                     {/* Barra de progreso de pago */}
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-gray-400">
-                          Vence: <strong className={item.isOverdue ? 'text-rose-600' : 'text-gray-700'}>{formatManaguaDate(item.dueDate)}</strong>
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="text-gray-600">
+                          Vence: <strong className={item.isOverdue ? 'text-rose-700' : 'text-gray-800'}>{formatManaguaDate(item.dueDate)}</strong>
                         </span>
-                        <span className="font-bold text-gray-900 font-mono text-xs">
+                        <span className="font-bold text-gray-900 font-mono text-xs whitespace-nowrap tabular-nums">
                           {formatCurrency(item.balance, currency)}
                         </span>
                       </div>
@@ -430,9 +430,9 @@ export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) =>
                           style={{ width: `${percentPaid}%` }}
                         />
                       </div>
-                      <div className="flex items-center justify-between text-[10px] text-gray-400">
-                        <span>Abonado: {formatCurrency(item.paidAmount, currency)} ({percentPaid}%)</span>
-                        <span>Total: {formatCurrency(item.originalAmount, currency)}</span>
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600 tabular-nums">
+                        <span className="whitespace-nowrap">Abonado: {formatCurrency(item.paidAmount, currency)} ({percentPaid}%)</span>
+                        <span className="whitespace-nowrap">Total: {formatCurrency(item.originalAmount, currency)}</span>
                       </div>
                     </div>
 

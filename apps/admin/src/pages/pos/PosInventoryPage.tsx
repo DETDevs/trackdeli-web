@@ -17,44 +17,70 @@ import {
 import {
   PosProductItem,
   PosCategory,
+  PosSettingsData,
+  PosPoliciesData,
+  PosInventoryAdjustmentType,
   getPosProducts,
   getPosCategories,
   getMyBusiness,
+  getPosSettings,
+  getPosPolicies,
 } from 'api-client';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatQuantity } from '../../utils/formatters';
+import { getExpiryRelativeInfo } from '../../utils/batchStatus';
+import { getManaguaTodayYMD } from '../../utils/dateManagua';
 import { ProductModal } from '../../components/pos/inventory/ProductModal';
+import { ProductBatchesModal } from '../../components/pos/inventory/ProductBatchesModal';
 import { CategoriesModal } from '../../components/pos/inventory/CategoriesModal';
 import { StockAdjustmentModal } from '../../components/pos/inventory/StockAdjustmentModal';
 import { DeleteProductConfirmModal } from '../../components/pos/inventory/DeleteProductConfirmModal';
+import {
+  CategorySelector,
+  normalizeCategorySearch,
+  type CategorySelectorItem,
+} from '../../components/pos/CategorySelector';
 
 type StockFilterType = 'all' | 'low' | 'out' | 'no_cost';
 type SortOrderType = 'name_asc' | 'name_desc' | 'stock_asc' | 'stock_desc' | 'price_asc' | 'price_desc';
 
-const normalizeText = (text: string): string => {
-  return text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-};
-
 export const PosInventoryPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
-  const isCajero = user?.role === 'CAJERO';
-  const canManageCatalog = !isCajero;
+  const userRole = String(user?.role || '').toUpperCase();
+  const canManageCatalog = userRole === 'SUPERADMIN' || userRole === 'ENCARGADO';
+  const isReadOnlyRole = !canManageCatalog;
 
   // Data states
   const [products, setProducts] = useState<PosProductItem[]>([]);
   const [categories, setCategories] = useState<PosCategory[]>([]);
   const [business, setBusiness] = useState<any>(null);
+  const [posSettings, setPosSettings] = useState<PosSettingsData | null>(null);
+  const [policies, setPolicies] = useState<PosPoliciesData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
+  // Filters (persistencia de categoría en la sesión actual)
+  const categorySessionKey = `pos_inventory_category_${user?.businessId || 'default'}`;
+  const recentCategoriesKey = `pos_recent_categories_${user?.businessId || 'default'}`;
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'all';
+    try {
+      return window.sessionStorage.getItem(categorySessionKey) || 'all';
+    } catch {
+      return 'all';
+    }
+  });
   const [stockFilter, setStockFilter] = useState<StockFilterType>('all');
   const [sortBy, setSortBy] = useState<SortOrderType>('name_asc');
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(categorySessionKey, selectedCategoryId);
+    } catch {
+      // Ignorar si sessionStorage no está disponible
+    }
+  }, [categorySessionKey, selectedCategoryId]);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -68,25 +94,48 @@ export const PosInventoryPage: React.FC = () => {
 
   const [isAdjustStockModalOpen, setIsAdjustStockModalOpen] = useState(false);
   const [productToAdjust, setProductToAdjust] = useState<PosProductItem | null>(null);
+  const [adjustmentPreset, setAdjustmentPreset] = useState<{
+    initialType?: PosInventoryAdjustmentType;
+    initialBatchId?: string;
+    initialBatchNumber?: string;
+    initialQty?: number;
+  } | null>(null);
+
+  const [isBatchesModalOpen, setIsBatchesModalOpen] = useState(false);
+  const [productForBatches, setProductForBatches] = useState<PosProductItem | null>(null);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<PosProductItem | null>(null);
 
-  // Currency
+  // Currency & batch policy
   const currency = business?.currency || 'NIO';
+  const businessTracksBatches = Boolean(
+    business?.tracksBatches ?? (user as any)?.business?.tracksBatches,
+  );
+  const todayManagua = getManaguaTodayYMD();
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [prodsData, catsData, bizData] = await Promise.all([
+      const [prodsData, catsData, bizData, settingsData, policiesData] = await Promise.all([
         getPosProducts({ isActive: true }),
         getPosCategories().catch(() => []),
         getMyBusiness().catch(() => null),
+        getPosSettings().catch(() => null),
+        getPosPolicies().catch(() => null),
       ]);
       setProducts(Array.isArray(prodsData) ? prodsData : []);
-      setCategories(Array.isArray(catsData) ? catsData : []);
+      const validCategories = Array.isArray(catsData) ? catsData : [];
+      setCategories(validCategories);
+      if (validCategories.length > 0) {
+        setSelectedCategoryId((prev) =>
+          prev !== 'all' && !validCategories.some((c) => c.id === prev) ? 'all' : prev,
+        );
+      }
       if (bizData) setBusiness(bizData);
+      if (settingsData) setPosSettings(settingsData);
+      if (policiesData) setPolicies(policiesData);
     } catch (err: any) {
       setError(
         err?.response?.data?.message ||
@@ -101,9 +150,22 @@ export const PosInventoryPage: React.FC = () => {
     loadData();
   }, [loadData]);
 
+  const selectorCategories = useMemo<CategorySelectorItem[]>(() => {
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      const catId = p.categoryId || p.category?.id;
+      if (catId) counts[catId] = (counts[catId] || 0) + 1;
+    });
+    return categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      count: counts[c.id] ?? c._count?.products ?? 0,
+    }));
+  }, [categories, products]);
+
   // Client-side filtering & sorting
   const filteredProducts = useMemo(() => {
-    const term = normalizeText(searchTerm.trim());
+    const term = normalizeCategorySearch(searchTerm.trim());
 
     return products.filter((p) => {
       // Category filter
@@ -127,10 +189,10 @@ export const PosInventoryPage: React.FC = () => {
 
       // Search term filter (accent-insensitive)
       if (term) {
-        const nameNorm = normalizeText(p.name || '');
-        const skuNorm = normalizeText(p.sku || '');
-        const barcodeNorm = normalizeText(p.barcode || '');
-        const catNorm = normalizeText(p.category?.name || '');
+        const nameNorm = normalizeCategorySearch(p.name || '');
+        const skuNorm = normalizeCategorySearch(p.sku || '');
+        const barcodeNorm = normalizeCategorySearch(p.barcode || '');
+        const catNorm = normalizeCategorySearch(p.category?.name || '');
         if (
           !nameNorm.includes(term) &&
           !skuNorm.includes(term) &&
@@ -187,9 +249,76 @@ export const PosInventoryPage: React.FC = () => {
     setIsProductModalOpen(true);
   };
 
-  const handleOpenAdjust = (p: PosProductItem) => {
+  const handleOpenAdjust = (
+    p: PosProductItem,
+    preset?: {
+      initialType?: PosInventoryAdjustmentType;
+      initialBatchId?: string;
+      initialBatchNumber?: string;
+      initialQty?: number;
+    },
+  ) => {
     setProductToAdjust(p);
+    setAdjustmentPreset(preset || null);
     setIsAdjustStockModalOpen(true);
+  };
+
+  const handleOpenBatches = (p: PosProductItem) => {
+    setProductForBatches(p);
+    setIsBatchesModalOpen(true);
+  };
+
+  const renderBatchPill = (p: PosProductItem) => {
+    const isTracked = Boolean(
+      p.tracksBatches || p.hasBatches || (p.activeBatchCount ?? 0) > 0 || (p.batchesCount ?? 0) > 0,
+    );
+    if (!isTracked) return null;
+
+    const count = p.activeBatchCount ?? p.batchesCount ?? 0;
+    const countText = count > 0 ? `${count} ${count === 1 ? 'lote' : 'lotes'}` : 'Sin lotes';
+
+    if (p.nextExpiryDate) {
+      const rel = getExpiryRelativeInfo(p.nextExpiryDate, todayManagua);
+      return (
+        <button
+          type="button"
+          onClick={() => handleOpenBatches(p)}
+          title="Ver y editar lotes y vencimientos"
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border transition-opacity hover:opacity-90 ${rel.badgeClass}`}
+        >
+          <Tag size={12} weight="bold" />
+          <span>
+            {countText} · {rel.text}
+          </span>
+        </button>
+      );
+    }
+
+    if (count > 0) {
+      return (
+        <button
+          type="button"
+          onClick={() => handleOpenBatches(p)}
+          title="Ver y completar fechas de vencimiento"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
+        >
+          <Tag size={12} weight="bold" />
+          <span>{countText} · Sin fecha</span>
+        </button>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => handleOpenBatches(p)}
+        title="Gestionar lotes"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100"
+      >
+        <Tag size={12} weight="bold" />
+        <span>Lotes · Sin stock</span>
+      </button>
+    );
   };
 
   const handleOpenDelete = (p: PosProductItem) => {
@@ -227,7 +356,7 @@ export const PosInventoryPage: React.FC = () => {
               <h1 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">
                 Catálogo de productos
               </h1>
-              {isCajero && (
+              {isReadOnlyRole && (
                 <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
                   Solo lectura
                 </span>
@@ -314,23 +443,18 @@ export const PosInventoryPage: React.FC = () => {
           </div>
 
           {/* Categoría */}
-          <div>
-            <select
-              value={selectedCategoryId}
-              onChange={(e) => {
-                setSelectedCategoryId(e.target.value);
-                setPage(1);
-              }}
-              className="w-full h-11 px-3 rounded-xl border border-gray-200 text-xs text-gray-700 bg-gray-50/50 focus:bg-white focus:outline-none focus:border-purple-600 shadow-2xs cursor-pointer"
-            >
-              <option value="all">Todas las categorías ({categories.length})</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <CategorySelector
+            categories={selectorCategories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={(categoryId) => {
+              setSelectedCategoryId(categoryId);
+              setPage(1);
+            }}
+            totalProductsCount={products.length}
+            allValue="all"
+            compactVariant="select"
+            recentStorageKey={recentCategoriesKey}
+          />
 
           {/* Orden */}
           <div>
@@ -435,7 +559,20 @@ export const PosInventoryPage: React.FC = () => {
               ? 'No hay productos que coincidan con los filtros aplicados.'
               : 'Aún no has agregado productos a tu catálogo.'}
           </p>
-          {canManageCatalog && (
+          {searchTerm || selectedCategoryId !== 'all' || stockFilter !== 'all' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedCategoryId('all');
+                setStockFilter('all');
+                setPage(1);
+              }}
+              className="min-h-[44px] px-4 rounded-xl bg-gray-900 text-white hover:bg-black text-xs font-semibold transition-colors shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Limpiar filtros</span>
+            </button>
+          ) : canManageCatalog ? (
             <button
               type="button"
               onClick={handleOpenCreate}
@@ -444,7 +581,7 @@ export const PosInventoryPage: React.FC = () => {
               <Plus size={16} weight="bold" />
               <span>Crear mi primer producto</span>
             </button>
-          )}
+          ) : null}
         </div>
       ) : (
         <>
@@ -457,11 +594,11 @@ export const PosInventoryPage: React.FC = () => {
                     <th className="px-4 py-3.5">Producto</th>
                     <th className="px-4 py-3.5">Categoría</th>
                     <th className="px-4 py-3.5">Código / SKU</th>
-                    <th className="px-4 py-3.5 text-right">Costo</th>
+                    {canManageCatalog && <th className="px-4 py-3.5 text-right">Costo</th>}
                     <th className="px-4 py-3.5 text-right">Precio venta</th>
                     <th className="px-4 py-3.5 text-right">Existencia</th>
                     <th className="px-4 py-3.5 text-center">Estado</th>
-                    {canManageCatalog && <th className="px-4 py-3.5 text-right">Acciones</th>}
+                    <th className="px-4 py-3.5 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -471,7 +608,10 @@ export const PosInventoryPage: React.FC = () => {
                     const wp = p.wholesalePrice ?? (p as any).wholesale_price;
                     const wmq = p.wholesaleMinQty ?? (p as any).wholesale_min_qty;
                     const hasBatches = Boolean(
-                      p.hasBatches || p.tracksBatches || (p.batchesCount && p.batchesCount > 0),
+                      p.hasBatches ||
+                        p.tracksBatches ||
+                        (p.activeBatchCount ?? 0) > 0 ||
+                        (p.batchesCount ?? 0) > 0,
                     );
                     const hasComponents = Boolean(p.components && p.components.length > 0);
 
@@ -489,18 +629,10 @@ export const PosInventoryPage: React.FC = () => {
                                 Mayor ≥ {wmq}
                               </span>
                             )}
-                            {hasBatches && (
-                              <span
-                                title="Maneja lotes - Esto se edita desde NEXOL POS en la computadora"
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200"
-                              >
-                                <Info size={12} weight="bold" />
-                                <span>Lotes</span>
-                              </span>
-                            )}
+                            {hasBatches && renderBatchPill(p)}
                             {hasComponents && (
                               <span
-                                title="Contiene receta - Esto se edita desde NEXOL POS en la computadora"
+                                title="Contiene receta de insumos"
                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200"
                               >
                                 <Info size={12} weight="bold" />
@@ -520,12 +652,14 @@ export const PosInventoryPage: React.FC = () => {
                           {p.sku || p.barcode || '—'}
                         </td>
 
-                        {/* Costo */}
-                        <td className="px-4 py-3.5 text-right whitespace-nowrap text-gray-600">
-                          {p.cost != null && p.cost > 0
-                            ? formatCurrency(p.cost, currency)
-                            : '—'}
-                        </td>
+                        {/* Costo (solo Encargado/Superadmin) */}
+                        {canManageCatalog && (
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap text-gray-600">
+                            {p.cost != null && p.cost > 0
+                              ? formatCurrency(p.cost, currency)
+                              : '—'}
+                          </td>
+                        )}
 
                         {/* Precio */}
                         <td className="px-4 py-3.5 text-right whitespace-nowrap">
@@ -575,8 +709,8 @@ export const PosInventoryPage: React.FC = () => {
                         </td>
 
                         {/* Acciones */}
-                        {canManageCatalog && (
-                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                          {canManageCatalog ? (
                             <div className="flex items-center justify-end gap-1">
                               {!isService && (
                                 <button
@@ -610,8 +744,18 @@ export const PosInventoryPage: React.FC = () => {
                                 <Trash size={18} />
                               </button>
                             </div>
-                          </td>
-                        )}
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(p)}
+                              className="min-h-[38px] px-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors shadow-2xs inline-flex items-center gap-1"
+                              title="Ver detalle del producto"
+                            >
+                              <MagnifyingGlass size={15} />
+                              <span>Ver</span>
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -628,7 +772,10 @@ export const PosInventoryPage: React.FC = () => {
               const wp = p.wholesalePrice ?? (p as any).wholesale_price;
               const wmq = p.wholesaleMinQty ?? (p as any).wholesale_min_qty;
               const hasBatches = Boolean(
-                p.hasBatches || p.tracksBatches || (p.batchesCount && p.batchesCount > 0),
+                p.hasBatches ||
+                  p.tracksBatches ||
+                  (p.activeBatchCount ?? 0) > 0 ||
+                  (p.batchesCount ?? 0) > 0,
               );
               const hasComponents = Boolean(p.components && p.components.length > 0);
 
@@ -665,16 +812,11 @@ export const PosInventoryPage: React.FC = () => {
                           Mayor: {formatCurrency(wp, currency)} (≥ {wmq})
                         </span>
                       )}
-                      {hasBatches && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                          <Info size={12} weight="bold" />
-                          <span>Lotes (desktop)</span>
-                        </span>
-                      )}
+                      {hasBatches && renderBatchPill(p)}
                       {hasComponents && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                           <Info size={12} weight="bold" />
-                          <span>Receta (desktop)</span>
+                          <span>Receta</span>
                         </span>
                       )}
                     </div>
@@ -713,7 +855,7 @@ export const PosInventoryPage: React.FC = () => {
                       <span className="font-bold text-gray-900 text-xs sm:text-sm">
                         {formatCurrency(p.price, currency)}
                       </span>
-                      {p.cost != null && p.cost > 0 && (
+                      {canManageCatalog && p.cost != null && p.cost > 0 && (
                         <span className="text-gray-500 text-xs block">
                           Costo: {formatCurrency(p.cost, currency)}
                         </span>
@@ -722,7 +864,7 @@ export const PosInventoryPage: React.FC = () => {
                   </div>
 
                   {/* Botones de acción móvil (mínimo 44px) */}
-                  {canManageCatalog && (
+                  {canManageCatalog ? (
                     <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                       {!isService && (
                         <button
@@ -752,6 +894,17 @@ export const PosInventoryPage: React.FC = () => {
                         aria-label="Desactivar"
                       >
                         <Trash size={18} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="pt-2 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(p)}
+                        className="w-full min-h-[44px] rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-xs font-semibold text-gray-700 flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <MagnifyingGlass size={16} />
+                        <span>Ver detalle</span>
                       </button>
                     </div>
                   )}
@@ -835,6 +988,7 @@ export const PosInventoryPage: React.FC = () => {
           product={productToEdit}
           categories={categories}
           business={business}
+          posSettings={posSettings}
           currency={currency}
           onClose={() => setIsProductModalOpen(false)}
           onSaved={() => {
@@ -843,6 +997,35 @@ export const PosInventoryPage: React.FC = () => {
           onOpenCategoriesModal={() => {
             setIsProductModalOpen(false);
             setIsCategoriesModalOpen(true);
+          }}
+          onRequestStockAdjustment={(prod, preset) => {
+            setIsProductModalOpen(false);
+            handleOpenAdjust(prod, preset);
+          }}
+        />
+      )}
+
+      {isBatchesModalOpen && productForBatches && (
+        <ProductBatchesModal
+          isOpen={isBatchesModalOpen}
+          product={productForBatches}
+          currency={currency}
+          canManageCatalog={canManageCatalog}
+          onClose={() => {
+            setIsBatchesModalOpen(false);
+            setProductForBatches(null);
+          }}
+          onBatchesUpdated={() => {
+            loadData();
+          }}
+          onWriteOffBatch={(prod, batch) => {
+            setIsBatchesModalOpen(false);
+            handleOpenAdjust(prod, {
+              initialType: 'EXPIRED',
+              initialBatchId: batch.id,
+              initialBatchNumber: batch.batchNumber,
+              initialQty: batch.quantity,
+            });
           }}
         />
       )}
@@ -861,9 +1044,16 @@ export const PosInventoryPage: React.FC = () => {
         <StockAdjustmentModal
           isOpen={isAdjustStockModalOpen}
           product={productToAdjust}
+          businessTracksBatches={businessTracksBatches}
+          policies={policies}
+          initialType={adjustmentPreset?.initialType}
+          initialBatchId={adjustmentPreset?.initialBatchId}
+          initialBatchNumber={adjustmentPreset?.initialBatchNumber}
+          initialQty={adjustmentPreset?.initialQty}
           onClose={() => {
             setIsAdjustStockModalOpen(false);
             setProductToAdjust(null);
+            setAdjustmentPreset(null);
           }}
           onSuccess={() => {
             loadData();

@@ -175,10 +175,10 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
               <User size={16} weight={isFinalConsumer ? 'regular' : 'bold'} />
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-bold text-gray-900 truncate">
+              <div className="text-xs font-bold text-gray-900 leading-snug break-words">
                 {selectedCustomer.name}
               </div>
-              <div className="text-xs text-gray-500 truncate flex items-center gap-2">
+              <div className="text-xs text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-0.5 leading-snug">
                 {isFinalConsumer ? (
                   <span>Venta al contado por defecto</span>
                 ) : (

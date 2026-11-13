@@ -141,17 +141,17 @@ export const OrdersPage = () => {
                     <div className="text-sm font-medium text-gray-900">{order.customerName}</div>
                     <div className="text-xs text-gray-400">{order.customerPhone}</div>
                   </td>
-                  <td className="px-5 py-3 text-sm text-gray-600 max-w-xs truncate">
+                  <td className="px-5 py-3 text-sm text-gray-600 max-w-xs break-words">
                     {order.destinationAddress}
                   </td>
                   <td className="px-5 py-3 text-sm">
-                    <div className="font-semibold text-gray-900 font-mono">
+                    <div className="font-semibold text-gray-900 font-mono whitespace-nowrap tabular-nums">
                       {order.deliveryPaymentStatus === 'GRATIS'
                         ? 'Gratis'
                         : `C$ ${Number(order.deliveryFee).toFixed(2)}`}
                     </div>
                     {order.distanceKm && order.distanceKm > 0 ? (
-                      <div className="text-[11px] text-gray-400">
+                      <div className="text-xs text-gray-600">
                         {order.distanceKm} km
                       </div>
                     ) : null}

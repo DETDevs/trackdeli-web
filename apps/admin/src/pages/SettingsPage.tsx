@@ -146,7 +146,7 @@ export const SettingsPage = () => {
       )}
 
       {/* Barra de Pestañas con estilo idéntico al desktop */}
-      <div className="border-b border-gray-200 flex space-x-2 sm:space-x-6 overflow-x-auto scrollbar-none pb-px">
+      <div className="border-b border-gray-200 flex flex-wrap gap-x-4 gap-y-1 pb-1">
         {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -155,10 +155,10 @@ export const SettingsPage = () => {
               key={tab.id}
               type="button"
               onClick={() => handleTabChange(tab.id)}
-              className={`pb-3 text-xs sm:text-sm font-medium transition-colors border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              className={`py-2.5 min-h-[44px] text-xs sm:text-sm font-medium transition-colors border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer ${
                 isActive
                   ? 'border-gray-900 text-gray-900 font-semibold'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
               <Icon size={16} weight={isActive ? 'bold' : 'regular'} />

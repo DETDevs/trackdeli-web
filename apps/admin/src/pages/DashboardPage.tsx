@@ -395,32 +395,32 @@ export const DashboardPage = () => {
               >
                 <div className="flex items-center justify-between mb-3">
                   <CompactStatusBadge status={order.status} />
-                  <span className="text-[11px] text-[#9CA3AF] font-normal">{formatRelativeCompact(order.createdAt)}</span>
+                  <span className="text-xs text-gray-600 font-normal">{formatRelativeCompact(order.createdAt)}</span>
                 </div>
                 
-                <div className="flex items-end justify-between">
-                  <div className="flex-1 min-w-0 pr-4">
-                    <p className="text-[13px] font-medium text-[#0F0F0F] truncate">{order.customerName}</p>
-                    <p className="text-[11px] text-[#6B7280] truncate mt-0.5">
+                <div className="flex items-end justify-between gap-2">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <p className="text-[13px] font-medium text-[#0F0F0F] leading-snug break-words">{order.customerName}</p>
+                    <p className="text-xs text-[#6B7280] leading-snug break-words mt-0.5">
                       {order.destinationAddress}
                       {order.distanceKm && order.distanceKm > 0 ? ` · ${order.distanceKm} km` : ''}
                     </p>
                   </div>
                   
-                  <div className="flex items-center gap-4 shrink-0">
+                  <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
-                      <div className="text-[11px] font-semibold text-gray-900 font-mono">
+                      <div className="text-xs font-semibold text-gray-900 font-mono whitespace-nowrap tabular-nums">
                         {order.deliveryPaymentStatus === 'GRATIS'
                           ? 'Gratis'
                           : `C$ ${Number(order.deliveryFee).toFixed(2)}`}
                       </div>
-                      <div className="text-[10px] text-[#6B7280]">
-                        {order.deliveryUser?.name ?? <span className="text-gray-300">Sin asignar</span>}
+                      <div className="text-xs text-[#6B7280]">
+                        {order.deliveryUser?.name ?? <span className="text-gray-500">Sin asignar</span>}
                       </div>
                     </div>
                     <button 
                       onClick={(e) => { e.stopPropagation(); navigate(`/orders/${order.id}`); }}
-                      className="flex items-center gap-1.5 text-[11px] font-medium text-[#0F0F0F] hover:bg-gray-50 px-2.5 py-1.5 rounded transition-colors border border-transparent hover:border-gray-200"
+                      className="flex items-center gap-1.5 text-xs font-medium text-[#0F0F0F] hover:bg-gray-50 px-2.5 min-h-[44px] rounded transition-colors border border-transparent hover:border-gray-200"
                     >
                       Ver <ArrowRight size={12} weight="bold" />
                     </button>

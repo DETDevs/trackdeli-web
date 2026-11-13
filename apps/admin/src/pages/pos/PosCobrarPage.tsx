@@ -43,6 +43,7 @@ import { CloseShiftModal } from '../../components/pos/cobrar/CloseShiftModal';
 import { CashMovementsModal } from '../../components/pos/cobrar/CashMovementsModal';
 import { ProductCard } from '../../components/pos/cobrar/ProductCard';
 import { CartDrawer } from '../../components/pos/cobrar/CartDrawer';
+import { CategorySelector, type CategorySelectorItem } from '../../components/pos/CategorySelector';
 import { PaymentModal, type FinalPaymentSubmission } from '../../components/pos/cobrar/PaymentModal';
 import { SaleSuccessView } from '../../components/pos/cobrar/SaleSuccessView';
 import { NetworkErrorModal } from '../../components/pos/cobrar/NetworkErrorModal';
@@ -119,9 +120,26 @@ export const PosCobrarPage: React.FC = () => {
   const [isNetworkErrorModalOpen, setIsNetworkErrorModalOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Filtros de productos
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('ALL');
+  // Filtros de productos (persistencia de categoría en la sesión actual)
+  const categorySessionKey = `pos_cobrar_category_${user?.businessId || 'default'}`;
+  const recentCategoriesKey = `pos_recent_categories_${user?.businessId || 'default'}`;
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'ALL';
+    try {
+      return window.sessionStorage.getItem(categorySessionKey) || 'ALL';
+    } catch {
+      return 'ALL';
+    }
+  });
   const [searchQuery, setSearchQuery] = useState('');
+
+  React.useEffect(() => {
+    try {
+      window.sessionStorage.setItem(categorySessionKey, selectedCategoryId);
+    } catch {
+      // Ignorar si sessionStorage no está disponible
+    }
+  }, [categorySessionKey, selectedCategoryId]);
 
   // Venta en proceso y resultado
   const [completedSale, setCompletedSale] = useState<SaleResponse | null>(null);
@@ -289,6 +307,26 @@ export const PosCobrarPage: React.FC = () => {
     });
     return map;
   }, [products]);
+
+  const selectorCategories = useMemo<CategorySelectorItem[]>(() => {
+    return categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      count: isLoadingProducts && c._count?.products !== undefined
+        ? c._count.products
+        : (categoryCounts[c.id] ?? c._count?.products ?? 0),
+    }));
+  }, [categories, categoryCounts, isLoadingProducts]);
+
+  React.useEffect(() => {
+    if (
+      selectedCategoryId !== 'ALL' &&
+      categories.length > 0 &&
+      !categories.some((c) => c.id === selectedCategoryId)
+    ) {
+      setSelectedCategoryId('ALL');
+    }
+  }, [categories, selectedCategoryId]);
 
   const subtotal = getSubtotal();
   const discountAmount = getDiscountAmount();
@@ -948,40 +986,16 @@ export const PosCobrarPage: React.FC = () => {
             )}
           </div>
 
-          {/* Categorías deslizables en una fila horizontal con degradado lateral de scroll */}
-          <div className="relative">
-            <div className="flex items-center gap-2 overflow-x-auto pr-8 pb-0.5 scrollbar-none">
-              <button
-                type="button"
-                onClick={() => setSelectedCategoryId('ALL')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap min-h-[44px] cursor-pointer ${
-                  selectedCategoryId === 'ALL'
-                    ? 'bg-gray-900 text-white shadow-xs'
-                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                Todos ({products.length})
-              </button>
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setSelectedCategoryId(c.id)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap min-h-[44px] cursor-pointer ${
-                    selectedCategoryId === c.id
-                      ? 'bg-gray-900 text-white shadow-xs'
-                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  {c.name} ({categoryCounts[c.id] || 0})
-                </button>
-              ))}
-            </div>
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#FAFAFA] to-transparent"
-            />
-          </div>
+          {/* Categorías: chips horizontales hasta 6 categorías, botón con buscador arriba de 6 */}
+          <CategorySelector
+            categories={selectorCategories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={setSelectedCategoryId}
+            totalProductsCount={products.length}
+            allValue="ALL"
+            compactVariant="chips"
+            recentStorageKey={recentCategoriesKey}
+          />
         </div>
       </div>
 
@@ -1018,17 +1032,33 @@ export const PosCobrarPage: React.FC = () => {
               <Tag size={32} className="mx-auto text-gray-400" />
               <div className="space-y-1">
                 <h4 className="text-sm font-bold text-gray-900">
-                  {searchQuery.trim()
-                    ? 'No encontramos productos con ese nombre'
-                    : 'No hay productos en esta categoría'}
+                  {searchQuery.trim() && selectedCategoryId !== 'ALL'
+                    ? 'No encontramos productos con esos filtros'
+                    : searchQuery.trim()
+                      ? 'No encontramos productos con ese nombre'
+                      : 'No hay productos en esta categoría'}
                 </h4>
                 <p className="text-xs text-gray-600">
-                  {searchQuery.trim()
-                    ? `Sin coincidencias para "${searchQuery.trim()}"`
-                    : 'Probá eligiendo otra categoría del catálogo'}
+                  {searchQuery.trim() && selectedCategoryId !== 'ALL'
+                    ? `Sin coincidencias para "${searchQuery.trim()}" en la categoría seleccionada`
+                    : searchQuery.trim()
+                      ? `Sin coincidencias para "${searchQuery.trim()}"`
+                      : 'Probá eligiendo otra categoría del catálogo'}
                 </p>
               </div>
-              {searchQuery.trim() ? (
+              {searchQuery.trim() && selectedCategoryId !== 'ALL' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCategoryId('ALL');
+                  }}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl min-h-[44px] cursor-pointer transition-colors"
+                >
+                  <X size={14} weight="bold" />
+                  <span>Limpiar filtros</span>
+                </button>
+              ) : searchQuery.trim() ? (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
@@ -1043,7 +1073,7 @@ export const PosCobrarPage: React.FC = () => {
                   onClick={() => setSelectedCategoryId('ALL')}
                   className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl min-h-[44px] cursor-pointer transition-colors"
                 >
-                  <span>Ver todos</span>
+                  <span>Limpiar filtros</span>
                 </button>
               ) : null}
             </div>

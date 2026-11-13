@@ -434,7 +434,7 @@ export const ReportsPage: React.FC = () => {
           {channelsVisibility.hasAnyNonMostradorChannel &&
             (activeTab === "sales" || activeTab === "sellers") && (
               <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200">
-                <span className="text-[11px] font-semibold text-gray-500 pl-2 pr-1">
+                <span className="text-xs font-semibold text-gray-600 pl-2 pr-1">
                   Canal:
                 </span>
                 <button
@@ -515,13 +515,13 @@ export const ReportsPage: React.FC = () => {
       </div>
 
       {/* Pestañas de Navegación */}
-      <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs px-2 pt-1.5 overflow-x-auto">
-        <div className="flex items-center gap-1 min-w-max border-b border-gray-100 pb-1">
+      <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs p-2">
+        <div className="flex flex-wrap items-center gap-1 border-b border-gray-100 pb-1.5">
           {/* Pestaña 1: Ventas y Operaciones */}
           <button
             type="button"
             onClick={() => setActiveTab("sales")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               activeTab === "sales"
                 ? "bg-gray-900 text-white shadow-2xs"
                 : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
@@ -539,7 +539,7 @@ export const ReportsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab("channels")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === "channels"
                   ? "bg-gray-900 text-white shadow-2xs"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
@@ -557,7 +557,7 @@ export const ReportsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab("profit")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               activeTab === "profit"
                 ? "bg-gray-900 text-white shadow-2xs"
                 : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
@@ -574,7 +574,7 @@ export const ReportsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab("control")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               activeTab === "control"
                 ? "bg-gray-900 text-white shadow-2xs"
                 : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
@@ -592,7 +592,7 @@ export const ReportsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab("workshop")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === "workshop"
                   ? "bg-gray-900 text-white shadow-2xs"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
@@ -611,7 +611,7 @@ export const ReportsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab("sellers")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === "sellers"
                   ? "bg-gray-900 text-white shadow-2xs"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"

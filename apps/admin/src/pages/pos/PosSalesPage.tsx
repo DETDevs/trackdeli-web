@@ -383,7 +383,7 @@ export const PosSalesPage: React.FC = () => {
                   }}
                   className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
                 />
-                <span className="text-[11px] font-medium text-gray-700">Sin anuladas</span>
+                <span className="text-xs font-medium text-gray-700">Sin anuladas</span>
               </label>
             </div>
           )}
@@ -625,36 +625,36 @@ export const PosSalesPage: React.FC = () => {
                             #{sale.invoiceNumber}
                           </span>
                           {sale.isVoided ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
                               Anulada
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               Pagada
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] text-gray-400 mt-0.5">
+                        <p className="text-xs text-gray-600 mt-0.5">
                           {formatDateTime(sale.createdAt)}
                         </p>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-sm font-bold text-gray-900 block">
+                      <div className="text-right shrink-0">
+                        <span className="text-sm font-bold text-gray-900 block whitespace-nowrap tabular-nums">
                           {formatCurrency(sale.netTotal, currency)}
                         </span>
-                        <span className="text-[10px] text-gray-400">
+                        <span className="text-xs text-gray-600">
                           {sale.itemsCount} {sale.itemsCount === 1 ? 'ítem' : 'ítems'}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-[11px] text-gray-500">
-                      <span className="truncate max-w-[160px]">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs text-gray-600">
+                      <span className="min-w-0 leading-snug break-words">
                         {sale.customer?.name || 'Cliente general'}
                       </span>
 
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-50 text-gray-700 border border-gray-200/60">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-50 text-gray-700 border border-gray-200/60 shrink-0">
                         {sale.paymentMethod || 'Efectivo'}
                       </span>
                     </div>

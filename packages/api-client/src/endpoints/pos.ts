@@ -47,6 +47,9 @@ export interface PosCategory {
   sortOrder?: number;
   color?: string;
   icon?: string;
+  _count?: {
+    products: number;
+  };
 }
 
 export interface PosProductItem {
@@ -81,6 +84,8 @@ export interface PosProductItem {
   listPrice?: number | null;
   markupPct?: number | null;
   taxable?: boolean;
+  taxIncluded?: boolean;
+  sendToKitchen?: boolean;
   laboratorio?: string;
   presentacion?: string;
   principio_activo?: string;
@@ -88,6 +93,13 @@ export interface PosProductItem {
   hasBatches?: boolean;
   tracksBatches?: boolean;
   batchesCount?: number;
+  activeBatchCount?: number;
+  nextExpiryDate?: string | null;
+  nextExpiryBatchCode?: string | null;
+  expiredQty?: number;
+  hasBatchWithoutDate?: boolean;
+  initialLotNumber?: string;
+  initialExpiryDate?: string;
   components?: Array<{
     productId: string;
     quantity: number;
@@ -296,6 +308,9 @@ export const getPosProducts = async (params?: {
   search?: string;
   lowStock?: boolean;
   isActive?: boolean;
+  expiry?: string;
+  expiryMonth?: string;
+  type?: string;
   sort?: string;
 }): Promise<PosProductItem[]> => {
   const res = await apiClient.get<PosProductItem[]>('/pos/products', {
@@ -304,6 +319,9 @@ export const getPosProducts = async (params?: {
       search: params?.search || undefined,
       lowStock: params?.lowStock !== undefined ? params.lowStock : undefined,
       isActive: params?.isActive !== undefined ? params.isActive : undefined,
+      expiry: params?.expiry || undefined,
+      expiryMonth: params?.expiryMonth || undefined,
+      type: params?.type || undefined,
       sort: params?.sort || undefined,
     },
   });
@@ -544,13 +562,24 @@ export const createPosCustomer = async (
   return res.data;
 };
 
-export const createPosProduct = async (dto: any): Promise<PosProductItem> => {
-  const res = await apiClient.post<PosProductItem>('/pos/products', dto);
+export const createPosProduct = async (
+  dto: any,
+  headers?: { 'Idempotency-Key'?: string },
+): Promise<PosProductItem> => {
+  const res = await apiClient.post<PosProductItem>('/pos/products', dto, {
+    headers,
+  });
   return res.data;
 };
 
-export const updatePosProduct = async (id: string, dto: any): Promise<PosProductItem> => {
-  const res = await apiClient.put<PosProductItem>(`/pos/products/${id}`, dto);
+export const updatePosProduct = async (
+  id: string,
+  dto: any,
+  headers?: { 'Idempotency-Key'?: string },
+): Promise<PosProductItem> => {
+  const res = await apiClient.put<PosProductItem>(`/pos/products/${id}`, dto, {
+    headers,
+  });
   return res.data;
 };
 
@@ -1079,6 +1108,119 @@ export const getPosSaleReceipt = async (
   const res = await apiClient.get<any>(`/pos/sales/${saleId}/receipt`, {
     params: businessId ? { businessId } : undefined,
   });
+  return res.data;
+};
+
+// ==========================================
+// Lotes, Vencimientos y Ajustes de Inventario
+// ==========================================
+
+export type PosBatchStatus = 'VENCIDO' | 'CRITICO' | 'PROXIMO' | 'NORMAL';
+
+export interface PosProductBatchItem {
+  id: string;
+  batchNumber: string;
+  expiryDate: string | null;
+  quantity: number;
+  cost: number | null;
+  status: PosBatchStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PosProductBatchesResponse {
+  product: {
+    id: string;
+    name: string;
+    tracksBatches: boolean;
+    stock: number;
+  };
+  batches: PosProductBatchItem[];
+}
+
+export interface UpdatePosBatchDto {
+  batchNumber?: string;
+  expiryDate?: string | null;
+}
+
+export const getPosProductBatches = async (
+  productId: string,
+  businessId?: string,
+): Promise<PosProductBatchesResponse> => {
+  const res = await apiClient.get<PosProductBatchesResponse>('/pos/inventory/batches', {
+    params: {
+      productId,
+      ...(businessId ? { businessId } : {}),
+    },
+  });
+  return res.data;
+};
+
+export const updatePosBatch = async (
+  batchId: string,
+  dto: UpdatePosBatchDto,
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.patch<any>(`/pos/inventory/batches/${batchId}`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const getPosExpiringBatches = async (
+  days: number = 30,
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.get<any>('/pos/inventory/batches/expiring', {
+    params: {
+      days,
+      ...(businessId ? { businessId } : {}),
+    },
+  });
+  return res.data;
+};
+
+export type PosInventoryAdjustmentType =
+  | 'CORRECTION'
+  | 'DAMAGE'
+  | 'EXPIRED'
+  | 'SHRINKAGE'
+  | 'THEFT'
+  | 'COUNT';
+
+export interface CreatePosInventoryAdjustmentDto {
+  productId: string;
+  type: PosInventoryAdjustmentType;
+  qtyDelta?: number;
+  countedQty?: number;
+  reason: string;
+  notes?: string;
+  approvalToken?: string;
+  batchId?: string;
+}
+
+export const createPosInventoryAdjustment = async (
+  dto: CreatePosInventoryAdjustmentDto,
+  headers?: { 'Idempotency-Key'?: string },
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.post<any>('/pos/inventory/adjustments', dto, {
+    params: businessId ? { businessId } : undefined,
+    headers,
+  });
+  return res.data;
+};
+
+export const getPosInventoryAdjustments = async (params?: {
+  productId?: string;
+  type?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+  businessId?: string;
+}): Promise<any> => {
+  const res = await apiClient.get<any>('/pos/inventory/adjustments', { params });
   return res.data;
 };
 

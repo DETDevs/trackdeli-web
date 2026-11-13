@@ -243,7 +243,7 @@ export const CommissionsPage = () => {
           </div>
         </div>
 
-        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white border border-current self-end sm:self-auto">
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white border border-current self-end sm:self-auto whitespace-nowrap">
           {statementStatus === 'PAID' ? 'Saldado' : 'Pendiente'}
         </span>
       </div>
@@ -369,10 +369,10 @@ export const CommissionsPage = () => {
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">{clientName}</p>
                       {originName && (
-                        <p className="text-[11px] text-gray-500">De: {originName}</p>
+                        <p className="text-xs text-gray-600">De: {originName}</p>
                       )}
                     </div>
-                    <span className="text-[11px] text-gray-400">
+                    <span className="text-xs text-gray-600">
                       {formatRelativeCompact(comm.createdAt)}
                     </span>
                   </div>
@@ -380,21 +380,21 @@ export const CommissionsPage = () => {
                   <div className="flex items-center justify-between pt-1 text-gray-600">
                     <div>
                       <span>Envío: </span>
-                      <strong className="font-mono text-gray-900 font-semibold">
+                      <strong className="font-mono text-gray-900 font-semibold whitespace-nowrap tabular-nums">
                         C$ {comm.deliveryFee.toFixed(2)}
                       </strong>
                       {comm.distanceKm > 0 && (
-                        <span className="text-gray-400 text-[11px] ml-1.5">
+                        <span className="text-gray-600 text-xs ml-1.5">
                           ({comm.distanceKm.toFixed(1)} km)
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="px-1.5 py-0.5 rounded bg-gray-100 text-[10px] font-semibold">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="px-1.5 py-0.5 rounded bg-gray-100 text-xs font-semibold tabular-nums">
                         {(comm.commissionRate * 100).toFixed(0)}%
                       </span>
-                      <span className="font-bold text-gray-900 font-mono text-sm">
+                      <span className="font-bold text-gray-900 font-mono text-sm whitespace-nowrap tabular-nums">
                         C$ {comm.commissionAmount.toFixed(2)}
                       </span>
                     </div>

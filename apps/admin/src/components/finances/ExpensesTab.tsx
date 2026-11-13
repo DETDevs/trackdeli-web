@@ -221,10 +221,10 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
               <Receipt size={15} weight="duotone" />
             </div>
           </div>
-          <div className="text-xl font-bold text-gray-900 font-mono">
+          <div className="text-xl font-bold text-gray-900 font-mono whitespace-nowrap tabular-nums">
             {isLoadingExpenses ? '—' : formatCurrency(totalAmount, currency)}
           </div>
-          <p className="text-[11px] text-gray-400">
+          <p className="text-xs text-gray-600">
             {periodPreset === 'today'
               ? 'Gastos registrados hoy'
               : periodPreset === 'week'
@@ -238,36 +238,36 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
         {/* Cantidad de Gastos */}
         <div className="p-4 rounded-2xl bg-white border border-gray-200/80 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Comprobantes</span>
+            <span className="text-xs font-semibold text-gray-600">Comprobantes</span>
             <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
               <CheckCircle size={15} weight="duotone" />
             </div>
           </div>
-          <div className="text-xl font-bold text-gray-900 font-mono">
+          <div className="text-xl font-bold text-gray-900 font-mono tabular-nums">
             {isLoadingExpenses ? '—' : totalItems}
           </div>
-          <p className="text-[11px] text-gray-400">Registros en este filtro</p>
+          <p className="text-xs text-gray-600">Registros en este filtro</p>
         </div>
 
         {/* Categorías Disponibles */}
         <div className="p-4 rounded-2xl bg-white border border-gray-200/80 shadow-2xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Categorías</span>
+            <span className="text-xs font-semibold text-gray-600">Categorías</span>
             <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
               <Tag size={15} weight="duotone" />
             </div>
           </div>
-          <div className="text-xl font-bold text-gray-900 font-mono">
+          <div className="text-xl font-bold text-gray-900 font-mono tabular-nums">
             {categories.filter((c) => c.isActive).length}
           </div>
-          <p className="text-[11px] text-gray-400">Categorías operativas activas</p>
+          <p className="text-xs text-gray-600">Categorías operativas activas</p>
         </div>
       </div>
 
       {/* Header Bar con Botones Principales y Filtros de Fecha */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Selector de periodo rápido */}
-        <div className="inline-flex items-center bg-gray-100 p-1 rounded-xl gap-0.5 overflow-x-auto max-w-full">
+        <div className="inline-flex flex-wrap items-center bg-gray-100 p-1 rounded-xl gap-1 max-w-full">
           {[
             { id: 'today', label: 'Hoy' },
             { id: 'week', label: 'Semana' },
@@ -278,10 +278,10 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
             <button
               key={preset.id}
               onClick={() => handlePresetClick(preset.id as any)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-1.5 min-h-[40px] text-xs font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 periodPreset === preset.id
                   ? 'bg-gray-900 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
+                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60'
               }`}
             >
               {preset.label}
@@ -552,7 +552,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
                       style={{
                         backgroundColor: `${item.category.color || '#3B82F6'}15`,
                         color: item.category.color || '#3B82F6',
@@ -565,8 +565,8 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
                       <span>{item.category.name}</span>
                     </span>
                     <span
-                      className={`font-mono font-bold text-sm ${
-                        item.isVoided ? 'line-through text-gray-400' : 'text-gray-900'
+                      className={`font-mono font-bold text-sm whitespace-nowrap tabular-nums shrink-0 ${
+                        item.isVoided ? 'line-through text-gray-500' : 'text-gray-900'
                       }`}
                     >
                       {formatCurrency(item.amount, currency)}
@@ -575,12 +575,12 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
 
                   <div>
                     <h4 className="text-xs font-bold text-gray-900">{item.description}</h4>
-                    <p className="text-[11px] text-gray-400 mt-0.5">
+                    <p className="text-xs text-gray-600 mt-0.5">
                       {formatManaguaDate(item.expenseDate)} • {item.paymentMethod}
                       {item.receiptNumber ? ` (Ref: ${item.receiptNumber})` : ''}
                     </p>
                     {item.isVoided && item.voidReason && (
-                      <p className="text-[10px] text-rose-600 font-medium mt-1">
+                      <p className="text-xs text-rose-700 font-medium mt-1">
                         Anulado: {item.voidReason}
                       </p>
                     )}
@@ -590,7 +590,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ currency = 'NIO' }) =>
                     <div className="pt-1 flex justify-end">
                       <button
                         onClick={() => setExpenseToVoid(item)}
-                        className="text-xs text-rose-600 hover:text-rose-700 font-medium flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-rose-50"
+                        className="text-xs text-rose-700 hover:text-rose-800 font-medium flex items-center gap-1 min-h-[44px] px-3 rounded-lg hover:bg-rose-50"
                       >
                         <ArrowCounterClockwise size={13} />
                         <span>Anular</span>
