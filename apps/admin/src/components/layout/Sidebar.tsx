@@ -236,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <>
           <div className="my-2 border-t border-gray-100" />
           {!collapsed && (
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 mb-1 mt-2">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 mb-1 mt-2">
               Delivery
             </div>
           )}
@@ -320,8 +320,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white flex flex-col justify-between shadow-2xl transform transition-transform duration-200 ease-in-out lg:hidden select-none ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white flex flex-col justify-between transform transition-transform duration-200 ease-in-out lg:hidden select-none ${
+          mobileOpen
+            ? 'translate-x-0 shadow-2xl'
+            : '-translate-x-full shadow-none pointer-events-none'
         }`}
       >
         {/* Cabecera del drawer móvil */}
@@ -334,7 +336,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="font-semibold text-xs text-gray-900 truncate">
                 {businessName || 'NEXOL POS'}
               </div>
-              <div className="text-[10px] text-gray-400 font-normal">
+              <div className="text-xs text-gray-500 font-normal capitalize">
                 {user?.role?.toLowerCase() || 'usuario'}
               </div>
             </div>
@@ -343,7 +345,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={onCloseMobile}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
             aria-label="Cerrar menú"
           >
             <X size={18} />

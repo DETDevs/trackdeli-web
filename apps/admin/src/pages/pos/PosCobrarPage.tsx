@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -101,6 +101,7 @@ export const PosCobrarPage: React.FC = () => {
   // 5. Carrito
   const cartItems = usePosCartStore((s) => s.items);
   const addItem = usePosCartStore((s) => s.addItem);
+  const removeItem = usePosCartStore((s) => s.removeItem);
   const clearCart = usePosCartStore((s) => s.clearCart);
   const getSubtotal = usePosCartStore((s) => s.getSubtotal);
   const getDiscountAmount = usePosCartStore((s) => s.getDiscountAmount);
@@ -126,6 +127,68 @@ export const PosCobrarPage: React.FC = () => {
   const [completedSale, setCompletedSale] = useState<SaleResponse | null>(null);
   const [isSubmittingSale, setIsSubmittingSale] = useState(false);
   const [saleErrorMessage, setSaleErrorMessage] = useState<string | null>(null);
+
+  // Claves de idempotencia para operaciones de caja (reutilizadas en reintentos hasta éxito)
+  const openShiftKeyRef = useRef<string>('');
+  const closeShiftKeyRef = useRef<string>('');
+  const movementKeyRef = useRef<string>('');
+
+  const handleOpenShiftWithIdempotency = async (dto: any) => {
+    if (!openShiftKeyRef.current) {
+      openShiftKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `shift-open-${Date.now()}`;
+    }
+    try {
+      const res = await openShift({
+        dto,
+        deviceHeaders: {
+          ...(deviceHeaders || {}),
+          'Idempotency-Key': openShiftKeyRef.current,
+        },
+      });
+      openShiftKeyRef.current = '';
+      return res;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const handleCloseShiftWithIdempotency = async (dto: any) => {
+    if (!closeShiftKeyRef.current) {
+      closeShiftKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `shift-close-${Date.now()}`;
+    }
+    try {
+      const res = await closeShift({
+        dto,
+        deviceHeaders: {
+          ...(deviceHeaders || {}),
+          'Idempotency-Key': closeShiftKeyRef.current,
+        },
+      });
+      closeShiftKeyRef.current = '';
+      return res;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const handleAddMovementWithIdempotency = async (dto: any) => {
+    if (!movementKeyRef.current) {
+      movementKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `movement-${Date.now()}`;
+    }
+    try {
+      const res = await addMovement({
+        dto,
+        deviceHeaders: {
+          ...(deviceHeaders || {}),
+          'Idempotency-Key': movementKeyRef.current,
+        },
+      });
+      movementKeyRef.current = '';
+      return res;
+    } catch (err) {
+      throw err;
+    }
+  };
 
   // Pantalla completa toggle para supervisor
   const [isFullscreen, setIsFullscreen] = useState(() => {
@@ -216,6 +279,16 @@ export const PosCobrarPage: React.FC = () => {
     });
     return map;
   }, [cartItems]);
+
+  const categoryCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    products.forEach((p) => {
+      if (p.categoryId) {
+        map[p.categoryId] = (map[p.categoryId] || 0) + 1;
+      }
+    });
+    return map;
+  }, [products]);
 
   const subtotal = getSubtotal();
   const discountAmount = getDiscountAmount();
@@ -379,40 +452,58 @@ export const PosCobrarPage: React.FC = () => {
   // 6. Venta completada exitosamente
   if (completedSale) {
     return (
-      <SaleSuccessView
-        sale={completedSale}
-        businessInfo={businessInfo}
-        cashierName={cashierName || user?.name || 'Cajero'}
-        onNewSale={() => {
-          setCompletedSale(null);
-          clearCart();
-        }}
-      />
+      <div className="h-full overflow-y-auto">
+        <SaleSuccessView
+          sale={completedSale}
+          businessInfo={businessInfo}
+          cashierName={cashierName || user?.name || 'Cajero'}
+          onNewSale={() => {
+            setCompletedSale(null);
+            clearCart();
+          }}
+        />
+      </div>
     );
   }
 
   // 7. Política obligatoria y caja cerrada: Bloquear pantalla con apertura obligatoria
   if (requireOpenShiftToSell && !isShiftOpen) {
+    const branchDiffers =
+      Boolean(activeBranch?.name) &&
+      activeBranch?.name.trim().toLowerCase() !== (businessInfo?.name || '').trim().toLowerCase();
+
     return (
-      <div className="min-h-screen flex flex-col bg-[#FAFAFA] select-none">
+      <div className="h-full overflow-y-auto flex flex-col bg-[#FAFAFA] select-none">
         {/* Barra superior compacta */}
-        <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3 shrink-0 shadow-2xs">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-gray-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+        <header className="bg-white border-b border-gray-200 px-3 sm:px-6 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 flex items-center justify-between gap-2 shrink-0 shadow-2xs sticky top-0 z-30">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {!isCajero && (
+              <NavLink
+                to="/pos/dashboard"
+                className="p-2 text-gray-600 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0 cursor-pointer"
+                title="Volver al resumen"
+                aria-label="Volver al resumen"
+              >
+                <ArrowLeft size={18} weight="bold" />
+              </NavLink>
+            )}
+            <div className="hidden sm:flex w-8 h-8 rounded-lg bg-gray-900 text-white items-center justify-center font-bold text-xs shrink-0">
               POS
             </div>
             <div className="min-w-0">
-              <div className="font-bold text-xs text-gray-900 truncate leading-tight">
+              <div className="font-bold text-sm text-gray-900 truncate leading-tight">
                 {businessInfo?.name || 'NEXOL POS'}
               </div>
-              <div className="text-xs text-gray-500 truncate leading-tight">
-                {activeBranch?.name || 'Sucursal Principal'}
-              </div>
+              {branchDiffers && (
+                <div className="hidden sm:block text-xs text-gray-500 truncate leading-tight">
+                  {activeBranch?.name}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">
               <span className="w-2 h-2 rounded-full bg-amber-500" />
               <span>Sin turno</span>
             </span>
@@ -420,8 +511,9 @@ export const PosCobrarPage: React.FC = () => {
             <button
               type="button"
               onClick={handleLogout}
-              className="p-2 text-gray-500 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+              className="p-2 text-gray-600 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
               title="Cerrar sesión"
+              aria-label="Cerrar sesión"
             >
               <SignOut size={18} />
             </button>
@@ -480,7 +572,7 @@ export const PosCobrarPage: React.FC = () => {
             setIsOpenShiftModalOpen(false);
             refetchShift();
           }}
-          onOpenShift={async (dto) => openShift({ dto, deviceHeaders })}
+          onOpenShift={handleOpenShiftWithIdempotency}
           isOpening={isOpeningShift}
         />
       </div>
@@ -489,6 +581,8 @@ export const PosCobrarPage: React.FC = () => {
 
   // 8. Flujo de cobro final
   const handleFinalSubmitSale = async (paymentData: FinalPaymentSubmission) => {
+    if (isSubmittingSale) return;
+
     // Si la caja está cerrada y la política lo exige, bloquear
     if (!isShiftOpen && requireOpenShiftToSell) {
       setSaleErrorMessage('La caja está cerrada. Debes abrir un turno para registrar ventas.');
@@ -625,45 +719,56 @@ export const PosCobrarPage: React.FC = () => {
     }
   };
 
+  const showBranchSubtitle =
+    Boolean(activeBranch?.name) &&
+    activeBranch?.name.trim().toLowerCase() !== (businessInfo?.name || '').trim().toLowerCase();
+
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col select-none">
-      {/* 1. BARRA SUPERIOR COMPACTA (Requisito 2) */}
-      <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 shrink-0 shadow-2xs sticky top-0 z-30">
-        {/* Identidad del Negocio y Sucursal */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          {!isCajero && !isFullscreen && (
+    <div className="h-full bg-[#FAFAFA] flex flex-col select-none overflow-hidden">
+      {/* 1. BARRA SUPERIOR COMPACTA Y FIJA */}
+      <header className="bg-white border-b border-gray-200 px-3 sm:px-6 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 flex items-center justify-between gap-2 shrink-0 shadow-2xs z-30">
+        {/* Identidad del Negocio */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
+          {!isCajero && (
             <NavLink
-              to="/dashboard"
-              className="p-2 text-gray-500 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0 cursor-pointer"
-              title="Volver al panel"
+              to="/pos/dashboard"
+              className="p-2 -ml-1 text-gray-600 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0 cursor-pointer"
+              title="Volver al resumen"
+              aria-label="Volver al resumen"
             >
               <ArrowLeft size={18} weight="bold" />
             </NavLink>
           )}
 
-          <div className="w-8 h-8 rounded-lg bg-gray-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+          <div className="hidden sm:flex w-8 h-8 rounded-lg bg-gray-900 text-white items-center justify-center font-bold text-xs shrink-0">
             POS
           </div>
           <div className="min-w-0">
-            <div className="font-bold text-xs text-gray-900 truncate leading-tight">
+            <div className="font-bold text-sm text-gray-900 truncate leading-tight">
               {businessInfo?.name || 'NEXOL POS'}
             </div>
-            <div className="text-xs text-gray-500 truncate leading-tight">
-              {activeBranch?.name || 'Sucursal Principal'}
-            </div>
+            {showBranchSubtitle && (
+              <div className="hidden sm:block text-xs text-gray-500 truncate leading-tight">
+                {activeBranch?.name}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Estado de la Caja y Menú de Acciones */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Badge de Turno */}
+        {/* Estado único de la Caja y Menú de Acciones */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {isShiftOpen ? (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>Caja abierta</span>
             </span>
+          ) : requireOpenShiftToSell === false ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200 whitespace-nowrap">
+              <span className="w-2 h-2 rounded-full bg-gray-400" />
+              <span>Sin caja</span>
+            </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">
               <span className="w-2 h-2 rounded-full bg-amber-500" />
               <span>Sin turno</span>
             </span>
@@ -677,6 +782,7 @@ export const PosCobrarPage: React.FC = () => {
               className="p-2 text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
               title="Menú de caja y acciones"
               aria-label="Menú de acciones"
+              aria-expanded={isMenuOpen}
             >
               <DotsThreeVertical size={20} weight="bold" />
             </button>
@@ -687,12 +793,12 @@ export const PosCobrarPage: React.FC = () => {
                   className="fixed inset-0 z-40"
                   onClick={() => setIsMenuOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
-                  <div className="px-4 py-2 border-b border-gray-100">
+                <div className="absolute right-0 mt-2 w-60 max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-xl border border-gray-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-4 py-2.5 border-b border-gray-100">
                     <p className="text-xs font-bold text-gray-900 truncate">
                       {user?.name || 'Usuario'}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 truncate">
                       {user?.role === 'CAJERO'
                         ? 'Cajero'
                         : user?.role === 'ENCARGADO'
@@ -710,9 +816,9 @@ export const PosCobrarPage: React.FC = () => {
                           setIsMenuOpen(false);
                           setIsOpenShiftModalOpen(true);
                         }}
-                        className="w-full px-4 py-2.5 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2.5 min-h-[44px] cursor-pointer"
+                        className="w-full px-4 py-3 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2.5 min-h-[48px] cursor-pointer"
                       >
-                        <CashRegister size={18} />
+                        <CashRegister size={18} className="shrink-0" />
                         <span>Abrir turno de caja</span>
                       </button>
                     ) : (
@@ -722,9 +828,9 @@ export const PosCobrarPage: React.FC = () => {
                           setIsMenuOpen(false);
                           setIsCloseShiftModalOpen(true);
                         }}
-                        className="w-full px-4 py-2.5 text-left text-xs font-semibold text-amber-700 hover:bg-amber-50 flex items-center gap-2.5 min-h-[44px] cursor-pointer"
+                        className="w-full px-4 py-3 text-left text-xs font-semibold text-amber-800 bg-amber-50/40 hover:bg-amber-50 flex items-center gap-2.5 min-h-[48px] cursor-pointer"
                       >
-                        <CashRegister size={18} />
+                        <CashRegister size={18} className="shrink-0 text-amber-700" />
                         <span>Cerrar turno de caja</span>
                       </button>
                     )}
@@ -736,9 +842,9 @@ export const PosCobrarPage: React.FC = () => {
                         setIsMenuOpen(false);
                         setIsCashMovementsModalOpen(true);
                       }}
-                      className="w-full px-4 py-2.5 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 min-h-[44px] cursor-pointer"
+                      className="w-full px-4 py-3 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 min-h-[48px] cursor-pointer"
                     >
-                      <ArrowsDownUp size={18} />
+                      <ArrowsDownUp size={18} className="shrink-0" />
                       <span>Movimientos de caja</span>
                     </button>
 
@@ -749,13 +855,28 @@ export const PosCobrarPage: React.FC = () => {
                         setIsMenuOpen(false);
                         setIsRecentSalesModalOpen(true);
                       }}
-                      className="w-full px-4 py-2.5 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 min-h-[44px] cursor-pointer"
+                      className="w-full px-4 py-3 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 min-h-[48px] cursor-pointer"
                     >
-                      <ClockCounterClockwise size={18} />
+                      <ClockCounterClockwise size={18} className="shrink-0" />
                       <span>Ventas de hoy</span>
                     </button>
 
-                    {/* Alternar Pantalla Completa (solo para supervisor) */}
+                    {/* Volver al Resumen (supervisores) */}
+                    {!isCajero && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          navigate('/pos/dashboard');
+                        }}
+                        className="w-full px-4 py-3 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 min-h-[48px] cursor-pointer"
+                      >
+                        <ArrowLeft size={18} className="shrink-0" />
+                        <span>Ir al resumen</span>
+                      </button>
+                    )}
+
+                    {/* Alternar Pantalla Completa (solo en escritorio para supervisor) */}
                     {isSupervisor && (
                       <button
                         type="button"
@@ -763,16 +884,16 @@ export const PosCobrarPage: React.FC = () => {
                           setIsMenuOpen(false);
                           toggleFullscreen();
                         }}
-                        className="w-full px-4 py-2.5 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 min-h-[44px] cursor-pointer"
+                        className="hidden lg:flex w-full px-4 py-3 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 items-center gap-2.5 min-h-[48px] cursor-pointer"
                       >
                         {isFullscreen ? (
                           <>
-                            <ArrowsIn size={18} />
+                            <ArrowsIn size={18} className="shrink-0" />
                             <span>Salir de pantalla completa</span>
                           </>
                         ) : (
                           <>
-                            <ArrowsOut size={18} />
+                            <ArrowsOut size={18} className="shrink-0" />
                             <span>Pantalla completa</span>
                           </>
                         )}
@@ -780,16 +901,16 @@ export const PosCobrarPage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="border-t border-gray-100 pt-1">
+                  <div className="border-t border-gray-200 mt-1 pt-1">
                     <button
                       type="button"
                       onClick={() => {
                         setIsMenuOpen(false);
                         handleLogout();
                       }}
-                      className="w-full px-4 py-2.5 text-left text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2.5 min-h-[44px] cursor-pointer"
+                      className="w-full px-4 py-3 text-left text-xs font-semibold text-red-700 hover:bg-red-50 flex items-center gap-2.5 min-h-[48px] cursor-pointer"
                     >
-                      <SignOut size={18} />
+                      <SignOut size={18} className="shrink-0" />
                       <span>Salir</span>
                     </button>
                   </div>
@@ -800,105 +921,165 @@ export const PosCobrarPage: React.FC = () => {
         </div>
       </header>
 
-      {/* 2. CONTENIDO PRINCIPAL: CATÁLOGO DE PRODUCTOS */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-3 sm:p-5 space-y-4 pb-28">
-        {/* Buscador de productos */}
-        <div className="relative">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
-            <MagnifyingGlass size={18} />
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por nombre o escanear código de barras..."
-            className="w-full pl-10 pr-10 py-3 bg-white border border-gray-200 rounded-2xl text-xs sm:text-sm text-gray-900 focus:outline-hidden focus:border-gray-900 transition-colors shadow-2xs min-h-[44px]"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+      {/* 2. BUSCADOR Y CATEGORÍAS FIJOS (Nunca se cortan ni saltan al hacer scroll) */}
+      <div className="bg-[#FAFAFA] border-b border-gray-200/70 px-3 sm:px-5 pt-2.5 pb-2 shrink-0 z-20">
+        <div className="max-w-5xl w-full mx-auto space-y-2.5">
+          {/* Buscador de productos */}
+          <div className="relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <MagnifyingGlass size={18} />
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar producto o código de barras..."
+              className="w-full pl-10 pr-11 py-2.5 bg-white border border-gray-200 rounded-2xl text-xs sm:text-sm text-gray-900 focus:outline-hidden focus:border-gray-900 transition-colors shadow-2xs min-h-[44px]"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Limpiar búsqueda"
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 rounded-xl flex items-center justify-center min-h-[44px] min-w-[44px] cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+
+          {/* Categorías deslizables en una fila horizontal con degradado lateral de scroll */}
+          <div className="relative">
+            <div className="flex items-center gap-2 overflow-x-auto pr-8 pb-0.5 scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryId('ALL')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap min-h-[44px] cursor-pointer ${
+                  selectedCategoryId === 'ALL'
+                    ? 'bg-gray-900 text-white shadow-xs'
+                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                Todos ({products.length})
+              </button>
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setSelectedCategoryId(c.id)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap min-h-[44px] cursor-pointer ${
+                    selectedCategoryId === c.id
+                      ? 'bg-gray-900 text-white shadow-xs'
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {c.name} ({categoryCounts[c.id] || 0})
+                </button>
+              ))}
+            </div>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#FAFAFA] to-transparent"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. CATÁLOGO CON SCROLL INDEPENDIENTE */}
+      <section aria-label="Catálogo de productos" className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <div className="max-w-5xl w-full mx-auto p-3 sm:p-5 pb-6">
+          {isLoadingProducts ? (
+            <div
+              className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3"
+              aria-label="Cargando productos"
             >
-              <X size={18} />
-            </button>
+              {Array.from({ length: 6 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white rounded-2xl border border-gray-200/80 p-3 space-y-3 animate-pulse h-36 flex flex-col justify-between"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-5 w-16 bg-gray-200 rounded-md" />
+                    <div className="h-5 w-14 bg-gray-100 rounded-md" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="h-3.5 w-full bg-gray-200 rounded" />
+                    <div className="h-3.5 w-3/4 bg-gray-100 rounded" />
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <div className="h-4 w-20 bg-gray-200 rounded" />
+                    <div className="w-11 h-11 bg-gray-200 rounded-xl" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-200/80 p-6 sm:p-8 text-center space-y-3">
+              <Tag size={32} className="mx-auto text-gray-400" />
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-gray-900">
+                  {searchQuery.trim()
+                    ? 'No encontramos productos con ese nombre'
+                    : 'No hay productos en esta categoría'}
+                </h4>
+                <p className="text-xs text-gray-600">
+                  {searchQuery.trim()
+                    ? `Sin coincidencias para "${searchQuery.trim()}"`
+                    : 'Probá eligiendo otra categoría del catálogo'}
+                </p>
+              </div>
+              {searchQuery.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl min-h-[44px] cursor-pointer transition-colors"
+                >
+                  <X size={14} weight="bold" />
+                  <span>Limpiar búsqueda</span>
+                </button>
+              ) : selectedCategoryId !== 'ALL' ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategoryId('ALL')}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl min-h-[44px] cursor-pointer transition-colors"
+                >
+                  <span>Ver todos</span>
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3">
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  quantityInCart={cartQuantities[product.id] || 0}
+                  onAdd={() => addItem(product)}
+                  onDecrement={() => removeItem(product.id)}
+                />
+              ))}
+            </div>
           )}
         </div>
+      </section>
 
-        {/* Categorías deslizables */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setSelectedCategoryId('ALL')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 min-h-[44px] cursor-pointer ${
-              selectedCategoryId === 'ALL'
-                ? 'bg-gray-900 text-white shadow-xs'
-                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Todos ({products.length})
-          </button>
-          {categories.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setSelectedCategoryId(c.id)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 min-h-[44px] cursor-pointer ${
-                selectedCategoryId === c.id
-                  ? 'bg-gray-900 text-white shadow-xs'
-                  : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              {c.name}
-            </button>
-          ))}
-        </div>
-
-        {/* Grilla de Productos */}
-        {isLoadingProducts ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <CircleNotch size={28} className="animate-spin text-gray-400 mb-2" />
-            <p className="text-xs text-gray-500 font-medium">Cargando catálogo de productos...</p>
-          </div>
-        ) : filteredProducts.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-200/80 p-8 text-center space-y-2">
-            <Tag size={32} className="mx-auto text-gray-400" />
-            <h4 className="text-sm font-bold text-gray-800">No se encontraron productos</h4>
-            <p className="text-xs text-gray-500">
-              {searchQuery ? `No hay resultados para "${searchQuery}"` : 'No hay productos en esta categoría'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3">
-            {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                quantityInCart={cartQuantities[product.id] || 0}
-                onAdd={() => addItem(product)}
-              />
-            ))}
-          </div>
-        )}
-      </main>
-
-      {/* 3. BOTÓN FLOTANTE INFERIOR DEL CARRITO (Móvil y Escritorio) */}
-      <div className="fixed bottom-0 inset-x-0 p-3 bg-white/95 backdrop-blur-md border-t border-gray-200 z-20 shadow-lg">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="relative">
+      {/* 4. BARRA INFERIOR FIJA DEL CARRITO */}
+      <div className="shrink-0 bg-white/95 backdrop-blur-md border-t border-gray-200 px-3 sm:px-6 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] z-20 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3 min-h-[48px]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative shrink-0">
               <div className="w-11 h-11 rounded-xl bg-gray-900 text-white flex items-center justify-center">
                 <ShoppingCart size={20} weight="bold" />
               </div>
               {totalItemCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-[20px] text-center text-xs font-black bg-emerald-500 text-white rounded-full">
+                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-[20px] text-center text-xs font-black bg-emerald-600 text-white rounded-full tabular-nums shadow-2xs">
                   {totalItemCount}
                 </span>
               )}
             </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Total a cobrar</p>
-              <p className="text-base sm:text-lg font-black text-gray-900 leading-tight">
+            <div className="min-w-0">
+              <p className="text-xs text-gray-600 font-medium leading-tight">Total a cobrar</p>
+              <p className="text-base sm:text-lg font-black text-gray-900 leading-tight tabular-nums truncate">
                 {formatCurrency(total)}
               </p>
             </div>
@@ -908,7 +1089,7 @@ export const PosCobrarPage: React.FC = () => {
             type="button"
             onClick={() => setIsCartDrawerOpen(true)}
             disabled={cartItems.length === 0}
-            className="px-6 py-3 bg-gray-900 hover:bg-black disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2 min-h-[44px] cursor-pointer"
+            className="px-4 sm:px-6 py-2.5 bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 min-h-[44px] shrink-0 whitespace-nowrap cursor-pointer tabular-nums"
           >
             <span>Ver carrito</span>
             <span>({totalItemCount})</span>
@@ -954,7 +1135,7 @@ export const PosCobrarPage: React.FC = () => {
           setIsOpenShiftModalOpen(false);
           refetchShift();
         }}
-        onOpenShift={async (dto) => openShift({ dto, deviceHeaders })}
+        onOpenShift={handleOpenShiftWithIdempotency}
         isOpening={isOpeningShift}
       />
 
@@ -982,7 +1163,7 @@ export const PosCobrarPage: React.FC = () => {
         }}
         isSupervisor={isSupervisor}
         businessInfo={businessInfo}
-        onCloseShift={async (dto) => closeShift({ dto, deviceHeaders })}
+        onCloseShift={handleCloseShiftWithIdempotency}
         isClosing={isClosingShift}
       />
 
@@ -994,7 +1175,7 @@ export const PosCobrarPage: React.FC = () => {
           setIsCashMovementsModalOpen(false);
           refetchShift();
         }}
-        onSubmitMovement={async (dto) => addMovement({ dto, deviceHeaders })}
+        onSubmitMovement={handleAddMovementWithIdempotency}
         isSubmitting={isAddingMovement}
       />
 

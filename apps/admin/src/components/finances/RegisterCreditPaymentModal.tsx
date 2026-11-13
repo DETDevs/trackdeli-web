@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   X,
   Coins,
@@ -59,6 +59,19 @@ export const RegisterCreditPaymentModal: React.FC<RegisterCreditPaymentModalProp
 
   // Recibo de abono post-éxito
   const [receiptData, setReceiptData] = useState<CreditAbonoPrintData | null>(null);
+
+  // Clave de idempotencia única por intento de abono (se preserva en reintentos mientras el modal esté abierto)
+  const idempotencyKeyRef = useRef<string>('');
+
+  useEffect(() => {
+    if (isOpen && account) {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `abono-${Date.now()}`;
+      }
+    } else {
+      idempotencyKeyRef.current = '';
+    }
+  }, [isOpen, account]);
 
   if (!isOpen || !account) return null;
 
@@ -123,6 +136,8 @@ export const RegisterCreditPaymentModal: React.FC<RegisterCreditPaymentModalProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!isAmountValid) {
       if (numericAmount <= 0) {
         setErrorMsg('El monto a abonar debe ser mayor a 0');
@@ -135,17 +150,30 @@ export const RegisterCreditPaymentModal: React.FC<RegisterCreditPaymentModalProp
     setIsSubmitting(true);
     setErrorMsg(null);
 
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `abono-${Date.now()}`;
+    }
+    const idempotencyKey = idempotencyKeyRef.current;
+
     try {
-      const response = await registerCreditPayment(account.id, {
-        amount: Math.round(numericAmount * 100) / 100,
-        paymentMethod,
-        notes: notes.trim() || undefined,
-      });
+      const response = await registerCreditPayment(
+        account.id,
+        {
+          amount: Math.round(numericAmount * 100) / 100,
+          paymentMethod,
+          notes: notes.trim() || undefined,
+        },
+        undefined,
+        {
+          'Idempotency-Key': idempotencyKey,
+        }
+      );
 
       const updatedAccount = response.account;
       const payment = response.payment;
 
       setIsSubmitting(false);
+      idempotencyKeyRef.current = '';
       onSuccess(payment, updatedAccount);
 
       // Preparar recibo

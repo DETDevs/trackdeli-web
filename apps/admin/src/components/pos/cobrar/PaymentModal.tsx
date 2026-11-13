@@ -397,6 +397,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   // Envío final del cobro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setLocalError(null);
 
     // Validación de turno e idempotencia

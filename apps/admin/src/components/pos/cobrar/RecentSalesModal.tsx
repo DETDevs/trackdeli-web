@@ -11,17 +11,21 @@ import {
   WarningCircle,
   ClockCounterClockwise,
   Eye,
+  LinkSimple,
 } from '@phosphor-icons/react';
-import { getRecentPosSales, type SaleResponse } from 'api-client';
+import { getRecentPosSales, getPosSaleReceipt, type SaleResponse } from 'api-client';
 import { formatCurrency } from '../../../utils/formatters';
 import { formatManaguaDateTime } from '../../../utils/dateManagua';
 import {
   shareOrFallbackReceipt,
   downloadReceiptPdf,
-  getWhatsAppSummaryUrl,
+  ensureReceiptLink,
+  buildWhatsAppReceiptMessage,
+  buildWhatsAppUrl,
   type ReceiptBusinessInfo,
 } from '../../../utils/receiptPdf';
 import { SaleDetailModal } from '../SaleDetailModal';
+import { ReceiptModal } from '../ReceiptModal';
 
 interface RecentSalesModalProps {
   isOpen: boolean;
@@ -39,6 +43,7 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
   const [activeSaleActionId, setActiveSaleActionId] = useState<string | null>(null);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
   const [selectedSaleIdForDetail, setSelectedSaleIdForDetail] = useState<string | null>(null);
+  const [selectedSaleForReceipt, setSelectedSaleForReceipt] = useState<SaleResponse | null>(null);
 
 
   const {
@@ -59,12 +64,16 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
     setActiveSaleActionId(sale.id);
     setActionSuccessMessage(null);
     try {
-      const result = await shareOrFallbackReceipt(sale, businessInfo, cashierName);
+      getPosSaleReceipt(sale.id).catch(() => {});
+      const result = await shareOrFallbackReceipt(sale, businessInfo, cashierName, { isReprint: true });
       if (result.shared) {
-        setActionSuccessMessage('Recibo compartido exitosamente');
+        setActionSuccessMessage('Comprobante compartido exitosamente');
       } else if (result.downloaded) {
-        setActionSuccessMessage('Recibo descargado');
+        setActionSuccessMessage('Comprobante descargado');
       }
+      setTimeout(() => setActionSuccessMessage(null), 3000);
+    } catch {
+      setActionSuccessMessage('Error al compartir comprobante');
       setTimeout(() => setActionSuccessMessage(null), 3000);
     } finally {
       setActiveSaleActionId(null);
@@ -75,17 +84,56 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
     setActiveSaleActionId(sale.id);
     setActionSuccessMessage(null);
     try {
-      await downloadReceiptPdf(sale, businessInfo, cashierName);
-      setActionSuccessMessage('Recibo descargado');
+      getPosSaleReceipt(sale.id).catch(() => {});
+      await downloadReceiptPdf(sale, businessInfo, cashierName, { isReprint: true });
+      setActionSuccessMessage('Comprobante descargado');
+      setTimeout(() => setActionSuccessMessage(null), 3000);
+    } catch {
+      setActionSuccessMessage('Error al descargar comprobante');
       setTimeout(() => setActionSuccessMessage(null), 3000);
     } finally {
       setActiveSaleActionId(null);
     }
   };
 
-  const handleWhatsApp = (sale: SaleResponse) => {
-    const url = getWhatsAppSummaryUrl(sale, businessInfo?.name, sale.customerPhone);
-    window.open(url, '_blank', 'noopener,noreferrer');
+  const handleWhatsApp = async (sale: SaleResponse) => {
+    setActiveSaleActionId(sale.id);
+    setActionSuccessMessage('Preparando enlace digital...');
+    try {
+      getPosSaleReceipt(sale.id).catch(() => {});
+      const publicUrl = await ensureReceiptLink(sale, businessInfo, cashierName, { isReprint: true });
+      const message = buildWhatsAppReceiptMessage(sale, businessInfo?.name || 'NEXOL POS', publicUrl);
+      const waUrl = buildWhatsAppUrl(sale.customerPhone, message);
+      window.open(waUrl, '_blank', 'noopener,noreferrer');
+      setActionSuccessMessage('WhatsApp abierto con el comprobante');
+      setTimeout(() => setActionSuccessMessage(null), 3000);
+    } catch (err: any) {
+      setActionSuccessMessage(err.message || 'Error al preparar enlace para WhatsApp');
+      setTimeout(() => setActionSuccessMessage(null), 4000);
+    } finally {
+      setActiveSaleActionId(null);
+    }
+  };
+
+  const handleCopyLink = async (sale: SaleResponse) => {
+    setActiveSaleActionId(sale.id);
+    setActionSuccessMessage('Preparando enlace digital...');
+    try {
+      getPosSaleReceipt(sale.id).catch(() => {});
+      const publicUrl = await ensureReceiptLink(sale, businessInfo, cashierName, { isReprint: true });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(publicUrl);
+        setActionSuccessMessage('Enlace copiado al portapapeles. Funciona por 90 días.');
+        setTimeout(() => setActionSuccessMessage(null), 3500);
+      } else {
+        setActionSuccessMessage(`Enlace: ${publicUrl}`);
+      }
+    } catch (err: any) {
+      setActionSuccessMessage(err.message || 'Error al obtener el enlace del comprobante');
+      setTimeout(() => setActionSuccessMessage(null), 4000);
+    } finally {
+      setActiveSaleActionId(null);
+    }
   };
 
   const methodLabel: Record<string, string> = {
@@ -193,6 +241,16 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
                   <div className="pt-2 border-t border-gray-200/70 flex flex-wrap items-center justify-end gap-1.5">
                     <button
                       type="button"
+                      onClick={() => setSelectedSaleForReceipt(sale)}
+                      className="px-2.5 py-1.5 rounded-xl bg-gray-900 hover:bg-black text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      title="Ver e imprimir comprobante (Ticket o Carta)"
+                    >
+                      <Receipt size={15} weight="bold" />
+                      <span>Comprobante</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setSelectedSaleIdForDetail(sale.id)}
                       className="px-2.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                       title="Ver detalle, anular o devolver"
@@ -241,6 +299,17 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
                       )}
                       <span>Compartir</span>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink(sale)}
+                      disabled={isWorking}
+                      className="px-2.5 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                      title="Copiar enlace público de 90 días"
+                    >
+                      <LinkSimple size={15} weight="bold" />
+                      <span>Copiar link</span>
+                    </button>
                   </div>
                 </div>
               );
@@ -268,6 +337,19 @@ export const RecentSalesModal: React.FC<RecentSalesModalProps> = ({
             setSelectedSaleIdForDetail(null);
             refetch();
           }}
+        />
+      )}
+
+      {/* Modal de Comprobante (Ticket térmico y Hoja Carta) */}
+      {selectedSaleForReceipt && (
+        <ReceiptModal
+          isOpen={Boolean(selectedSaleForReceipt)}
+          onClose={() => setSelectedSaleForReceipt(null)}
+          sale={selectedSaleForReceipt}
+          businessInfo={businessInfo}
+          cashierName={cashierName}
+          isReprint={true}
+          onPrintRecorded={() => refetch()}
         />
       )}
     </div>

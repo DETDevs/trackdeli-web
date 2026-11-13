@@ -8,6 +8,7 @@ import {
   CircleNotch,
   LinkSimple,
   Check,
+  Printer,
 } from '@phosphor-icons/react';
 import { type SaleResponse } from 'api-client';
 import { formatCurrency } from '../../../utils/formatters';
@@ -15,9 +16,12 @@ import { formatManaguaDateTime } from '../../../utils/dateManagua';
 import {
   shareOrFallbackReceipt,
   downloadReceiptPdf,
-  getWhatsAppSummaryUrl,
+  ensureReceiptLink,
+  buildWhatsAppReceiptMessage,
+  buildWhatsAppUrl,
   type ReceiptBusinessInfo,
 } from '../../../utils/receiptPdf';
+import { ReceiptModal } from '../ReceiptModal';
 
 interface SaleSuccessViewProps {
   sale: SaleResponse;
@@ -32,11 +36,13 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
   cashierName,
   onNewSale,
 }) => {
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   // whatsapp fallback handled directly
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isPreparingLink, setIsPreparingLink] = useState(false);
 
   const methodLabel: Record<string, string> = {
     EFECTIVO: 'Efectivo',
@@ -98,26 +104,41 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
     }
   };
 
-  const handleSendWhatsApp = () => {
-    const url = getWhatsAppSummaryUrl(sale, businessInfo?.name, sale.customerPhone);
-    window.open(url, '_blank', 'noopener,noreferrer');
+  const handleSendWhatsApp = async () => {
+    if (isPreparingLink || isSharing || isDownloading) return;
+    setIsPreparingLink(true);
+    setStatusMessage('Preparando enlace para WhatsApp...');
+    try {
+      const publicUrl = await ensureReceiptLink(sale, businessInfo, cashierName);
+      const message = buildWhatsAppReceiptMessage(sale, businessInfo?.name || 'NEXOL POS', publicUrl);
+      const waUrl = buildWhatsAppUrl(sale.customerPhone, message);
+      window.open(waUrl, '_blank', 'noopener,noreferrer');
+      setStatusMessage('WhatsApp abierto con el enlace al comprobante digital.');
+    } catch (err: any) {
+      setStatusMessage(err.message || 'No se pudo generar el comprobante para WhatsApp.');
+    } finally {
+      setIsPreparingLink(false);
+    }
   };
 
   const handleCopyPublicLink = async () => {
-    const token = (sale as any).receiptToken || sale.id;
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const url = `${origin}/comprobante/${token}`;
+    if (isPreparingLink || isSharing || isDownloading) return;
+    setIsPreparingLink(true);
+    setStatusMessage('Preparando enlace digital...');
     try {
+      const publicUrl = await ensureReceiptLink(sale, businessInfo, cashierName);
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(publicUrl);
         setCopiedLink(true);
-        setStatusMessage('Enlace público copiado al portapapeles.');
-        setTimeout(() => setCopiedLink(false), 2500);
+        setStatusMessage('Enlace copiado al portapapeles. Funciona por 90 días.');
+        setTimeout(() => setCopiedLink(false), 3500);
       } else {
-        setStatusMessage(url);
+        setStatusMessage(`Enlace público: ${publicUrl} (funciona por 90 días)`);
       }
-    } catch {
-      setStatusMessage('No se pudo copiar el enlace.');
+    } catch (err: any) {
+      setStatusMessage(err.message || 'No se pudo generar el enlace del comprobante.');
+    } finally {
+      setIsPreparingLink(false);
     }
   };
 
@@ -344,33 +365,43 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
 
         {/* Acciones de Recibo y Comprobante */}
         <div className="space-y-2.5 pt-1">
+          {/* Botón principal: Ver e imprimir comprobante (Modal fiel con Ticket y Carta) */}
+          <button
+            type="button"
+            onClick={() => setIsReceiptModalOpen(true)}
+            className="w-full py-3.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98 min-h-[48px]"
+          >
+            <Printer size={18} weight="bold" />
+            <span>Ver e imprimir comprobante (Ticket / Carta)</span>
+          </button>
+
           <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
               onClick={handleShareReceipt}
               disabled={isSharing || isDownloading}
-              className="py-3 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98 disabled:opacity-50 min-h-[46px]"
+              className="py-2.5 px-3 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98 disabled:opacity-50 min-h-[44px]"
               title="Compartir recibo PDF vía WhatsApp o el selector del sistema"
             >
               {isSharing ? (
-                <CircleNotch size={17} className="animate-spin" />
+                <CircleNotch size={16} className="animate-spin" />
               ) : (
-                <ShareNetwork size={17} weight="bold" />
+                <ShareNetwork size={16} weight="bold" />
               )}
-              <span>Compartir recibo</span>
+              <span>Compartir</span>
             </button>
 
             <button
               type="button"
               onClick={handleDownloadReceipt}
               disabled={isSharing || isDownloading}
-              className="py-3 px-3 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-bold text-xs sm:text-sm rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs active:scale-98 disabled:opacity-50 min-h-[46px]"
-              title="Descargar archivo PDF vertical de 80mm"
+              className="py-2.5 px-3 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98 disabled:opacity-50 min-h-[44px]"
+              title="Descargar archivo PDF"
             >
               {isDownloading ? (
-                <CircleNotch size={17} className="animate-spin" />
+                <CircleNotch size={16} className="animate-spin" />
               ) : (
-                <DownloadSimple size={17} weight="bold" />
+                <DownloadSimple size={16} weight="bold" />
               )}
               <span>Descargar PDF</span>
             </button>
@@ -380,23 +411,31 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
             <button
               type="button"
               onClick={handleSendWhatsApp}
-              className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[44px]"
+              disabled={isPreparingLink || isSharing || isDownloading}
+              className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[44px] disabled:opacity-50"
             >
-              <WhatsappLogo size={17} weight="bold" className="text-emerald-600 shrink-0" />
-              <span className="truncate">Enviar WhatsApp</span>
+              {isPreparingLink ? (
+                <CircleNotch size={17} className="animate-spin text-emerald-600 shrink-0" />
+              ) : (
+                <WhatsappLogo size={17} weight="bold" className="text-emerald-600 shrink-0" />
+              )}
+              <span className="truncate">{isPreparingLink ? 'Preparando enlace...' : 'Enviar WhatsApp'}</span>
             </button>
 
             <button
               type="button"
               onClick={handleCopyPublicLink}
-              className="w-full py-2.5 px-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[44px]"
+              disabled={isPreparingLink || isSharing || isDownloading}
+              className="w-full py-2.5 px-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[44px] disabled:opacity-50"
             >
-              {copiedLink ? (
+              {isPreparingLink ? (
+                <CircleNotch size={16} className="animate-spin text-gray-500 shrink-0" />
+              ) : copiedLink ? (
                 <Check size={16} weight="bold" className="text-emerald-600 shrink-0" />
               ) : (
                 <LinkSimple size={16} weight="bold" className="text-gray-500 shrink-0" />
               )}
-              <span className="truncate">{copiedLink ? '¡Copiado!' : 'Copiar enlace'}</span>
+              <span className="truncate">{isPreparingLink ? 'Preparando enlace...' : copiedLink ? '¡Copiado!' : 'Copiar enlace'}</span>
             </button>
           </div>
 
@@ -411,6 +450,16 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Modal de Comprobante (Ticket térmico y Hoja Carta con vista previa y diálogo de impresión) */}
+      <ReceiptModal
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        sale={sale}
+        businessInfo={businessInfo}
+        cashierName={cashierName}
+        isReprint={false}
+      />
     </div>
   );
 };

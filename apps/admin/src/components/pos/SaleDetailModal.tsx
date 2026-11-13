@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from "react";
 import {
   X,
   Receipt,
@@ -6,16 +6,37 @@ import {
   WarningCircle,
   ArrowCounterClockwise,
   ArrowUUpLeft,
-} from '@phosphor-icons/react';
-import { useQueryClient } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
-import { useBackofficeSaleDetail } from '../../hooks/useBackoffice';
-import { formatCurrency, formatQuantity } from '../../utils/formatters';
-import { formatDateTime } from '../../utils/formatDate';
-import { CancelSaleModal } from './sales/CancelSaleModal';
-import { ReturnSaleModal } from './sales/ReturnSaleModal';
-import { ReturnReceiptModal } from './sales/ReturnReceiptModal';
-import { type SaleReturnPrintData } from '../../utils/receiptPdf';
+  DownloadSimple,
+  ShareNetwork,
+  WhatsappLogo,
+  LinkSimple,
+  Check,
+  CircleNotch,
+  Printer,
+} from "@phosphor-icons/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
+import {
+  getMyBusiness,
+  getPosSaleReceipt,
+  type SaleResponse,
+} from "api-client";
+import { useBackofficeSaleDetail } from "../../hooks/useBackoffice";
+import { formatCurrency, formatQuantity } from "../../utils/formatters";
+import { formatDateTime } from "../../utils/formatDate";
+import { CancelSaleModal } from "./sales/CancelSaleModal";
+import { ReturnSaleModal } from "./sales/ReturnSaleModal";
+import { ReturnReceiptModal } from "./sales/ReturnReceiptModal";
+import { ReceiptModal } from "./ReceiptModal";
+import {
+  downloadReceiptPdf,
+  shareOrFallbackReceipt,
+  ensureReceiptLink,
+  buildWhatsAppReceiptMessage,
+  buildWhatsAppUrl,
+  type SaleReturnPrintData,
+  type ReceiptBusinessInfo,
+} from "../../utils/receiptPdf";
 
 interface SaleDetailModalProps {
   saleId: string | null;
@@ -27,47 +48,254 @@ interface SaleDetailModalProps {
 export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
   saleId,
   onClose,
-  currency = 'NIO',
+  currency = "NIO",
   isTallerProfile = false,
 }) => {
   const queryClient = useQueryClient();
-  const { data: sale, isLoading, isError, error } = useBackofficeSaleDetail(saleId);
+  const {
+    data: sale,
+    isLoading,
+    isError,
+    error,
+  } = useBackofficeSaleDetail(saleId);
 
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
-  const [returnReceiptData, setReturnReceiptData] = useState<SaleReturnPrintData | null>(null);
+  const [returnReceiptData, setReturnReceiptData] =
+    useState<SaleReturnPrintData | null>(null);
+
+  // Consulta de datos del negocio para comprobante
+  const { data: businessData } = useQuery({
+    queryKey: ["business", "me"],
+    queryFn: getMyBusiness,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isSharingPdf, setIsSharingPdf] = useState(false);
+  const [isPreparingLink, setIsPreparingLink] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [receiptStatusMessage, setReceiptStatusMessage] = useState<
+    string | null
+  >(null);
+
+  const businessInfo: ReceiptBusinessInfo | undefined = useMemo(() => {
+    if (!businessData) return undefined;
+    const b = businessData as any;
+    return {
+      name: b.name || "",
+      address: b.posAddress || b.address || null,
+      phone: b.posPhone || b.whatsappNumber || b.phone || null,
+      taxId: b.taxId || null,
+      logoUrl: b.logoUrl || null,
+    };
+  }, [businessData]);
+
+  // Adaptar el detalle de backoffice a la forma requerida por el generador de comprobantes
+  const adaptedSale: SaleResponse | null = useMemo(() => {
+    if (!sale) return null;
+    const s = sale as any;
+    return {
+      id: sale.id,
+      invoiceNumber: sale.invoiceNumber,
+      total: Number(sale.netTotal ?? sale.total ?? 0),
+      subtotal: Number(sale.subtotal ?? 0),
+      discountAmount: Number(sale.discountAmount ?? 0),
+      taxAmount: Number(sale.taxAmount ?? 0),
+      amountPaid: Number(sale.amountPaid ?? 0),
+      change: Number(sale.change ?? 0),
+      paymentMethod: sale.paymentMethod || "EFECTIVO",
+      status: sale.status || (sale.isVoided ? "CANCELLED" : "COMPLETED"),
+      createdAt: sale.createdAt,
+      customerName: sale.customer?.name || s.customerName || null,
+      customerPhone: sale.customer?.phone || s.customerPhone || null,
+      cashier: sale.cashier,
+      items: (sale.items || []).map((it: any) => ({
+        productName: it.productName || it.product?.name || "Producto",
+        quantity: Number(it.quantity || 1),
+        unitPrice: Number(it.unitPrice || 0),
+        subtotal: Number(it.subtotal || 0),
+        discount: Number(it.discount || 0),
+        taxable: Boolean(it.taxable),
+        listPrice: it.listPrice,
+      })),
+      payments: sale.payments || [],
+      isVoided: Boolean(sale.isVoided || sale.status === "CANCELLED"),
+    } as SaleResponse;
+  }, [sale]);
+
+  const isReceiptWorking = isDownloadingPdf || isSharingPdf || isPreparingLink;
+  const isVoided = Boolean(sale?.isVoided || sale?.status === "CANCELLED");
+
+  const handleDownloadPdf = async () => {
+    if (!adaptedSale || isReceiptWorking) return;
+    setIsDownloadingPdf(true);
+    setReceiptStatusMessage(null);
+    try {
+      getPosSaleReceipt(adaptedSale.id).catch(() => {});
+      await downloadReceiptPdf(adaptedSale, businessInfo, sale?.cashier?.name, {
+        isReprint: !isVoided,
+        isVoided,
+      });
+      setReceiptStatusMessage("Comprobante descargado en tu dispositivo.");
+      setTimeout(() => setReceiptStatusMessage(null), 3000);
+    } catch {
+      setReceiptStatusMessage("Error al generar o descargar el comprobante.");
+      setTimeout(() => setReceiptStatusMessage(null), 3500);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const handleSharePdf = async () => {
+    if (!adaptedSale || isReceiptWorking) return;
+    setIsSharingPdf(true);
+    setReceiptStatusMessage(null);
+    try {
+      getPosSaleReceipt(adaptedSale.id).catch(() => {});
+      const result = await shareOrFallbackReceipt(
+        adaptedSale,
+        businessInfo,
+        sale?.cashier?.name,
+        {
+          isReprint: !isVoided,
+          isVoided,
+        },
+      );
+      if (result.shared) {
+        setReceiptStatusMessage("Comprobante compartido exitosamente.");
+      } else if (result.downloaded) {
+        setReceiptStatusMessage("Comprobante descargado.");
+      }
+      setTimeout(() => setReceiptStatusMessage(null), 3000);
+    } catch {
+      setReceiptStatusMessage("Error al procesar el comprobante.");
+      setTimeout(() => setReceiptStatusMessage(null), 3500);
+    } finally {
+      setIsSharingPdf(false);
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!adaptedSale || isReceiptWorking) return;
+    setIsPreparingLink(true);
+    setReceiptStatusMessage("Preparando enlace digital...");
+    try {
+      if (isVoided) {
+        setReceiptStatusMessage(
+          "No se puede generar un enlace público para un comprobante anulado.",
+        );
+        setTimeout(() => setReceiptStatusMessage(null), 3500);
+        return;
+      }
+      getPosSaleReceipt(adaptedSale.id).catch(() => {});
+      const publicUrl = await ensureReceiptLink(
+        adaptedSale,
+        businessInfo,
+        sale?.cashier?.name,
+        {
+          isReprint: true,
+        },
+      );
+      const message = buildWhatsAppReceiptMessage(
+        adaptedSale,
+        businessInfo?.name || "NEXOL POS",
+        publicUrl,
+      );
+      const waUrl = buildWhatsAppUrl(adaptedSale.customerPhone, message);
+      window.open(waUrl, "_blank", "noopener,noreferrer");
+      setReceiptStatusMessage("WhatsApp abierto con el enlace al comprobante.");
+      setTimeout(() => setReceiptStatusMessage(null), 3000);
+    } catch (err: any) {
+      setReceiptStatusMessage(
+        err.message || "Error al preparar el comprobante para WhatsApp.",
+      );
+      setTimeout(() => setReceiptStatusMessage(null), 4000);
+    } finally {
+      setIsPreparingLink(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!adaptedSale || isReceiptWorking) return;
+    setIsPreparingLink(true);
+    setReceiptStatusMessage("Preparando enlace digital...");
+    try {
+      if (isVoided) {
+        setReceiptStatusMessage(
+          "No se puede generar un enlace público para un comprobante anulado.",
+        );
+        setTimeout(() => setReceiptStatusMessage(null), 3500);
+        return;
+      }
+      getPosSaleReceipt(adaptedSale.id).catch(() => {});
+      const publicUrl = await ensureReceiptLink(
+        adaptedSale,
+        businessInfo,
+        sale?.cashier?.name,
+        {
+          isReprint: true,
+        },
+      );
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(publicUrl);
+        setCopiedLink(true);
+        setReceiptStatusMessage(
+          "Enlace copiado al portapapeles. Funciona por 90 días.",
+        );
+        setTimeout(() => setCopiedLink(false), 3500);
+      } else {
+        setReceiptStatusMessage(
+          `Enlace público: ${publicUrl} (funciona por 90 días)`,
+        );
+      }
+    } catch (err: any) {
+      setReceiptStatusMessage(
+        err.message || "Error al obtener el enlace del comprobante.",
+      );
+      setTimeout(() => setReceiptStatusMessage(null), 4000);
+    } finally {
+      setIsPreparingLink(false);
+    }
+  };
 
   if (!saleId) return null;
 
   const handleVoidSuccess = () => {
     setIsCancelModalOpen(false);
-    queryClient.invalidateQueries({ queryKey: ['backoffice', 'sales'] });
-    queryClient.invalidateQueries({ queryKey: ['backoffice', 'sale-detail', saleId] });
-    queryClient.invalidateQueries({ queryKey: ['pos'] });
-    toast.success('Comprobante anulado exitosamente');
+    queryClient.invalidateQueries({ queryKey: ["backoffice", "sales"] });
+    queryClient.invalidateQueries({
+      queryKey: ["backoffice", "sale-detail", saleId],
+    });
+    queryClient.invalidateQueries({ queryKey: ["pos"] });
+    toast.success("Comprobante anulado exitosamente");
   };
 
   const handleReturnSuccess = (res: any) => {
     setIsReturnModalOpen(false);
-    queryClient.invalidateQueries({ queryKey: ['backoffice', 'sales'] });
-    queryClient.invalidateQueries({ queryKey: ['backoffice', 'sale-detail', saleId] });
-    queryClient.invalidateQueries({ queryKey: ['pos'] });
-    toast.success('Devolución registrada exitosamente');
+    queryClient.invalidateQueries({ queryKey: ["backoffice", "sales"] });
+    queryClient.invalidateQueries({
+      queryKey: ["backoffice", "sale-detail", saleId],
+    });
+    queryClient.invalidateQueries({ queryKey: ["pos"] });
+    toast.success("Devolución registrada exitosamente");
 
     if (res) {
       const items = (res.items || []).map((it: any) => ({
-        productName: it.productName || it.product?.name || 'Producto',
+        productName: it.productName || it.product?.name || "Producto",
         quantity: Number(it.quantity || 1),
         unitPrice: Number(it.unitPrice || 0),
         refundAmount: Number(it.refundAmount || 0),
       }));
 
       setReturnReceiptData({
-        returnNumber: res.returnNumber || `DEV-${res.id?.slice(-6) || Date.now()}`,
-        invoiceNumber: sale?.invoiceNumber || '',
+        returnNumber:
+          res.returnNumber || `DEV-${res.id?.slice(-6) || Date.now()}`,
+        invoiceNumber: sale?.invoiceNumber || "",
         createdAt: res.createdAt || new Date().toISOString(),
-        reason: res.reason || 'Devolución de productos',
-        refundMethod: res.refundMethod || 'EFECTIVO',
+        reason: res.reason || "Devolución de productos",
+        refundMethod: res.refundMethod || "EFECTIVO",
         refundAmount: Number(res.refundAmount || 0),
         taxRefunded: Number(res.taxRefunded || 0),
         cashierName: res.createdBy?.name || undefined,
@@ -76,7 +304,6 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
       });
     }
   };
-
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -97,7 +324,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-sm text-gray-900">
-                    Comprobante #{sale?.invoiceNumber || '—'}
+                    Comprobante #{sale?.invoiceNumber || "—"}
                   </h3>
                   {sale?.isVoided && (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200">
@@ -137,16 +364,22 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
             {isLoading && (
               <div className="py-12 text-center space-y-3">
                 <div className="w-7 h-7 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-gray-400 text-xs">Cargando detalle de la venta...</p>
+                <p className="text-gray-400 text-xs">
+                  Cargando detalle de la venta...
+                </p>
               </div>
             )}
 
             {isError && (
               <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-center">
-                <WarningCircle size={20} className="mx-auto mb-1 text-red-500" />
+                <WarningCircle
+                  size={20}
+                  className="mx-auto mb-1 text-red-500"
+                />
                 <p className="font-medium">Error al cargar la venta</p>
                 <p className="text-[11px] text-red-500 mt-0.5">
-                  {(error as any)?.response?.data?.message || 'No se pudo obtener el detalle.'}
+                  {(error as any)?.response?.data?.message ||
+                    "No se pudo obtener el detalle."}
                 </p>
               </div>
             )}
@@ -161,16 +394,22 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                       Venta Anulada
                     </p>
                     {sale.voidReason && (
-                      <p className="text-[11px] text-red-700">Motivo: {sale.voidReason}</p>
+                      <p className="text-[11px] text-red-700">
+                        Motivo: {sale.voidReason}
+                      </p>
                     )}
                     {sale.voidedAt && (
-                      <p className="text-[10px] text-red-600">Fecha de anulación: {formatDateTime(sale.voidedAt)}</p>
+                      <p className="text-[10px] text-red-600">
+                        Fecha de anulación: {formatDateTime(sale.voidedAt)}
+                      </p>
                     )}
                   </div>
                 )}
 
                 {/* Sección TALLER (Placa, Vehículo, Técnico, Área) */}
-                {(isTallerProfile || sale.taller?.vehiculo || sale.taller?.placa) && (
+                {(isTallerProfile ||
+                  sale.taller?.vehiculo ||
+                  sale.taller?.placa) && (
                   <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 space-y-2">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
                       <Wrench size={15} className="text-amber-700" />
@@ -183,7 +422,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                           Placa
                         </span>
                         <span className="font-bold text-gray-900 font-mono">
-                          {sale.taller?.placa || '—'}
+                          {sale.taller?.placa || "—"}
                         </span>
                       </div>
 
@@ -192,7 +431,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                           Vehículo
                         </span>
                         <span className="font-semibold text-gray-800 truncate block">
-                          {sale.taller?.vehiculo || '—'}
+                          {sale.taller?.vehiculo || "—"}
                         </span>
                       </div>
 
@@ -201,7 +440,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                           Técnico / Mecánico
                         </span>
                         <span className="font-semibold text-gray-800 truncate block">
-                          {sale.taller?.tecnico || '—'}
+                          {sale.taller?.tecnico || "—"}
                         </span>
                       </div>
 
@@ -210,7 +449,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                           Bahía / Área
                         </span>
                         <span className="font-semibold text-gray-800 truncate block">
-                          {sale.taller?.area || '—'}
+                          {sale.taller?.area || "—"}
                         </span>
                       </div>
                     </div>
@@ -224,13 +463,17 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                       Cliente
                     </span>
                     <p className="font-semibold text-gray-900 text-xs">
-                      {sale.customer?.name || 'Cliente general'}
+                      {sale.customer?.name || "Cliente general"}
                     </p>
                     {sale.customer?.phone && (
-                      <p className="text-gray-500 text-[11px]">Tel: {sale.customer.phone}</p>
+                      <p className="text-gray-500 text-[11px]">
+                        Tel: {sale.customer.phone}
+                      </p>
                     )}
                     {sale.customer?.ruc && (
-                      <p className="text-gray-500 text-[11px]">RUC / Cédula: {sale.customer.ruc}</p>
+                      <p className="text-gray-500 text-[11px]">
+                        RUC / Cédula: {sale.customer.ruc}
+                      </p>
                     )}
                   </div>
 
@@ -239,7 +482,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                       Atendido por
                     </span>
                     <p className="font-semibold text-gray-900 text-xs">
-                      {sale.cashier?.name || 'Cajero del sistema'}
+                      {sale.cashier?.name || "Cajero del sistema"}
                     </p>
                     {sale.cashRegister && (
                       <p className="text-gray-500 text-[11px]">
@@ -247,7 +490,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                       </p>
                     )}
                     <p className="text-gray-500 text-[11px]">
-                      Método principal: {sale.paymentMethod || 'Efectivo'}
+                      Método principal: {sale.paymentMethod || "Efectivo"}
                     </p>
                   </div>
                 </div>
@@ -255,42 +498,52 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                 {/* Ítems de la Venta */}
                 <div className="border border-gray-100 rounded-xl overflow-hidden">
                   <div className="bg-gray-50 px-3.5 py-2 border-b border-gray-100 font-semibold text-gray-700 text-xs flex justify-between">
-                    <span>Productos y Servicios ({sale.items?.length || 0})</span>
+                    <span>
+                      Productos y Servicios ({sale.items?.length || 0})
+                    </span>
                     <span>Subtotal</span>
                   </div>
 
                   <div className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
                     {sale.items?.map((item) => (
-                      <div key={item.id} className="p-3 flex items-start justify-between gap-3">
+                      <div
+                        key={item.id}
+                        className="p-3 flex items-start justify-between gap-3"
+                      >
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="font-medium text-gray-900 text-xs truncate">
                               {item.productName}
                             </p>
-                            {sale.taxModel === 'PER_LINE' && (
+                            {sale.taxModel === "PER_LINE" && (
                               <span
                                 className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                                   item.taxable
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
-                                    : 'bg-gray-100 text-gray-600'
+                                    ? "bg-blue-50 text-blue-700 border border-blue-200/60"
+                                    : "bg-gray-100 text-gray-600"
                                 }`}
                               >
-                                {item.taxable ? '15% IVA' : 'Exento'}
+                                {item.taxable ? "15% IVA" : "Exento"}
                               </span>
                             )}
                           </div>
                           <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-0.5 flex-wrap">
                             <span>
-                              {formatQuantity(item.quantity, item.unit)} × {formatCurrency(item.unitPrice, currency)}
+                              {formatQuantity(item.quantity, item.unit)} ×{" "}
+                              {formatCurrency(item.unitPrice, currency)}
                             </span>
-                            {item.listPrice && item.listPriceDiscount && item.listPriceDiscount > 0 ? (
+                            {item.listPrice &&
+                            item.listPriceDiscount &&
+                            item.listPriceDiscount > 0 ? (
                               <span className="text-gray-400 line-through text-[10px]">
-                                Etiqueta: {formatCurrency(item.listPrice, currency)}
+                                Etiqueta:{" "}
+                                {formatCurrency(item.listPrice, currency)}
                               </span>
                             ) : null}
                             {item.returnedQty > 0 && (
                               <span className="text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded text-[10px]">
-                                Devuelto: {formatQuantity(item.returnedQty, item.unit)}
+                                Devuelto:{" "}
+                                {formatQuantity(item.returnedQty, item.unit)}
                               </span>
                             )}
                           </div>
@@ -308,7 +561,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
 
                 {/* Resumen Financiero */}
                 <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-1.5">
-                  {sale.taxModel === 'PER_LINE' ? (
+                  {sale.taxModel === "PER_LINE" ? (
                     <>
                       <div className="flex justify-between text-gray-600">
                         <span>Precio:</span>
@@ -317,7 +570,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                             sale.listPriceTotal && sale.listPriceTotal > 0
                               ? sale.listPriceTotal
                               : sale.subtotal,
-                            currency
+                            currency,
                           )}
                         </span>
                       </div>
@@ -325,14 +578,18 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                       {sale.listDiscountTotal && sale.listDiscountTotal > 0 ? (
                         <div className="flex justify-between text-emerald-700 font-medium">
                           <span>Descuento:</span>
-                          <span>-{formatCurrency(sale.listDiscountTotal, currency)}</span>
+                          <span>
+                            -{formatCurrency(sale.listDiscountTotal, currency)}
+                          </span>
                         </div>
                       ) : null}
 
                       {sale.discountAmount > 0 && (
                         <div className="flex justify-between text-emerald-700 font-medium">
                           <span>Descuento adicional:</span>
-                          <span>-{formatCurrency(sale.discountAmount, currency)}</span>
+                          <span>
+                            -{formatCurrency(sale.discountAmount, currency)}
+                          </span>
                         </div>
                       )}
 
@@ -341,9 +598,10 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                         <span>
                           {formatCurrency(
                             (sale.listPriceTotal && sale.listPriceTotal > 0
-                              ? sale.listPriceTotal - (sale.listDiscountTotal || 0)
+                              ? sale.listPriceTotal -
+                                (sale.listDiscountTotal || 0)
                               : sale.subtotal) - (sale.discountAmount || 0),
-                            currency
+                            currency,
                           )}
                         </span>
                       </div>
@@ -363,14 +621,18 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                       {sale.discountAmount > 0 && (
                         <div className="flex justify-between text-emerald-700 font-medium">
                           <span>Descuento aplicado:</span>
-                          <span>-{formatCurrency(sale.discountAmount, currency)}</span>
+                          <span>
+                            -{formatCurrency(sale.discountAmount, currency)}
+                          </span>
                         </div>
                       )}
 
                       {sale.taxAmount > 0 && (
                         <div className="flex justify-between text-gray-600">
                           <span>Impuestos (IVA):</span>
-                          <span>{formatCurrency(sale.taxAmount, currency)}</span>
+                          <span>
+                            {formatCurrency(sale.taxAmount, currency)}
+                          </span>
                         </div>
                       )}
                     </>
@@ -379,7 +641,9 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                   {sale.totalRefunded > 0 && (
                     <div className="flex justify-between text-amber-700 font-medium">
                       <span>Total reembolsado / devuelto:</span>
-                      <span>-{formatCurrency(sale.totalRefunded, currency)}</span>
+                      <span>
+                        -{formatCurrency(sale.totalRefunded, currency)}
+                      </span>
                     </div>
                   )}
 
@@ -391,7 +655,10 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                   </div>
 
                   <div className="flex justify-between text-[11px] text-gray-500 pt-1">
-                    <span>Monto Recibido: {formatCurrency(sale.amountPaid, currency)}</span>
+                    <span>
+                      Monto Recibido:{" "}
+                      {formatCurrency(sale.amountPaid, currency)}
+                    </span>
                     <span>Cambio: {formatCurrency(sale.change, currency)}</span>
                   </div>
                 </div>
@@ -399,10 +666,143 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                 {/* Notas si existen */}
                 {sale.notes && (
                   <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-100 text-blue-900 text-xs">
-                    <span className="font-semibold text-[11px] block text-blue-800">Notas:</span>
+                    <span className="font-semibold text-[11px] block text-blue-800">
+                      Notas:
+                    </span>
                     <p className="mt-0.5">{sale.notes}</p>
                   </div>
                 )}
+
+                {/* Acciones de Comprobante de venta */}
+                <div className="p-4 bg-gray-50/90 rounded-2xl border border-gray-200/80 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Receipt
+                        size={17}
+                        weight="duotone"
+                        className="text-gray-700"
+                      />
+                      <span className="text-xs font-bold text-gray-800 uppercase tracking-wide">
+                        Comprobante de venta
+                      </span>
+                    </div>
+                    {isVoided ? (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        Anulado
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                        Reimpresión
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Botón para abrir vista previa fiel de comprobante (Ticket y Hoja Carta) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsReceiptModalOpen(true)}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer mb-2.5"
+                  >
+                    <Printer size={16} weight="bold" />
+                    <span>
+                      Ver e imprimir comprobante (Ticket / Hoja carta)
+                    </span>
+                  </button>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadPdf}
+                      disabled={isReceiptWorking}
+                      className="py-2.5 px-3 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 font-semibold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-50 min-h-[44px]"
+                      title="Descargar comprobante en PDF"
+                    >
+                      {isDownloadingPdf ? (
+                        <CircleNotch
+                          size={15}
+                          className="animate-spin text-gray-700"
+                        />
+                      ) : (
+                        <DownloadSimple size={15} weight="bold" />
+                      )}
+                      <span>Descargar</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSharePdf}
+                      disabled={isReceiptWorking}
+                      className="py-2.5 px-3 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 font-semibold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-50 min-h-[44px]"
+                      title="Compartir comprobante vía selector del dispositivo"
+                    >
+                      {isSharingPdf ? (
+                        <CircleNotch
+                          size={15}
+                          className="animate-spin text-gray-700"
+                        />
+                      ) : (
+                        <ShareNetwork size={15} weight="bold" />
+                      )}
+                      <span>Compartir</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSendWhatsApp}
+                      disabled={isReceiptWorking}
+                      className="py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-50 min-h-[44px]"
+                      title="Enviar comprobante por WhatsApp"
+                    >
+                      {isPreparingLink ? (
+                        <CircleNotch
+                          size={15}
+                          className="animate-spin text-emerald-600"
+                        />
+                      ) : (
+                        <WhatsappLogo
+                          size={16}
+                          weight="bold"
+                          className="text-emerald-600"
+                        />
+                      )}
+                      <span>WhatsApp</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      disabled={isReceiptWorking}
+                      className="py-2.5 px-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 font-semibold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-50 min-h-[44px]"
+                      title="Copiar enlace público de 90 días"
+                    >
+                      {isPreparingLink ? (
+                        <CircleNotch
+                          size={15}
+                          className="animate-spin text-gray-500"
+                        />
+                      ) : copiedLink ? (
+                        <Check
+                          size={15}
+                          weight="bold"
+                          className="text-emerald-600"
+                        />
+                      ) : (
+                        <LinkSimple
+                          size={15}
+                          weight="bold"
+                          className="text-gray-500"
+                        />
+                      )}
+                      <span>{copiedLink ? "Copiado" : "Copiar link"}</span>
+                    </button>
+                  </div>
+
+                  {receiptStatusMessage && (
+                    <div className="p-2 rounded-xl bg-white border border-gray-200 text-[11px] font-medium text-gray-700 animate-in fade-in duration-150">
+                      {receiptStatusMessage}
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -421,7 +821,8 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                     <span>Anular comprobante</span>
                   </button>
 
-                  {(!sale.totalRefunded || sale.totalRefunded < sale.netTotal) && (
+                  {(!sale.totalRefunded ||
+                    sale.totalRefunded < sale.netTotal) && (
                     <button
                       type="button"
                       onClick={() => setIsReturnModalOpen(true)}
@@ -449,14 +850,20 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
       {/* Modal de Anulación */}
       <CancelSaleModal
         isOpen={isCancelModalOpen}
-        sale={sale ? {
-          id: sale.id,
-          invoiceNumber: sale.invoiceNumber,
-          netTotal: sale.netTotal,
-          amountPaid: sale.amountPaid,
-          customer: sale.customer ? { name: sale.customer.name || undefined } : null,
-          customerName: sale.customer?.name || undefined,
-        } : null}
+        sale={
+          sale
+            ? {
+                id: sale.id,
+                invoiceNumber: sale.invoiceNumber,
+                netTotal: sale.netTotal,
+                amountPaid: sale.amountPaid,
+                customer: sale.customer
+                  ? { name: sale.customer.name || undefined }
+                  : null,
+                customerName: sale.customer?.name || undefined,
+              }
+            : null
+        }
         onClose={() => setIsCancelModalOpen(false)}
         onSuccess={handleVoidSuccess}
         currency={currency}
@@ -465,25 +872,34 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
       {/* Modal de Devolución */}
       <ReturnSaleModal
         isOpen={isReturnModalOpen}
-        sale={sale ? {
-          id: sale.id,
-          invoiceNumber: sale.invoiceNumber,
-          createdAt: sale.createdAt,
-          paymentMethod: sale.paymentMethod || undefined,
-          payments: sale.payments,
-          customer: sale.customer ? { name: sale.customer.name || undefined, phone: sale.customer.phone || undefined } : null,
-          customerName: sale.customer?.name || undefined,
-          customerPhone: sale.customer?.phone || undefined,
-          items: sale.items?.map((it: any) => ({
-            id: it.id,
-            productId: it.productId,
-            productName: it.productName,
-            quantity: it.quantity,
-            returnedQty: it.returnedQty,
-            unitPrice: it.unitPrice,
-            total: it.total,
-          })),
-        } : null}
+        sale={
+          sale
+            ? {
+                id: sale.id,
+                invoiceNumber: sale.invoiceNumber,
+                createdAt: sale.createdAt,
+                paymentMethod: sale.paymentMethod || undefined,
+                payments: sale.payments,
+                customer: sale.customer
+                  ? {
+                      name: sale.customer.name || undefined,
+                      phone: sale.customer.phone || undefined,
+                    }
+                  : null,
+                customerName: sale.customer?.name || undefined,
+                customerPhone: sale.customer?.phone || undefined,
+                items: sale.items?.map((it: any) => ({
+                  id: it.id,
+                  productId: it.productId,
+                  productName: it.productName,
+                  quantity: it.quantity,
+                  returnedQty: it.returnedQty,
+                  unitPrice: it.unitPrice,
+                  total: it.total,
+                })),
+              }
+            : null
+        }
         onClose={() => setIsReturnModalOpen(false)}
         onSuccess={handleReturnSuccess}
         currency={currency}
@@ -496,7 +912,23 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
         returnData={returnReceiptData}
         customerPhone={sale?.customer?.phone}
       />
+
+      {/* Modal de Comprobante de Venta (Ticket y Hoja Carta) */}
+      {adaptedSale && (
+        <ReceiptModal
+          isOpen={isReceiptModalOpen}
+          onClose={() => setIsReceiptModalOpen(false)}
+          sale={adaptedSale}
+          businessInfo={businessInfo}
+          cashierName={sale?.cashier?.name}
+          isReprint={!isVoided}
+          onPrintRecorded={() =>
+            queryClient.invalidateQueries({
+              queryKey: ["backofficeSaleDetail", saleId],
+            })
+          }
+        />
+      )}
     </div>
   );
 };
-

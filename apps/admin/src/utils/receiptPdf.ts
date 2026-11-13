@@ -1,9 +1,13 @@
 import { jsPDF } from 'jspdf';
-import JsBarcode from 'jsbarcode';
-import { type SaleResponse } from 'api-client';
+import { type SaleResponse, uploadPosReceiptPdf } from 'api-client';
 import { formatCurrency } from './formatters';
 import { formatManaguaDateTime } from './dateManagua';
-import { numberToWordsCordobas } from './numberToWordsCordobas';
+import {
+  generateReceiptHtml,
+  generateReceiptPdfBlob as generateHtmlPdfBlob,
+} from './receiptHtml';
+
+export { generateReceiptHtml, generateHtmlPdfBlob };
 
 export interface ReceiptBusinessInfo {
   name?: string;
@@ -13,228 +17,9 @@ export interface ReceiptBusinessInfo {
   logoUrl?: string | null;
 }
 
-/**
- * Carga una imagen remota y la convierte en Data URL base64 usando un canvas.
- * Si falla o tarda más de 1.5s, retorna null de forma segura.
- */
-async function loadImageAsDataUrl(url?: string | null): Promise<string | null> {
-  if (!url || typeof document === 'undefined') return null;
-
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'Anonymous';
-
-    const timer = setTimeout(() => {
-      resolve(null);
-    }, 1500);
-
-    img.onload = () => {
-      clearTimeout(timer);
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth || 120;
-        canvas.height = img.naturalHeight || 120;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(null);
-          return;
-        }
-        ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
-      } catch {
-        resolve(null);
-      }
-    };
-
-    img.onerror = () => {
-      clearTimeout(timer);
-      resolve(null);
-    };
-
-    img.src = url;
-  });
-}
-
-/**
- * Genera el código de barras CODE128 en un canvas y lo exporta como PNG base64.
- */
-function generateBarcodeDataUrl(text: string): string | null {
-  try {
-    if (typeof document === 'undefined') return null;
-    const canvas = document.createElement('canvas');
-    JsBarcode(canvas, text, {
-      format: 'CODE128',
-      width: 2,
-      height: 40,
-      displayValue: false,
-      margin: 0,
-      background: '#ffffff',
-      lineColor: '#000000',
-    });
-    return canvas.toDataURL('image/png');
-  } catch (err) {
-    console.warn('[receiptPdf] Error generando código de barras:', err);
-    return null;
-  }
-}
-
-/**
- * Dibuja una línea punteada/discontinua horizontal en el recibo
- */
-function drawDashedLine(doc: jsPDF, y: number) {
-  doc.setDrawColor(140, 140, 140);
-  doc.setLineWidth(0.2);
-  doc.setLineDashPattern([1, 1], 0);
-  doc.line(4, y, 76, y);
-  doc.setLineDashPattern([], 0);
-}
-
-/**
- * Dibuja una línea continua horizontal delgada
- */
-function drawSolidLine(doc: jsPDF, y: number, color = 80, width = 0.25) {
-  doc.setDrawColor(color, color, color);
-  doc.setLineWidth(width);
-  doc.line(4, y, 76, y);
-}
-
-/**
- * Calcula con precisión la altura requerida del ticket en mm
- */
-function calculateReceiptHeight(
-  sale: SaleResponse,
-  business: ReceiptBusinessInfo,
-  hasLogo: boolean,
-  measureDoc: jsPDF,
-): number {
-  let y = 6;
-
-  // 1. Logo
-  if (hasLogo) {
-    y += 15;
-  }
-
-  // 2. Encabezado del negocio
-  y += 5; // Nombre
-  if (business.address) {
-    const lines = measureDoc.splitTextToSize(business.address, 72);
-    y += lines.length * 3.2;
-  }
-  if (business.phone) y += 3.2;
-  if (business.taxId) y += 3.2;
-  y += 3.5; // Línea divisoria
-
-  // 3. Título del documento (mismo que el desktop)
-  y += 4;
-
-  // 4. Metadatos de la venta
-  y += 4.5; // Comprobante
-  y += 3.5; // Fecha
-  y += 3.5; // Cajero
-  if (sale.customerName) y += 3.5;
-  if (sale.customerPhone) y += 3.2;
-  y += 3.5; // Línea divisoria
-
-  // 5. Cabecera de la tabla
-  y += 4.5;
-  y += 2.5; // Línea sólida
-
-  const isPerLine =
-    sale.taxModel === 'PER_LINE' ||
-    (sale.items || []).some((it: any) => it.taxable !== undefined && it.taxable !== null);
-  const listPriceTotal = Number((sale as any).listPriceTotal || 0);
-  const listDiscountTotal = Number((sale as any).listDiscountTotal || 0);
-  const hasListDiscount = listDiscountTotal > 0 && listPriceTotal > 0;
-  const taxAmount = Number(sale.taxAmount || 0);
-  const hasTaxable = taxAmount > 0 || (sale.items || []).some((it: any) => Boolean(it.taxable));
-
-  // 6. Renglones de productos
-  const items = sale.items || [];
-  for (const item of items) {
-    const rawName = item.productName || item.name || item.product?.name || 'Producto';
-    const isItemTaxable = Boolean(item.taxable);
-    const name = isPerLine && isItemTaxable ? `${rawName} (G)` : rawName;
-    const lines = measureDoc.splitTextToSize(name, 38);
-    const itemHeight = Math.max(lines.length * 3.3, 4);
-    const hasMultiple = (item.quantity || 1) > 1;
-    const hasEtiqueta = hasListDiscount && item.listPrice && Number(item.listPrice) > Number(item.unitPrice || 0);
-    y += itemHeight + (hasMultiple ? 3 : 1) + (hasEtiqueta ? 3 : 0);
-  }
-  y += 3; // Línea sólida
-
-  // 7. Totales (formato 206g según aplique)
-  if (hasListDiscount) {
-    y += 3.5; // Precio
-    y += 3.5; // Descuento
-    if (sale.discountAmount && sale.discountAmount > 0) y += 3.5; // Descuento adicional
-    y += 3.5; // Subtotal antes de IVA
-    if (hasTaxable && taxAmount > 0) y += 3.5; // IVA 15%
-    y += 5.5; // TOTAL A PAGAR (con IVA)
-  } else if (isPerLine || hasTaxable) {
-    y += 3.5; // Subtotal
-    if (sale.discountAmount && sale.discountAmount > 0) y += 3.5; // Descuento
-    if (hasTaxable && taxAmount > 0) {
-      y += 3.5; // Subtotal antes de IVA
-      y += 3.5; // IVA 15%
-    }
-    y += 5.5; // TOTAL A PAGAR
-  } else {
-    y += 4; // Subtotal
-    if (sale.discountAmount && sale.discountAmount > 0) y += 3.8;
-    y += 5.5; // Total
-  }
-  y += 3.5; // Línea divisoria
-
-  // 8. Total en letras
-  const totalWords = numberToWordsCordobas(sale.total);
-  const wordLines = measureDoc.splitTextToSize(totalWords, 72);
-  y += wordLines.length * 3.2 + 1;
-  y += 3.5; // Línea divisoria
-
-  // 9. Pagos
-  y += 4; // Encabezado métodos
-  if (sale.payments && sale.payments.length > 0) {
-    for (const p of sale.payments) {
-      y += 3.8;
-      if (p.method === 'EFECTIVO' && p.amountTendered && p.amountTendered > p.amount) {
-        y += 3.2;
-      }
-      if (p.reference) y += 3.2;
-    }
-    if (sale.change && sale.change > 0) y += 3.8;
-  } else {
-    y += 3.8;
-    if (sale.paymentMethod === 'EFECTIVO' && sale.amountPaid) y += 3.2;
-    if (sale.change && sale.change > 0) y += 3.8;
-    if ((sale as any).reference) y += 3.2;
-  }
-
-  // Sección crédito si existe cuenta o cuotas
-  const creditAcc = (sale as any).creditAccount;
-  if (creditAcc) {
-    y += 8;
-    if (creditAcc.installments && creditAcc.installments.length > 0) {
-      y += 4 + creditAcc.installments.length * 3.4;
-    }
-  }
-
-  y += 3.5; // Línea divisoria
-
-  // Leyenda de gravados
-  if (isPerLine && hasTaxable) {
-    y += 7;
-  }
-
-  // 10. Código de barras
-  y += 16;
-  y += 3.5; // Línea divisoria
-
-  // 11. Pie de página
-  y += 4; // Gracias
-  y += 3.5; // NEXOL POS
-  y += 6; // Margen inferior
-
-  return Math.ceil(Math.max(130, y));
+export interface ReceiptPdfOptions {
+  isReprint?: boolean;
+  isVoided?: boolean;
 }
 
 /**
@@ -244,470 +29,34 @@ export async function generateReceiptPdfBlob(
   sale: SaleResponse,
   businessInfo?: ReceiptBusinessInfo,
   cashierName?: string,
+  options?: ReceiptPdfOptions,
 ): Promise<{ blob: Blob; fileName: string; doc: jsPDF }> {
-  const business: ReceiptBusinessInfo = {
-    name: businessInfo?.name || sale.business?.name || 'NEXOL POS',
-    address: businessInfo?.address || sale.business?.address || null,
-    phone: businessInfo?.phone || sale.business?.phone || null,
-    taxId: businessInfo?.taxId || sale.business?.taxId || null,
-    logoUrl: businessInfo?.logoUrl || sale.business?.logoUrl || null,
-  };
-
-  const cashier = cashierName || sale.cashier?.name || 'Cajero';
   const invoiceNum = sale.invoiceNumber || sale.id.slice(-6).toUpperCase();
-  const fileName = `recibo-${invoiceNum}.pdf`;
+  const fileName = `comprobante-${invoiceNum}.pdf`;
 
-  // Cargar logo si existe (en segundo plano con timeout)
-  const logoDataUrl = await loadImageAsDataUrl(business.logoUrl);
-  const barcodeDataUrl = generateBarcodeDataUrl(invoiceNum);
-
-  // Documento borrador para medir dimensiones de texto
-  const tempDoc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, 250] });
-  tempDoc.setFont('helvetica', 'normal');
-  tempDoc.setFontSize(8);
-
-  const totalHeight = calculateReceiptHeight(sale, business, Boolean(logoDataUrl), tempDoc);
-
-  // Documento final con alto dinámico
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: [80, totalHeight],
-  });
-
-  let y = 6;
-
-  // 1. Logo
-  if (logoDataUrl) {
-    try {
-      const logoWidth = 22;
-      const logoHeight = 12;
-      const logoX = (80 - logoWidth) / 2;
-      doc.addImage(logoDataUrl, 'PNG', logoX, y, logoWidth, logoHeight);
-      y += logoHeight + 2;
-    } catch {
-      // Si falla la inserción de imagen, continuar sin interrumpir
-    }
-  }
-
-  // 2. Encabezado del negocio (centrado)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
-  doc.setTextColor(20, 20, 20);
-  doc.text((business.name || 'NEXOL POS').toUpperCase(), 40, y, { align: 'center' });
-  y += 4;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(70, 70, 70);
-
-  if (business.address) {
-    const addressLines = doc.splitTextToSize(business.address, 72);
-    doc.text(addressLines, 40, y, { align: 'center' });
-    y += addressLines.length * 3.2;
-  }
-
-  if (business.phone) {
-    doc.text(`Tel: ${business.phone}`, 40, y, { align: 'center' });
-    y += 3.2;
-  }
-
-  if (business.taxId) {
-    doc.text(`RUC/NIT: ${business.taxId}`, 40, y, { align: 'center' });
-    y += 3.2;
-  }
-
-  y += 1;
-  drawDashedLine(doc, y);
-  y += 3.5;
-
-  // 3. Título del documento (mismo texto que desktop)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(40, 40, 40);
-  doc.text('*** ORIGINAL - CLIENTE ***', 40, y, { align: 'center' });
-  y += 4;
-
-  // 4. Metadatos de la venta
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(30, 30, 30);
-
-  // Número de comprobante destacado
-  doc.setFont('helvetica', 'bold');
-  doc.text('Comprobante:', 4, y);
-  doc.text(invoiceNum, 76, y, { align: 'right' });
-  y += 4;
-
-  doc.setFont('helvetica', 'normal');
-  doc.text('Fecha:', 4, y);
-  doc.text(formatManaguaDateTime(sale.createdAt || new Date()), 76, y, { align: 'right' });
-  y += 3.5;
-
-  doc.text('Cajero:', 4, y);
-  doc.text(cashier, 76, y, { align: 'right' });
-  y += 3.5;
-
-  if (sale.customerName) {
-    doc.text('Cliente:', 4, y);
-    doc.text(sale.customerName, 76, y, { align: 'right' });
-    y += 3.5;
-  }
-
-  if (sale.customerPhone) {
-    doc.text('Teléfono:', 4, y);
-    doc.text(sale.customerPhone, 76, y, { align: 'right' });
-    y += 3.2;
-  }
-
-  y += 1;
-  drawDashedLine(doc, y);
-  y += 3.5;
-
-  // 5. Tabla de renglones
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(50, 50, 50);
-  doc.text('Cant', 4, y);
-  doc.text('Descripción', 16, y);
-  doc.text('Total', 76, y, { align: 'right' });
-  y += 2.5;
-
-  drawSolidLine(doc, y, 100, 0.2);
-  y += 3.2;
-
-  // Variables de modelo impositivo y de etiqueta
-  const isPerLine =
-    sale.taxModel === 'PER_LINE' ||
-    (sale.items || []).some((it: any) => it.taxable !== undefined && it.taxable !== null);
-  const listPriceTotal = Number((sale as any).listPriceTotal || 0);
-  const listDiscountTotal = Number((sale as any).listDiscountTotal || 0);
-  const discountManual = Number(sale.discountAmount || 0);
-  const taxAmount = Number(sale.taxAmount || 0);
-  const total = Number(sale.total || 0);
-  const subtotalBeforeTax =
-    (sale as any).subtotalBeforeTax != null
-      ? Number((sale as any).subtotalBeforeTax)
-      : Math.max(0, Number(sale.subtotal || 0) - discountManual);
-  const hasTaxable = taxAmount > 0 || (sale.items || []).some((it: any) => Boolean(it.taxable));
-  const hasListDiscount = listDiscountTotal > 0 && listPriceTotal > 0;
-  const listDiscountPct = hasListDiscount ? Math.round((listDiscountTotal / listPriceTotal) * 100) : 0;
-
-  // Renglones
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(20, 20, 20);
-
-  const items = sale.items || [];
-  for (const item of items) {
-    const qty = Number(item.quantity || 1);
-    const unitPrice = Number(item.unitPrice || 0);
-    const itemTotal = Number(item.subtotal ?? qty * unitPrice);
-    const rawName = item.productName || item.name || item.product?.name || 'Producto';
-    const isItemTaxable = Boolean(item.taxable);
-    const name = isPerLine && isItemTaxable ? `${rawName} (G)` : rawName;
-    const unit = item.unit && item.unit.toUpperCase() !== 'UND' ? ` ${item.unit}` : '';
-
-    const nameLines = doc.splitTextToSize(name, 38);
-
-    // Cantidad a la izquierda
-    doc.text(`${qty}${unit}`, 4, y);
-
-    // Nombre en renglón(es)
-    doc.text(nameLines, 16, y);
-
-    // Total de línea alineado a la derecha en la primera línea
-    doc.text(formatCurrency(itemTotal), 76, y, { align: 'right' });
-
-    y += nameLines.length * 3.3;
-
-    // Si la cantidad es > 1, mostrar precio unitario abajo
-    if (qty > 1) {
-      doc.setFontSize(6.5);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`@ ${formatCurrency(unitPrice)}`, 16, y);
-      doc.setFontSize(7.5);
-      doc.setTextColor(20, 20, 20);
-      y += 3;
-    }
-
-    // Si el producto tiene precio de etiqueta mayor al cobrado
-    if (item.listPrice && Number(item.listPrice) > unitPrice && hasListDiscount) {
-      doc.setFontSize(6.5);
-      doc.setTextColor(110, 110, 110);
-      doc.text(`Etiqueta: ${formatCurrency(Number(item.listPrice))}`, 16, y);
-      doc.setFontSize(7.5);
-      doc.setTextColor(20, 20, 20);
-      y += 3;
-    }
-
-    y += 0.8;
-  }
-
-  drawSolidLine(doc, y, 100, 0.2);
-  y += 3.5;
-
-  // 6. Subtotal, Descuento, Impuesto, Total (formato 206g según aplique)
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(50, 50, 50);
-
-  if (hasListDiscount) {
-    doc.text('Precio:', 4, y);
-    doc.text(formatCurrency(listPriceTotal), 76, y, { align: 'right' });
-    y += 3.5;
-
-    doc.setTextColor(22, 101, 52);
-    doc.text(`Descuento (${listDiscountPct}%):`, 4, y);
-    doc.text(`-${formatCurrency(listDiscountTotal)}`, 76, y, { align: 'right' });
-    doc.setTextColor(50, 50, 50);
-    y += 3.5;
-
-    if (discountManual > 0) {
-      doc.setTextColor(22, 101, 52);
-      doc.text('Descuento adicional:', 4, y);
-      doc.text(`-${formatCurrency(discountManual)}`, 76, y, { align: 'right' });
-      doc.setTextColor(50, 50, 50);
-      y += 3.5;
-    }
-
-    doc.text('Subtotal antes de IVA:', 4, y);
-    doc.text(formatCurrency(subtotalBeforeTax), 76, y, { align: 'right' });
-    y += 3.5;
-
-    if (hasTaxable && taxAmount > 0) {
-      doc.text('IVA 15 %:', 4, y);
-      doc.text(formatCurrency(taxAmount), 76, y, { align: 'right' });
-      y += 3.5;
-    }
-
-    // TOTAL destacado
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.setTextColor(10, 10, 10);
-    doc.text(hasTaxable ? 'TOTAL A PAGAR (con IVA):' : 'TOTAL A PAGAR:', 4, y);
-    doc.text(formatCurrency(total), 76, y, { align: 'right' });
-    y += 4;
-  } else if (isPerLine || hasTaxable) {
-    doc.text('Subtotal:', 4, y);
-    doc.text(formatCurrency(sale.subtotal), 76, y, { align: 'right' });
-    y += 3.5;
-
-    if (discountManual > 0) {
-      doc.setTextColor(22, 101, 52);
-      doc.text('Descuento:', 4, y);
-      doc.text(`-${formatCurrency(discountManual)}`, 76, y, { align: 'right' });
-      doc.setTextColor(50, 50, 50);
-      y += 3.5;
-    }
-
-    if (hasTaxable && taxAmount > 0) {
-      doc.text('Subtotal antes de IVA:', 4, y);
-      doc.text(formatCurrency(subtotalBeforeTax), 76, y, { align: 'right' });
-      y += 3.5;
-
-      doc.text('IVA 15 %:', 4, y);
-      doc.text(formatCurrency(taxAmount), 76, y, { align: 'right' });
-      y += 3.5;
-    }
-
-    // TOTAL destacado
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.setTextColor(10, 10, 10);
-    doc.text(hasTaxable ? 'TOTAL A PAGAR (con IVA):' : 'TOTAL A PAGAR:', 4, y);
-    doc.text(formatCurrency(total), 76, y, { align: 'right' });
-    y += 4;
-  } else {
-    doc.text('Subtotal:', 4, y);
-    doc.text(formatCurrency(sale.subtotal), 76, y, { align: 'right' });
-    y += 3.5;
-
-    if (discountManual > 0) {
-      doc.setTextColor(180, 40, 40);
-      doc.text('Descuento:', 4, y);
-      doc.text(`-${formatCurrency(discountManual)}`, 76, y, { align: 'right' });
-      doc.setTextColor(50, 50, 50);
-      y += 3.5;
-    }
-
-    // TOTAL destacado
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.setTextColor(10, 10, 10);
-    doc.text('TOTAL:', 4, y);
-    doc.text(formatCurrency(total), 76, y, { align: 'right' });
-    y += 4;
-  }
-
-  drawDashedLine(doc, y);
-  y += 3.5;
-
-  // 7. Total en letras
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(7);
-  doc.setTextColor(60, 60, 60);
-  const totalInWords = numberToWordsCordobas(sale.total);
-  const wordLines = doc.splitTextToSize(totalInWords, 72);
-  doc.text(wordLines, 4, y);
-  y += wordLines.length * 3.2 + 1;
-
-  drawDashedLine(doc, y);
-  y += 3.5;
-
-  // 8. Método(s) de pago
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(40, 40, 40);
-  doc.text('MÉTODOS DE PAGO:', 4, y);
-  y += 3.5;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-
-  const methodNames: Record<string, string> = {
-    EFECTIVO: 'Efectivo',
-    TARJETA: 'Tarjeta',
-    TRANSFERENCIA: 'Transferencia',
-    CREDITO: 'Crédito',
-    MIXTO: 'Pago mixto',
+  const adaptedSale = {
+    ...sale,
+    cashierName: cashierName || (sale as any).cashierName || sale.cashier?.name,
   };
 
-  if (sale.payments && sale.payments.length > 0) {
-    for (const p of sale.payments) {
-      const label = methodNames[p.method] || p.method;
-      doc.text(`- ${label}:`, 6, y);
-      doc.text(formatCurrency(p.amount), 76, y, { align: 'right' });
-      y += 3.3;
-
-      if (p.method === 'EFECTIVO' && p.amountTendered && p.amountTendered > p.amount) {
-        doc.setFontSize(6.8);
-        doc.setTextColor(90, 90, 90);
-        doc.text(`  Recibido: ${formatCurrency(p.amountTendered)}`, 6, y);
-        doc.setFontSize(7.5);
-        doc.setTextColor(20, 20, 20);
-        y += 3.2;
-      }
-
-      if (p.reference) {
-        doc.setFontSize(6.8);
-        doc.setTextColor(90, 90, 90);
-        doc.text(`  Ref: ${p.reference}`, 6, y);
-        doc.setFontSize(7.5);
-        doc.setTextColor(20, 20, 20);
-        y += 3.2;
-      }
+  // Renderizar usando la plantilla unificada idéntica al desktop
+  const html = generateReceiptHtml(
+    adaptedSale,
+    businessInfo,
+    undefined,
+    undefined,
+    {
+      format: 'ticket',
+      paperWidthMm: 80,
+      isReprint: options?.isReprint,
+      isVoided: Boolean(options?.isVoided || (sale as any).isVoided || sale.status === 'CANCELLED'),
     }
+  );
 
-    if (sale.change && sale.change > 0) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Cambio / Vuelto:', 6, y);
-      doc.text(formatCurrency(sale.change), 76, y, { align: 'right' });
-      doc.setFont('helvetica', 'normal');
-      y += 3.5;
-    }
-  } else {
-    const label = methodNames[sale.paymentMethod] || sale.paymentMethod || 'Efectivo';
-    doc.text(`- ${label}:`, 6, y);
-    doc.text(formatCurrency(sale.total), 76, y, { align: 'right' });
-    y += 3.3;
+  const blob = await generateHtmlPdfBlob(html, { format: 'ticket', paperWidthMm: 80 });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, 200] });
 
-    if (sale.paymentMethod === 'EFECTIVO' && sale.amountPaid && sale.amountPaid > sale.total) {
-      doc.setFontSize(6.8);
-      doc.setTextColor(90, 90, 90);
-      doc.text(`  Recibido: ${formatCurrency(sale.amountPaid)}`, 6, y);
-      doc.setFontSize(7.5);
-      doc.setTextColor(20, 20, 20);
-      y += 3.2;
-    }
-
-    if (sale.change && sale.change > 0) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Cambio / Vuelto:', 6, y);
-      doc.text(formatCurrency(sale.change), 76, y, { align: 'right' });
-      doc.setFont('helvetica', 'normal');
-      y += 3.5;
-    }
-  }
-
-  y += 1;
-  drawDashedLine(doc, y);
-  y += 3.5;
-
-  // Plan de pagos a crédito si aplica
-  const creditAccFinal = (sale as any).creditAccount;
-  if (creditAccFinal) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.text('PLAN DE PAGOS (CRÉDITO)', 40, y, { align: 'center' });
-    y += 3.8;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    if (creditAccFinal.installments && creditAccFinal.installments.length > 0) {
-      doc.text(`Cuotas: ${creditAccFinal.installments.length} | Frecuencia: ${creditAccFinal.frequency || 'N/A'}`, 6, y);
-      y += 3.2;
-      for (const inst of creditAccFinal.installments) {
-        const dueDateStr = inst.dueDate ? String(inst.dueDate).substring(0, 10) : '';
-        doc.text(`Cuota ${inst.installmentNumber} (${dueDateStr}):`, 8, y);
-        doc.text(formatCurrency(inst.amount), 76, y, { align: 'right' });
-        y += 3.2;
-      }
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Saldo adeudado: ${formatCurrency(creditAccFinal.balance)}`, 6, y);
-    y += 4;
-    drawDashedLine(doc, y);
-    y += 3.5;
-  }
-
-  if (isPerLine && hasTaxable) {
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7);
-    doc.setTextColor(80, 80, 80);
-    doc.text('G = producto gravado con IVA 15 %', 40, y, { align: 'center' });
-    y += 3.5;
-    drawDashedLine(doc, y);
-    y += 3.5;
-  }
-
-  // 9. Código de barras del número de comprobante
-  if (barcodeDataUrl) {
-    try {
-      const barcodeWidth = 44;
-      const barcodeHeight = 10;
-      const barcodeX = (80 - barcodeWidth) / 2;
-      doc.addImage(barcodeDataUrl, 'PNG', barcodeX, y, barcodeWidth, barcodeHeight);
-      y += barcodeHeight + 1.5;
-    } catch {
-      // Ignorar si falla la imagen
-    }
-  }
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(50, 50, 50);
-  doc.text(`* ${invoiceNum} *`, 40, y, { align: 'center' });
-  y += 4;
-
-  drawDashedLine(doc, y);
-  y += 3.5;
-
-  // 10. Pie de página
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(40, 40, 40);
-  doc.text('¡Gracias por su compra!', 40, y, { align: 'center' });
-  y += 3.5;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(100, 100, 100);
-  doc.text('NEXOL POS — www.nexolsoft.com', 40, y, { align: 'center' });
-
-  // Convertir a blob
-  const pdfBlob = doc.output('blob');
-  return { blob: pdfBlob, fileName, doc };
+  return { blob, fileName, doc };
 }
 
 /**
@@ -717,8 +66,9 @@ export async function downloadReceiptPdf(
   sale: SaleResponse,
   businessInfo?: ReceiptBusinessInfo,
   cashierName?: string,
+  options?: ReceiptPdfOptions,
 ): Promise<void> {
-  const { blob, fileName } = await generateReceiptPdfBlob(sale, businessInfo, cashierName);
+  const { blob, fileName } = await generateReceiptPdfBlob(sale, businessInfo, cashierName, options);
   downloadBlob(blob, fileName);
 }
 
@@ -748,9 +98,10 @@ export async function shareOrFallbackReceipt(
   sale: SaleResponse,
   businessInfo?: ReceiptBusinessInfo,
   cashierName?: string,
+  options?: ReceiptPdfOptions,
 ): Promise<{ shared: boolean; downloaded: boolean; error?: string }> {
   try {
-    const { blob, fileName } = await generateReceiptPdfBlob(sale, businessInfo, cashierName);
+    const { blob, fileName } = await generateReceiptPdfBlob(sale, businessInfo, cashierName, options);
 
     // Verificar si el navegador soporta compartir archivos
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -818,6 +169,265 @@ export function getWhatsAppSummaryUrl(
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
+
+// Cache en memoria para reutilizar enlaces públicos generados en la sesión
+const receiptLinkCache = new Map<string, string>();
+
+/**
+ * Asegura la existencia de un enlace público seguro de 90 días en el servidor (/comprobante/:token).
+ * Genera el PDF bajo demanda, valida su tamaño y lo sube al API si aún no existe.
+ */
+export async function ensureReceiptLink(
+  sale: SaleResponse,
+  businessInfo?: ReceiptBusinessInfo,
+  cashierName?: string,
+  options?: ReceiptPdfOptions,
+): Promise<string> {
+  const isVoided = Boolean(options?.isVoided || (sale as any).isVoided || sale.status === 'CANCELLED');
+  if (isVoided) {
+    throw new Error('No se puede generar un enlace público para un comprobante anulado.');
+  }
+
+  const cached = receiptLinkCache.get(sale.id);
+  if (cached) {
+    return cached;
+  }
+
+  // 1. Generar el documento PDF actual en el navegador
+  const { blob } = await generateReceiptPdfBlob(sale, businessInfo, cashierName, options);
+
+  // 2. Validar tamaño límite impuesto por el servidor (500 KB)
+  const MAX_SIZE_BYTES = 500 * 1024;
+  if (blob.size > MAX_SIZE_BYTES) {
+    throw new Error(
+      `El comprobante (${Math.round(blob.size / 1024)} KB) excede el tamaño máximo permitido de 500 KB.`
+    );
+  }
+
+  // 3. Subir al API (el backend reutiliza enlace si ya existe o crea uno nuevo de 90 días)
+  try {
+    const res = await uploadPosReceiptPdf(sale.id, blob);
+    if (!res?.url) {
+      throw new Error('La respuesta del servidor no contiene una URL válida.');
+    }
+    receiptLinkCache.set(sale.id, res.url);
+    return res.url;
+  } catch (err: any) {
+    const backendMsg = err.response?.data?.message || err.message;
+    console.error('[ensureReceiptLink] Error al preparar enlace digital:', backendMsg);
+    throw new Error(backendMsg || 'No se pudo conectar con el servidor para preparar el enlace.');
+  }
+}
+
+/**
+ * Arma el mensaje para WhatsApp con el enlace público real y el resumen corto de la compra.
+ */
+export function buildWhatsAppReceiptMessage(
+  sale: SaleResponse,
+  businessName: string,
+  linkUrl: string,
+): string {
+  const name = businessName || 'NEXOL POS';
+  const folio = sale.invoiceNumber || sale.id.slice(-6).toUpperCase();
+  const total = formatCurrency(sale.total);
+
+  let creditInfo = '';
+  const creditAcc = (sale as any).creditAccount;
+  if (sale.paymentMethod === 'CREDITO' || creditAcc) {
+    creditInfo = ` · Modalidad: Crédito`;
+    if (creditAcc?.balance != null) {
+      creditInfo += ` (Saldo: ${formatCurrency(creditAcc.balance)})`;
+    }
+  }
+
+  return (
+    `¡Hola! Aquí tenés tu comprobante de compra de *${name}*:\n${linkUrl}\n\n` +
+    `Comprobante: ${folio} · Total: ${total}${creditInfo}`
+  );
+}
+
+/**
+ * Genera la URL de wa.me. Si el teléfono es válido con código de país (o 8 dígitos locales de Nicaragua),
+ * abre el chat directo; si no, abre el selector de contactos de WhatsApp.
+ */
+export function buildWhatsAppUrl(
+  phone: string | null | undefined,
+  message: string,
+): string {
+  const encodedText = encodeURIComponent(message);
+  const cleanPhone = (phone || '').replace(/\D/g, '');
+
+  if (cleanPhone) {
+    if (cleanPhone.length === 8) {
+      return `https://wa.me/505${cleanPhone}?text=${encodedText}`;
+    }
+    if (cleanPhone.length >= 10 && cleanPhone.length <= 15) {
+      return `https://wa.me/${cleanPhone}?text=${encodedText}`;
+    }
+  }
+
+  return `https://wa.me/?text=${encodedText}`;
+}
+
+
+// ============================================================================
+// COMPROBANTE DE ABONO DE CRÉDITO
+// ============================================================================
+
+export interface CreditAbonoPrintData {
+  paymentNumber?: string;
+  invoiceNumber?: string;
+  receivedAt: string;
+  customerName: string;
+  customerPhone?: string;
+  amount: number;
+  paymentMethod: string;
+  notes?: string;
+  previousBalance?: number;
+  newBalance?: number;
+  cashierName?: string;
+  installmentsSummary?: string;
+}
+
+export async function generateAbonoReceiptPdfBlob(
+  data: CreditAbonoPrintData,
+  businessInfo?: ReceiptBusinessInfo,
+): Promise<Blob> {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [80, 190],
+  });
+
+  const pageWidth = 80;
+  const margin = 5;
+  let cursorY = 8;
+
+  const centerText = (text: string, size: number = 9, bold: boolean = false) => {
+    doc.setFont('Helvetica', bold ? 'bold' : 'normal');
+    doc.setFontSize(size);
+    doc.text(text, pageWidth / 2, cursorY, { align: 'center' });
+    cursorY += size * 0.45;
+  };
+
+  const drawDivider = (dashed: boolean = false) => {
+    cursorY += 1.5;
+    if (dashed) {
+      doc.setLineDashPattern([1.5, 1], 0);
+    } else {
+      doc.setLineDashPattern([], 0);
+    }
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.2);
+    doc.line(margin, cursorY, pageWidth - margin, cursorY);
+    cursorY += 3;
+  };
+
+  const drawRow = (left: string, right: string, bold: boolean = false, size: number = 8) => {
+    doc.setFont('Helvetica', bold ? 'bold' : 'normal');
+    doc.setFontSize(size);
+    doc.text(left, margin, cursorY);
+    doc.text(right, pageWidth - margin, cursorY, { align: 'right' });
+    cursorY += size * 0.45 + 1;
+  };
+
+  centerText(businessInfo?.name || 'NEXOL POS', 11, true);
+  if (businessInfo?.address) centerText(businessInfo.address, 7);
+  if (businessInfo?.phone) centerText(`Tel: ${businessInfo.phone}`, 7);
+  cursorY += 2;
+
+  centerText('RECIBO DE ABONO A CUENTA', 9.5, true);
+  if (data.paymentNumber) centerText(`N° ${data.paymentNumber}`, 8.5, true);
+  drawDivider();
+
+  drawRow('Fecha:', formatManaguaDateTime(data.receivedAt));
+  drawRow('Cliente:', data.customerName.substring(0, 24));
+  if (data.invoiceNumber) drawRow('Factura crédito:', `#${data.invoiceNumber}`);
+  drawRow('Método:', data.paymentMethod);
+  drawRow('Cajero:', data.cashierName || 'Caja');
+  if (data.notes) drawRow('Nota:', data.notes.substring(0, 30));
+  drawDivider();
+
+  drawRow('Monto abonado:', formatCurrency(data.amount), true, 10);
+  if (data.previousBalance !== undefined && data.newBalance !== undefined) {
+    drawRow('Saldo anterior:', formatCurrency(data.previousBalance));
+    drawRow('Nuevo saldo:', formatCurrency(data.newBalance), true);
+  }
+  if (data.installmentsSummary) {
+    drawRow('Detalle cuotas:', data.installmentsSummary.substring(0, 28));
+  }
+  drawDivider();
+
+  cursorY += 8;
+  doc.setLineWidth(0.3);
+  doc.line(margin + 10, cursorY, pageWidth - margin - 10, cursorY);
+  cursorY += 3.5;
+  doc.setFontSize(7);
+  doc.text('Firma de conformidad', pageWidth / 2, cursorY, { align: 'center' });
+
+  cursorY += 6;
+  centerText('¡Gracias por su puntual abono!', 7.5, false);
+
+  return doc.output('blob');
+}
+
+export async function downloadAbonoReceiptPdf(
+  data: CreditAbonoPrintData,
+  businessInfo?: ReceiptBusinessInfo,
+): Promise<void> {
+  const blob = await generateAbonoReceiptPdfBlob(data, businessInfo);
+  const fileName = `abono-${data.paymentNumber || Date.now()}.pdf`;
+  downloadBlob(blob, fileName);
+}
+
+export async function shareOrFallbackAbonoReceipt(
+  data: CreditAbonoPrintData,
+  businessInfo?: ReceiptBusinessInfo,
+): Promise<{ shared: boolean; downloaded: boolean; error?: string }> {
+  try {
+    const blob = await generateAbonoReceiptPdfBlob(data, businessInfo);
+    const fileName = `abono-${data.paymentNumber || Date.now()}.pdf`;
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        const file = new File([blob], fileName, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: `Abono de Crédito ${data.paymentNumber || ''}`,
+            text: `Recibo de abono - Cliente: ${data.customerName} - Monto: ${formatCurrency(data.amount)}`,
+          });
+          return { shared: true, downloaded: false };
+        }
+      } catch (shareErr: any) {
+        if (shareErr.name === 'AbortError') return { shared: true, downloaded: false };
+      }
+    }
+    downloadBlob(blob, fileName);
+    return { shared: false, downloaded: true };
+  } catch (err: any) {
+    return { shared: false, downloaded: false, error: err.message };
+  }
+}
+
+export function getWhatsAppAbonoSummaryUrl(
+  data: CreditAbonoPrintData,
+  businessName?: string,
+  customerPhone?: string | null,
+): string {
+  const name = businessName || 'NEXOL POS';
+  let balanceInfo = '';
+  if (data.newBalance !== undefined) {
+    balanceInfo = `\n💰 *Nuevo saldo pendiente:* ${formatCurrency(data.newBalance)}`;
+  }
+  const text = `¡Hola ${data.customerName}! Registramos tu abono en *${name}*:\n\n💵 *Monto abonado:* ${formatCurrency(data.amount)}\n💳 *Método de pago:* ${data.paymentMethod}${data.invoiceNumber ? `\n📄 *Comprobante de crédito:* #${data.invoiceNumber}` : ''}${balanceInfo}\n\n¡Gracias por tu pago puntual!`;
+  const rawPhone = (customerPhone || data.customerPhone || '').replace(/\D/g, '');
+  if (rawPhone) {
+    const fullPhone = rawPhone.length === 8 ? `505${rawPhone}` : rawPhone;
+    return `https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`;
+  }
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
 
 export interface ShiftClosePrintData {
   shiftId: string;
@@ -1158,165 +768,6 @@ export function getWhatsAppReturnSummaryUrl(
   const name = businessName || 'NEXOL POS';
   const text = `¡Hola! Aquí tienes el comprobante de tu devolución en *${name}*:\n\n📄 *Comprobante de Devolución:* ${data.returnNumber}\n📄 *Factura origen:* #${data.invoiceNumber}\n💰 *Monto reembolsado:* ${formatCurrency(data.refundAmount)}\n💳 *Método:* ${data.refundMethod}\n📝 *Motivo:* ${data.reason}\n\n¡Gracias por tu preferencia!`;
   const rawPhone = (customerPhone || '').replace(/\D/g, '');
-  if (rawPhone) {
-    const fullPhone = rawPhone.length === 8 ? `505${rawPhone}` : rawPhone;
-    return `https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`;
-  }
-  return `https://wa.me/?text=${encodeURIComponent(text)}`;
-}
-
-// ============================================================================
-// COMPROBANTE DE ABONO DE CRÉDITO
-// ============================================================================
-
-export interface CreditAbonoPrintData {
-  paymentNumber?: string;
-  invoiceNumber?: string;
-  receivedAt: string;
-  customerName: string;
-  customerPhone?: string;
-  amount: number;
-  paymentMethod: string;
-  notes?: string;
-  previousBalance?: number;
-  newBalance?: number;
-  cashierName?: string;
-  installmentsSummary?: string;
-}
-
-export async function generateAbonoReceiptPdfBlob(
-  data: CreditAbonoPrintData,
-  businessInfo?: ReceiptBusinessInfo,
-): Promise<Blob> {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: [80, 190],
-  });
-
-  const pageWidth = 80;
-  const margin = 5;
-  let cursorY = 8;
-
-  const centerText = (text: string, size: number = 9, bold: boolean = false) => {
-    doc.setFont('Helvetica', bold ? 'bold' : 'normal');
-    doc.setFontSize(size);
-    doc.text(text, pageWidth / 2, cursorY, { align: 'center' });
-    cursorY += size * 0.45;
-  };
-
-  const drawDivider = (dashed: boolean = false) => {
-    cursorY += 1.5;
-    if (dashed) {
-      doc.setLineDashPattern([1.5, 1], 0);
-    } else {
-      doc.setLineDashPattern([], 0);
-    }
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(0.2);
-    doc.line(margin, cursorY, pageWidth - margin, cursorY);
-    cursorY += 3;
-  };
-
-  const drawRow = (left: string, right: string, bold: boolean = false, size: number = 8) => {
-    doc.setFont('Helvetica', bold ? 'bold' : 'normal');
-    doc.setFontSize(size);
-    doc.text(left, margin, cursorY);
-    doc.text(right, pageWidth - margin, cursorY, { align: 'right' });
-    cursorY += size * 0.45 + 1;
-  };
-
-  centerText(businessInfo?.name || 'NEXOL POS', 11, true);
-  if (businessInfo?.address) centerText(businessInfo.address, 7);
-  if (businessInfo?.phone) centerText(`Tel: ${businessInfo.phone}`, 7);
-  cursorY += 2;
-
-  centerText('RECIBO DE ABONO A CUENTA', 9.5, true);
-  if (data.paymentNumber) centerText(`N° ${data.paymentNumber}`, 8.5, true);
-  drawDivider();
-
-  drawRow('Fecha:', formatManaguaDateTime(data.receivedAt));
-  drawRow('Cliente:', data.customerName.substring(0, 24));
-  if (data.invoiceNumber) drawRow('Factura crédito:', `#${data.invoiceNumber}`);
-  drawRow('Método:', data.paymentMethod);
-  drawRow('Cajero:', data.cashierName || 'Caja');
-  if (data.notes) drawRow('Nota:', data.notes.substring(0, 30));
-  drawDivider();
-
-  drawRow('Monto abonado:', formatCurrency(data.amount), true, 10);
-  if (data.previousBalance !== undefined && data.newBalance !== undefined) {
-    drawRow('Saldo anterior:', formatCurrency(data.previousBalance));
-    drawRow('Nuevo saldo:', formatCurrency(data.newBalance), true);
-  }
-  if (data.installmentsSummary) {
-    drawRow('Detalle cuotas:', data.installmentsSummary.substring(0, 28));
-  }
-  drawDivider();
-
-  cursorY += 8;
-  doc.setLineWidth(0.3);
-  doc.line(margin + 10, cursorY, pageWidth - margin - 10, cursorY);
-  cursorY += 3.5;
-  doc.setFontSize(7);
-  doc.text('Firma de conformidad', pageWidth / 2, cursorY, { align: 'center' });
-
-  cursorY += 6;
-  centerText('¡Gracias por su puntual abono!', 7.5, false);
-
-  return doc.output('blob');
-}
-
-export async function downloadAbonoReceiptPdf(
-  data: CreditAbonoPrintData,
-  businessInfo?: ReceiptBusinessInfo,
-): Promise<void> {
-  const blob = await generateAbonoReceiptPdfBlob(data, businessInfo);
-  const fileName = `abono-${data.paymentNumber || Date.now()}.pdf`;
-  downloadBlob(blob, fileName);
-}
-
-export async function shareOrFallbackAbonoReceipt(
-  data: CreditAbonoPrintData,
-  businessInfo?: ReceiptBusinessInfo,
-): Promise<{ shared: boolean; downloaded: boolean; error?: string }> {
-  try {
-    const blob = await generateAbonoReceiptPdfBlob(data, businessInfo);
-    const fileName = `abono-${data.paymentNumber || Date.now()}.pdf`;
-
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      try {
-        const file = new File([blob], fileName, { type: 'application/pdf' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: `Abono de Crédito ${data.paymentNumber || ''}`,
-            text: `Recibo de abono - Cliente: ${data.customerName} - Monto: ${formatCurrency(data.amount)}`,
-          });
-          return { shared: true, downloaded: false };
-        }
-      } catch (shareErr: any) {
-        if (shareErr.name === 'AbortError') return { shared: true, downloaded: false };
-      }
-    }
-    downloadBlob(blob, fileName);
-    return { shared: false, downloaded: true };
-  } catch (err: any) {
-    return { shared: false, downloaded: false, error: err.message };
-  }
-}
-
-export function getWhatsAppAbonoSummaryUrl(
-  data: CreditAbonoPrintData,
-  businessName?: string,
-  customerPhone?: string | null,
-): string {
-  const name = businessName || 'NEXOL POS';
-  let balanceInfo = '';
-  if (data.newBalance !== undefined) {
-    balanceInfo = `\n💰 *Nuevo saldo pendiente:* ${formatCurrency(data.newBalance)}`;
-  }
-  const text = `¡Hola ${data.customerName}! Registramos tu abono en *${name}*:\n\n💵 *Monto abonado:* ${formatCurrency(data.amount)}\n💳 *Método de pago:* ${data.paymentMethod}${data.invoiceNumber ? `\n📄 *Comprobante de crédito:* #${data.invoiceNumber}` : ''}${balanceInfo}\n\n¡Gracias por tu pago puntual!`;
-  const rawPhone = (customerPhone || data.customerPhone || '').replace(/\D/g, '');
   if (rawPhone) {
     const fullPhone = rawPhone.length === 8 ? `505${rawPhone}` : rawPhone;
     return `https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`;

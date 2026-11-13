@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Truck,
@@ -71,9 +71,15 @@ export const CreatePurchaseModal: React.FC<CreatePurchaseModalProps> = ({
 
   const allProducts: any[] = productsData || [];
 
+  // Clave de idempotencia única por intento de compra (se preserva en reintentos mientras el modal esté abierto)
+  const idempotencyKeyRef = useRef<string>('');
+
   // Reset al abrir
   useEffect(() => {
     if (isOpen) {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `pur-${Date.now()}`;
+      }
       setSupplierId('');
       setInvoiceNumber('');
       setPurchaseDate(getManaguaTodayYMD());
@@ -82,6 +88,8 @@ export const CreatePurchaseModal: React.FC<CreatePurchaseModalProps> = ({
       setProductSearch('');
       setIsSearchingProduct(false);
       setErrorMsg(null);
+    } else {
+      idempotencyKeyRef.current = '';
     }
   }, [isOpen]);
 
@@ -185,10 +193,14 @@ export const CreatePurchaseModal: React.FC<CreatePurchaseModalProps> = ({
       }
     }
 
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setErrorMsg(null);
 
-    const idempotencyKey = window.crypto?.randomUUID ? window.crypto.randomUUID() : `pur-${Date.now()}`;
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `pur-${Date.now()}`;
+    }
+    const idempotencyKey = idempotencyKeyRef.current;
 
     try {
       const payload = {
@@ -214,6 +226,7 @@ export const CreatePurchaseModal: React.FC<CreatePurchaseModalProps> = ({
       );
 
       setIsSubmitting(false);
+      idempotencyKeyRef.current = '';
       onSuccess(res);
       onClose();
     } catch (err: any) {

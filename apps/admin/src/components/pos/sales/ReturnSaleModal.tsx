@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   ArrowUUpLeft,
@@ -63,9 +63,15 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
   // Modal de autorización
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
 
+  // Clave de idempotencia única por intento de devolución (se preserva en reintentos y autorizaciones)
+  const idempotencyKeyRef = useRef<string>('');
+
   // Inicializar estado cuando se abre el modal
   useEffect(() => {
     if (isOpen && sale) {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `ret-${Date.now()}`;
+      }
       setReturnQtys({});
       setReason('Producto defectuoso / Dañado');
       setCustomReason('');
@@ -84,6 +90,8 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
       }
       if (methods.length === 0) methods.push('EFECTIVO');
       setRefundMethod(methods[0]);
+    } else {
+      idempotencyKeyRef.current = '';
     }
   }, [isOpen, sale]);
 
@@ -168,11 +176,15 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
       return;
     }
 
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setErrorMsg(null);
 
     const fullReason = getFullReason();
-    const idempotencyKey = window.crypto?.randomUUID ? window.crypto.randomUUID() : `ret-${Date.now()}`;
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `ret-${Date.now()}`;
+    }
+    const idempotencyKey = idempotencyKeyRef.current;
 
     try {
       const response = await returnPosSale(
@@ -191,6 +203,7 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
       );
 
       setIsSubmitting(false);
+      idempotencyKeyRef.current = '';
       onSuccess(response);
     } catch (err: any) {
       setIsSubmitting(false);

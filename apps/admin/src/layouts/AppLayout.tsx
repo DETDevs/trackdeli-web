@@ -229,7 +229,7 @@ export const AppLayout = () => {
   // 2. Modo pantalla completa para POS en Cobrar
   if (isPosCobrar && isFullscreen) {
     return (
-      <div className="h-screen w-screen bg-[#FAFAFA] overflow-y-auto">
+      <div className="h-[100dvh] w-full bg-[#FAFAFA] overflow-hidden">
         <Outlet />
       </div>
     );
@@ -253,17 +253,19 @@ export const AppLayout = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#FAFAFA] font-sans antialiased text-[#0F0F0F]">
-      {/* 1. Barra superior fija estilo POS desktop */}
-      <Header
-        onOpenMobileMenu={() => setSidebarOpen(true)}
-        businessName={businessName}
-        activeBranchName={activeBranch?.name}
-        user={user}
-        roleLabel={roleLabel}
-        branches={branches}
-        isPosActive={isPosActive}
-      />
+    <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-[#FAFAFA] font-sans antialiased text-[#0F0F0F]">
+      {/* 1. Barra superior fija estilo POS desktop (oculta en celular/tablet cuando está en /pos/cobrar para evitar encabezados apilados) */}
+      <div className={isPosCobrar ? 'hidden lg:block shrink-0' : 'shrink-0'}>
+        <Header
+          onOpenMobileMenu={() => setSidebarOpen(true)}
+          businessName={businessName}
+          activeBranchName={activeBranch?.name}
+          user={user}
+          roleLabel={roleLabel}
+          branches={branches}
+          isPosActive={isPosActive}
+        />
+      </div>
 
       {/* Banner de advertencia si la membresía está inactiva */}
       {isMembershipInactive && (
@@ -309,7 +311,11 @@ export const AppLayout = () => {
           hasCarteraCobro={hasCarteraCobro}
         />
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 bg-[#FAFAFA]">
+        <main
+          className={`flex-1 overflow-x-hidden min-w-0 bg-[#FAFAFA] ${
+            isPosCobrar ? 'overflow-hidden' : 'overflow-y-auto'
+          }`}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -318,7 +324,7 @@ export const AppLayout = () => {
               exit="exit"
               variants={pageVariants}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="p-4 lg:p-6 min-h-full"
+              className={isPosCobrar ? 'h-full lg:p-4' : 'p-4 lg:p-6 min-h-full'}
             >
               {isPosRoute && !webAdminEnabled ? (
                 <WebAccessDisabledView

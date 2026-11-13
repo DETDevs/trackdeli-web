@@ -72,38 +72,44 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="h-12 bg-white border-b border-gray-100 flex items-center justify-between px-3 sm:px-4 select-none z-30 shrink-0">
       {/* Lado izquierdo: Botón móvil + Identidad del Negocio + Sucursal + Estado de Caja */}
-      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
         <button
           type="button"
           onClick={onOpenMobileMenu}
-          className="lg:hidden p-1.5 -ml-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer shrink-0"
+          className="lg:hidden min-h-[44px] min-w-[44px] -ml-2 flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer shrink-0"
           aria-label="Abrir menú"
         >
           <List size={20} weight="bold" />
         </button>
 
         {/* Logo e identidad */}
-        <div className="flex items-center space-x-2 shrink-0">
+        <div className="flex items-center space-x-2 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-[#0F0F0F] text-white flex items-center justify-center shrink-0">
             <Storefront size={16} weight="regular" />
           </div>
-          <span className="text-xs sm:text-sm font-semibold text-[#0F0F0F] truncate max-w-[120px] sm:max-w-[200px]">
+          <span className="text-xs sm:text-sm font-semibold text-[#0F0F0F] truncate">
             {businessName || 'NEXOL POS'}
           </span>
         </div>
 
-        {/* Sucursal */}
-        <div className="h-4 w-[1px] bg-gray-200 shrink-0 hidden sm:block" />
-        <div className="hidden sm:flex items-center space-x-1.5 shrink-0" title="Sucursal activa">
-          <Buildings size={16} className="text-gray-500" weight="regular" />
-          {branches && branches.length > 1 ? (
-            <BranchSelector />
-          ) : (
-            <span className="text-xs font-medium text-gray-700 truncate max-w-[120px] sm:max-w-[180px]">
-              {activeBranchName || businessName || 'Sucursal Principal'}
-            </span>
-          )}
-        </div>
+        {/* Sucursal (ocultar si coincide exactamente con el nombre del negocio en pantallas angostas/medianas, o cuando solo hay 1 sucursal idéntica) */}
+        {(Boolean(branches && branches.length > 1) ||
+          (activeBranchName &&
+            activeBranchName.trim().toLowerCase() !== (businessName || '').trim().toLowerCase())) && (
+          <>
+            <div className="h-4 w-[1px] bg-gray-200 shrink-0 hidden sm:block" />
+            <div className="hidden sm:flex items-center space-x-1.5 shrink-0" title="Sucursal activa">
+              <Buildings size={16} className="text-gray-500" weight="regular" />
+              {branches && branches.length > 1 ? (
+                <BranchSelector />
+              ) : (
+                <span className="text-xs font-medium text-gray-700 truncate max-w-[140px] sm:max-w-[200px]">
+                  {activeBranchName}
+                </span>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Estado de Caja (solo si POS está activo) */}
         {isPosActive && (
@@ -112,19 +118,19 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center space-x-1.5 shrink-0" title="Estado de caja">
               <CashRegister size={16} className="text-gray-500 hidden sm:inline" weight="regular" />
               {isShiftOpen ? (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200 whitespace-nowrap">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
-                  Caja Abierta
+                  Caja abierta
                 </span>
               ) : requireOpenShiftToSell === false ? (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 whitespace-nowrap">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#9CA3AF]" />
                   Sin caja
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
-                  Caja Cerrada
+                  Caja cerrada
                 </span>
               )}
             </div>
@@ -132,8 +138,8 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Centro: Reloj en vivo (Managua) */}
-      <div className="hidden md:flex items-center space-x-2 text-xs text-gray-500 font-medium shrink-0">
+      {/* Centro: Reloj en vivo (Managua) — visible desde xl para evitar solapar en tablets 768-1024 px */}
+      <div className="hidden xl:flex items-center space-x-2 text-xs text-gray-500 font-medium shrink-0 px-3">
         <span>{dateStr}</span>
         <span>•</span>
         <span className="font-semibold text-gray-700">{timeStr}</span>
@@ -148,9 +154,9 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
 
-        {/* Indicador de conexión */}
+        {/* Indicador de conexión: visible en >= sm, o en móvil solo si está sin conexión para no mostrar un punto suelto */}
         <div
-          className="flex items-center space-x-1.5 text-xs font-medium text-gray-600 px-2 py-1 select-none shrink-0"
+          className={`${isOnline ? 'hidden sm:flex' : 'flex'} items-center space-x-1.5 text-xs font-medium text-gray-600 px-2 py-1 select-none shrink-0`}
           title={isOnline ? 'En línea' : 'Sin conexión'}
         >
           <span
@@ -158,9 +164,7 @@ export const Header: React.FC<HeaderProps> = ({
               isOnline ? 'bg-[#22C55E]' : 'bg-gray-400'
             }`}
           />
-          <span className="hidden sm:inline">
-            {isOnline ? 'En línea' : 'Sin conexión'}
-          </span>
+          <span>{isOnline ? 'En línea' : 'Sin conexión'}</span>
         </div>
 
         <div className="h-4 w-[1px] bg-gray-200 shrink-0 hidden sm:block" />
@@ -170,7 +174,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="text-xs font-medium text-[#0F0F0F] truncate max-w-[140px]">
             {user?.name || 'Usuario'}
           </div>
-          <div className="text-[10px] text-gray-400 font-normal capitalize">
+          <div className="text-xs text-gray-500 font-normal capitalize">
             {roleLabel.toLowerCase()}
           </div>
         </div>

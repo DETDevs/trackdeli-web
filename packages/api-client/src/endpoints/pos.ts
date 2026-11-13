@@ -278,7 +278,7 @@ export const getCashRegisterStatus = async (businessId?: string): Promise<CashRe
 
 export const openCashRegister = async (
   dto: OpenCashRegisterDto,
-  deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string },
+  deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string; 'Idempotency-Key'?: string },
 ): Promise<any> => {
   const res = await apiClient.post('/pos/cash-register/open', dto, {
     headers: deviceHeaders,
@@ -679,12 +679,14 @@ export const registerCreditPayment = async (
   accountId: string,
   dto: RegisterCreditPaymentDto,
   businessId?: string,
+  headers?: { 'Idempotency-Key'?: string },
 ): Promise<{ payment: any; account: any }> => {
   const res = await apiClient.post<{ payment: any; account: any }>(
     `/pos/credit-accounts/${accountId}/payments`,
     dto,
     {
       params: businessId ? { businessId } : undefined,
+      headers,
     }
   );
   return res.data;
@@ -1030,6 +1032,56 @@ export const deletePosProductFieldOption = async (
   });
   return res.data;
 };
+
+// ==========================================
+// Comprobantes de Venta y Enlaces Digitales
+// ==========================================
+
+export interface UploadReceiptPdfResponse {
+  token: string;
+  url: string;
+  expiresAt: string;
+}
+
+/**
+ * Sube el comprobante de venta en PDF generado por el cliente al API y R2,
+ * devolviendo la URL pública segura con vigencia de 90 días (/comprobante/:token).
+ */
+export const uploadPosReceiptPdf = async (
+  saleId: string,
+  file: Blob | File,
+  businessId?: string,
+): Promise<UploadReceiptPdfResponse> => {
+  const formData = new FormData();
+  formData.append('file', file, `Comprobante-${saleId.slice(0, 8)}.pdf`);
+
+  const res = await apiClient.post<UploadReceiptPdfResponse>(
+    `/pos/sales/${saleId}/receipt-pdf`,
+    formData,
+    {
+      params: businessId ? { businessId } : undefined,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    },
+  );
+  return res.data;
+};
+
+/**
+ * Obtiene los datos del comprobante de venta e incrementa el contador de impresiones (printCount)
+ * en el backend para registro y auditoría.
+ */
+export const getPosSaleReceipt = async (
+  saleId: string,
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.get<any>(`/pos/sales/${saleId}/receipt`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
 
 
 

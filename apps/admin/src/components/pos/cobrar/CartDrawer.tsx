@@ -104,7 +104,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <div key={item.productId} className="pt-3 first:pt-0 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
+                    <span className="text-xs sm:text-sm font-semibold text-gray-900 leading-snug break-words">
                       {item.productName}
                     </span>
                     {item.taxable !== undefined && (

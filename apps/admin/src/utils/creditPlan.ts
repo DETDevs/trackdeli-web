@@ -132,6 +132,19 @@ export function getDefaultFirstDueDate(freq: 'SEMANAL' | 'QUINCENAL' | 'MENSUAL'
   return `${y}-${m}-${day}`;
 }
 
+export function getInterestDisplayLabel(
+  rate: number,
+  type: 'FLAT' | 'MONTHLY' | string | null | undefined,
+  months?: number
+): string {
+  if (type === 'MONTHLY') {
+    const m = months !== undefined && months !== null ? months : 1;
+    const mLabel = m === 1 ? '1 mes' : `${Number(m.toFixed(1))} meses`;
+    return `Interés (${rate}% × ${mLabel}):`;
+  }
+  return `Interés (${rate}% fijo):`;
+}
+
 export function computeCreditPlanPreview(input: CreditPlanPreviewInput): CreditPlanPreviewResult {
   const total = Math.round(Number(input.total || 0) * 100) / 100;
   const prima = Math.max(0, Math.min(Math.round(Number(input.downPayment || 0) * 100) / 100, Math.max(0, total - 0.01)));

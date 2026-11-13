@@ -250,7 +250,7 @@ export const PosDashboardPage: React.FC = () => {
     <div className="space-y-4 sm:space-y-5 pb-8 max-w-7xl mx-auto overflow-x-hidden">
       {/* 0. Header con Título, Estado de actualización y Botón Actualizar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-2xs">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
             <Storefront size={22} weight="duotone" />
           </div>
@@ -260,29 +260,29 @@ export const PosDashboardPage: React.FC = () => {
                 Resumen del negocio
               </h2>
               {dashboard?.salonProfile === 'TALLER' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                  <Wrench size={11} />
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                  <Wrench size={12} />
                   Perfil Taller
                 </span>
               )}
             </div>
-            <p className="text-xs text-gray-500 mt-0.5 truncate">
+            <p className="text-xs text-gray-600 mt-0.5 leading-snug">
               Métricas consolidadas de ventas, comprobantes y arqueo
             </p>
           </div>
         </div>
 
         <div className="flex items-center justify-between sm:justify-end gap-2.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
-          <span className="text-[11px] text-gray-400 font-medium">
+          <span className="text-xs text-gray-500 font-medium">
             {updatedText}
           </span>
           <button
             type="button"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs shrink-0 cursor-pointer disabled:opacity-60"
+            className="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs shrink-0 min-h-[44px] sm:min-h-0 cursor-pointer disabled:opacity-60"
           >
-            <ArrowsClockwise size={13} className={isFetching ? 'animate-spin' : ''} />
+            <ArrowsClockwise size={14} className={isFetching ? 'animate-spin' : ''} />
             <span>Actualizar</span>
           </button>
         </div>
@@ -325,19 +325,21 @@ export const PosDashboardPage: React.FC = () => {
       ) : dashboard ? (
         <>
           {/* =========================================================================
-           * 1. Bloque Caja (Estado en vivo)
+           * 1. Bloque Caja (Montos del turno y acceso a cierres, sin repetir chapa del header)
            * ========================================================================= */}
           {dashboard.openRegister ? (
-            <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="relative flex h-3 w-3 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                  </span>
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                    <CashRegister size={18} weight="duotone" />
+                  </div>
                   <div className="min-w-0">
-                    <h3 className="text-sm sm:text-base font-bold text-gray-900 leading-snug">
-                      Caja abierta — Cajero {dashboard.openRegister.cashierName}, desde las {formatManaguaTime(dashboard.openRegister.openedAt)}
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Turno en curso
+                    </p>
+                    <h3 className="text-sm font-bold text-gray-900 leading-snug">
+                      {dashboard.openRegister.cashierName} · desde las {formatManaguaTime(dashboard.openRegister.openedAt)}
                     </h3>
                   </div>
                 </div>
@@ -345,37 +347,37 @@ export const PosDashboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/pos/cash-registers')}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors self-start sm:self-auto cursor-pointer shrink-0"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors self-start sm:self-auto cursor-pointer shrink-0 min-h-[44px] sm:min-h-0"
                 >
                   <span>Ver cierres de caja</span>
-                  <ArrowRight size={13} weight="bold" />
+                  <ArrowRight size={14} weight="bold" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-1 border-t border-gray-100">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-2 border-t border-gray-100">
                 <div className="bg-gray-50/80 rounded-xl p-3">
-                  <div className="flex items-center gap-1 text-[11px] font-medium text-gray-500">
+                  <div className="flex items-center gap-1 text-xs font-medium text-gray-600">
                     <span>Fondo inicial</span>
                     <TooltipInfo text="Efectivo en gaveta registrado al iniciar el turno." align="left" />
                   </div>
-                  <p className="text-base sm:text-lg font-bold text-gray-900 mt-0.5 tracking-tight truncate">
+                  <p className="text-base sm:text-lg font-bold text-gray-900 mt-0.5 tracking-tight tabular-nums">
                     {formatCurrency(dashboard.openRegister.openingFloat, currency)}
                   </p>
                 </div>
 
                 <div className="bg-emerald-50/70 border border-emerald-100/70 rounded-xl p-3">
-                  <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-800">
+                  <div className="flex items-center gap-1 text-xs font-medium text-emerald-800">
                     <span>Efectivo esperado</span>
                     <TooltipInfo text="Fondo inicial + ventas en efectivo en caja + entradas − salidas de efectivo." align="left" />
                   </div>
-                  <p className="text-base sm:text-lg font-bold text-emerald-950 mt-0.5 tracking-tight truncate">
+                  <p className="text-base sm:text-lg font-bold text-emerald-950 mt-0.5 tracking-tight tabular-nums">
                     {formatCurrency(dashboard.openRegister.expectedCash, currency)}
                   </p>
                 </div>
 
                 <div className="col-span-2 sm:col-span-1 bg-gray-50/80 rounded-xl p-3 flex sm:flex-col justify-between items-center sm:items-start">
-                  <span className="text-[11px] font-medium text-gray-500">Ventas en el turno</span>
-                  <p className="text-xs sm:text-sm font-semibold text-gray-800 mt-0.5">
+                  <span className="text-xs font-medium text-gray-600">Ventas en el turno</span>
+                  <p className="text-sm font-semibold text-gray-900 mt-0.5 tabular-nums">
                     {dashboard.openRegister.salesCount} {dashboard.openRegister.salesCount === 1 ? 'comprobante' : 'comprobantes'}
                   </p>
                 </div>
@@ -384,15 +386,12 @@ export const PosDashboardPage: React.FC = () => {
           ) : (
             <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center shrink-0">
                   <CashRegister size={20} weight="duotone" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
-                    <h3 className="text-sm sm:text-base font-bold text-gray-900">Sin caja abierta</h3>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <h3 className="text-sm sm:text-base font-bold text-gray-900">Sin turno de caja</h3>
+                  <p className="text-xs text-gray-600 mt-0.5">
                     No hay turnos activos de caja en este momento.
                   </p>
                 </div>
@@ -401,10 +400,10 @@ export const PosDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/pos/cash-registers')}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs self-start sm:self-auto cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs self-start sm:self-auto min-h-[44px] sm:min-h-0 cursor-pointer"
               >
-                <span>Consultar cierres de caja</span>
-                <ArrowRight size={13} weight="bold" />
+                <span>Ver cierres de caja</span>
+                <ArrowRight size={14} weight="bold" />
               </button>
             </div>
           )}
@@ -418,7 +417,7 @@ export const PosDashboardPage: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Ventas de hoy
                     </span>
                     <TooltipInfo
@@ -432,61 +431,61 @@ export const PosDashboardPage: React.FC = () => {
                 </div>
 
                 <div className="mt-1">
-                  <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+                  <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight tabular-nums">
                     {formatCurrency(dashboard.today.totalRevenue, currency)}
                   </span>
                 </div>
               </div>
 
-              {/* Desglose Gravado / Exento / IVA de hoy */}
-              <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-gray-100/80">
-                <div className="bg-gray-50/80 rounded-xl p-2">
-                  <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium">
+              {/* Desglose Gravado / Exento / IVA de hoy (2 cols en celular, 3 en >=sm, sin truncar cifras) */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-gray-100/80">
+                <div className="bg-gray-50/80 rounded-xl p-2.5">
+                  <div className="flex items-center gap-1 text-xs text-gray-600 font-medium">
                     <span>Gravadas</span>
                     <TooltipInfo
                       text="Ventas netas gravadas con IVA (15%) de la jornada de hoy. En comprobantes con impuesto global anterior (LEGACY), se incluye su monto gravado sin duplicar."
                       align="left"
                     />
                   </div>
-                  <div className="font-bold text-gray-900 text-xs mt-0.5 truncate">
+                  <div className="font-bold text-gray-900 text-xs sm:text-sm mt-0.5 tabular-nums">
                     {formatCurrency(dashboard.today.taxableSales ?? 0, currency)}
                   </div>
                 </div>
 
-                <div className="bg-gray-50/80 rounded-xl p-2">
-                  <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium">
+                <div className="bg-gray-50/80 rounded-xl p-2.5">
+                  <div className="flex items-center gap-1 text-xs text-gray-600 font-medium">
                     <span>Exentas</span>
                     <TooltipInfo
                       text="Ventas netas exentas de IVA (medicamentos y productos exentos de IVA) de la jornada de hoy."
                       align="left"
                     />
                   </div>
-                  <div className="font-bold text-gray-900 text-xs mt-0.5 truncate">
+                  <div className="font-bold text-gray-900 text-xs sm:text-sm mt-0.5 tabular-nums">
                     {formatCurrency(dashboard.today.exemptSales ?? 0, currency)}
                   </div>
                 </div>
 
-                <div className="bg-purple-50/50 rounded-xl p-2 border border-purple-100/60">
-                  <div className="flex items-center gap-1 text-[10px] text-purple-700 font-medium">
+                <div className="col-span-2 sm:col-span-1 bg-purple-50/60 rounded-xl p-2.5 border border-purple-100/70">
+                  <div className="flex items-center gap-1 text-xs text-purple-800 font-medium">
                     <span>IVA</span>
                     <TooltipInfo
                       text="IVA (15%) cobrado a clientes en comprobantes emitidos en la jornada de hoy, deduciendo devoluciones."
                       align="left"
                     />
                   </div>
-                  <div className="font-bold text-purple-900 text-xs mt-0.5 truncate">
+                  <div className="font-bold text-purple-950 text-xs sm:text-sm mt-0.5 tabular-nums">
                     {formatCurrency(dashboard.today.taxAmount ?? 0, currency)}
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center justify-between text-xs pt-2.5 border-t border-gray-100 flex-wrap gap-2">
-                <span className="text-gray-500 text-[11px] font-medium">
+                <span className="text-gray-600 text-xs font-medium tabular-nums">
                   {dashboard.today.salesCount} {dashboard.today.salesCount === 1 ? 'venta' : 'ventas'}
                 </span>
 
                 <div
-                  className={`flex items-center gap-1 font-semibold text-[11px] ${
+                  className={`flex items-center gap-1 font-semibold text-xs tabular-nums ${
                     dashboard.today.comparison.revenueGrowthPercent >= 0
                       ? 'text-emerald-700'
                       : 'text-red-700'
@@ -498,7 +497,7 @@ export const PosDashboardPage: React.FC = () => {
                     <TrendDown size={13} weight="bold" />
                   )}
                   <span>{formatPercentage(dashboard.today.comparison.revenueGrowthPercent)}</span>
-                  <span className="text-gray-400 font-normal">{comparisonLabels.yesterday}</span>
+                  <span className="text-gray-500 font-normal">{comparisonLabels.yesterday}</span>
                 </div>
               </div>
             </div>
@@ -508,7 +507,7 @@ export const PosDashboardPage: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Ganancia estimada
                     </span>
                     <TooltipInfo
@@ -522,10 +521,10 @@ export const PosDashboardPage: React.FC = () => {
                 </div>
 
                 <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-                  <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+                  <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight tabular-nums">
                     {formatCurrency(dashboard.todayProfit?.profit ?? 0, currency)}
                   </span>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200/60">
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200/70 tabular-nums">
                     {dashboard.todayProfit?.marginPct ?? 0}% margen
                   </span>
                 </div>
@@ -533,15 +532,15 @@ export const PosDashboardPage: React.FC = () => {
 
               <div className="space-y-1.5 pt-2.5 border-t border-gray-100">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500 text-[11px]">
+                  <span className="text-gray-600 text-xs tabular-nums">
                     Costo estimado: {formatCurrency(dashboard.todayProfit?.cost ?? 0, currency)}
                   </span>
                 </div>
 
                 {dashboard.todayProfit && dashboard.todayProfit.itemsWithoutCost > 0 && (
-                  <div className="flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50/80 border border-amber-200/60 rounded-lg px-2 py-1">
-                    <Warning size={13} weight="bold" className="shrink-0 text-amber-600" />
-                    <span className="truncate">
+                  <div className="flex items-start gap-1.5 text-xs text-amber-800 bg-amber-50/80 border border-amber-200/60 rounded-xl px-2.5 py-1.5">
+                    <Warning size={14} weight="bold" className="shrink-0 text-amber-700 mt-0.5" />
+                    <span className="leading-snug flex-1">
                       {dashboard.todayProfit.itemsWithoutCost} {dashboard.todayProfit.itemsWithoutCost === 1 ? 'producto vendido sin costo registrado' : 'productos vendidos sin costo registrado'}
                     </span>
                     <TooltipInfo
@@ -562,7 +561,7 @@ export const PosDashboardPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-gray-900">Atención y Alertas</h3>
                 {alertItems.length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 tabular-nums">
                     {alertItems.length}
                   </span>
                 )}
@@ -576,7 +575,7 @@ export const PosDashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-xs sm:text-sm font-bold text-emerald-950">Todo en orden</p>
-                  <p className="text-[11px] text-emerald-800">
+                  <p className="text-xs text-emerald-800 leading-snug">
                     No hay alertas pendientes de inventario, vencimientos, diferencias de caja ni créditos vencidos.
                   </p>
                 </div>
@@ -598,21 +597,21 @@ export const PosDashboardPage: React.FC = () => {
                     <div
                       key={item.id}
                       onClick={item.onAction}
-                      className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer shadow-2xs group ${bgClass}`}
+                      className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer shadow-2xs group min-h-[48px] ${bgClass}`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconColor}`}>
                           {item.icon}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-gray-900 truncate">{item.title}</p>
-                          <p className="text-[11px] text-gray-600 truncate">{item.description}</p>
+                          <p className="text-xs font-bold text-gray-900 leading-snug">{item.title}</p>
+                          <p className="text-xs text-gray-700 leading-snug">{item.description}</p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1 text-xs font-semibold text-gray-700 shrink-0 ml-2 group-hover:translate-x-0.5 transition-transform">
-                        <span className="hidden sm:inline text-[11px] text-gray-500 font-medium">{item.actionText}</span>
-                        <CaretRight size={14} className="text-gray-400 group-hover:text-gray-700" />
+                        <span className="hidden sm:inline text-xs text-gray-600 font-medium">{item.actionText}</span>
+                        <CaretRight size={14} className="text-gray-500 group-hover:text-gray-800" />
                       </div>
                     </div>
                   );
@@ -625,10 +624,10 @@ export const PosDashboardPage: React.FC = () => {
            * 4. Bloque Últimas 5 ventas
            * ========================================================================= */}
           <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3.5">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
                 <h3 className="text-sm font-bold text-gray-900">Últimas 5 ventas</h3>
-                <p className="text-[11px] text-gray-400">
+                <p className="text-xs text-gray-500">
                   Comprobantes emitidos recientemente en el punto de venta
                 </p>
               </div>
@@ -636,7 +635,7 @@ export const PosDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/pos/sales')}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors cursor-pointer shrink-0 min-h-[44px] sm:min-h-0"
               >
                 <span>Ver todas las ventas</span>
                 <ArrowRight size={13} weight="bold" />
@@ -656,27 +655,27 @@ export const PosDashboardPage: React.FC = () => {
                         <Receipt size={16} weight="duotone" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-gray-900 truncate">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-bold text-gray-900 tabular-nums">
                             #{sale.invoiceNumber}
                           </span>
                           {sale.status === 'CANCELLED' || sale.status === 'VOIDED' ? (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-red-50 text-red-700">
+                            <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-red-50 text-red-700">
                               Anulado
                             </span>
                           ) : null}
                         </div>
-                        <p className="text-[11px] text-gray-400">
+                        <p className="text-xs text-gray-500">
                           {formatRelativeCompact(sale.createdAt)}
                         </p>
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
-                      <p className="text-xs sm:text-sm font-bold text-gray-900">
+                      <p className="text-xs sm:text-sm font-bold text-gray-900 tabular-nums">
                         {formatCurrency(sale.total, currency)}
                       </p>
-                      <span className="inline-block text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                      <span className="inline-block text-xs font-medium text-gray-600 uppercase tracking-wider">
                         {sale.paymentMethod || 'Efectivo'}
                       </span>
                     </div>
@@ -684,7 +683,7 @@ export const PosDashboardPage: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <div className="py-6 text-center text-xs text-gray-400">
+              <div className="py-6 text-center text-xs text-gray-500">
                 No hay ventas registradas aún hoy.
               </div>
             )}
@@ -700,14 +699,14 @@ export const PosDashboardPage: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-1.5">
                     <h3 className="text-sm font-semibold text-gray-900">
-                      Ventas Diarias (Últimos 7 Días)
+                      Ventas diarias (últimos 7 días)
                     </h3>
                     <TooltipInfo
                       text="Total vendido y cobrado en comprobantes con impuesto neto de devoluciones por cada día en hora de Managua."
                       align="left"
                     />
                   </div>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-xs text-gray-500">
                     Comportamiento de comprobantes emitidos en la última semana
                   </p>
                 </div>
@@ -728,9 +727,9 @@ export const PosDashboardPage: React.FC = () => {
                         className="flex-1 flex flex-col items-center h-full justify-end group relative"
                       >
                         {/* Tooltip con valores */}
-                        <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none bg-gray-900 text-white text-[10px] rounded-lg py-1 px-2 whitespace-nowrap z-10 shadow-lg">
-                          <p className="font-semibold">{formatCurrency(item.total, currency)}</p>
-                          <p className="text-gray-300 text-[9px]">{item.count} comprobantes</p>
+                        <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none bg-gray-900 text-white text-xs rounded-lg py-1 px-2 whitespace-nowrap z-10 shadow-lg">
+                          <p className="font-semibold tabular-nums">{formatCurrency(item.total, currency)}</p>
+                          <p className="text-gray-300 text-xs tabular-nums">{item.count} comprobantes</p>
                         </div>
 
                         {/* Bar */}
@@ -750,9 +749,9 @@ export const PosDashboardPage: React.FC = () => {
                 {/* Day Labels below bars */}
                 <div className="flex items-center justify-between gap-2 sm:gap-4 px-2 pt-2.5">
                   {dailySales.map((item) => (
-                    <div key={item.date} className="flex-1 text-center">
-                      <p className="text-[11px] font-semibold text-gray-700 truncate">{item.dayName}</p>
-                      <p className="text-[10px] text-gray-400 truncate">{item.dayNum}</p>
+                    <div key={item.date} className="flex-1 text-center min-w-0">
+                      <p className="text-xs font-semibold text-gray-700">{item.dayName}</p>
+                      <p className="text-xs text-gray-500 tabular-nums">{item.dayNum}</p>
                     </div>
                   ))}
                 </div>
@@ -765,7 +764,7 @@ export const PosDashboardPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <h3 className="text-sm font-semibold text-gray-900">
-                      Métodos de Cobro (Mes Actual)
+                      Métodos de cobro (mes actual)
                     </h3>
                     <TooltipInfo
                       text="Total ingresado por métodos de pago en caja. Puede diferir de las ventas cobradas si se realizaron ventas al crédito (cuentas por cobrar) cuyo pago aún no ingresa a caja."
@@ -773,7 +772,7 @@ export const PosDashboardPage: React.FC = () => {
                     />
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-400">
+                <p className="text-xs text-gray-500">
                   Distribución de ingresos recaudados por modalidad de cobro
                 </p>
 
@@ -793,13 +792,13 @@ export const PosDashboardPage: React.FC = () => {
                     <div className="space-y-3.5 mt-5">
                       {methods.map((m) => (
                         <div key={m.label} className="space-y-1.5">
-                          <div className="flex justify-between text-xs">
+                          <div className="flex justify-between text-xs gap-2">
                             <span className="font-medium text-gray-700">{m.label}</span>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 shrink-0 tabular-nums">
                               <span className="font-semibold text-gray-900">
                                 {formatCurrency(m.val, currency)}
                               </span>
-                              <span className="text-gray-400 text-[11px]">({m.pct}%)</span>
+                              <span className="text-gray-500 text-xs">({m.pct}%)</span>
                             </div>
                           </div>
 
@@ -821,7 +820,7 @@ export const PosDashboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/pos/cash-registers')}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-xs font-medium text-gray-700 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-xs font-medium text-gray-700 transition-colors cursor-pointer min-h-[44px]"
                 >
                   <div className="flex items-center gap-2">
                     <CashRegister size={16} className="text-gray-500" />
@@ -837,7 +836,7 @@ export const PosDashboardPage: React.FC = () => {
            * 6. Aviso de datos sincronizados al pie
            * ========================================================================= */}
           <div className="pt-2 text-center">
-            <p className="text-[11px] text-gray-600 bg-gray-50/80 border border-gray-200/60 rounded-xl py-2 px-3 inline-block leading-relaxed max-w-2xl mx-auto">
+            <p className="text-xs text-gray-600 bg-gray-50/80 border border-gray-200/60 rounded-xl py-2 px-3 inline-block leading-relaxed max-w-2xl mx-auto">
               Muestra lo sincronizado con el servidor. Las ventas hechas sin internet en una caja aparecen cuando esa caja vuelva a conectarse.
             </p>
           </div>

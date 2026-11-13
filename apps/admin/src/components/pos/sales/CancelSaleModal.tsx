@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   WarningCircle,
@@ -95,6 +95,19 @@ export const CancelSaleModal: React.FC<CancelSaleModalProps> = ({
   // Modal de autorización
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
 
+  // Clave de idempotencia única por intento de anulación (se preserva en reintentos y autorizaciones)
+  const idempotencyKeyRef = useRef<string>('');
+
+  useEffect(() => {
+    if (isOpen && sale) {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `void-${Date.now()}`;
+      }
+    } else {
+      idempotencyKeyRef.current = '';
+    }
+  }, [isOpen, sale]);
+
   if (!isOpen || !sale) return null;
 
   const voidsCompletedEnabled = policies?.voidsCompletedEnabled ?? true;
@@ -116,11 +129,15 @@ export const CancelSaleModal: React.FC<CancelSaleModalProps> = ({
   };
 
   const executeVoid = async (approvalToken?: string) => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setErrorMsg(null);
 
     const reasonText = getFullReasonText();
-    const idempotencyKey = window.crypto?.randomUUID ? window.crypto.randomUUID() : `void-${Date.now()}`;
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = window.crypto?.randomUUID ? window.crypto.randomUUID() : `void-${Date.now()}`;
+    }
+    const idempotencyKey = idempotencyKeyRef.current;
 
     try {
       await voidPosSale(
@@ -138,6 +155,7 @@ export const CancelSaleModal: React.FC<CancelSaleModalProps> = ({
       );
 
       setIsSubmitting(false);
+      idempotencyKeyRef.current = '';
       onSuccess(sale.id);
     } catch (err: any) {
       setIsSubmitting(false);
