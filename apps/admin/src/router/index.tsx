@@ -24,6 +24,7 @@ import { PosAnalyticsPage } from "../pages/pos/PosAnalyticsPage";
 import { PosInventoryPage } from "../pages/pos/PosInventoryPage";
 import { PosCashRegistersPage } from "../pages/pos/PosCashRegistersPage";
 import { PosCobrarPage } from "../pages/pos/PosCobrarPage";
+import { PosQuotesPage } from "../pages/pos/PosQuotesPage";
 import { FinancesPage } from "../pages/FinancesPage";
 import { useMyProducts } from "../hooks/useMyProducts";
 
@@ -46,6 +47,11 @@ const RootIndex = () => {
   // Cajero va directo al POS en pantalla completa (Ticket 251b)
   if (user?.role === 'CAJERO') {
     return <Navigate to="/pos/cobrar" replace />;
+  }
+
+  // Vendedor va directo a Proformas
+  if (user?.role === 'VENDEDOR') {
+    return <Navigate to="/pos/quotes" replace />;
   }
 
   const isDeliveryActive = productsData?.products?.DELIVERY?.status === 'ACTIVE';
@@ -97,6 +103,7 @@ const router = createBrowserRouter([
       { path: "pos/cash-registers", element: <PosCashRegistersPage /> },
       { path: "pos/reports", element: <ReportsPage /> },
       { path: "pos/cobrar", element: <PosCobrarPage /> },
+      { path: "pos/quotes", element: <PosQuotesPage /> },
       { path: "finances", element: <FinancesPage /> },
       { path: "pos/finances", element: <Navigate to="/finances" replace /> },
     ],

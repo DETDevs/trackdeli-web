@@ -9,4 +9,5 @@ export * from './endpoints/commissions';
 export * from './endpoints/inviteCodes';
 export * from './endpoints/customers';
 export * from './endpoints/pos';
+export * from './endpoints/quotes';
 export * from './endpoints/organizations';

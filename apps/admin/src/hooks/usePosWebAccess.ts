@@ -8,6 +8,7 @@ export function usePosWebAccess() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isSuperAdmin = user?.role === 'SUPERADMIN';
+  const isVendedor = user?.role === 'VENDEDOR';
 
   const { data: productsData } = useMyProducts(!isSuperAdmin);
 
@@ -30,19 +31,20 @@ export function usePosWebAccess() {
     };
   }, []);
 
-  // Para negocios con solo Delivery (isPosActive = false), no se ejecuta la consulta
+  // Para negocios con solo Delivery (isPosActive = false) o rol VENDEDOR (sin permiso en web-billing/status), no se ejecuta la consulta
   const query = useQuery<WebBillingStatusResponse>({
     queryKey: ['pos', 'web-billing', 'status'],
     queryFn: () => getWebBillingStatus(),
-    enabled: Boolean(isAuthenticated && isPosActive && !isSuperAdmin),
+    enabled: Boolean(isAuthenticated && isPosActive && !isSuperAdmin && !isVendedor),
     staleTime: 30000,
     refetchOnWindowFocus: true,
     retry: 1,
   });
 
   const isErrorCodeDisabled =
-    (query.error as any)?.response?.data?.code === 'WEB_ACCESS_DISABLED' ||
-    (query.error as any)?.response?.status === 403;
+    !isVendedor &&
+    ((query.error as any)?.response?.data?.code === 'WEB_ACCESS_DISABLED' ||
+      (query.error as any)?.response?.status === 403);
 
   let webAdminEnabled = true;
   let webBillingEnabled = false;
@@ -52,6 +54,9 @@ export function usePosWebAccess() {
     webBillingEnabled = true;
   } else if (!isPosActive) {
     webAdminEnabled = false;
+    webBillingEnabled = false;
+  } else if (isVendedor) {
+    webAdminEnabled = !isAccessDisabledByEvent;
     webBillingEnabled = false;
   } else if (isAccessDisabledByEvent || isErrorCodeDisabled) {
     webAdminEnabled = false;
@@ -76,7 +81,7 @@ export function usePosWebAccess() {
     webAdminEnabled,
     webBillingEnabled,
     canCobrar,
-    isLoading: isPosActive && !isSuperAdmin ? query.isLoading : false,
+    isLoading: isPosActive && !isSuperAdmin && !isVendedor ? query.isLoading : false,
     statusData: query.data,
     refetch: query.refetch,
   };

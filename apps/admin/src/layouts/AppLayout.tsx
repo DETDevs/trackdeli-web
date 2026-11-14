@@ -60,7 +60,9 @@ export const AppLayout = () => {
   const { data: business } = useQuery({
     queryKey: ['business', 'me'],
     queryFn: getMyBusiness,
+    enabled: user?.role !== 'VENDEDOR',
     staleTime: 60000,
+    retry: false,
   });
 
   useEffect(() => {
@@ -175,6 +177,7 @@ export const AppLayout = () => {
   const roleLabels: Record<string, string> = {
     ENCARGADO: 'Encargado',
     CAJERO: 'Cajero',
+    VENDEDOR: 'Vendedor',
     REPARTIDOR: 'Repartidor',
     SUPERADMIN: 'Super Admin',
   };
@@ -209,6 +212,7 @@ export const AppLayout = () => {
 
   const isPosRoute = location.pathname.startsWith('/pos');
   const isCajero = user?.role === 'CAJERO';
+  const isVendedor = user?.role === 'VENDEDOR';
   const isPosCobrar = location.pathname === '/pos/cobrar';
   const isFullscreen =
     (isPosCobrar &&
@@ -220,10 +224,16 @@ export const AppLayout = () => {
     isPosCobrar ||
     location.pathname.startsWith('/pos/inventory') ||
     location.pathname.startsWith('/pos/sales') ||
+    location.pathname.startsWith('/pos/quotes') ||
     location.pathname.startsWith('/pos/cash-registers') ||
     location.pathname === '/settings';
   if (isCajero && !isAllowedCajeroPos) {
     return <Navigate to="/pos/cobrar" replace />;
+  }
+
+  // Vendedor solo accede a Proformas en web admin
+  if (isVendedor && !location.pathname.startsWith('/pos/quotes')) {
+    return <Navigate to="/pos/quotes" replace />;
   }
 
   // 2. Modo pantalla completa para POS en Cobrar
@@ -307,6 +317,7 @@ export const AppLayout = () => {
           canCobrar={canCobrar}
           isPosManager={isPosManager}
           isCajero={isCajero}
+          isVendedor={isVendedor}
           isDeliveryActive={isDeliveryActive}
           hasCarteraCobro={hasCarteraCobro}
         />

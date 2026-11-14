@@ -28,8 +28,10 @@ export const Header: React.FC<HeaderProps> = ({
   branches,
   isPosActive,
 }) => {
-  const { isOpen: isShiftOpen } = usePosShift(isPosActive);
-  const { requireOpenShiftToSell } = usePosPolicies(isPosActive);
+  const canReadCashRegisterAndPolicies =
+    isPosActive && user?.role !== 'VENDEDOR' && user?.role !== 'WAITER';
+  const { isOpen: isShiftOpen } = usePosShift(canReadCashRegisterAndPolicies);
+  const { requireOpenShiftToSell } = usePosPolicies(canReadCashRegisterAndPolicies);
 
   // Reloj en vivo (zona horaria Managua / es-NI)
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -111,8 +113,8 @@ export const Header: React.FC<HeaderProps> = ({
           </>
         )}
 
-        {/* Estado de Caja (solo si POS está activo) */}
-        {isPosActive && (
+        {/* Estado de Caja (solo si POS está activo y el rol opera caja) */}
+        {canReadCashRegisterAndPolicies && (
           <>
             <div className="h-4 w-[1px] bg-gray-200 shrink-0" />
             <div className="flex items-center space-x-1.5 shrink-0" title="Estado de caja">

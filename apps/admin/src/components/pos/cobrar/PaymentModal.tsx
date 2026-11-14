@@ -72,6 +72,9 @@ interface PaymentModalProps {
   posVertical?: string;
   deliveryChannelEnabled?: boolean;
   channel?: string;
+  initialCustomer?: SelectedCustomerData | null;
+  sourceQuoteNumber?: string | null;
+  isQuoteOfflineBlocked?: boolean;
 }
 
 interface MixedPaymentLine {
@@ -98,6 +101,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   posVertical = 'RETAIL',
   deliveryChannelEnabled = false,
   channel = 'MOSTRADOR',
+  initialCustomer = null,
+  sourceQuoteNumber = null,
+  isQuoteOfflineBlocked = false,
 }) => {
   const {
     enabledPaymentMethods,
@@ -202,6 +208,28 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setTipCustomAmountStr('');
       setTipBankId('');
       setTipReference('');
+
+      if (initialCustomer && initialCustomer.name) {
+        setSelectedCustomer({
+          id: initialCustomer.id ?? null,
+          name: initialCustomer.name,
+          phone: initialCustomer.phone ?? null,
+          ruc: initialCustomer.ruc ?? null,
+          creditLimit: initialCustomer.creditLimit ?? null,
+          lastAddressText: initialCustomer.lastAddressText ?? null,
+          deliveryReference: initialCustomer.deliveryReference ?? null,
+          creditSummary: initialCustomer.creditSummary ?? null,
+        });
+      } else {
+        setSelectedCustomer({
+          id: null,
+          name: 'Consumidor final',
+          phone: null,
+          ruc: null,
+          creditLimit: null,
+          creditSummary: null,
+        });
+      }
 
       // Si multimoneda o propina están activas, cargar tasa de cambio
       if (multiCurrencyEnabled || tipEnabled) {
@@ -452,6 +480,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     if (isSubmitting) return;
     setLocalError(null);
 
+    if (isQuoteOfflineBlocked) {
+      setLocalError('Esta proforma solo se puede convertir en venta con conexión a internet');
+      return;
+    }
+
     // Validación de turno e idempotencia
     if (!idempotencyKeyRef.current) {
       idempotencyKeyRef.current =
@@ -679,7 +712,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-sm sm:text-base text-gray-900 leading-tight">Cobrar venta</h3>
-              <p className="text-xs text-gray-500">Comprobante y forma de pago</p>
+              <p className="text-xs text-gray-500">
+                {sourceQuoteNumber
+                  ? `Comprobante y forma de pago · Proforma ${sourceQuoteNumber}`
+                  : 'Comprobante y forma de pago'}
+              </p>
             </div>
           </div>
           <button
@@ -725,11 +762,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
 
           {/* Errores del API o de validación local */}
-          {(localError || errorMessage) && (
+          {(isQuoteOfflineBlocked || localError || errorMessage) && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
               <WarningCircle size={17} className="shrink-0 mt-0.5" weight="fill" />
               <div className="flex-1">
-                <span>{localError || errorMessage}</span>
+                <span>
+                  {isQuoteOfflineBlocked
+                    ? 'Esta proforma solo se puede convertir en venta con conexión a internet'
+                    : localError || errorMessage}
+                </span>
                 {errorMessage && (errorMessage.includes('precio') || errorMessage.includes('stock') || errorMessage.includes('PRICE_MISMATCH')) && onReloadProducts && (
                   <button
                     type="button"
@@ -1637,6 +1678,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               type="submit"
               disabled={
                 isSubmitting ||
+                isQuoteOfflineBlocked ||
                 isTipCustomInvalid ||
                 (activeTab === 'SIMPLE' && singleMethod === 'EFECTIVO' && isSingleShort) ||
                 (activeTab === 'SIMPLE' && singleMethod === 'CREDITO' && !creditValidation.valid) ||

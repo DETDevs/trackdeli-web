@@ -281,6 +281,8 @@ export interface CreateSalePayload {
   creditDueDate?: string;
   creditPlan?: CreditPlanPayload;
   approvalToken?: string;
+  quoteId?: string;
+  vehicleInfo?: string;
   notes?: string;
 }
 

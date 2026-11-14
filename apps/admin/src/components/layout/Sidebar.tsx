@@ -6,6 +6,7 @@ import {
   CashRegister,
   Package,
   Receipt,
+  FileText,
   HandCoins,
   Users,
   ChartBar,
@@ -37,6 +38,7 @@ interface SidebarProps {
   canCobrar: boolean;
   isPosManager: boolean;
   isCajero: boolean;
+  isVendedor: boolean;
   isDeliveryActive: boolean;
   hasCarteraCobro: boolean;
 }
@@ -63,6 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   canCobrar,
   isPosManager,
   isCajero,
+  isVendedor,
   isDeliveryActive,
   hasCarteraCobro,
 }) => {
@@ -104,6 +107,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Historial Ventas',
       icon: Receipt,
       show: Boolean(isPosActive && webAdminEnabled && (isPosManager || isCajero)),
+    },
+    // 5b. Proformas (abre /pos/quotes)
+    {
+      to: '/pos/quotes',
+      label: 'Proformas',
+      icon: FileText,
+      show: Boolean(isPosActive && webAdminEnabled && (isPosManager || isCajero || isVendedor)),
     },
     // 6. Finanzas (solo ENCARGADO / SUPERADMIN si tiene cartera de cobro)
     {

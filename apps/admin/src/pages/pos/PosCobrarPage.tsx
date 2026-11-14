@@ -18,6 +18,8 @@ import {
   ArrowsIn,
   SignOut,
   DotsThreeVertical,
+  FileText,
+  WifiSlash,
 } from '@phosphor-icons/react';
 import {
   getPosCategories,
@@ -27,6 +29,7 @@ import {
   getPosSettings,
   type PosCategory,
   type PosProductItem,
+  type PosQuote,
   type PosSettingsData,
   type SaleResponse,
 } from 'api-client';
@@ -50,6 +53,8 @@ import { PaymentModal, type FinalPaymentSubmission } from '../../components/pos/
 import { SaleSuccessView } from '../../components/pos/cobrar/SaleSuccessView';
 import { NetworkErrorModal } from '../../components/pos/cobrar/NetworkErrorModal';
 import { RecentSalesModal } from '../../components/pos/cobrar/RecentSalesModal';
+import { SaveAsQuoteModal } from '../../components/pos/cobrar/SaveAsQuoteModal';
+import { QuotePrintModal } from '../../components/pos/quotes/QuotePrintModal';
 
 export const PosCobrarPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -106,11 +111,41 @@ export const PosCobrarPage: React.FC = () => {
   const addItem = usePosCartStore((s) => s.addItem);
   const removeItem = usePosCartStore((s) => s.removeItem);
   const clearCart = usePosCartStore((s) => s.clearCart);
+  const sourceQuote = usePosCartStore((s) => s.sourceQuote);
+  const discardSourceQuote = usePosCartStore((s) => s.discardSourceQuote);
   const getSubtotal = usePosCartStore((s) => s.getSubtotal);
   const getDiscountAmount = usePosCartStore((s) => s.getDiscountAmount);
   const getTotal = usePosCartStore((s) => s.getTotal);
   const getCalculationSummary = usePosCartStore((s) => s.getCalculationSummary);
   const setBusinessContext = usePosCartStore((s) => s.setBusinessContext);
+
+  // Estado de conexión del navegador (obligatorio para convertir proformas)
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  );
+  React.useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+  const isQuoteOfflineBlocked = Boolean(sourceQuote && !isOnline);
+  const quoteInitialCustomer = useMemo(() => {
+    if (!sourceQuote) return null;
+    if (!sourceQuote.customerId && !sourceQuote.customerName?.trim()) return null;
+    return {
+      id: sourceQuote.customerId || null,
+      name: sourceQuote.customerName?.trim() || 'Cliente de proforma',
+      phone: sourceQuote.customerPhone || null,
+      ruc: sourceQuote.customerRuc || null,
+      creditLimit: null,
+      creditSummary: null,
+    };
+  }, [sourceQuote]);
 
   // Estados de modales
   const [isOpenShiftModalOpen, setIsOpenShiftModalOpen] = useState(false);
@@ -119,6 +154,8 @@ export const PosCobrarPage: React.FC = () => {
   const [isRecentSalesModalOpen, setIsRecentSalesModalOpen] = useState(false);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isSaveAsQuoteOpen, setIsSaveAsQuoteOpen] = useState(false);
+  const [printingQuote, setPrintingQuote] = useState<PosQuote | null>(null);
   const [isNetworkErrorModalOpen, setIsNetworkErrorModalOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -249,6 +286,12 @@ export const PosCobrarPage: React.FC = () => {
       (user as any)?.business?.posVertical ??
       'RETAIL',
   ).toUpperCase();
+  const isTallerBusiness = [
+    resolvedPosVertical,
+    (posSettingsData as any)?.salonProfile,
+    (businessData as any)?.salonProfile,
+    (user as any)?.business?.salonProfile,
+  ].some((v) => String(v || '').toUpperCase() === 'TALLER');
   const deliveryChannelEnabled = Boolean(posSettingsData?.channels?.delivery?.enabled);
   const carteraActive = Boolean(
     posSettingsData?.hasCarteraCobro ??
@@ -655,26 +698,37 @@ export const PosCobrarPage: React.FC = () => {
       return;
     }
 
+    if (sourceQuote && !navigator.onLine) {
+      setSaleErrorMessage('Esta proforma solo se puede convertir en venta con conexión a internet');
+      return;
+    }
+
     setIsSubmittingSale(true);
     setSaleErrorMessage(null);
 
     const currentCalc = getCalculationSummary();
 
-    const itemsPayload = currentCalc.lines.map((line) => ({
-      productId: line.productId || undefined,
-      productName: line.productName,
-      barcode: line.barcode || undefined,
-      unitPrice: line.unitPrice,
-      quantity: Number(Number(line.quantity).toFixed(3)),
-      discount: line.discount || 0,
-      subtotal: line.subtotal,
-      listPrice: line.listPrice != null ? line.listPrice : undefined,
-      listPriceDiscount: line.listPriceDiscount,
-      manualDiscountShare: line.manualDiscountShare,
-      taxable: line.taxable,
-      taxRate: line.taxRate,
-      taxAmount: line.taxAmount,
-    }));
+    const itemsPayload = currentCalc.lines.map((line, idx) => {
+      const cartItem = cartItems[idx];
+      const isCustom =
+        Boolean(cartItem?.isCustomLine) ||
+        String(line.productId || '').startsWith('quote-custom-');
+      return {
+        productId: isCustom ? undefined : line.productId || undefined,
+        productName: line.productName,
+        barcode: line.barcode || undefined,
+        unitPrice: line.unitPrice,
+        quantity: Number(Number(line.quantity).toFixed(3)),
+        discount: line.discount || 0,
+        subtotal: line.subtotal,
+        listPrice: line.listPrice != null ? line.listPrice : undefined,
+        listPriceDiscount: line.listPriceDiscount,
+        manualDiscountShare: line.manualDiscountShare,
+        taxable: line.taxable,
+        taxRate: line.taxRate,
+        taxAmount: line.taxAmount,
+      };
+    });
 
     const idempotencyKey =
       paymentData.clientGeneratedId ||
@@ -684,6 +738,8 @@ export const PosCobrarPage: React.FC = () => {
 
     const salePayload: any = {
       channel: 'MOSTRADOR',
+      quoteId: sourceQuote?.quoteId || undefined,
+      vehicleInfo: sourceQuote?.vehicleInfo || undefined,
       items: itemsPayload,
       subtotal: currentCalc.subtotal,
       discountAmount: currentCalc.discountAmount > 0 ? currentCalc.discountAmount : undefined,
@@ -730,8 +786,12 @@ export const PosCobrarPage: React.FC = () => {
       setIsPaymentModalOpen(false);
       setIsCartDrawerOpen(false);
       setCompletedSale(response);
+      clearCart();
 
       queryClient.invalidateQueries({ queryKey: ['pos', 'products'] });
+      queryClient.invalidateQueries({ queryKey: ['pos', 'quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['pos', 'quote'] });
+      queryClient.invalidateQueries({ queryKey: ['pos', 'sales'] });
       queryClient.invalidateQueries({ queryKey: ['backoffice'] });
     } catch (err: any) {
       const handled = handleDeviceApiError(err);
@@ -748,7 +808,11 @@ export const PosCobrarPage: React.FC = () => {
         err.message?.includes('Network Error');
 
       if (isNetError) {
-        setSaleErrorMessage('No hay conexión. La venta no se registró. Revisá tu internet y volvé a intentar.');
+        setSaleErrorMessage(
+          sourceQuote
+            ? 'Esta proforma solo se puede convertir en venta con conexión a internet'
+            : 'No hay conexión. La venta no se registró. Revisá tu internet y volvé a intentar.',
+        );
         return;
       }
 
@@ -766,7 +830,17 @@ export const PosCobrarPage: React.FC = () => {
               ? rawMessage.join(', ')
               : undefined;
 
-      if (errCode === 'PRICE_MISMATCH') {
+      if (errCode === 'QUOTE_ALREADY_CONVERTED') {
+        setSaleErrorMessage('Esta proforma ya fue convertida en una venta.');
+      } else if (errCode === 'QUOTE_EXPIRED') {
+        setSaleErrorMessage('La proforma está vencida o no aplica precio protegido.');
+      } else if (errCode === 'QUOTE_CANCELLED') {
+        setSaleErrorMessage('Esta proforma fue cancelada y no se puede convertir en venta.');
+      } else if (errCode === 'QUOTE_NOT_SENT') {
+        setSaleErrorMessage('Esta proforma sigue en borrador; emitila antes de convertirla.');
+      } else if (errCode === 'QUOTE_NOT_FOUND') {
+        setSaleErrorMessage('No se encontró la proforma asociada a este cobro.');
+      } else if (errCode === 'PRICE_MISMATCH') {
         setSaleErrorMessage(
           errMsg || 'El catálogo de precios cambió. Recargá los productos para actualizar los precios.',
         );
@@ -935,6 +1009,19 @@ export const PosCobrarPage: React.FC = () => {
                       <span>Ventas de hoy</span>
                     </button>
 
+                    {/* Proformas */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        navigate('/pos/quotes');
+                      }}
+                      className="w-full px-4 py-3 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 min-h-[48px] cursor-pointer"
+                    >
+                      <FileText size={18} className="shrink-0" />
+                      <span>Proformas</span>
+                    </button>
+
                     {/* Volver al Resumen (supervisores) */}
                     {!isCajero && (
                       <button
@@ -1032,6 +1119,61 @@ export const PosCobrarPage: React.FC = () => {
             compactVariant="chips"
             recentStorageKey={recentCategoriesKey}
           />
+
+          {sourceQuote && (
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 font-extrabold text-indigo-950">
+                    <FileText size={15} className="text-indigo-700 shrink-0" weight="bold" />
+                    Desde proforma {sourceQuote.quoteNumber}
+                  </span>
+                  {sourceQuote.vehicleInfo && (
+                    <span className="text-indigo-900 font-medium">
+                      · {sourceQuote.vehicleInfo}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  {sourceQuote.hasPriceChanges && (
+                    <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-semibold">
+                      {sourceQuote.priceProtectionApplied
+                        ? 'Precio cotizado protegido'
+                        : 'Precios actualizados al catálogo'}
+                    </span>
+                  )}
+                  {sourceQuote.hasInsufficientStock && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-semibold">
+                      Stock insuficiente en {sourceQuote.insufficientStockNotes.join(', ')}
+                    </span>
+                  )}
+                  {sourceQuote.batchItemNotes.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 font-semibold">
+                      Lotes FEFO: {sourceQuote.batchItemNotes.join(', ')}
+                    </span>
+                  )}
+                  {sourceQuote.missingProductNotes.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-900 font-semibold">
+                      Omitidos por no disponibles: {sourceQuote.missingProductNotes.join(', ')}
+                    </span>
+                  )}
+                </div>
+                {isQuoteOfflineBlocked && (
+                  <div className="flex items-center gap-1.5 text-amber-950 font-bold pt-0.5">
+                    <WifiSlash size={15} className="text-amber-700 shrink-0" weight="bold" />
+                    <span>Esta proforma solo se puede convertir en venta con conexión a internet</span>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={discardSourceQuote}
+                className="self-start sm:self-center px-3 py-1.5 rounded-xl border border-indigo-300 bg-white hover:bg-indigo-100 text-indigo-900 font-bold shrink-0 cursor-pointer"
+              >
+                Descartar
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1168,11 +1310,37 @@ export const PosCobrarPage: React.FC = () => {
       <CartDrawer
         isOpen={isCartDrawerOpen}
         onClose={() => setIsCartDrawerOpen(false)}
+        isOnline={isOnline}
         onProceedToPayment={() => {
           setSaleErrorMessage(null);
           setIsCartDrawerOpen(false);
           setIsPaymentModalOpen(true);
         }}
+        onSaveAsQuote={() => {
+          setIsCartDrawerOpen(false);
+          setIsSaveAsQuoteOpen(true);
+        }}
+      />
+
+      <SaveAsQuoteModal
+        isOpen={isSaveAsQuoteOpen}
+        onClose={() => setIsSaveAsQuoteOpen(false)}
+        cartItems={cartItems}
+        discountAmount={discountAmount}
+        estimatedTotal={total}
+        currency={(businessData as any)?.currency || 'NIO'}
+        isTaller={isTallerBusiness}
+        userRole={user?.role}
+        onClearCart={clearCart}
+        onOpenPrint={(quote) => setPrintingQuote(quote)}
+        onGoToQuotes={() => navigate('/pos/quotes')}
+      />
+
+      <QuotePrintModal
+        isOpen={Boolean(printingQuote)}
+        quoteId={printingQuote?.id || null}
+        initialQuote={printingQuote}
+        onClose={() => setPrintingQuote(null)}
       />
 
       {/* Modal de Cobro Completo */}
@@ -1198,6 +1366,9 @@ export const PosCobrarPage: React.FC = () => {
         posVertical={resolvedPosVertical}
         deliveryChannelEnabled={deliveryChannelEnabled}
         channel="MOSTRADOR"
+        initialCustomer={quoteInitialCustomer}
+        sourceQuoteNumber={sourceQuote?.quoteNumber || null}
+        isQuoteOfflineBlocked={isQuoteOfflineBlocked}
       />
 
       {/* Modal de Apertura de Caja */}

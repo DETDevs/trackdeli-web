@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   FilePdf,
@@ -8,96 +8,23 @@ import {
   CircleNotch,
   Storefront,
 } from '@phosphor-icons/react';
-
-interface PublicReceiptData {
-  status: 'ACTIVE' | 'EXPIRED' | 'REVOKED';
-  businessName: string;
-  folio: string;
-  saleDate: string;
-  total: number;
-  currency: string;
-  expiresAt: string;
-  pdfUrl?: string;
-}
-
-const rawBase = import.meta.env.VITE_API_URL || '/api/v1';
-const API_BASE = rawBase.endsWith('/api/v1')
-  ? rawBase
-  : `${rawBase.replace(/\/+$/, '')}/api/v1`;
-
-const formatCurrency = (amount: number, currency?: string) => {
-  const curr = (currency || 'NIO').toUpperCase();
-  const symbol = curr === 'USD' || curr === '$' ? '$' : 'C$';
-  const formatted = Number(amount || 0).toLocaleString('es-NI', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return `${symbol} ${formatted}`;
-};
-
-const formatDateTime = (dateStr?: string) => {
-  if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleString('es-NI', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  } catch {
-    return '';
-  }
-};
-
-const formatExpiresDate = (dateStr?: string) => {
-  if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('es-NI', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  } catch {
-    return '';
-  }
-};
+import {
+  PublicReceiptData,
+  buildPublicReceiptEndpoint,
+  formatPublicCurrency as formatCurrency,
+  formatPublicDateTime as formatDateTime,
+  formatPublicExpiresDate as formatExpiresDate,
+  useNoIndexRobotsMeta,
+} from '../utils/publicDocument';
 
 export const PublicReceiptPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
   const [data, setData] = useState<PublicReceiptData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
 
-  useEffect(() => {
-    // 1. Título de pestaña
-    document.title = 'Comprobante de venta';
-
-    // 2. Meta robots noindex, nofollow
-    let metaRobots = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
-    let createdMeta = false;
-    if (!metaRobots) {
-      metaRobots = document.createElement('meta');
-      metaRobots.name = 'robots';
-      document.head.appendChild(metaRobots);
-      createdMeta = true;
-    }
-    const prevContent = metaRobots.content;
-    metaRobots.content = 'noindex, nofollow';
-
-    return () => {
-      if (createdMeta && metaRobots && metaRobots.parentNode) {
-        metaRobots.parentNode.removeChild(metaRobots);
-      } else if (metaRobots) {
-        metaRobots.content = prevContent;
-      }
-    };
-  }, []);
+  useNoIndexRobotsMeta('Comprobante de venta');
 
   useEffect(() => {
     if (!token) {
@@ -111,24 +38,26 @@ export const PublicReceiptPage: React.FC = () => {
     setHasError(false);
 
     axios
-      .get<PublicReceiptData>(`${API_BASE}/public/receipts/${encodeURIComponent(token)}`)
+      .get<PublicReceiptData>(buildPublicReceiptEndpoint(token))
       .then((res) => {
         if (!isMounted) return;
+        if (res.data.documentKind === 'QUOTE') {
+          navigate(`/proforma/${encodeURIComponent(token)}`, { replace: true });
+          return;
+        }
         setData(res.data);
+        setIsLoading(false);
       })
       .catch(() => {
         if (!isMounted) return;
         setHasError(true);
-      })
-      .finally(() => {
-        if (!isMounted) return;
         setIsLoading(false);
       });
 
     return () => {
       isMounted = false;
     };
-  }, [token]);
+  }, [token, navigate]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-between py-6 px-4 sm:px-6">

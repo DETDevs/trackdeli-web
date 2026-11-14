@@ -5,6 +5,7 @@ import { ExpiredPage } from '../pages/ExpiredPage';
 import { JoinInvitePage } from '../pages/JoinInvitePage';
 import { ConfirmLocationPage } from '../pages/ConfirmLocationPage';
 import { PublicReceiptPage } from '../pages/PublicReceiptPage';
+import { PublicQuotePage } from '../pages/PublicQuotePage';
 
 export const router = createBrowserRouter([
   {
@@ -26,6 +27,10 @@ export const router = createBrowserRouter([
   {
     path: '/comprobante/:token',
     element: <PublicReceiptPage />,
+  },
+  {
+    path: '/proforma/:token',
+    element: <PublicQuotePage />,
   },
   {
     path: '/:token',

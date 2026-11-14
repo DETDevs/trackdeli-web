@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { type PosProductItem } from 'api-client';
+import { type PosProductItem, type PrepareQuoteConversionResponse } from 'api-client';
 import {
   calculateSaleTotals,
   type BusinessCalculationContext,
@@ -22,6 +22,31 @@ export interface CartItem {
   barcode?: string;
   listPrice?: number | null;
   taxable?: boolean;
+  isCustomLine?: boolean;
+  isPriceProtected?: boolean;
+}
+
+export interface CartSourceQuote {
+  quoteId: string;
+  quoteNumber: string;
+  expiresAt: string;
+  validUntilLabel: string;
+  isExpired: boolean;
+  priceProtectionApplied: boolean;
+  useCurrentPrices: boolean;
+  customerId: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerRuc: string | null;
+  vehicleInfo: string | null;
+  discountAmount: number;
+  hasPriceChanges: boolean;
+  hasInsufficientStock: boolean;
+  hasMissingProducts: boolean;
+  priceChangeNotes: string[];
+  insufficientStockNotes: string[];
+  batchItemNotes: string[];
+  missingProductNotes: string[];
 }
 
 export function computeItemUnitPrice(
@@ -57,6 +82,7 @@ interface PosCartState {
   discountType: DiscountType;
   discountValue: number;
   businessContext: BusinessCalculationContext;
+  sourceQuote: CartSourceQuote | null;
 
   setBusinessContext: (context: Partial<BusinessCalculationContext>) => void;
   addItem: (product: PosProductItem) => void;
@@ -65,6 +91,8 @@ interface PosCartState {
   updateQuantity: (productId: string, quantity: number) => void;
   setDiscount: (type: DiscountType, value: number) => void;
   clearCart: () => void;
+  loadFromQuoteConversion: (conversion: PrepareQuoteConversionResponse) => void;
+  discardSourceQuote: () => void;
 
   getCalculationSummary: () => CalculatedSaleSummary;
   getSubtotal: () => number;
@@ -76,6 +104,7 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
   items: [],
   discountType: 'PERCENT',
   discountValue: 0,
+  sourceQuote: null,
   businessContext: {
     useListPrice: false,
     taxEnabled: true,
@@ -111,12 +140,14 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
 
       if (existing) {
         const newQty = existing.quantity + 1;
-        const pricing = computeItemUnitPrice(
-          existing.regularPrice,
-          newQty,
-          existing.wholesalePrice,
-          existing.wholesaleMinQty,
-        );
+        const pricing = existing.isPriceProtected
+          ? { unitPrice: existing.unitPrice, isWholesale: existing.isWholesale }
+          : computeItemUnitPrice(
+              existing.regularPrice,
+              newQty,
+              existing.wholesalePrice,
+              existing.wholesaleMinQty,
+            );
         return {
           items: state.items.map((i) =>
             i.productId === product.id
@@ -174,12 +205,14 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
         return { items: state.items.filter((i) => i.productId !== productId) };
       }
       const newQty = existing.quantity - 1;
-      const pricing = computeItemUnitPrice(
-        existing.regularPrice,
-        newQty,
-        existing.wholesalePrice,
-        existing.wholesaleMinQty,
-      );
+      const pricing = existing.isPriceProtected
+        ? { unitPrice: existing.unitPrice, isWholesale: existing.isWholesale }
+        : computeItemUnitPrice(
+            existing.regularPrice,
+            newQty,
+            existing.wholesalePrice,
+            existing.wholesaleMinQty,
+          );
       return {
         items: state.items.map((i) =>
           i.productId === productId
@@ -209,12 +242,14 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
       return {
         items: state.items.map((i) => {
           if (i.productId !== productId) return i;
-          const pricing = computeItemUnitPrice(
-            i.regularPrice,
-            quantity,
-            i.wholesalePrice,
-            i.wholesaleMinQty,
-          );
+          const pricing = i.isPriceProtected
+            ? { unitPrice: i.unitPrice, isWholesale: i.isWholesale }
+            : computeItemUnitPrice(
+                i.regularPrice,
+                quantity,
+                i.wholesalePrice,
+                i.wholesaleMinQty,
+              );
           return {
             ...i,
             quantity,
@@ -239,6 +274,92 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
       items: [],
       discountType: 'PERCENT',
       discountValue: 0,
+      sourceQuote: null,
+    });
+  },
+
+  loadFromQuoteConversion: (conversion) => {
+    const sellable = conversion.items.filter(
+      (item) => item.productExists && item.productActive,
+    );
+    const items: CartItem[] = sellable.map((item) => {
+      const isCustom = !item.productId || item.itemType === 'CUSTOM';
+      const chosenPrice =
+        conversion.priceProtectionApplied || item.currentUnitPrice === null
+          ? Number(item.quotedUnitPrice || 0)
+          : Number(item.recommendedUnitPrice ?? item.currentUnitPrice ?? item.quotedUnitPrice ?? 0);
+
+      return {
+        productId: isCustom ? `quote-custom-${item.quoteItemId}` : item.productId!,
+        productName: item.productName,
+        unitPrice: chosenPrice,
+        regularPrice: chosenPrice,
+        wholesalePrice: null,
+        wholesaleMinQty: null,
+        isWholesale: false,
+        quantity: Number(item.quantity || 1),
+        stock: item.availableStock ?? undefined,
+        type: item.itemType === 'SERVICE' ? 'SERVICE' : 'PRODUCT',
+        isRecipe: false,
+        unit: item.unit || 'UND',
+        barcode: item.barcode || undefined,
+        listPrice: null,
+        taxable: Boolean(item.taxable),
+        isCustomLine: isCustom,
+        isPriceProtected: Boolean(conversion.priceProtectionApplied || isCustom),
+      };
+    });
+
+    const priceChangeNotes = conversion.items
+      .filter((i) => i.priceChanged)
+      .map((i) => i.productName);
+    const insufficientStockNotes = conversion.items
+      .filter((i) => i.productExists && i.productActive && !i.hasSufficientStock)
+      .map((i) => `${i.productName} (disp: ${i.availableStock ?? 0})`);
+    const batchItemNotes = conversion.items
+      .filter((i) => i.productExists && i.productActive && i.requiresBatches)
+      .map((i) => i.productName);
+    const missingProductNotes = conversion.items
+      .filter((i) => !i.productExists || !i.productActive)
+      .map((i) => i.productName);
+
+    const discountAmt = Math.max(0, Number(conversion.discountAmount || 0));
+
+    set({
+      items,
+      discountType: discountAmt > 0 ? 'FIXED' : 'PERCENT',
+      discountValue: discountAmt > 0 ? discountAmt : 0,
+      sourceQuote: {
+        quoteId: conversion.quoteId,
+        quoteNumber: conversion.quoteNumber,
+        expiresAt: conversion.expiresAt,
+        validUntilLabel: conversion.validUntilLabel,
+        isExpired: conversion.isExpired,
+        priceProtectionApplied: conversion.priceProtectionApplied,
+        useCurrentPrices: conversion.useCurrentPrices,
+        customerId: conversion.customerId,
+        customerName: conversion.customerName,
+        customerPhone: conversion.customerPhone,
+        customerRuc: conversion.customerRuc,
+        vehicleInfo: conversion.vehicleInfo,
+        discountAmount: discountAmt,
+        hasPriceChanges: conversion.hasPriceChanges,
+        hasInsufficientStock: conversion.hasInsufficientStock,
+        hasMissingProducts: conversion.hasMissingProducts,
+        priceChangeNotes,
+        insufficientStockNotes,
+        batchItemNotes,
+        missingProductNotes,
+      },
+    });
+  },
+
+  discardSourceQuote: () => {
+    set({
+      items: [],
+      discountType: 'PERCENT',
+      discountValue: 0,
+      sourceQuote: null,
     });
   },
 

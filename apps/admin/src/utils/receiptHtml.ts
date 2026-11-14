@@ -1,6 +1,8 @@
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import type { PosQuote } from 'api-client';
 import { formatCalendarDate, getInterestDisplayLabel } from './creditPlan';
+import { generateQuoteReceiptHtml } from './quoteReceiptHtml';
 
 if (typeof window !== 'undefined') {
   (window as any).html2canvas = html2canvas;
@@ -42,6 +44,8 @@ export interface ReceiptSettings {
 }
 
 export interface ReceiptHtmlOptions {
+  mode?: 'sale' | 'proforma';
+  quote?: PosQuote;
   format?: 'ticket' | 'carta';
   paperWidthMm?: number; // 58 | 80 (por defecto 80)
   isReprint?: boolean;
@@ -140,6 +144,14 @@ export const generateReceiptHtml = (
   receiptSettings?: ReceiptSettings | null,
   options?: ReceiptHtmlOptions
 ): string => {
+  if (options?.mode === 'proforma') {
+    const quoteObj = (options.quote || saleInput) as PosQuote;
+    return generateQuoteReceiptHtml(quoteObj, {
+      format: options.format,
+      paperWidthMm: options.paperWidthMm,
+    });
+  }
+
   const sale = normalizeDeliverySale(saleInput || {});
   const s = receiptSettings;
   const format = options?.format === 'carta' ? 'carta' : 'ticket';
@@ -891,6 +903,7 @@ export async function generateReceiptPdfBlob(
   options?: {
     format?: 'ticket' | 'carta';
     paperWidthMm?: number;
+    html2canvasScale?: number;
   }
 ): Promise<Blob> {
   const isCarta = options?.format === 'carta';
@@ -1009,6 +1022,7 @@ export async function generateReceiptPdfBlob(
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff',
+            ...(options?.html2canvasScale ? { scale: options.html2canvasScale } : {}),
           },
         })
         .catch(reject);
@@ -1033,6 +1047,28 @@ export async function downloadReceiptPdfFile(
 ): Promise<void> {
   const folio = sale?.invoiceNumber || (sale?.id ? `FAC-${String(sale.id).slice(0, 6)}` : 'comprobante');
   const filename = `comprobante-${folio}.pdf`;
+  const blob = await generateReceiptPdfBlob(html, options);
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Descarga directamente una Proforma en PDF con el nombre proforma-<folio>.pdf.
+ */
+export async function downloadQuotePdfFile(
+  quote: PosQuote,
+  html: string,
+  options?: { format?: 'ticket' | 'carta'; paperWidthMm?: number }
+): Promise<void> {
+  const folio = quote?.quoteNumber || (quote?.id ? `PRO-${String(quote.id).slice(0, 6)}` : 'proforma');
+  const filename = `proforma-${folio}.pdf`;
   const blob = await generateReceiptPdfBlob(html, options);
 
   const url = URL.createObjectURL(blob);

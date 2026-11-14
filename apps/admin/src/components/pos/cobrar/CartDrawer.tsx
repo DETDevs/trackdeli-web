@@ -6,6 +6,8 @@ import {
   Trash,
   Receipt,
   ArrowRight,
+  FileText,
+  WifiSlash,
 } from '@phosphor-icons/react';
 import { usePosCartStore, type DiscountType } from '../../../store/posCart.store';
 import { formatCurrency } from '../../../utils/formatters';
@@ -14,12 +16,16 @@ interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onProceedToPayment: () => void;
+  onSaveAsQuote?: () => void;
+  isOnline?: boolean;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
   onClose,
   onProceedToPayment,
+  onSaveAsQuote,
+  isOnline = true,
 }) => {
   const items = usePosCartStore((s) => s.items);
   const discountType = usePosCartStore((s) => s.discountType);
@@ -29,10 +35,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const updateQuantity = usePosCartStore((s) => s.updateQuantity);
   const setDiscount = usePosCartStore((s) => s.setDiscount);
   const clearCart = usePosCartStore((s) => s.clearCart);
+  const sourceQuote = usePosCartStore((s) => s.sourceQuote);
+  const discardSourceQuote = usePosCartStore((s) => s.discardSourceQuote);
   const getCalculationSummary = usePosCartStore((s) => s.getCalculationSummary);
   const businessContext = usePosCartStore((s) => s.businessContext);
 
   if (!isOpen) return null;
+
+  const isQuoteOfflineBlocked = Boolean(sourceQuote && !isOnline);
 
   const calcSummary = getCalculationSummary();
   const subtotal = calcSummary.subtotal;
@@ -95,6 +105,28 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
         {/* Items list */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 divide-y divide-gray-100">
+          {sourceQuote && (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5 flex items-center justify-between gap-2 text-xs">
+              <div className="min-w-0">
+                <span className="font-bold text-indigo-950">
+                  Desde proforma {sourceQuote.quoteNumber}
+                </span>
+                <p className="text-indigo-800 mt-0.5">
+                  {sourceQuote.priceProtectionApplied
+                    ? `Precio cotizado vigente hasta ${sourceQuote.validUntilLabel}.`
+                    : 'Proforma vencida: usando precios actuales del catálogo.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={discardSourceQuote}
+                className="px-2.5 py-1.5 rounded-lg border border-indigo-300 bg-white hover:bg-indigo-100 text-indigo-900 font-bold shrink-0 cursor-pointer"
+              >
+                Descartar
+              </button>
+            </div>
+          )}
+
           {items.length === 0 ? (
             <div className="py-12 text-center text-gray-400 text-sm">
               El carrito está vacío. Agrega productos del catálogo.
@@ -121,6 +153,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     {item.isWholesale && (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
                         Precio por mayor
+                      </span>
+                    )}
+                    {item.isCustomLine && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        Línea libre
+                      </span>
+                    )}
+                    {item.isPriceProtected && !item.isCustomLine && sourceQuote?.priceProtectionApplied && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        Precio proforma
                       </span>
                     )}
                   </div>
@@ -334,18 +376,39 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               )}
             </div>
 
-            {/* Botón de acción principal */}
-            <button
-              type="button"
-              onClick={onProceedToPayment}
-              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-2xl transition-colors flex items-center justify-between cursor-pointer shadow-md shadow-emerald-600/20 active:scale-98 min-h-[48px]"
-            >
-              <span>Continuar al pago</span>
-              <div className="flex items-center gap-1.5">
-                <span>{formatCurrency(total)}</span>
-                <ArrowRight size={16} weight="bold" />
-              </div>
-            </button>
+            {/* Botones de acción del carrito */}
+            <div className="space-y-2">
+              {isQuoteOfflineBlocked && (
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-semibold flex items-start gap-2">
+                  <WifiSlash size={16} className="text-amber-700 shrink-0 mt-0.5" weight="bold" />
+                  <span>Esta proforma solo se puede convertir en venta con conexión a internet</span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                disabled={isQuoteOfflineBlocked}
+                onClick={onProceedToPayment}
+                className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-sm rounded-2xl transition-colors flex items-center justify-between cursor-pointer shadow-md shadow-emerald-600/20 active:scale-98 min-h-[48px]"
+              >
+                <span>Continuar al pago</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="whitespace-nowrap">{formatCurrency(total)}</span>
+                  <ArrowRight size={16} weight="bold" />
+                </div>
+              </button>
+
+              {onSaveAsQuote && !sourceQuote && (
+                <button
+                  type="button"
+                  onClick={onSaveAsQuote}
+                  className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 font-semibold text-xs sm:text-sm rounded-2xl transition-colors flex items-center justify-center gap-2 cursor-pointer min-h-[42px]"
+                >
+                  <FileText size={16} />
+                  <span>Guardar como proforma</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
