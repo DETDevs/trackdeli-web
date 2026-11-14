@@ -190,6 +190,8 @@ export interface PosCustomer {
   phone?: string | null;
   ruc?: string | null;
   creditLimit?: number | null;
+  lastAddressText?: string | null;
+  deliveryReference?: string | null;
 }
 
 export interface PosBankItem {
@@ -608,10 +610,20 @@ export const searchPosCustomers = async (
   return Array.isArray(res.data) ? res.data : [];
 };
 
+export interface CreatePosCustomerDto {
+  name: string;
+  phone?: string;
+  ruc?: string;
+  creditLimit?: number;
+  address?: string;
+  deliveryReference?: string;
+  businessId?: string;
+}
+
 export const createPosCustomer = async (
-  dto: { name: string; phone?: string; ruc?: string; creditLimit?: number; businessId?: string },
-): Promise<any> => {
-  const res = await apiClient.post<any>('/pos/customers', dto);
+  dto: CreatePosCustomerDto,
+): Promise<PosCustomer> => {
+  const res = await apiClient.post<PosCustomer>('/pos/customers', dto);
   return res.data;
 };
 
@@ -919,7 +931,20 @@ export interface PosSettingsData {
   posPhone?: string;
   posFooter?: string;
   posVertical?: string;
+  hasCarteraCobro?: boolean;
   wholesale_enabled?: boolean;
+  channels?: {
+    delivery?: {
+      enabled?: boolean;
+      defaultFee?: number;
+      taxable?: boolean;
+      requireDriver?: boolean;
+    };
+    pedidosYa?: {
+      enabled?: boolean;
+      [key: string]: any;
+    };
+  };
   [key: string]: any;
 }
 

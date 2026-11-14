@@ -13,6 +13,7 @@ export interface Customer {
   lastLatitude?: number | null;
   lastLongitude?: number | null;
   lastAddressText?: string | null;
+  deliveryReference?: string | null;
   lastConfirmedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -319,6 +320,7 @@ export interface UpdateCustomerInput {
   name?: string;
   phone?: string;
   address?: string;
+  deliveryReference?: string | null;
   email?: string;
   notes?: string;
   latitude?: number | null;

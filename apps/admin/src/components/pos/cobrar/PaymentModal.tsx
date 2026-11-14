@@ -69,6 +69,8 @@ interface PaymentModalProps {
   onReloadProducts?: () => void;
   userRole?: string;
   carteraActive?: boolean;
+  posVertical?: string;
+  deliveryChannelEnabled?: boolean;
   channel?: string;
 }
 
@@ -93,6 +95,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onReloadProducts,
   userRole = 'CAJERO',
   carteraActive = true,
+  posVertical = 'RETAIL',
+  deliveryChannelEnabled = false,
   channel = 'MOSTRADOR',
 }) => {
   const {
@@ -752,6 +756,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 setApprovalToken(null);
               }}
               carteraActive={carteraActive}
+              userRole={userRole}
+              posVertical={posVertical}
+              deliveryChannelEnabled={deliveryChannelEnabled}
             />
           </div>
 

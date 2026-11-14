@@ -61,6 +61,7 @@ export const CustomersPage = () => {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editAddress, setEditAddress] = useState('');
+  const [editDeliveryReference, setEditDeliveryReference] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editLat, setEditLat] = useState<number | null>(null);
   const [editLng, setEditLng] = useState<number | null>(null);
@@ -174,6 +175,7 @@ export const CustomersPage = () => {
     setEditName(customer.name || '');
     setEditPhone(customer.phone || '');
     setEditAddress(customer.lastAddressText || '');
+    setEditDeliveryReference(customer.deliveryReference || '');
     setEditNotes(customer.notes || '');
     setEditLat(customer.lastLatitude ?? null);
     setEditLng(customer.lastLongitude ?? null);
@@ -201,6 +203,7 @@ export const CustomersPage = () => {
       name: editName.trim(),
       phone: cleanPhone,
       address: editAddress.trim() || undefined,
+      deliveryReference: editDeliveryReference.trim(),
       notes: editNotes.trim() || undefined,
       latitude: editLat ?? undefined,
       longitude: editLng ?? undefined,
@@ -623,6 +626,13 @@ export const CustomersPage = () => {
                   {selectedCustomer.lastAddressText || 'Sin dirección de entrega registrada'}
                 </p>
 
+                {selectedCustomer.deliveryReference && (
+                  <p className="text-xs text-gray-700">
+                    <span className="font-semibold text-gray-900">Punto de referencia:</span>{' '}
+                    {selectedCustomer.deliveryReference}
+                  </p>
+                )}
+
                 {selectedCustomer.lastLatitude && selectedCustomer.lastLongitude ? (
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-gray-200/50">
                     <span className="text-gray-500 text-[11px]">
@@ -949,12 +959,26 @@ export const CustomersPage = () => {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Punto de referencia (opcional)
+                </label>
+                <input
+                  type="text"
+                  maxLength={300}
+                  placeholder="Ej: Portón blanco frente al súper"
+                  value={editDeliveryReference}
+                  onChange={(e) => setEditDeliveryReference(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-gray-900 outline-none transition-colors"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
                   Notas / Observaciones (Opcional)
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej. Llamar antes de llegar / Portón blanco"
+                  placeholder="Ej. Llamar antes de llegar"
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
                   className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-gray-900 outline-none transition-colors"

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   User,
   MagnifyingGlass,
@@ -8,11 +9,15 @@ import {
   Phone,
   IdentificationCard,
   WarningCircle,
+  MapPin,
+  CaretDown,
+  CaretUp,
 } from '@phosphor-icons/react';
 import {
   searchPosCustomers,
   createPosCustomer,
   getCustomerCreditAccounts,
+  type CreatePosCustomerDto,
   type PosCustomer,
   type CustomerCreditSummary,
 } from 'api-client';
@@ -24,6 +29,8 @@ export interface SelectedCustomerData {
   phone?: string | null;
   ruc?: string | null;
   creditLimit?: number | null;
+  lastAddressText?: string | null;
+  deliveryReference?: string | null;
   creditSummary?: CustomerCreditSummary['summary'] | null;
 }
 
@@ -31,13 +38,27 @@ interface CustomerSelectorProps {
   selectedCustomer: SelectedCustomerData;
   onChangeCustomer: (customer: SelectedCustomerData) => void;
   carteraActive?: boolean;
+  userRole?: string;
+  posVertical?: string;
+  deliveryChannelEnabled?: boolean;
 }
 
 export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
   selectedCustomer,
   onChangeCustomer,
   carteraActive = false,
+  userRole = 'CAJERO',
+  posVertical = 'RETAIL',
+  deliveryChannelEnabled = false,
 }) => {
+  const normalizedRole = String(userRole || 'CAJERO').toUpperCase();
+  const canAssignCreditLimit = Boolean(
+    carteraActive && (normalizedRole === 'ENCARGADO' || normalizedRole === 'SUPERADMIN'),
+  );
+  const showDeliveryAddressSection =
+    String(posVertical || 'RETAIL').toUpperCase() === 'RESTAURANTE' ||
+    Boolean(deliveryChannelEnabled);
+
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PosCustomer[]>([]);
@@ -50,6 +71,9 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
   const [quickPhone, setQuickPhone] = useState('');
   const [quickRuc, setQuickRuc] = useState('');
   const [quickCreditLimit, setQuickCreditLimit] = useState('');
+  const [quickAddress, setQuickAddress] = useState('');
+  const [quickDeliveryReference, setQuickDeliveryReference] = useState('');
+  const [isAddressSectionOpen, setIsAddressSectionOpen] = useState(showDeliveryAddressSection);
   const [isSubmittingQuick, setIsSubmittingQuick] = useState(false);
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
 
@@ -112,6 +136,8 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
       phone: cust.phone || null,
       ruc: cust.ruc || null,
       creditLimit: cust.creditLimit ?? null,
+      lastAddressText: cust.lastAddressText ?? null,
+      deliveryReference: cust.deliveryReference ?? null,
       creditSummary,
     });
   };
@@ -124,40 +150,84 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
       phone: null,
       ruc: null,
       creditLimit: null,
+      lastAddressText: null,
+      deliveryReference: null,
       creditSummary: null,
     });
     setIsSearchOpen(false);
   };
 
+  const openQuickCreateModal = (initialName = '') => {
+    setQuickName(initialName);
+    setQuickPhone('');
+    setQuickRuc('');
+    setQuickCreditLimit('');
+    setQuickAddress('');
+    setQuickDeliveryReference('');
+    setQuickCreateError(null);
+    setIsAddressSectionOpen(showDeliveryAddressSection);
+    setIsQuickCreateOpen(true);
+  };
+
   // Crear cliente rápido
   const handleQuickCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!quickName.trim()) {
       setQuickCreateError('Ingresá el nombre del cliente.');
       return;
+    }
+    if (!quickPhone.trim()) {
+      setQuickCreateError('Ingresá el teléfono del cliente.');
+      return;
+    }
+
+    const payload: CreatePosCustomerDto = {
+      name: quickName.trim(),
+      phone: quickPhone.trim(),
+    };
+
+    if (quickRuc.trim()) {
+      payload.ruc = quickRuc.trim();
+    }
+
+    if (canAssignCreditLimit && quickCreditLimit.trim() !== '') {
+      const parsedLimit = parseFloat(quickCreditLimit);
+      if (!Number.isFinite(parsedLimit) || parsedLimit < 0) {
+        setQuickCreateError('El límite de crédito debe ser un monto válido mayor o igual a 0.');
+        return;
+      }
+      payload.creditLimit = parsedLimit;
+    }
+
+    if (showDeliveryAddressSection) {
+      if (quickAddress.trim()) {
+        payload.address = quickAddress.trim();
+      }
+      if (quickDeliveryReference.trim()) {
+        payload.deliveryReference = quickDeliveryReference.trim();
+      }
     }
 
     setIsSubmittingQuick(true);
     setQuickCreateError(null);
 
     try {
-      const created = await createPosCustomer({
-        name: quickName.trim(),
-        phone: quickPhone.trim() || undefined,
-        ruc: quickRuc.trim() || undefined,
-        creditLimit: quickCreditLimit ? parseFloat(quickCreditLimit) : undefined,
-      });
+      const created = await createPosCustomer(payload);
 
       setIsQuickCreateOpen(false);
       setQuickName('');
       setQuickPhone('');
       setQuickRuc('');
       setQuickCreditLimit('');
+      setQuickAddress('');
+      setQuickDeliveryReference('');
 
       // Auto-seleccionar nuevo cliente
       await handleSelectCustomer(created);
     } catch (err: any) {
-      setQuickCreateError(err?.response?.data?.message || err?.message || 'Error al registrar cliente.');
+      const rawMessage = err?.response?.data?.message || err?.message || 'Error al registrar cliente.';
+      setQuickCreateError(Array.isArray(rawMessage) ? rawMessage.join(', ') : String(rawMessage));
     } finally {
       setIsSubmittingQuick(false);
     }
@@ -281,7 +351,7 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => setIsQuickCreateOpen(true)}
+              onClick={() => openQuickCreateModal()}
               className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shrink-0 min-h-[44px]"
               title="Registrar nuevo cliente"
             >
@@ -336,10 +406,7 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                 No encontramos clientes con ese nombre o número.{' '}
                 <button
                   type="button"
-                  onClick={() => {
-                    setQuickName(query.trim());
-                    setIsQuickCreateOpen(true);
-                  }}
+                  onClick={() => openQuickCreateModal(query.trim())}
                   className="text-emerald-700 font-bold underline cursor-pointer"
                 >
                   ¿Deseás registrarlo ahora?
@@ -354,33 +421,36 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
         </div>
       )}
 
-      {/* Modal de creación rápida de cliente */}
-      {isQuickCreateOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 select-none">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl border border-gray-200 overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+      {/* Modal de creación rápida de cliente (portal fuera del form/stacking de PaymentModal) */}
+      {isQuickCreateOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 select-none">
+          <div className="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
                   <UserPlus size={18} weight="bold" />
                 </div>
-                <h3 className="font-bold text-sm text-gray-900 leading-tight">
+                <h3 className="font-bold text-sm text-gray-900 leading-tight truncate">
                   Registrar cliente rápido
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsQuickCreateOpen(false)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+                aria-label="Cerrar modal de cliente"
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer shrink-0"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleQuickCreate} className="p-5 space-y-3">
+            <form onSubmit={handleQuickCreate} className="p-4 sm:p-5 space-y-3 overflow-y-auto">
               {quickCreateError && (
                 <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-1.5">
                   <WarningCircle size={15} className="shrink-0 mt-0.5" weight="fill" />
-                  <span>{quickCreateError}</span>
+                  <span className="break-words">{quickCreateError}</span>
                 </div>
               )}
 
@@ -436,7 +506,60 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
                 </div>
               </div>
 
-              {carteraActive && (
+              {showDeliveryAddressSection && (
+                <div className="border border-gray-200 rounded-2xl bg-gray-50/70 overflow-hidden">
+                  <button
+                    type="button"
+                    aria-expanded={isAddressSectionOpen}
+                    onClick={() => setIsAddressSectionOpen((prev) => !prev)}
+                    className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left text-xs font-semibold text-gray-800 hover:bg-gray-100/70 transition-colors min-h-[44px] cursor-pointer"
+                  >
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <MapPin size={15} className="text-emerald-700 shrink-0" />
+                      <span>Dirección de entrega (opcional)</span>
+                    </span>
+                    {isAddressSectionOpen ? (
+                      <CaretUp size={14} className="text-gray-500 shrink-0" />
+                    ) : (
+                      <CaretDown size={14} className="text-gray-500 shrink-0" />
+                    )}
+                  </button>
+
+                  {isAddressSectionOpen && (
+                    <div className="px-3.5 pb-3.5 pt-1 space-y-2.5 border-t border-gray-200/80 bg-white">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Dirección habitual
+                        </label>
+                        <textarea
+                          rows={2}
+                          maxLength={300}
+                          value={quickAddress}
+                          onChange={(e) => setQuickAddress(e.target.value)}
+                          placeholder="Ej: Del parque 2c al sur, casa verde"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:outline-hidden focus:border-gray-900 resize-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Punto de referencia
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={300}
+                          value={quickDeliveryReference}
+                          onChange={(e) => setQuickDeliveryReference(e.target.value)}
+                          placeholder="Ej: Portón negro frente al súper"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:outline-hidden focus:border-gray-900 min-h-[44px]"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {canAssignCreditLimit && (
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     Límite de crédito inicial (C$, opcional)
@@ -479,7 +602,8 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

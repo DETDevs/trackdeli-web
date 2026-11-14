@@ -24,8 +24,10 @@ import {
   getPosProducts,
   createPosSale,
   getMyBusiness,
+  getPosSettings,
   type PosCategory,
   type PosProductItem,
+  type PosSettingsData,
   type SaleResponse,
 } from 'api-client';
 import { usePosWebAccess } from '../../hooks/usePosWebAccess';
@@ -232,6 +234,27 @@ export const PosCobrarPage: React.FC = () => {
     queryFn: getMyBusiness,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Configuración POS (vertical, canales, cartera) accesible para roles de caja
+  const { data: posSettingsData } = useQuery<PosSettingsData>({
+    queryKey: ['pos', 'settings'],
+    queryFn: () => getPosSettings(),
+    enabled: Boolean(webBillingEnabled && canCobrar),
+    staleTime: 60 * 1000,
+  });
+
+  const resolvedPosVertical = String(
+    posSettingsData?.posVertical ??
+      (businessData as any)?.posVertical ??
+      (user as any)?.business?.posVertical ??
+      'RETAIL',
+  ).toUpperCase();
+  const deliveryChannelEnabled = Boolean(posSettingsData?.channels?.delivery?.enabled);
+  const carteraActive = Boolean(
+    posSettingsData?.hasCarteraCobro ??
+      (businessData as any)?.hasCarteraCobro ??
+      (user as any)?.business?.hasCarteraCobro,
+  );
 
   React.useEffect(() => {
     if (businessData) {
@@ -1171,7 +1194,9 @@ export const PosCobrarPage: React.FC = () => {
           setSaleErrorMessage(null);
         }}
         userRole={user?.role}
-        carteraActive={Boolean((user as any)?.business?.hasCarteraCobro || (businessData as any)?.products?.CARTERA_COBRO || true)}
+        carteraActive={carteraActive}
+        posVertical={resolvedPosVertical}
+        deliveryChannelEnabled={deliveryChannelEnabled}
         channel="MOSTRADOR"
       />
 
