@@ -104,6 +104,7 @@ export interface ReportDocument {
   reportKey: string;
   reportSlug: string;
   title: string;
+  variant?: 'default' | 'routeSheet';
   business: ReportBusinessHeader;
   period: ReportPeriodInfo;
   filtersText: string;

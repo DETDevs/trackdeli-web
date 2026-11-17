@@ -15,6 +15,7 @@ export interface ReportQueryParams {
   status?: string;
   paymentMode?: string;
   waiterId?: string;
+  staffId?: string;
   paymentMethod?: string;
   cashRegisterId?: string;
 }

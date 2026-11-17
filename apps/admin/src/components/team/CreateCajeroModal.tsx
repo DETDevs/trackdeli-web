@@ -69,7 +69,7 @@ export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
       return;
     }
 
-    const assignedRole = twoStepSaleEnabled ? role : 'CAJERO';
+    const assignedRole = role;
 
     try {
       const createdUser = await createMutation.mutateAsync({
@@ -104,12 +104,10 @@ export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
             <h3 className="text-base font-semibold text-gray-900">
-              {twoStepSaleEnabled ? 'Agregar Usuario' : 'Agregar Cajero'}
+              Agregar usuario
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              {twoStepSaleEnabled
-                ? 'Crea una cuenta para que un cajero o vendedor opere en el punto de venta'
-                : 'Crea una cuenta para que un cajero opere el sistema POS'}
+              Creá una cuenta para que un cajero o vendedor opere en el punto de venta
             </p>
           </div>
           <button
@@ -129,70 +127,61 @@ export const CreateCajeroModal: React.FC<CreateCajeroModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {twoStepSaleEnabled ? (
-            <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-                Rol del usuario <span className="text-red-500">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  id="role-cajero"
-                  onClick={() => setRole('CAJERO')}
-                  className={`p-2.5 rounded-lg border text-left text-xs transition-colors cursor-pointer flex items-center gap-2 ${
-                    role === 'CAJERO'
-                      ? 'border-gray-900 bg-gray-900 text-white shadow-xs'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                  }`}
-                >
-                  <UserCheck size={16} />
-                  <div>
-                    <p className="font-semibold">Cajero</p>
-                    <p className={role === 'CAJERO' ? 'text-gray-300 text-[10px]' : 'text-gray-400 text-[10px]'}>
-                      Cobra en POS
-                    </p>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  id="role-vendedor"
-                  onClick={() => setRole('VENDEDOR')}
-                  className={`p-2.5 rounded-lg border text-left text-xs transition-colors cursor-pointer flex items-center gap-2 ${
-                    role === 'VENDEDOR'
-                      ? 'border-amber-600 bg-amber-600 text-white shadow-xs'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                  }`}
-                >
-                  <Tag size={16} />
-                  <div>
-                    <p className="font-semibold">Vendedor</p>
-                    <p className={role === 'VENDEDOR' ? 'text-amber-100 text-[10px]' : 'text-gray-400 text-[10px]'}>
-                      Preventa POS
-                    </p>
-                  </div>
-                </button>
-              </div>
-
-              {/* Texto explicativo bajo el rol Vendedor */}
-              {role === 'VENDEDOR' && (
-                <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200/70 text-amber-900 text-xs flex items-start gap-2">
-                  <Info size={15} className="shrink-0 text-amber-700 mt-0.5" weight="fill" />
-                  <p className="text-[11px] leading-relaxed">
-                    Arma la orden y la envía a caja. No cobra ni ve costos.
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+              Rol del usuario <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                id="role-cajero"
+                onClick={() => setRole('CAJERO')}
+                className={`p-2.5 rounded-lg border text-left text-xs transition-colors cursor-pointer flex items-center gap-2 ${
+                  role === 'CAJERO'
+                    ? 'border-gray-900 bg-gray-900 text-white shadow-xs'
+                    : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                }`}
+              >
+                <UserCheck size={16} />
+                <div>
+                  <p className="font-semibold">Cajero</p>
+                  <p className={role === 'CAJERO' ? 'text-gray-300 text-xs' : 'text-gray-500 text-xs'}>
+                    Cobra en POS
                   </p>
                 </div>
-              )}
+              </button>
+
+              <button
+                type="button"
+                id="role-vendedor"
+                onClick={() => setRole('VENDEDOR')}
+                className={`p-2.5 rounded-lg border text-left text-xs transition-colors cursor-pointer flex items-center gap-2 ${
+                  role === 'VENDEDOR'
+                    ? 'border-amber-600 bg-amber-600 text-white shadow-xs'
+                    : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                }`}
+              >
+                <Tag size={16} />
+                <div>
+                  <p className="font-semibold">Vendedor</p>
+                  <p className={role === 'VENDEDOR' ? 'text-amber-100 text-xs' : 'text-gray-500 text-xs'}>
+                    {twoStepSaleEnabled ? 'Preventa POS' : 'Vendedor o ruta'}
+                  </p>
+                </div>
+              </button>
             </div>
-          ) : (
-            <div className="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 flex items-center justify-between text-xs">
-              <span className="text-gray-500">Rol asignado:</span>
-              <span className="inline-flex items-center gap-1 font-medium text-gray-800 bg-white border border-gray-200 px-2 py-0.5 rounded">
-                <UserCheck size={14} className="text-brand-600" />
-                Cajero (POS)
-              </span>
-            </div>
-          )}
+
+            {role === 'VENDEDOR' && (
+              <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200/70 text-amber-900 text-xs flex items-start gap-2">
+                <Info size={15} className="shrink-0 text-amber-700 mt-0.5" weight="fill" />
+                <p className="text-xs leading-relaxed">
+                  {twoStepSaleEnabled
+                    ? 'Arma la orden y la envía a caja. No cobra ni ve costos.'
+                    : 'Podés asignarle ventas y rutas al cobrar en caja, filtrar ganancias/historial y crear proformas.'}
+                </p>
+              </div>
+            )}
+          </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">

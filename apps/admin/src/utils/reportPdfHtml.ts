@@ -248,6 +248,7 @@ function renderSectionHtml(section: ReportSection): string {
 export function buildReportPdfHtml(doc: ReportDocument): string {
   const b = doc.business;
   const footerLegend = doc.footerText || DEFAULT_REPORT_FOOTER_TEXT;
+  const isRouteSheet = doc.variant === 'routeSheet';
 
   const metaDetails: string[] = [];
   if (b.branchName) metaDetails.push(`Sucursal: ${escapeHtml(b.branchName)}`);
@@ -261,6 +262,135 @@ export function buildReportPdfHtml(doc: ReportDocument): string {
           .map((l) => `<div class="biz-extra">${escapeHtml(l)}</div>`)
           .join('')
       : '';
+
+  const compactHeaderHtml = isRouteSheet
+    ? `
+    <header class="route-header">
+      <div>
+        <div class="route-title">${escapeHtml(sanitizeForbiddenPrintTerms(doc.title))}</div>
+        ${doc.filtersText ? `<div class="route-subtitle">${escapeHtml(sanitizeForbiddenPrintTerms(doc.filtersText))}</div>` : ''}
+      </div>
+      <div class="route-biz">
+        ${
+          b.showBusinessName !== false && b.businessName
+            ? `<div class="route-biz-name">${escapeHtml(b.businessName)}</div>`
+            : ''
+        }
+        <div class="route-biz-meta">${escapeHtml(doc.period.fromFormatted)} – ${escapeHtml(doc.period.toFormatted)} · ${doc.rowCount} ${doc.rowCount === 1 ? 'cliente' : 'clientes'}</div>
+      </div>
+    </header>`
+    : `
+    <header class="doc-header">
+      <div class="biz-block">
+        ${
+          b.showLogo && b.logoImage
+            ? `<img src="${b.logoImage}" alt="Logo" class="biz-logo" />`
+            : ''
+        }
+        <div>
+          ${
+            b.showBusinessName !== false && b.businessName
+              ? `<div class="biz-name">${escapeHtml(b.businessName)}</div>`
+              : ''
+          }
+          ${metaDetails.length > 0 ? `<div class="biz-meta">${metaDetails.join(' · ')}</div>` : ''}
+          ${
+            b.showAddress !== false && b.address
+              ? `<div class="biz-meta">${escapeHtml(b.address)}</div>`
+              : ''
+          }
+          ${headerLinesHtml}
+        </div>
+      </div>
+
+      <div class="report-meta-block">
+        <div class="report-title">${escapeHtml(sanitizeForbiddenPrintTerms(doc.title))}</div>
+        ${
+          doc.period.label
+            ? `<div class="report-period">Período: ${escapeHtml(doc.period.label)}</div>`
+            : ''
+        }
+        <div class="report-meta biz-meta">
+          Desde ${escapeHtml(doc.period.fromFormatted)} hasta ${escapeHtml(doc.period.toFormatted)} (Managua)
+        </div>
+        <div class="report-printed">
+          Impreso por ${escapeHtml(doc.printedBy)} el ${escapeHtml(doc.printedAt)}
+        </div>
+      </div>
+    </header>
+
+    <div class="filters-bar">
+      <strong>Filtros aplicados:</strong> ${escapeHtml(sanitizeForbiddenPrintTerms(doc.filtersText || '—'))}
+    </div>`;
+
+  const routeSheetCss = isRouteSheet
+    ? `
+    @page {
+      size: letter portrait;
+      margin: 11mm 14mm;
+    }
+    .route-header {
+      border-bottom: 2px solid #111827;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 12px;
+    }
+    .route-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #0F0F0F;
+      letter-spacing: 0.02em;
+    }
+    .route-subtitle {
+      font-size: 10px;
+      color: #4B5563;
+      margin-top: 2px;
+    }
+    .route-biz {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .route-biz-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .route-biz-meta {
+      font-size: 9.5px;
+      color: #4B5563;
+    }
+    .report-section {
+      margin-bottom: 8px;
+    }
+    .report-table {
+      font-size: 11px;
+    }
+    .report-table th {
+      padding: 4px 6px;
+      font-size: 10.5px;
+    }
+    .report-table td {
+      padding: 3.5px 6px;
+      line-height: 1.25;
+      border-bottom: 1px solid #E5E7EB;
+    }
+    .cell-mono {
+      white-space: nowrap;
+    }
+    .table-totals-box {
+      margin-top: 6px;
+      border: 1.5px solid #111827;
+      border-radius: 4px;
+    }
+    .kv-grand-total {
+      font-size: 13px;
+      padding: 6px 10px;
+    }
+    `
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -555,52 +685,12 @@ export function buildReportPdfHtml(doc: ReportDocument): string {
         display: none !important;
       }
     }
+    ${routeSheetCss}
   </style>
 </head>
 <body>
   <div class="doc-container">
-    <header class="doc-header">
-      <div class="biz-block">
-        ${
-          b.showLogo && b.logoImage
-            ? `<img src="${b.logoImage}" alt="Logo" class="biz-logo" />`
-            : ''
-        }
-        <div>
-          ${
-            b.showBusinessName !== false && b.businessName
-              ? `<div class="biz-name">${escapeHtml(b.businessName)}</div>`
-              : ''
-          }
-          ${metaDetails.length > 0 ? `<div class="biz-meta">${metaDetails.join(' · ')}</div>` : ''}
-          ${
-            b.showAddress !== false && b.address
-              ? `<div class="biz-meta">${escapeHtml(b.address)}</div>`
-              : ''
-          }
-          ${headerLinesHtml}
-        </div>
-      </div>
-
-      <div class="report-meta-block">
-        <div class="report-title">${escapeHtml(sanitizeForbiddenPrintTerms(doc.title))}</div>
-        ${
-          doc.period.label
-            ? `<div class="report-period">Período: ${escapeHtml(doc.period.label)}</div>`
-            : ''
-        }
-        <div class="report-meta biz-meta">
-          Desde ${escapeHtml(doc.period.fromFormatted)} hasta ${escapeHtml(doc.period.toFormatted)} (Managua)
-        </div>
-        <div class="report-printed">
-          Impreso por ${escapeHtml(doc.printedBy)} el ${escapeHtml(doc.printedAt)}
-        </div>
-      </div>
-    </header>
-
-    <div class="filters-bar">
-      <strong>Filtros aplicados:</strong> ${escapeHtml(sanitizeForbiddenPrintTerms(doc.filtersText || '—'))}
-    </div>
+    ${compactHeaderHtml}
 
     <main>
       ${doc.sections.map(renderSectionHtml).join('\n')}

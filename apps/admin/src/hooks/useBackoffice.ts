@@ -120,6 +120,9 @@ export interface BackofficeSaleItemSummary {
   change: number;
   itemsCount: number;
   cashier?: { id: string; name: string } | null;
+  sellerId?: string | null;
+  sellerName?: string | null;
+  seller?: { id: string; name: string } | null;
   customer?: BackofficeSaleCustomer | null;
   taller?: BackofficeSaleTaller | null;
 }
@@ -331,6 +334,8 @@ export interface SalesQueryParams {
   to?: string;
   paymentMethod?: string;
   cashierId?: string;
+  staffId?: string;
+  sellerId?: string;
   excludeVoided?: boolean;
   status?: string;
   businessId?: string;

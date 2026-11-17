@@ -42,6 +42,17 @@ interface ReturnSaleModalProps {
 }
 
 
+const getManaguaDayKey = (dateInput?: string | Date): string => {
+  const dt = dateInput ? new Date(dateInput) : new Date();
+  const valid = Number.isNaN(dt.getTime()) ? new Date() : dt;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Managua',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(valid);
+};
+
 export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
   isOpen,
   sale,
@@ -57,6 +68,7 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
   const [reason, setReason] = useState('Producto defectuoso / Dañado');
   const [customReason, setCustomReason] = useState('');
   const [refundMethod, setRefundMethod] = useState<string>('EFECTIVO');
+  const [affectCashRegister, setAffectCashRegister] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -65,6 +77,11 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
 
   // Clave de idempotencia única por intento de devolución (se preserva en reintentos y autorizaciones)
   const idempotencyKeyRef = useRef<string>('');
+
+  const isPreviousDaySale = React.useMemo(() => {
+    if (!sale?.createdAt) return false;
+    return getManaguaDayKey(sale.createdAt) < getManaguaDayKey(new Date());
+  }, [sale?.createdAt]);
 
   // Inicializar estado cuando se abre el modal
   useEffect(() => {
@@ -76,6 +93,7 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
       setReason('Producto defectuoso / Dañado');
       setCustomReason('');
       setErrorMsg(null);
+      setAffectCashRegister(!sale.createdAt || getManaguaDayKey(sale.createdAt) >= getManaguaDayKey(new Date()));
 
       // Métodos de reembolso permitidos (solo con los que se pagó la venta)
       const methods: string[] = [];
@@ -193,6 +211,7 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
           items: payloadItems,
           reason: fullReason,
           refundMethod,
+          affectCashRegister: refundMethod === 'EFECTIVO' ? affectCashRegister : true,
           approvalToken: approvalToken || undefined,
         },
         {
@@ -417,7 +436,7 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
             </div>
 
             {/* Método de Reembolso */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <label className="font-bold text-xs text-gray-800 block">
                 Método de reembolso
               </label>
@@ -430,6 +449,30 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
                 <option value="TARJETA">Tarjeta</option>
                 <option value="TRANSFERENCIA">Transferencia</option>
               </select>
+
+              {refundMethod === 'EFECTIVO' && (
+                <div className="p-3 rounded-xl border border-gray-200 bg-gray-50/90 space-y-1.5">
+                  <label className="flex items-start gap-2.5 text-xs font-semibold text-gray-900 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={affectCashRegister}
+                      onChange={(e) => setAffectCashRegister(e.target.checked)}
+                      disabled={!returnsEnabled || isSubmitting}
+                      className="mt-0.5 w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer shrink-0"
+                    />
+                    <span>
+                      Descontar reembolso del efectivo de la caja actual
+                    </span>
+                  </label>
+                  <p className="text-xs text-gray-600 leading-relaxed pl-6">
+                    {affectCashRegister
+                      ? 'Se registrará una salida de efectivo en el turno de caja abierto actualmente.'
+                      : isPreviousDaySale
+                        ? 'Venta de día anterior / liquidación de ruta: reintegra los productos al inventario y ajusta la ganancia neta de esa fecha sin restar efectivo de la caja de hoy (podés registrarla aunque la caja esté cerrada).'
+                        : 'Liquidación sin egreso de caja: reintegra los productos al inventario y ajusta la ganancia neta sin afectar el efectivo del turno actual.'}
+                  </p>
+                </div>
+              )}
             </div>
 
             {needsManagerApproval && (

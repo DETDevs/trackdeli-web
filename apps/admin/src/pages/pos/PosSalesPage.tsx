@@ -10,9 +10,10 @@ import {
   CaretRight,
   Printer,
   ArrowUUpLeft,
+  FileText,
 } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
-import { apiClient, getMyBusiness } from 'api-client';
+import { apiClient, getMyBusiness, getPosStaffOptions } from 'api-client';
 import { useAuthStore } from '../../store/auth.store';
 import { useBackofficeSales, useBackofficeDashboard } from '../../hooks/useBackoffice';
 import { useBackofficeDateFilter } from '../../hooks/useBackofficeDateFilter';
@@ -24,6 +25,7 @@ import { ReportPrintModal } from '../../components/reports/ReportPrintModal';
 import { ReportDocument } from '../../types/report';
 import { buildPeriodFromYmdRange } from '../../utils/reportHelpers';
 import {
+  buildClientRouteSheetReportDocument,
   buildSalesHistoryReportDocument,
   buildReturnsHistoryReportDocument,
   formatPaymentMethodDisplay,
@@ -43,18 +45,49 @@ export const PosSalesPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'SALES' | 'RETURNS'>('SALES');
   const [paymentMethod, setPaymentMethod] = useState<string>('ALL');
+  const [staffFilter, setStaffFilter] = useState<string>('ALL');
   const [excludeVoided, setExcludeVoided] = useState<boolean>(false);
   const [page, setPage] = useState<number>(1);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
 
-  // Estados de impresión
+  // Estados de impresión y Hoja de Ruta
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isPreparingReport, setIsPreparingReport] = useState(false);
   const [includeItems, setIncludeItems] = useState(false);
+  const [reportPrintMode, setReportPrintMode] = useState<'detailed' | 'routeSheet'>('detailed');
+  const [routeSheetTitle, setRouteSheetTitle] = useState('');
+  const [routeDeductReturns, setRouteDeductReturns] = useState(true);
+  const [routeShowComprobante, setRouteShowComprobante] = useState(false);
+  const [routeShowAddress, setRouteShowAddress] = useState(false);
   const [reportDocument, setReportDocument] = useState<ReportDocument | null>(null);
 
   const cachedSalesRef = useRef<any[]>([]);
   const cachedReturnsRef = useRef<any[]>([]);
+
+  // Personal activo para filtro por Vendedor / Ruta
+  const { data: staffOptions = [] } = useQuery({
+    queryKey: ['pos', 'staff-options'],
+    queryFn: () => getPosStaffOptions(),
+    enabled: Boolean(user),
+    staleTime: 60 * 1000,
+  });
+
+  const selectedStaffName =
+    staffFilter !== 'ALL'
+      ? staffOptions.find((st) => st.id === staffFilter)?.name || null
+      : null;
+
+  const buildSuggestedRouteTitle = (staffLabel: string | null) => {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(-2);
+    if (staffLabel) {
+      const clean = staffLabel.trim().toUpperCase();
+      return `${clean.startsWith('RUTA') ? clean : `RUTA ${clean}`} ${dd}/${mm}/${yy}`;
+    }
+    return `HOJA DE RUTA ${dd}/${mm}/${yy}`;
+  };
 
   // Datos del negocio para comprobantes y reportes
   const { data: businessData } = useQuery({
@@ -79,6 +112,7 @@ export const PosSalesPage: React.FC = () => {
     from,
     to,
     paymentMethod: paymentMethod !== 'ALL' ? paymentMethod : undefined,
+    staffId: staffFilter !== 'ALL' ? staffFilter : undefined,
     excludeVoided: excludeVoided ? true : undefined,
     page,
     limit: 20,
@@ -104,30 +138,69 @@ export const PosSalesPage: React.FC = () => {
     staleTime: 30000,
   });
 
-  // Reconstruir el reporte en memoria cuando cambia el checkbox "includeItems"
+  // Reconstruir el reporte en memoria cuando cambian el modo, título o checkboxes
   useEffect(() => {
-    if (isPrintModalOpen && cachedSalesRef.current.length > 0 && activeTab === 'SALES') {
+    if (isPrintModalOpen && !isPreparingReport && activeTab === 'SALES') {
       const periodInfo = buildPeriodFromYmdRange(
         from,
         to,
-        preset === 'today' ? 'Hoy' : preset === 'month' ? 'Este mes' : 'Personalizado'
+        preset === 'today'
+          ? 'Hoy'
+          : preset === 'week'
+            ? 'Esta semana'
+            : preset === 'month'
+              ? 'Este mes'
+              : 'Personalizado'
       );
-      const doc = buildSalesHistoryReportDocument({
-        sales: cachedSalesRef.current,
-        matchingReturns: cachedReturnsRef.current,
-        period: periodInfo,
-        methodFilter: paymentMethod,
-        statusFilter: excludeVoided ? 'COMPLETED' : 'ALL',
-        includeItems,
-        business: businessData,
-        branchName: activeBranch?.name,
-        user,
-      });
-      setReportDocument(doc);
+      if (reportPrintMode === 'routeSheet') {
+        const doc = buildClientRouteSheetReportDocument({
+          sales: cachedSalesRef.current,
+          period: periodInfo,
+          customTitle: routeSheetTitle,
+          sellerFilterLabel: selectedStaffName,
+          deductReturns: routeDeductReturns,
+          showInvoiceNumber: routeShowComprobante,
+          showCustomerAddress: routeShowAddress,
+          business: businessData,
+          branchName: activeBranch?.name,
+          user,
+        });
+        setReportDocument(doc);
+      } else {
+        const doc = buildSalesHistoryReportDocument({
+          sales: cachedSalesRef.current,
+          matchingReturns: cachedReturnsRef.current,
+          period: periodInfo,
+          methodFilter: paymentMethod,
+          statusFilter: excludeVoided ? 'COMPLETED' : 'ALL',
+          sellerFilterLabel: selectedStaffName,
+          includeItems,
+          business: businessData,
+          branchName: activeBranch?.name,
+          user,
+        });
+        setReportDocument(doc);
+      }
     }
-  }, [includeItems]);
+  }, [
+    isPrintModalOpen,
+    isPreparingReport,
+    activeTab,
+    reportPrintMode,
+    includeItems,
+    routeSheetTitle,
+    routeDeductReturns,
+    routeShowComprobante,
+    routeShowAddress,
+    selectedStaffName,
+  ]);
 
-  const handleOpenPrintModal = async () => {
+  const handleOpenPrintModal = async (initialMode: 'detailed' | 'routeSheet' = 'detailed') => {
+    const resolvedMode = activeTab === 'RETURNS' ? 'detailed' : initialMode;
+    setReportPrintMode(resolvedMode);
+    if (resolvedMode === 'routeSheet') {
+      setRouteSheetTitle(buildSuggestedRouteTitle(selectedStaffName));
+    }
     setIsPrintModalOpen(true);
     setIsPreparingReport(true);
     setReportDocument(null);
@@ -172,6 +245,7 @@ export const PosSalesPage: React.FC = () => {
               from,
               to,
               paymentMethod: paymentMethod !== 'ALL' ? paymentMethod : undefined,
+              staffId: staffFilter !== 'ALL' ? staffFilter : undefined,
               status: excludeVoided ? 'COMPLETED' : undefined,
               limit: batchLimit,
               page: p,
@@ -201,17 +275,32 @@ export const PosSalesPage: React.FC = () => {
         cachedSalesRef.current = allSales;
         cachedReturnsRef.current = periodReturns;
 
-        const doc = buildSalesHistoryReportDocument({
-          sales: allSales,
-          matchingReturns: periodReturns,
-          period: periodInfo,
-          methodFilter: paymentMethod,
-          statusFilter: excludeVoided ? 'COMPLETED' : 'ALL',
-          includeItems,
-          business: businessData,
-          branchName: activeBranch?.name,
-          user,
-        });
+        const doc =
+          resolvedMode === 'routeSheet'
+            ? buildClientRouteSheetReportDocument({
+                sales: allSales,
+                period: periodInfo,
+                customTitle: buildSuggestedRouteTitle(selectedStaffName),
+                sellerFilterLabel: selectedStaffName,
+                deductReturns: routeDeductReturns,
+                showInvoiceNumber: routeShowComprobante,
+                showCustomerAddress: routeShowAddress,
+                business: businessData,
+                branchName: activeBranch?.name,
+                user,
+              })
+            : buildSalesHistoryReportDocument({
+                sales: allSales,
+                matchingReturns: periodReturns,
+                period: periodInfo,
+                methodFilter: paymentMethod,
+                statusFilter: excludeVoided ? 'COMPLETED' : 'ALL',
+                sellerFilterLabel: selectedStaffName,
+                includeItems,
+                business: businessData,
+                branchName: activeBranch?.name,
+                user,
+              });
         setReportDocument(doc);
       }
     } catch (err) {
@@ -258,11 +347,24 @@ export const PosSalesPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          {/* Botón Hoja de Ruta */}
+          {activeTab === 'SALES' && (
+            <button
+              type="button"
+              onClick={() => handleOpenPrintModal('routeSheet')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-medium text-gray-800 transition-colors shadow-2xs cursor-pointer"
+              title="Imprimir listado compacto de clientes y montos en hoja carta"
+            >
+              <FileText size={14} weight="bold" />
+              <span>Hoja de ruta</span>
+            </button>
+          )}
+
           {/* Botón Imprimir */}
           <button
             type="button"
-            onClick={handleOpenPrintModal}
+            onClick={() => handleOpenPrintModal('detailed')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-medium text-gray-700 transition-colors shadow-2xs cursor-pointer"
             title="Imprimir reporte en hoja carta o guardar PDF"
           >
@@ -325,7 +427,7 @@ export const PosSalesPage: React.FC = () => {
             <ArrowUUpLeft size={14} weight="bold" />
             <span>Devoluciones</span>
             {returnsList.length > 0 && (
-              <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded-full font-bold">
+              <span className="text-xs bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded-full font-bold">
                 {returnsList.length}
               </span>
             )}
@@ -333,7 +435,7 @@ export const PosSalesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Barra de Filtros (Fechas + Método de pago + Excluir anuladas) */}
+      {/* Barra de Filtros (Fechas + Vendedor + Método de pago + Excluir anuladas) */}
       <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-2xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Selector de Fechas Rápido */}
@@ -356,6 +458,26 @@ export const PosSalesPage: React.FC = () => {
           {/* Filtros complementarios para ventas */}
           {activeTab === 'SALES' && (
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Vendedor / Ruta */}
+              {staffOptions.length > 0 && (
+                <select
+                  value={staffFilter}
+                  onChange={(e) => {
+                    setStaffFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  aria-label="Filtrar por vendedor o ruta"
+                  className="h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-800 bg-white focus:outline-none focus:border-gray-900 shadow-2xs"
+                >
+                  <option value="ALL">Todos los vendedores / cajeros</option>
+                  {staffOptions.map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
               {/* Método de pago */}
               <select
                 value={paymentMethod}
@@ -369,6 +491,7 @@ export const PosSalesPage: React.FC = () => {
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="TARJETA">Tarjeta</option>
                 <option value="TRANSFERENCIA">Transferencia</option>
+                <option value="CREDITO">Crédito</option>
                 <option value="OTROS">Otros</option>
               </select>
 
@@ -570,8 +693,15 @@ export const PosSalesPage: React.FC = () => {
                             </span>
                           </td>
 
-                          <td className="px-4 py-3 text-gray-600 truncate max-w-[120px]">
-                            {sale.cashier?.name || 'Cajero'}
+                          <td className="px-4 py-3 text-gray-600 max-w-[150px]">
+                            <div className="truncate font-medium text-gray-800">
+                              {sale.sellerName || sale.cashier?.name || 'Cajero'}
+                            </div>
+                            {sale.sellerName && sale.cashier?.name && sale.sellerName !== sale.cashier.name && (
+                              <div className="text-xs text-gray-500 truncate">
+                                Caja: {sale.cashier.name}
+                              </div>
+                            )}
                           </td>
 
                           <td className="px-4 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
@@ -650,9 +780,16 @@ export const PosSalesPage: React.FC = () => {
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs text-gray-600">
-                      <span className="min-w-0 leading-snug break-words">
-                        {sale.customer?.name || 'Cliente general'}
-                      </span>
+                      <div className="min-w-0">
+                        <span className="block leading-snug break-words">
+                          {sale.customer?.name || 'Cliente general'}
+                        </span>
+                        {sale.sellerName && (
+                          <span className="inline-block mt-0.5 text-xs text-violet-700 font-medium">
+                            Ruta / Vendedor: {sale.sellerName}
+                          </span>
+                        )}
+                      </div>
 
                       <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-50 text-gray-700 border border-gray-200/60 shrink-0">
                         {sale.paymentMethod || 'Efectivo'}
@@ -753,16 +890,89 @@ export const PosSalesPage: React.FC = () => {
         onClose={() => setIsPrintModalOpen(false)}
         document={reportDocument}
         isPreparing={isPreparingReport}
+        headerContent={
+          activeTab === 'SALES' ? (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-1.5 bg-gray-100 p-1 rounded-xl w-fit">
+                <button
+                  type="button"
+                  onClick={() => setReportPrintMode('detailed')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    reportPrintMode === 'detailed'
+                      ? 'bg-white text-gray-900 shadow-2xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Reporte detallado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReportPrintMode('routeSheet')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    reportPrintMode === 'routeSheet'
+                      ? 'bg-white text-gray-900 shadow-2xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Listado de clientes (Hoja de ruta)
+                </button>
+              </div>
+
+              {reportPrintMode === 'routeSheet' && (
+                <div className="space-y-1">
+                  <label
+                    htmlFor="web-route-sheet-title"
+                    className="block text-xs font-semibold text-gray-700"
+                  >
+                    Título del listado
+                  </label>
+                  <input
+                    id="web-route-sheet-title"
+                    type="text"
+                    value={routeSheetTitle}
+                    onChange={(e) => setRouteSheetTitle(e.target.value)}
+                    placeholder="Ej. RUTA CHINANDEGA 16/11/26"
+                    className="w-full max-w-md px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/15"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Podés editar el encabezado que aparecerá arriba del listado compacto en hoja carta.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : undefined
+        }
         options={
           activeTab === 'SALES'
-            ? [
-                {
-                  id: 'includeItems',
-                  label: 'Incluir productos de cada venta',
-                  checked: includeItems,
-                  onChange: setIncludeItems,
-                },
-              ]
+            ? reportPrintMode === 'routeSheet'
+              ? [
+                  {
+                    id: 'routeDeductReturns',
+                    label: 'Descontar devoluciones (monto neto)',
+                    checked: routeDeductReturns,
+                    onChange: setRouteDeductReturns,
+                  },
+                  {
+                    id: 'routeShowComprobante',
+                    label: 'Incluir número de comprobante',
+                    checked: routeShowComprobante,
+                    onChange: setRouteShowComprobante,
+                  },
+                  {
+                    id: 'routeShowAddress',
+                    label: 'Incluir dirección y referencia del cliente',
+                    checked: routeShowAddress,
+                    onChange: setRouteShowAddress,
+                  },
+                ]
+              : [
+                  {
+                    id: 'includeItems',
+                    label: 'Incluir productos de cada venta',
+                    checked: includeItems,
+                    onChange: setIncludeItems,
+                  },
+                ]
             : []
         }
       />

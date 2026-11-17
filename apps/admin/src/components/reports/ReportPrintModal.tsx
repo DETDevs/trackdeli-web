@@ -21,6 +21,7 @@ interface ReportPrintModalProps {
   document: ReportDocument | null;
   isPreparing?: boolean;
   options?: ReportModalOption[];
+  headerContent?: React.ReactNode;
 }
 
 export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
@@ -29,6 +30,7 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
   document,
   isPreparing = false,
   options = [],
+  headerContent,
 }) => {
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const [isSavingPdf, setIsSavingPdf] = useState<boolean>(false);
@@ -133,7 +135,7 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
               >
                 Imprimir reporte
               </h2>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 {document?.title ? `${document.title} · Hoja carta (PDF)` : 'Vista previa de hoja carta'}
               </p>
             </div>
@@ -142,12 +144,19 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
             title="Cerrar modal"
           >
             <X size={18} weight="bold" />
           </button>
         </div>
+
+        {/* Controles personalizados (ej. modo Hoja de ruta y título) */}
+        {headerContent && (
+          <div className="px-5 py-3 bg-white border-b border-gray-100">
+            {headerContent}
+          </div>
+        )}
 
         {/* Barra de opciones y avisos */}
         <div className="px-5 py-2.5 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -170,7 +179,7 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
             ))}
           </div>
 
-          <div className="text-[11px] text-gray-500 font-mono">
+          <div className="text-xs text-gray-600 font-mono">
             {rowCount} {rowCount === 1 ? 'fila' : 'filas'} en el filtro
           </div>
         </div>

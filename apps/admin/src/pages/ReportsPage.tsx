@@ -60,6 +60,7 @@ import {
   getMyBusiness,
   getChannelConfig,
   getPosWaiters,
+  getPosStaffOptions,
   type PosTipsReportResponse,
 } from "api-client";
 import { getVisibleChannels } from "../utils/visibleChannels";
@@ -91,6 +92,14 @@ export const ReportsPage: React.FC = () => {
     staleTime: 60000,
   });
 
+  // Personal activo para filtrar ganancias por vendedor / ruta
+  const { data: staffOptions = [] } = useQuery({
+    queryKey: ["pos", "staff-options"],
+    queryFn: () => getPosStaffOptions(),
+    enabled: isAllowedRole,
+    staleTime: 60000,
+  });
+
   // Configuración de canales de venta (221c)
   const { data: channelConfig } = useQuery({
     queryKey: ["pos", "channels-config"],
@@ -104,6 +113,7 @@ export const ReportsPage: React.FC = () => {
   const [customFrom, setCustomFrom] = useState<string | undefined>();
   const [customTo, setCustomTo] = useState<string | undefined>();
   const [selectedChannel, setSelectedChannel] = useState<string>("");
+  const [profitStaffId, setProfitStaffId] = useState<string>("");
   const [selectedTipWaiterId, setSelectedTipWaiterId] = useState<string>("");
   const [selectedTipMethod, setSelectedTipMethod] = useState<string>("");
   const [activeTab, setActiveTab] = useState<ReportTabKey>("sales");
@@ -188,6 +198,7 @@ export const ReportsPage: React.FC = () => {
       period,
       from: period === "custom" ? customFrom : undefined,
       to: period === "custom" ? customTo : undefined,
+      staffId: profitStaffId || undefined,
     },
     isAllowedRole && (activeTab === "profit" || !reportsData),
   );
@@ -463,7 +474,10 @@ export const ReportsPage: React.FC = () => {
           period,
           from: period === "custom" ? customFrom : undefined,
           to: period === "custom" ? customTo : undefined,
+          staffId: profitStaffId || undefined,
         });
+        const selectedStaffName =
+          staffOptions.find((st) => st.id === profitStaffId)?.name || null;
         const [sumRes, prodRes] = await Promise.all([
           profitSummaryData
             ? Promise.resolve({ data: profitSummaryData })
@@ -484,6 +498,7 @@ export const ReportsPage: React.FC = () => {
           from: customFrom,
           to: customTo,
           hasActiveDelivery: channelsVisibility.isDeliveryVisible,
+          selectedStaffName,
           business,
           branchName: null,
           user,
@@ -893,6 +908,9 @@ export const ReportsPage: React.FC = () => {
               onRetry={refetchProfit}
               hasActiveDelivery={channelsVisibility.isDeliveryVisible}
               hasActivePedidosYa={channelsVisibility.isPedidosYaVisible}
+              staffOptions={staffOptions}
+              selectedStaffId={profitStaffId}
+              onSelectStaffId={setProfitStaffId}
               onPrint={handleTriggerPrint}
               isPreparingPrint={isPreparingReport}
             />

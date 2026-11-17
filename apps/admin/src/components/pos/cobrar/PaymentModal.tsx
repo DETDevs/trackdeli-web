@@ -12,15 +12,20 @@ import {
   ShieldCheck,
   CheckCircle,
   ArrowsClockwise,
+  User,
+  PushPin,
 } from '@phosphor-icons/react';
 import {
   getPosExchangeRate,
   getPosBanks,
+  getPosStaffOptions,
   type PosBankItem,
+  type PosStaffOption,
   type CreateSalePaymentPayload,
   type CreateSaleTipPayload,
   type CreditPlanPayload,
 } from 'api-client';
+import { useAuthStore } from '../../../store/auth.store';
 import { formatCurrency } from '../../../utils/formatters';
 import { calculateTipFromTotal, type CalculatedSaleSummary } from '../../../utils/saleCalculation';
 import { usePosPolicies } from '../../../hooks/usePosPolicies';
@@ -53,6 +58,8 @@ export interface FinalPaymentSubmission {
   approvalToken?: string;
   payments: CreateSalePaymentPayload[];
   tip?: CreateSaleTipPayload;
+  sellerId?: string;
+  sellerName?: string;
   clientGeneratedId: string;
 }
 
@@ -120,6 +127,24 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     tipEnabled,
     tipDefaultPercent,
   } = usePosPolicies(isOpen);
+
+  const authUser = useAuthStore((state) => state.user);
+  const pinnedSellerStorageKey = `pos_web_pinned_seller_${authUser?.businessId || 'default'}`;
+  const [staffOptions, setStaffOptions] = useState<PosStaffOption[]>([]);
+  const [pinDirectSeller, setPinDirectSeller] = useState<boolean>(() => {
+    try {
+      return Boolean(sessionStorage.getItem(pinnedSellerStorageKey));
+    } catch {
+      return false;
+    }
+  });
+  const [directSellerId, setDirectSellerId] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem(pinnedSellerStorageKey) || '';
+    } catch {
+      return '';
+    }
+  });
 
   // Cliente seleccionado (por defecto Consumidor final)
   const [selectedCustomer, setSelectedCustomer] = useState<SelectedCustomerData>({
@@ -249,6 +274,29 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           if (bList && bList.length > 0) {
             setSelectedBankId(bList[0].id);
             setTipBankId(bList[0].id);
+          }
+        })
+        .catch(() => {});
+
+      // Cargar vendedores / personal activo para asignación de ruta
+      let restoredPin = '';
+      try {
+        restoredPin = sessionStorage.getItem(pinnedSellerStorageKey) || '';
+      } catch {
+        restoredPin = '';
+      }
+      setPinDirectSeller(Boolean(restoredPin));
+      setDirectSellerId(restoredPin);
+
+      getPosStaffOptions()
+        .then((list) => {
+          setStaffOptions(list || []);
+          if (restoredPin && !list.some((u) => u.id === restoredPin)) {
+            setDirectSellerId('');
+            setPinDirectSeller(false);
+            try {
+              sessionStorage.removeItem(pinnedSellerStorageKey);
+            } catch {}
           }
         })
         .catch(() => {});
@@ -571,6 +619,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         };
       });
 
+      const selectedSellerObj = staffOptions.find((u) => u.id === directSellerId);
       const submission: FinalPaymentSubmission = {
         method: 'MIXTO',
         amountPaid: mixedSummary.totalCoveredNio,
@@ -582,6 +631,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         notes: notes.trim() || undefined,
         payments: paymentsPayload,
         tip: tipPayload,
+        sellerId: directSellerId || undefined,
+        sellerName: selectedSellerObj?.name || undefined,
         clientGeneratedId: idempotencyKeyRef.current,
       };
 
@@ -669,6 +720,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       bankName: selectedBankObj?.name,
     };
 
+    const selectedSingleSellerObj = staffOptions.find((u) => u.id === directSellerId);
     const submission: FinalPaymentSubmission = {
       method: singleMethod,
       amountPaid: singleMethod === 'EFECTIVO' ? singleCoveredNio : total,
@@ -689,6 +741,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       approvalToken: approvalToken || undefined,
       payments: [paymentLine],
       tip: tipPayload,
+      sellerId: directSellerId || undefined,
+      sellerName: selectedSingleSellerObj?.name || undefined,
       clientGeneratedId: idempotencyKeyRef.current,
     };
 
@@ -1631,6 +1685,66 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Vendedor / Ruta (opcional) */}
+          {staffOptions.length > 0 && (
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl flex flex-wrap items-center justify-between gap-2.5 text-xs">
+              <div className="flex items-center gap-2 text-gray-700 font-bold shrink-0">
+                <User size={16} className="text-gray-600" />
+                <span>Vendedor / Ruta (opcional)</span>
+              </div>
+              <div className="flex items-center gap-2 flex-1 justify-end min-w-[210px]">
+                <select
+                  value={directSellerId}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    setDirectSellerId(nextId);
+                    try {
+                      if (!nextId) {
+                        setPinDirectSeller(false);
+                        sessionStorage.removeItem(pinnedSellerStorageKey);
+                      } else if (pinDirectSeller) {
+                        sessionStorage.setItem(pinnedSellerStorageKey, nextId);
+                      }
+                    } catch {}
+                  }}
+                  className="px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-semibold text-gray-900 focus:outline-hidden focus:border-gray-900 min-h-[40px] max-w-[220px]"
+                >
+                  <option value="">Sin asignar (cajero actual)</option>
+                  {staffOptions.map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!directSellerId && !pinDirectSeller}
+                  onClick={() => {
+                    const nextPin = !pinDirectSeller;
+                    if (nextPin && !directSellerId) return;
+                    setPinDirectSeller(nextPin);
+                    try {
+                      if (nextPin && directSellerId) {
+                        sessionStorage.setItem(pinnedSellerStorageKey, directSellerId);
+                      } else {
+                        sessionStorage.removeItem(pinnedSellerStorageKey);
+                      }
+                    } catch {}
+                  }}
+                  title="Mantiene seleccionado este vendedor para los siguientes cobros de la ruta"
+                  className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl border text-xs font-bold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap min-h-[40px] ${
+                    pinDirectSeller && directSellerId
+                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-2xs'
+                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <PushPin size={14} weight={pinDirectSeller && directSellerId ? 'fill' : 'regular'} />
+                  <span>{pinDirectSeller && directSellerId ? 'Fijado' : 'Fijar'}</span>
+                </button>
+              </div>
             </div>
           )}
 

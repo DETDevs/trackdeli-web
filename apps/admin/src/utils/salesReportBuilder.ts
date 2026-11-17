@@ -8,6 +8,10 @@ import {
 import { formatCurrency } from './formatters';
 import { formatDateTime } from './formatDate';
 import {
+  getSaleCustomerAddress,
+  getSaleCustomerReference,
+} from './customerAddress';
+import {
   buildReportBusinessHeader,
   DEFAULT_REPORT_FOOTER_TEXT,
   formatCordobasFromCents,
@@ -54,6 +58,7 @@ export interface BuildSalesHistoryReportParams {
   statusFilter?: string;
   methodFilter?: string;
   channelFilter?: string;
+  sellerFilterLabel?: string | null;
   searchQuery?: string;
   includeItems?: boolean;
   business: any;
@@ -71,6 +76,7 @@ export function buildSalesHistoryReportDocument(
     statusFilter = 'ALL',
     methodFilter = 'ALL',
     channelFilter = 'ALL',
+    sellerFilterLabel = null,
     searchQuery = '',
     includeItems = false,
     business,
@@ -209,6 +215,9 @@ export function buildSalesHistoryReportDocument(
   filtersParts.push(`Pago: ${formatPaymentMethodDisplay(methodFilter)}`);
   if (channelFilter && channelFilter !== 'ALL') {
     filtersParts.push(`Canal: ${channelFilter}`);
+  }
+  if (sellerFilterLabel) {
+    filtersParts.push(`Vendedor / Ruta: ${sellerFilterLabel}`);
   }
   filtersParts.push(`Búsqueda: ${searchQuery.trim() ? `"${searchQuery.trim()}"` : '—'}`);
   if (includeItems) {
@@ -374,3 +383,198 @@ export function buildReturnsHistoryReportDocument(
     footerText: DEFAULT_REPORT_FOOTER_TEXT,
   };
 }
+
+export interface BuildClientRouteSheetParams {
+  sales: any[];
+  period: ReportPeriodInfo;
+  customTitle?: string;
+  sellerFilterLabel?: string | null;
+  deductReturns?: boolean;
+  showInvoiceNumber?: boolean;
+  showCustomerAddress?: boolean;
+  business: any;
+  branchName?: string | null;
+  user: any;
+}
+
+export function buildClientRouteSheetReportDocument(
+  params: BuildClientRouteSheetParams
+): ReportDocument {
+  const {
+    sales,
+    period,
+    customTitle,
+    sellerFilterLabel = null,
+    deductReturns = true,
+    showInvoiceNumber = false,
+    showCustomerAddress = false,
+    business,
+    branchName,
+    user,
+  } = params;
+
+  const isSaleVoided = (s: any) =>
+    s.isVoided || s.status === 'CANCELLED' || s.status === 'VOIDED';
+
+  const sortedValidSales = [...sales]
+    .filter((s) => !isSaleVoided(s))
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  let grossCents = 0;
+  let refundedCents = 0;
+  let netTotalCents = 0;
+
+  const activeRouteSales: Array<{ sale: any; amountCents: number; clientLabel: string }> = [];
+
+  for (const sale of sortedValidSales) {
+    const saleGrossCents = toCents(sale.total ?? sale.netTotal);
+    const returnsSum = Array.isArray(sale.returns)
+      ? sale.returns.reduce((acc: number, r: any) => acc + Number(r.refundAmount || 0), 0)
+      : Number(sale.refundTotal || 0);
+    const computedRefundCents =
+      returnsSum > 0
+        ? toCents(returnsSum)
+        : Math.max(0, saleGrossCents - toCents(sale.netTotal ?? sale.total));
+    const saleNetCents = Math.max(0, saleGrossCents - computedRefundCents);
+
+    if (deductReturns) {
+      if (sale.status === 'RETURNED' || (saleNetCents <= 0 && computedRefundCents > 0)) {
+        grossCents += saleGrossCents;
+        refundedCents += computedRefundCents;
+        continue;
+      }
+      grossCents += saleGrossCents;
+      refundedCents += computedRefundCents;
+      netTotalCents += saleNetCents;
+    } else {
+      grossCents += saleGrossCents;
+    }
+
+    const baseName = String(sale.customer?.name || sale.customerName || 'CONSUMIDOR FINAL').trim();
+    const upperName = (baseName === 'Cliente general' ? 'CONSUMIDOR FINAL' : baseName).toUpperCase();
+    let clientLabel = upperName;
+    if (showCustomerAddress) {
+      const addr = getSaleCustomerAddress(sale);
+      const ref = getSaleCustomerReference(sale);
+      const extraParts = [addr, ref ? `Ref: ${ref}` : ''].filter(Boolean);
+      if (extraParts.length > 0) {
+        clientLabel = `${upperName} — ${extraParts.join(' · ')}`;
+      }
+    }
+
+    activeRouteSales.push({
+      sale,
+      amountCents: deductReturns ? saleNetCents : saleGrossCents,
+      clientLabel: sanitizeForbiddenPrintTerms(clientLabel),
+    });
+  }
+
+  const finalTotalCents = deductReturns ? netTotalCents : grossCents;
+
+  const columns: Array<{
+    key: string;
+    label: string;
+    align: 'left' | 'right' | 'center';
+    width: string;
+    mono?: boolean;
+  }> = [
+    { key: 'num', label: '#', align: 'left', width: '7%', mono: true },
+    {
+      key: 'cliente',
+      label: 'Cliente',
+      align: 'left',
+      width: showInvoiceNumber ? '57%' : '73%',
+    },
+  ];
+
+  if (showInvoiceNumber) {
+    columns.push({
+      key: 'comprobante',
+      label: 'Comprobante',
+      align: 'left',
+      width: '16%',
+      mono: true,
+    });
+  }
+
+  columns.push({
+    key: 'monto',
+    label: 'Monto',
+    align: 'right',
+    width: '20%',
+    mono: true,
+  });
+
+  const rows: ReportTableRow[] = activeRouteSales.map((entry, idx) => {
+    const numLabel = `${idx + 1}.`;
+    const correlativo = entry.sale.invoiceNumber ? `#${entry.sale.invoiceNumber}` : '—';
+    const amountFormatted = formatCordobasFromCents(entry.amountCents);
+
+    return {
+      cells: {
+        num: numLabel,
+        cliente: entry.clientLabel,
+        ...(showInvoiceNumber ? { comprobante: correlativo } : {}),
+        monto: amountFormatted,
+      },
+    };
+  });
+
+  const totalsRows: ReportKeyValueRow[] = [];
+  if (deductReturns && refundedCents > 0) {
+    totalsRows.push(
+      {
+        label: 'Subtotal despachado',
+        value: formatCordobasFromCents(grossCents),
+      },
+      {
+        label: 'Devoluciones descontadas',
+        value: `-${formatCordobasFromCents(refundedCents)}`,
+        tone: 'warning',
+      }
+    );
+  }
+  totalsRows.push({
+    label: `TOTAL (${activeRouteSales.length} ${activeRouteSales.length === 1 ? 'cliente' : 'clientes'})`,
+    value: formatCordobasFromCents(finalTotalCents),
+    isTotal: true,
+    doubleHeight: true,
+  });
+
+  const resolvedTitle = sanitizeForbiddenPrintTerms(
+    (customTitle || '').trim() ||
+      (sellerFilterLabel
+        ? `RUTA ${sellerFilterLabel.toUpperCase()}`
+        : 'LISTADO DE CLIENTES / HOJA DE RUTA')
+  );
+
+  const subtitleParts: string[] = [];
+  if (sellerFilterLabel) subtitleParts.push(`Vendedor / Ruta: ${sellerFilterLabel}`);
+  subtitleParts.push(
+    deductReturns ? 'Montos netos (descuenta devoluciones)' : 'Montos brutos sin descontar devoluciones'
+  );
+
+  return {
+    reportKey: 'sales_route_sheet',
+    reportSlug: 'Hoja_de_ruta_clientes',
+    title: resolvedTitle,
+    variant: 'routeSheet',
+    business: buildReportBusinessHeader(business, branchName, user),
+    period,
+    filtersText: sanitizeForbiddenPrintTerms(subtitleParts.join(' · ')),
+    printedBy: user?.name || user?.email || 'Usuario',
+    printedAt: formatManaguaDateTime(new Date()),
+    rowCount: activeRouteSales.length,
+    sections: [
+      {
+        type: 'table',
+        columns,
+        rows,
+        totalsRows,
+        emptyMessage: 'No hay clientes válidos con los filtros seleccionados.',
+      },
+    ],
+    footerText: DEFAULT_REPORT_FOOTER_TEXT,
+  };
+}
+

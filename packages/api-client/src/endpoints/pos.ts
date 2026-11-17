@@ -214,6 +214,19 @@ export interface PosExchangeRateData {
   [key: string]: any;
 }
 
+export interface PosStaffOption {
+  id: string;
+  name: string;
+  role: 'ENCARGADO' | 'SUPERADMIN' | 'CAJERO' | 'VENDEDOR' | string;
+}
+
+export const getPosStaffOptions = async (businessId?: string): Promise<PosStaffOption[]> => {
+  const res = await apiClient.get<PosStaffOption[]>('/pos/users/staff-options', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
 export interface CreateSaleTipPayload {
   mode: 'PERCENT' | 'CUSTOM';
   percent?: number;
@@ -282,6 +295,8 @@ export interface CreateSalePayload {
   creditPlan?: CreditPlanPayload;
   approvalToken?: string;
   quoteId?: string;
+  sellerId?: string;
+  sellerName?: string;
   vehicleInfo?: string;
   notes?: string;
 }
@@ -302,6 +317,8 @@ export interface SaleResponse {
   paymentMethod: string;
   status: string;
   createdAt: string;
+  sellerId?: string | null;
+  sellerName?: string | null;
   customerName?: string;
   customerPhone?: string;
   notes?: string;
@@ -749,6 +766,7 @@ export interface ReturnPosSaleDto {
   items: ReturnPosSaleItemDto[];
   reason: string;
   refundMethod: string;
+  affectCashRegister?: boolean;
   approvalToken?: string;
 }
 

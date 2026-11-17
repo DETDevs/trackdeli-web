@@ -836,6 +836,7 @@ export interface BuildProfitReportParams {
   summary?: ProfitSummaryReport | null;
   allProductsResponse?: ProfitProductsResponse | null;
   hasActiveDelivery?: boolean;
+  selectedStaffName?: string | null;
   period: PeriodType | string;
   from?: string;
   to?: string;
@@ -870,6 +871,7 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
     summary,
     allProductsResponse,
     hasActiveDelivery = false,
+    selectedStaffName = null,
     period,
     from,
     to,
@@ -1544,7 +1546,9 @@ export function buildProfitReportDocument(params: BuildProfitReportParams): Repo
     reportSlug: 'Ganancias',
     business: buildReportBusinessHeader(business, branchName, user),
     period: periodInfo,
-    filtersText: `Período: ${periodLabel}`,
+    filtersText: selectedStaffName
+      ? `Período: ${periodLabel} · Vendedor / Ruta: ${selectedStaffName}`
+      : `Período: ${periodLabel}`,
     printedBy: user?.name || user?.email || 'Usuario',
     printedAt: formatManaguaDateTime(new Date()),
     sections,

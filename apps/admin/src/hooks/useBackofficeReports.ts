@@ -52,6 +52,9 @@ export const buildReportQueryString = (params: ReportQueryParams) => {
   if (params.waiterId) {
     query.set('waiterId', params.waiterId);
   }
+  if (params.staffId) {
+    query.set('staffId', params.staffId);
+  }
   if (params.paymentMethod) {
     query.set('paymentMethod', params.paymentMethod);
   }

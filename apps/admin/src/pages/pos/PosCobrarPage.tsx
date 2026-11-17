@@ -774,6 +774,8 @@ export const PosCobrarPage: React.FC = () => {
       approvalToken: paymentData.approvalToken,
       payments: paymentData.payments,
       tip: paymentData.tip,
+      sellerId: paymentData.sellerId,
+      sellerName: paymentData.sellerName,
       clientGeneratedId: idempotencyKey,
     };
 

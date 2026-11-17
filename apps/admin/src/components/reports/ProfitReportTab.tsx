@@ -23,7 +23,7 @@ import {
   DeviceMobile,
 } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
-import { apiClient } from 'api-client';
+import { apiClient, type PosStaffOption } from 'api-client';
 import {
   PeriodType,
   ProfitChannelColumn,
@@ -45,6 +45,9 @@ interface ProfitReportTabProps {
   onRetry?: () => void;
   hasActiveDelivery?: boolean;
   hasActivePedidosYa?: boolean;
+  staffOptions?: PosStaffOption[];
+  selectedStaffId?: string;
+  onSelectStaffId?: (staffId: string) => void;
   onPrint?: () => void;
   isPreparingPrint?: boolean;
 }
@@ -106,6 +109,9 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
   onRetry,
   hasActiveDelivery = false,
   hasActivePedidosYa = false,
+  staffOptions = [],
+  selectedStaffId = '',
+  onSelectStaffId,
   onPrint,
   isPreparingPrint = false,
 }) => {
@@ -132,13 +138,14 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
 
   useEffect(() => {
     setPage(1);
-  }, [period, from, to, debouncedSearch, selectedCategory, activeFilter, sortCol, sortDir, pageSize]);
+  }, [period, from, to, selectedStaffId, debouncedSearch, selectedCategory, activeFilter, sortCol, sortDir, pageSize]);
 
   const productsQueryParams = useMemo(
     () => ({
       period,
       from,
       to,
+      staffId: selectedStaffId || undefined,
       page,
       pageSize,
       sort: sortCol,
@@ -147,7 +154,7 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
       categoryId: selectedCategory || undefined,
       filter: activeFilter,
     }),
-    [period, from, to, page, pageSize, sortCol, sortDir, debouncedSearch, selectedCategory, activeFilter]
+    [period, from, to, selectedStaffId, page, pageSize, sortCol, sortDir, debouncedSearch, selectedCategory, activeFilter]
   );
 
   const {
@@ -251,6 +258,7 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
       } else {
         q.set('period', period);
       }
+      if (selectedStaffId) q.set('staffId', selectedStaffId);
       q.set('page', '1');
       q.set('pageSize', '5000');
       q.set('sort', sortCol);
@@ -510,21 +518,58 @@ export const ProfitReportTab: React.FC<ProfitReportTabProps> = ({
       : summaryData?.byDay || [];
   const hasSeriesData = seriesItems.some((item) => item.sales > 0 || item.profit !== 0);
 
+  const selectedStaffName =
+    staffOptions.find((st) => st.id === selectedStaffId)?.name || null;
+
   return (
     <div className="space-y-5">
-      {/* Cabecera de acción Imprimir */}
-      {onPrint && (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            disabled={isPreparingPrint || isLoading}
-            onClick={onPrint}
-            className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-800 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
-            title="Imprimir reporte en PDF carta"
-          >
-            <Printer size={16} weight="bold" />
-            <span>{isPreparingPrint ? 'Preparando...' : 'Imprimir'}</span>
-          </button>
+      {/* Cabecera de filtro por Vendedor / Ruta y acción Imprimir */}
+      {((staffOptions.length > 0 && onSelectStaffId) || onPrint) && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {staffOptions.length > 0 && onSelectStaffId ? (
+            <div className="flex flex-wrap items-center gap-2.5">
+              <label
+                htmlFor="profit-staff-filter"
+                className="text-xs font-semibold text-gray-700"
+              >
+                Vendedor / Ruta:
+              </label>
+              <select
+                id="profit-staff-filter"
+                value={selectedStaffId}
+                onChange={(e) => onSelectStaffId(e.target.value)}
+                className="min-h-[40px] px-3 py-1.5 rounded-xl border border-gray-200 bg-white text-xs font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/15"
+              >
+                <option value="">Todos los vendedores / cajeros</option>
+                {staffOptions.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.name}
+                    {st.role === 'VENDEDOR' ? ' (Ruta)' : ''}
+                  </option>
+                ))}
+              </select>
+              {selectedStaffName && (
+                <span className="text-xs text-gray-600 bg-gray-100 border border-gray-200/80 px-2.5 py-1 rounded-lg">
+                  Utilidad neta de {selectedStaffName} (ya descuenta devoluciones, sin gastos fijos del local)
+                </span>
+              )}
+            </div>
+          ) : (
+            <div />
+          )}
+
+          {onPrint && (
+            <button
+              type="button"
+              disabled={isPreparingPrint || isLoading}
+              onClick={onPrint}
+              className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-800 text-xs font-semibold transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+              title="Imprimir reporte en PDF carta"
+            >
+              <Printer size={16} weight="bold" />
+              <span>{isPreparingPrint ? 'Preparando...' : 'Imprimir'}</span>
+            </button>
+          )}
         </div>
       )}
 
