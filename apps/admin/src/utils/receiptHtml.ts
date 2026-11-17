@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas';
 import type { PosQuote } from 'api-client';
 import { formatCalendarDate, getInterestDisplayLabel } from './creditPlan';
 import { generateQuoteReceiptHtml } from './quoteReceiptHtml';
+import { getSaleCustomerAddress, getSaleCustomerReference } from './customerAddress';
 
 if (typeof window !== 'undefined') {
   (window as any).html2canvas = html2canvas;
@@ -36,6 +37,7 @@ export interface ReceiptSettings {
   showTaxId?: boolean;
   showCashier?: boolean;
   showCustomer?: boolean;
+  showCustomerAddress?: boolean;
   showTaxBreakdown?: boolean;
   showBatches?: boolean;
   showListPrice?: boolean;
@@ -174,6 +176,7 @@ export const generateReceiptHtml = (
   const showTaxId = s?.showTaxId !== false;
   const showCashier = s?.showCashier !== false;
   const showCustomer = s?.showCustomer !== false;
+  const showCustomerAddress = s?.showCustomerAddress === true;
   const showTaxBreakdown = s?.showTaxBreakdown !== false;
   const showBatches = s?.showBatches === true;
   const headerLines = s?.headerLines || [];
@@ -222,6 +225,9 @@ export const generateReceiptHtml = (
     sale.customerName ||
     sale.customer?.name ||
     '';
+
+  const customerAddress = getSaleCustomerAddress(sale);
+  const customerReference = getSaleCustomerReference(sale);
 
   // Líneas de productos
   const itemsHtml = (sale.items || [])
@@ -662,6 +668,13 @@ export const generateReceiptHtml = (
       ${seller && String(seller).trim() ? `<div class="meta-row"><span>Vendedor:</span><span>${escapeHtml(String(seller).trim())}</span></div>` : ''}
       ${presaleTicket && String(presaleTicket).trim() ? `<div class="meta-row"><span>Ticket:</span><span>${escapeHtml(String(presaleTicket).trim())}</span></div>` : ''}
       ${showCustomer && customerDisplayName ? `<div class="meta-row"><span>Cliente:</span><span class="font-bold">${escapeHtml(customerDisplayName)}</span></div>` : ''}
+      ${isCarta && customerDisplayName ? `
+        <div class="meta-row"><span>Dirección:</span><span class="text-right">${customerAddress ? escapeHtml(customerAddress) : '____________________________'}</span></div>
+        ${customerReference ? `<div class="meta-row"><span>Referencia:</span><span class="text-right">${escapeHtml(customerReference)}</span></div>` : ''}
+      ` : (!isCarta && showCustomer && showCustomerAddress && customerDisplayName && sale.channel !== 'DOMICILIO' ? `
+        ${customerAddress ? `<div class="meta-row"><span>Dirección:</span><span class="text-right">${escapeHtml(customerAddress)}</span></div>` : ''}
+        ${customerReference ? `<div class="meta-row"><span>Referencia:</span><span class="text-right">${escapeHtml(customerReference)}</span></div>` : ''}
+      ` : '')}
       ${sale.customerExternalCode || sale.externalCode ? `<div class="meta-row"><span>Carnet:</span><span>${escapeHtml(sale.customerExternalCode || sale.externalCode)}</span></div>` : ''}
       ${sale.customerCompanyName || sale.companyName ? `<div class="meta-row"><span>Empresa:</span><span>${escapeHtml(sale.customerCompanyName || sale.companyName)}</span></div>` : ''}
       ${showTaxId && (maskedTaxId || rawCustomerTaxId.trim()) ? `<div class="meta-row"><span>NIT/Doc:</span><span>${escapeHtml(maskedTaxId || rawCustomerTaxId.trim())}</span></div>` : ''}

@@ -106,6 +106,24 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
   const adaptedSale: SaleResponse | null = useMemo(() => {
     if (!sale) return null;
     const s = sale as any;
+    const pos = posSaleData as any;
+    const customerObj = pos?.customer || s.customer || null;
+    const resolvedAddress =
+      pos?.deliveryAddress ||
+      s.deliveryAddress ||
+      pos?.customerAddress ||
+      s.customerAddress ||
+      customerObj?.lastAddressText ||
+      customerObj?.address ||
+      null;
+    const resolvedReference =
+      pos?.deliveryReference ||
+      s.deliveryReference ||
+      pos?.customerReference ||
+      s.customerReference ||
+      customerObj?.deliveryReference ||
+      null;
+
     return {
       id: sale.id,
       invoiceNumber: sale.invoiceNumber,
@@ -113,13 +131,27 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
       subtotal: Number(sale.subtotal ?? 0),
       discountAmount: Number(sale.discountAmount ?? 0),
       taxAmount: Number(sale.taxAmount ?? 0),
+      taxModel: pos?.taxModel ?? s.taxModel,
+      taxRate: pos?.taxRate ?? s.taxRate,
+      taxName: pos?.taxName ?? s.taxName,
       amountPaid: Number(sale.amountPaid ?? 0),
       change: Number(sale.change ?? 0),
       paymentMethod: sale.paymentMethod || "EFECTIVO",
       status: sale.status || (sale.isVoided ? "CANCELLED" : "COMPLETED"),
       createdAt: sale.createdAt,
-      customerName: sale.customer?.name || s.customerName || null,
-      customerPhone: sale.customer?.phone || s.customerPhone || null,
+      customerId: pos?.customerId || s.customerId || customerObj?.id || null,
+      customerName: customerObj?.name || pos?.customerName || s.customerName || null,
+      customerPhone: customerObj?.phone || pos?.customerPhone || s.customerPhone || null,
+      customerTaxId: customerObj?.ruc || pos?.customerTaxId || s.customerTaxId || null,
+      customerAddress: resolvedAddress,
+      customerReference: resolvedReference,
+      customer: customerObj,
+      channel: pos?.channel || s.channel || "MOSTRADOR",
+      deliveryFee: pos?.deliveryFee ?? s.deliveryFee,
+      deliveryAddress: resolvedAddress,
+      deliveryPhone: pos?.deliveryPhone ?? s.deliveryPhone,
+      deliveryReference: resolvedReference,
+      creditAccount: pos?.creditAccount ?? s.creditAccount,
       cashier: sale.cashier,
       items: (sale.items || []).map((it: any) => ({
         productName: it.productName || it.product?.name || "Producto",

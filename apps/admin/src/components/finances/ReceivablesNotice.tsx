@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { extractDateYmd, getManaguaTodayYmd } from '../../utils/batchExpiry';
 import {
   Wallet,
   WarningCircle,
@@ -30,14 +31,34 @@ import { RegisterCreditPaymentModal } from './RegisterCreditPaymentModal';
 
 interface ReceivablesNoticeProps {
   currency?: string;
+  initialFilter?: 'ALL' | 'OVERDUE' | 'DUE_SOON' | 'CURRENT';
+  filterTrigger?: number;
 }
 
-export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency = 'NIO' }) => {
+function diffDaysYmd(targetIso: string | null | undefined, todayYmd: string): number | null {
+  const ymd = extractDateYmd(targetIso);
+  if (!ymd) return null;
+  const [ty, tm, td] = ymd.split('-').map(Number);
+  const [ny, nm, nd] = todayYmd.split('-').map(Number);
+  if ([ty, tm, td, ny, nm, nd].some((n) => isNaN(n))) return null;
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(ny, nm - 1, nd)) / 86400000);
+}
+
+export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({
+  currency = 'NIO',
+  initialFilter = 'ALL',
+  filterTrigger,
+}) => {
   const { data: summary, isLoading, isFetching, refetch } = useCreditPortfolioSummary();
   const { data: creditPolicies } = usePosCreditPolicies();
 
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'OVERDUE' | 'CURRENT'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'OVERDUE' | 'DUE_SOON' | 'CURRENT'>(initialFilter);
+
+  useEffect(() => {
+    if (!filterTrigger) return;
+    setFilterStatus(initialFilter);
+  }, [initialFilter, filterTrigger]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [selectedAccountForPayment, setSelectedAccountForPayment] = useState<any | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -67,20 +88,40 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
     );
   }, [summary]);
 
+  const todayYmd = getManaguaTodayYmd();
+
+  const isAccountDueSoon = (acc: (typeof allAccounts)[0]) => {
+    if (Number(acc.balance || 0) <= 0.005 || acc.status === 'PAID') return false;
+    const isOverdue = acc.isOverdue || acc.status === 'OVERDUE' || new Date(acc.dueDate) < now;
+    if (isOverdue) return false;
+    const accDays = diffDaysYmd(acc.dueDate, todayYmd);
+    if (accDays !== null && accDays >= 0 && accDays <= 5) return true;
+    const insts = acc.installments || [];
+    return insts.some((inst: any) => {
+      if (inst.status === 'PAID') return false;
+      const d = diffDaysYmd(inst.dueDate, todayYmd);
+      return d !== null && d >= 0 && d <= 5;
+    });
+  };
+
   // Métricas agregadas de cuentas y cuotas (Ticket 189c: contar cuotas vencidas, no solo cuentas)
   const {
     pendingInstallmentsCount,
     overdueInstallmentsCount,
     overdueAccountsCount,
+    dueSoonAccountsCount,
   } = useMemo(() => {
     let pendingInst = 0;
     let overdueInst = 0;
     let overdueAccs = 0;
+    let dueSoonAccs = 0;
 
     for (const acc of allAccounts) {
       const isAccOverdue = acc.isOverdue || acc.status === 'OVERDUE' || new Date(acc.dueDate) < now;
       if (isAccOverdue) {
         overdueAccs++;
+      } else if (isAccountDueSoon(acc)) {
+        dueSoonAccs++;
       }
       const insts = acc.installments || [];
       for (const inst of insts) {
@@ -100,14 +141,16 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
       pendingInstallmentsCount: pendingInst,
       overdueInstallmentsCount: overdueInst,
       overdueAccountsCount: overdueAccs,
+      dueSoonAccountsCount: dueSoonAccs,
     };
-  }, [allAccounts, now]);
+  }, [allAccounts, now, todayYmd]);
 
   // Cuentas filtradas por búsqueda y estado
   const filteredAccounts = useMemo(() => {
     return allAccounts.filter((acc) => {
       const isAccOverdue = acc.isOverdue || acc.status === 'OVERDUE' || new Date(acc.dueDate) < now;
       if (filterStatus === 'OVERDUE' && !isAccOverdue) return false;
+      if (filterStatus === 'DUE_SOON' && !isAccountDueSoon(acc)) return false;
       if (filterStatus === 'CURRENT' && isAccOverdue) return false;
 
       if (!search.trim()) return true;
@@ -116,7 +159,7 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
       const invoiceNumber = (acc.invoiceNumber || '').toLowerCase();
       return customerName.includes(term) || invoiceNumber.includes(term);
     });
-  }, [allAccounts, search, filterStatus, now]);
+  }, [allAccounts, search, filterStatus, now, todayYmd]);
 
   const handlePrint = () => {
     const doc = buildReceivablesReportDocument({
@@ -342,6 +385,16 @@ export const ReceivablesNotice: React.FC<ReceivablesNoticeProps> = ({ currency =
               }`}
             >
               Vencidas ({overdueAccountsCount})
+            </button>
+            <button
+              onClick={() => setFilterStatus('DUE_SOON')}
+              className={`px-3 py-1.5 min-h-[38px] font-semibold rounded-lg transition-all cursor-pointer ${
+                filterStatus === 'DUE_SOON'
+                  ? 'bg-white text-amber-800 shadow-xs'
+                  : 'text-gray-600 hover:text-amber-700'
+              }`}
+            >
+              Próximas ≤ 5 d ({dueSoonAccountsCount})
             </button>
             <button
               onClick={() => setFilterStatus('CURRENT')}

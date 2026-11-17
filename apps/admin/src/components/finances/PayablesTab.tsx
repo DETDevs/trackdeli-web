@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CreditCard,
   WarningCircle,
@@ -28,14 +28,28 @@ import { formatManaguaDate } from '../../utils/dateManagua';
 
 interface PayablesTabProps {
   currency?: string;
+  initialOnlyOverdue?: boolean;
+  filterTrigger?: number;
 }
 
-export const PayablesTab: React.FC<PayablesTabProps> = ({ currency = 'NIO' }) => {
+export const PayablesTab: React.FC<PayablesTabProps> = ({
+  currency = 'NIO',
+  initialOnlyOverdue = false,
+  filterTrigger,
+}) => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>(
+    initialOnlyOverdue ? 'OVERDUE' : 'ALL',
+  );
   const [page, setPage] = useState<number>(1);
   const pageSize = 20;
+
+  useEffect(() => {
+    if (!filterTrigger) return;
+    setStatusFilter(initialOnlyOverdue ? 'OVERDUE' : 'ALL');
+    setPage(1);
+  }, [initialOnlyOverdue, filterTrigger]);
 
   // Modales
   const [selectedPayableForPayment, setSelectedPayableForPayment] = useState<PayableItem | null>(null);

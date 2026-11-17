@@ -20,6 +20,10 @@ import {
   FileText,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../../store/auth.store';
+import {
+  getLocalShowCustomerAddress,
+  setLocalShowCustomerAddress,
+} from '../../utils/customerAddress';
 
 interface ReceiptDesignSettingsTabProps {
   isReadOnly?: boolean;
@@ -65,6 +69,7 @@ export const ReceiptDesignSettingsTab: React.FC<ReceiptDesignSettingsTabProps> =
   const [showTaxId, setShowTaxId] = useState(true);
   const [showCashier, setShowCashier] = useState(true);
   const [showCustomer, setShowCustomer] = useState(true);
+  const [showCustomerAddress, setShowCustomerAddress] = useState(false);
   const [showTaxBreakdown, setShowTaxBreakdown] = useState(true);
   const [showBatches, setShowBatches] = useState(false);
   const [showListPrice, setShowListPrice] = useState(false);
@@ -114,14 +119,25 @@ export const ReceiptDesignSettingsTab: React.FC<ReceiptDesignSettingsTabProps> =
       setShowTaxId(receiptData.showTaxId !== false);
       setShowCashier(receiptData.showCashier !== false);
       setShowCustomer(receiptData.showCustomer !== false);
+      const resolvedBizId =
+        receiptData.businessId || (business as any)?.id || user?.businessId;
+      setShowCustomerAddress(
+        receiptData.showCustomerAddress !== undefined
+          ? Boolean(receiptData.showCustomerAddress)
+          : Boolean(getLocalShowCustomerAddress(resolvedBizId)),
+      );
       setShowTaxBreakdown(receiptData.showTaxBreakdown !== false);
       setShowBatches(Boolean(receiptData.showBatches));
       setShowListPrice(Boolean(receiptData.showListPrice));
     }
-  }, [receiptData]);
+  }, [receiptData, (business as any)?.id, user?.businessId]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const targetBizId =
+        (business as any)?.id || user?.businessId || receiptData?.businessId;
+      setLocalShowCustomerAddress(targetBizId, showCustomerAddress);
+
       // 1. Guardar nombre y RUC en /businesses/me
       await updateMyBusiness({
         name: bizName.trim(),
@@ -146,6 +162,7 @@ export const ReceiptDesignSettingsTab: React.FC<ReceiptDesignSettingsTabProps> =
         showTaxId,
         showCashier,
         showCustomer,
+        showCustomerAddress,
         showTaxBreakdown,
         showBatches,
         paperWidthMm: previewPaperWidth,
@@ -156,6 +173,7 @@ export const ReceiptDesignSettingsTab: React.FC<ReceiptDesignSettingsTabProps> =
       queryClient.invalidateQueries({ queryKey: ['business', 'me'] });
       queryClient.invalidateQueries({ queryKey: ['pos', 'settings'] });
       queryClient.invalidateQueries({ queryKey: ['pos', 'receipt-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['posReceiptSettings'] });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message || 'Error al guardar diseño del ticket';
@@ -534,23 +552,36 @@ export const ReceiptDesignSettingsTab: React.FC<ReceiptDesignSettingsTabProps> =
             </div>
 
             <div className="divide-y divide-gray-100 pt-1">
-              {[
-                { label: 'Nombre comercial del negocio', checked: showBusinessName, set: setShowBusinessName },
-                { label: 'Dirección física del negocio', checked: showAddress, set: setShowAddress },
-                { label: 'Teléfono del negocio', checked: showPhone, set: setShowPhone },
-                { label: 'RUC / NIT del negocio', checked: showTaxId, set: setShowTaxId },
-                { label: 'Nombre del cajero', checked: showCashier, set: setShowCashier },
-                { label: 'Nombre del cliente', checked: showCustomer, set: setShowCustomer },
-                { label: 'Desglose detallado de impuesto (IVA)', checked: showTaxBreakdown, set: setShowTaxBreakdown },
-                ...(isFarmacia
-                  ? [{ label: 'Mostrar lotes y vencimientos en productos', checked: showBatches, set: setShowBatches }]
-                  : []),
-                ...(isListPriceActive
-                  ? [{ label: 'Mostrar precio de etiqueta de referencia', checked: showListPrice, set: setShowListPrice }]
-                  : []),
-              ].map((opt, i) => (
+              {(
+                [
+                  { label: 'Nombre comercial del negocio', checked: showBusinessName, set: setShowBusinessName },
+                  { label: 'Dirección física del negocio', checked: showAddress, set: setShowAddress },
+                  { label: 'Teléfono del negocio', checked: showPhone, set: setShowPhone },
+                  { label: 'RUC / NIT del negocio', checked: showTaxId, set: setShowTaxId },
+                  { label: 'Nombre del cajero', checked: showCashier, set: setShowCashier },
+                  { label: 'Nombre del cliente', checked: showCustomer, set: setShowCustomer },
+                  {
+                    label: 'Dirección y referencia del cliente en ticket',
+                    description: 'Imprime la dirección y el punto de referencia debajo del cliente (ideal para distribuidoras y comercios)',
+                    checked: showCustomerAddress,
+                    set: setShowCustomerAddress,
+                  },
+                  { label: 'Desglose detallado de impuesto (IVA)', checked: showTaxBreakdown, set: setShowTaxBreakdown },
+                  ...(isFarmacia
+                    ? [{ label: 'Mostrar lotes y vencimientos en productos', checked: showBatches, set: setShowBatches }]
+                    : []),
+                  ...(isListPriceActive
+                    ? [{ label: 'Mostrar precio de etiqueta de referencia', checked: showListPrice, set: setShowListPrice }]
+                    : []),
+                ] as Array<{ label: string; description?: string; checked: boolean; set: (v: boolean) => void }>
+              ).map((opt, i) => (
                 <div key={i} className="py-2.5 flex items-center justify-between gap-4">
-                  <span className="text-xs font-medium text-gray-800">{opt.label}</span>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-medium text-gray-800 block">{opt.label}</span>
+                    {opt.description && (
+                      <span className="text-xs text-gray-500 block mt-0.5 leading-snug">{opt.description}</span>
+                    )}
+                  </div>
                   <label className="relative inline-flex items-center cursor-pointer shrink-0">
                     <input
                       type="checkbox"
@@ -643,10 +674,24 @@ export const ReceiptDesignSettingsTab: React.FC<ReceiptDesignSettingsTabProps> =
                   </div>
                 )}
                 {showCustomer && (
-                  <div className="flex justify-between">
-                    <span>CLIENTE:</span>
-                    <span>Consumidor Final</span>
-                  </div>
+                  <>
+                    <div className="flex justify-between">
+                      <span>CLIENTE:</span>
+                      <span>Consumidor Final</span>
+                    </div>
+                    {showCustomerAddress && (
+                      <>
+                        <div className="flex justify-between gap-2">
+                          <span>DIRECCIÓN:</span>
+                          <span className="text-right">Del parque 2c al sur</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span>REF.:</span>
+                          <span className="text-right">Portón negro</span>
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
               </div>
 

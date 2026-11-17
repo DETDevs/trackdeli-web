@@ -11,8 +11,9 @@ import {
   ArrowsClockwise,
   Receipt,
   FileText,
+  MapPin,
 } from "@phosphor-icons/react";
-import { getPosSaleReceipt } from "api-client";
+import { getPosSaleReceipt, updateCustomer } from "api-client";
 import {
   generateReceiptHtml,
   printReceiptViaIframe,
@@ -26,6 +27,69 @@ import {
   buildWhatsAppReceiptMessage,
   buildWhatsAppUrl,
 } from "../../utils/receiptPdf";
+import {
+  enrichSaleWithCustomerAddress,
+  getSaleCustomerAddress,
+  getSaleCustomerReference,
+  mergeCustomerIntoSale,
+} from "../../utils/customerAddress";
+
+function adaptSaleForReceipt(sale: any, cashierName?: string) {
+  if (!sale) return null;
+  const s = sale as any;
+  const resolvedAddress = getSaleCustomerAddress(s) || null;
+  const resolvedReference = getSaleCustomerReference(s) || null;
+
+  return {
+    id: s.id,
+    invoiceNumber: s.invoiceNumber,
+    total: Number(s.netTotal ?? s.total ?? 0),
+    subtotal: Number(s.subtotal ?? 0),
+    discountAmount: Number(s.discountAmount ?? s.discount ?? 0),
+    taxAmount: Number(s.taxAmount ?? s.tax ?? 0),
+    taxRate: s.taxRate,
+    taxName: s.taxName,
+    taxModel: s.taxModel,
+    amountPaid: Number(s.amountPaid ?? 0),
+    change: Number(s.change ?? 0),
+    paymentMethod: s.paymentMethod || "EFECTIVO",
+    status: s.status || (s.isVoided ? "CANCELLED" : "COMPLETED"),
+    createdAt: s.createdAt || s.date,
+    customerId: s.customerId || s.customer?.id || null,
+    customerName: s.customer?.name || s.customerName || null,
+    customerPhone: s.customer?.phone || s.customerPhone || null,
+    customerTaxId:
+      s.customer?.taxId || s.customer?.ruc || s.customerTaxId || s.customerRuc || null,
+    customerAddress: resolvedAddress,
+    customerReference: resolvedReference,
+    customer: s.customer || null,
+    cashier: s.cashier || cashierName || s.cashierName,
+    cashierName: cashierName || s.cashier?.name || s.cashierName,
+    channel: s.channel || "MOSTRADOR",
+    deliveryFee: s.deliveryFee,
+    deliveryAddress: s.deliveryAddress || resolvedAddress,
+    deliveryPhone: s.deliveryPhone,
+    deliveryReference: s.deliveryReference || resolvedReference,
+    deliveryDriverName: s.deliveryDriverName || s.deliveryDriver?.name,
+    pedidosYaOrderNumber: s.pedidosYaOrderNumber,
+    pedidosYaPaymentMode: s.pedidosYaPaymentMode,
+    items: (s.items || []).map((it: any) => ({
+      productName: it.productName || it.product?.name || it.name || "Producto",
+      quantity: Number(it.quantity || 1),
+      unitPrice: Number(it.unitPrice || 0),
+      subtotal: Number(it.subtotal || 0),
+      discount: Number(it.discount || 0),
+      taxable: Boolean(it.taxable),
+      listPrice: it.listPrice,
+      unit: it.unit,
+      batches: it.batches || it.batchAllocations,
+    })),
+    payments: s.payments || [],
+    tip: s.tip ?? null,
+    creditAccount: s.creditAccount,
+    isVoided: Boolean(s.isVoided || s.status === "CANCELLED"),
+  };
+}
 
 export interface ReceiptModalProps {
   isOpen: boolean;
@@ -59,6 +123,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const [isSharingPdf, setIsSharingPdf] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
   const [isCopyingLink, setIsCopyingLink] = useState(false);
+  const [enrichedSale, setEnrichedSale] = useState<any | null>(null);
+  const [missingAddressAction, setMissingAddressAction] = useState<
+    "print" | "pdf" | "share" | "edit-only" | null
+  >(null);
+  const [addressInput, setAddressInput] = useState("");
+  const [referenceInput, setReferenceInput] = useState("");
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
 
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
@@ -66,6 +138,40 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   } | null>(null);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setEnrichedSale(null);
+      setMissingAddressAction(null);
+      setAddressError(null);
+      return;
+    }
+    setEnrichedSale(null);
+    setMissingAddressAction(null);
+    setAddressError(null);
+  }, [isOpen, sale?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (
+      !isOpen ||
+      !sale ||
+      (format !== "carta" && !receiptSettings?.showCustomerAddress)
+    ) {
+      return;
+    }
+    if (getSaleCustomerAddress(sale) && getSaleCustomerReference(sale)) {
+      return;
+    }
+    enrichSaleWithCustomerAddress(sale).then((res) => {
+      if (!cancelled && res && res !== sale) {
+        setEnrichedSale(res);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, sale, format, receiptSettings?.showCustomerAddress]);
 
   // Sincronizar ancho de papel desde la configuración del negocio si está disponible
   useEffect(() => {
@@ -85,57 +191,21 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     }
   }, [feedback]);
 
+  const effectiveSale = enrichedSale || sale;
+
   // Adaptar venta para la plantilla
   const adaptedSale = useMemo(() => {
-    if (!sale) return null;
-    const s = sale as any;
-    return {
-      id: sale.id,
-      invoiceNumber: sale.invoiceNumber,
-      total: Number(sale.netTotal ?? sale.total ?? 0),
-      subtotal: Number(sale.subtotal ?? 0),
-      discountAmount: Number(sale.discountAmount ?? sale.discount ?? 0),
-      taxAmount: Number(sale.taxAmount ?? sale.tax ?? 0),
-      taxRate: sale.taxRate,
-      taxName: sale.taxName,
-      taxModel: sale.taxModel,
-      amountPaid: Number(sale.amountPaid ?? 0),
-      change: Number(sale.change ?? 0),
-      paymentMethod: sale.paymentMethod || "EFECTIVO",
-      status: sale.status || (sale.isVoided ? "CANCELLED" : "COMPLETED"),
-      createdAt: sale.createdAt || sale.date,
-      customerName: sale.customer?.name || s.customerName || null,
-      customerPhone: sale.customer?.phone || s.customerPhone || null,
-      customerTaxId:
-        sale.customer?.taxId || s.customerTaxId || s.customerRuc || null,
-      cashier: sale.cashier || cashierName || s.cashierName,
-      cashierName: cashierName || sale.cashier?.name || s.cashierName,
-      channel: sale.channel || "MOSTRADOR",
-      deliveryFee: sale.deliveryFee,
-      deliveryAddress: sale.deliveryAddress,
-      deliveryPhone: sale.deliveryPhone,
-      deliveryReference: sale.deliveryReference,
-      deliveryDriverName: sale.deliveryDriverName || sale.deliveryDriver?.name,
-      pedidosYaOrderNumber: sale.pedidosYaOrderNumber,
-      pedidosYaPaymentMode: sale.pedidosYaPaymentMode,
-      items: (sale.items || []).map((it: any) => ({
-        productName:
-          it.productName || it.product?.name || it.name || "Producto",
-        quantity: Number(it.quantity || 1),
-        unitPrice: Number(it.unitPrice || 0),
-        subtotal: Number(it.subtotal || 0),
-        discount: Number(it.discount || 0),
-        taxable: Boolean(it.taxable),
-        listPrice: it.listPrice,
-        unit: it.unit,
-        batches: it.batches || it.batchAllocations,
-      })),
-      payments: sale.payments || [],
-      tip: s.tip ?? null,
-      creditAccount: sale.creditAccount,
-      isVoided: Boolean(sale.isVoided || sale.status === "CANCELLED"),
-    };
-  }, [sale, cashierName]);
+    return adaptSaleForReceipt(effectiveSale, cashierName);
+  }, [effectiveSale, cashierName]);
+
+  const isNamedCustomerWithoutAddress = useMemo(() => {
+    if (format !== "carta" || !adaptedSale?.customerName) return false;
+    const norm = String(adaptedSale.customerName).trim().toLowerCase();
+    if (!norm || norm === "cliente general" || norm === "consumidor final") {
+      return false;
+    }
+    return !String(adaptedSale.customerAddress || "").trim();
+  }, [format, adaptedSale]);
 
   const isVoided = Boolean(adaptedSale?.isVoided);
   const invoiceNumber =
@@ -185,18 +255,34 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
   if (!isOpen || !sale) return null;
 
+  const buildHtmlForAdapted = (targetAdapted: any) => {
+    if (!targetAdapted) return "";
+    const htmlOpts: ReceiptHtmlOptions = {
+      format,
+      paperWidthMm: paperWidth,
+      isReprint,
+      isVoided: Boolean(targetAdapted.isVoided),
+      copyType: "CLIENTE",
+    };
+    return generateReceiptHtml(
+      targetAdapted,
+      businessInfo,
+      receiptSettings?.footerLines?.[0],
+      receiptSettings,
+      htmlOpts,
+    );
+  };
+
   // 1. Imprimir comprobante vía iframe
-  const handlePrint = async () => {
-    if (isPrinting || !receiptHtmlContent) return;
+  const executePrint = async (htmlOverride?: string) => {
+    const htmlToUse = htmlOverride || receiptHtmlContent;
+    if (isPrinting || !htmlToUse) return;
     setIsPrinting(true);
     setFeedback(null);
 
     try {
       await auditReceiptAction();
-      await printReceiptViaIframe(
-        receiptHtmlContent,
-        `Comprobante-${invoiceNumber}`,
-      );
+      await printReceiptViaIframe(htmlToUse, `Comprobante-${invoiceNumber}`);
       setFeedback({
         type: "success",
         message: "Diálogo de impresión del navegador abierto.",
@@ -212,14 +298,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   };
 
   // 2. Guardar comprobante como PDF
-  const handleSavePdf = async () => {
-    if (isSavingPdf || !receiptHtmlContent) return;
+  const executeSavePdf = async (adaptedOverride?: any, htmlOverride?: string) => {
+    const adaptedToUse = adaptedOverride || adaptedSale;
+    const htmlToUse = htmlOverride || receiptHtmlContent;
+    if (isSavingPdf || !htmlToUse || !adaptedToUse) return;
     setIsSavingPdf(true);
     setFeedback(null);
 
     try {
       await auditReceiptAction();
-      await downloadReceiptPdfFile(adaptedSale, receiptHtmlContent, {
+      await downloadReceiptPdfFile(adaptedToUse, htmlToUse, {
         format,
         paperWidthMm: paperWidth,
       });
@@ -239,8 +327,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   };
 
   // 3. Compartir
-  const handleShare = async () => {
-    if (isSharingPdf || !adaptedSale) return;
+  const executeShare = async (adaptedOverride?: any, htmlOverride?: string) => {
+    const adaptedToUse = adaptedOverride || adaptedSale;
+    const htmlToUse = htmlOverride || receiptHtmlContent;
+    if (isSharingPdf || !adaptedToUse) return;
     setIsSharingPdf(true);
     setFeedback(null);
 
@@ -252,7 +342,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         try {
           const { generateReceiptPdfBlob } =
             await import("../../utils/receiptHtml");
-          const blob = await generateReceiptPdfBlob(receiptHtmlContent, {
+          const blob = await generateReceiptPdfBlob(htmlToUse, {
             format,
             paperWidthMm: paperWidth,
           });
@@ -278,7 +368,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       }
 
       // Fallback a descarga directa
-      await downloadReceiptPdfFile(adaptedSale, receiptHtmlContent, {
+      await downloadReceiptPdfFile(adaptedToUse, htmlToUse, {
         format,
         paperWidthMm: paperWidth,
       });
@@ -293,6 +383,108 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       });
     } finally {
       setIsSharingPdf(false);
+    }
+  };
+
+  const openMissingAddressModal = (
+    action: "print" | "pdf" | "share" | "edit-only",
+  ) => {
+    setAddressInput(String(adaptedSale?.customerAddress || ""));
+    setReferenceInput(String(adaptedSale?.customerReference || ""));
+    setAddressError(null);
+    setMissingAddressAction(action);
+  };
+
+  const handlePrint = async () => {
+    if (isNamedCustomerWithoutAddress) {
+      openMissingAddressModal("print");
+      return;
+    }
+    await executePrint();
+  };
+
+  const handleSavePdf = async () => {
+    if (isNamedCustomerWithoutAddress) {
+      openMissingAddressModal("pdf");
+      return;
+    }
+    await executeSavePdf();
+  };
+
+  const handleShare = async () => {
+    if (isNamedCustomerWithoutAddress) {
+      openMissingAddressModal("share");
+      return;
+    }
+    await executeShare();
+  };
+
+  const handleContinueWithoutAddress = async () => {
+    const action = missingAddressAction;
+    setMissingAddressAction(null);
+    if (action === "print") await executePrint();
+    else if (action === "pdf") await executeSavePdf();
+    else if (action === "share") await executeShare();
+  };
+
+  const handleSaveAddressAndContinue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const addrTrim = addressInput.trim();
+    const refTrim = referenceInput.trim();
+    if (!addrTrim) {
+      setAddressError("Ingresá la dirección del cliente para continuar.");
+      return;
+    }
+
+    setIsSavingAddress(true);
+    setAddressError(null);
+    try {
+      let nextSale: any;
+      if (adaptedSale?.customerId) {
+        const updatedCustomer = await updateCustomer(adaptedSale.customerId, {
+          address: addrTrim,
+          deliveryReference: refTrim || undefined,
+        });
+        nextSale = mergeCustomerIntoSale(effectiveSale, {
+          ...updatedCustomer,
+          lastAddressText: addrTrim,
+          address: addrTrim,
+          deliveryReference: refTrim || null,
+        });
+      } else {
+        nextSale = mergeCustomerIntoSale(effectiveSale, {
+          id: null,
+          name: adaptedSale?.customerName,
+          phone: adaptedSale?.customerPhone,
+          lastAddressText: addrTrim,
+          address: addrTrim,
+          deliveryReference: refTrim || null,
+        });
+      }
+
+      setEnrichedSale(nextSale);
+      const freshAdapted = adaptSaleForReceipt(nextSale, cashierName);
+      const freshHtml = buildHtmlForAdapted(freshAdapted);
+      const pending = missingAddressAction;
+      setMissingAddressAction(null);
+
+      setFeedback({
+        type: "success",
+        message: adaptedSale?.customerId
+          ? "Dirección guardada en el perfil del cliente."
+          : "Dirección aplicada al comprobante.",
+      });
+
+      if (pending === "print") await executePrint(freshHtml);
+      else if (pending === "pdf") await executeSavePdf(freshAdapted, freshHtml);
+      else if (pending === "share") await executeShare(freshAdapted, freshHtml);
+    } catch (err: any) {
+      setAddressError(
+        err?.response?.data?.message ||
+          "No se pudo guardar la dirección del cliente.",
+      );
+    } finally {
+      setIsSavingAddress(false);
     }
   };
 
@@ -528,6 +720,25 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           )}
         </div>
 
+        {/* Aviso si el comprobante en Hoja Carta corresponde a un cliente sin dirección */}
+        {isNamedCustomerWithoutAddress && (
+          <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
+            <div className="flex items-center gap-2 min-w-0">
+              <MapPin size={16} weight="fill" className="text-amber-600 shrink-0" />
+              <span>
+                Este comprobante para <strong>{adaptedSale?.customerName}</strong> no tiene dirección registrada.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => openMissingAddressModal("edit-only")}
+              className="px-3 py-1 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold transition-colors cursor-pointer shrink-0"
+            >
+              Completar dirección
+            </button>
+          </div>
+        )}
+
         {/* Contenedor de Vista Previa fiel */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-200/70 flex justify-center items-start min-h-[320px]">
           <div
@@ -653,6 +864,116 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal de validación cuando falta la dirección del cliente en Hoja carta */}
+      {missingAddressAction && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-[1px]">
+          <form
+            onSubmit={handleSaveAddressAndContinue}
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+          >
+            <div className="px-5 py-4 border-b border-gray-100 bg-amber-50/70 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <MapPin size={20} weight="fill" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">
+                    Ups, este cliente aún no tiene dirección registrada
+                  </h3>
+                  <p className="text-xs text-gray-600">
+                    Cliente: {adaptedSale?.customerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMissingAddressAction(null)}
+                className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-amber-100/60"
+                aria-label="Cerrar"
+              >
+                <X size={17} weight="bold" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs">
+              <p className="text-gray-600 leading-relaxed">
+                {missingAddressAction === "edit-only"
+                  ? "Completá su dirección y punto de referencia para que aparezcan en este comprobante en hoja carta."
+                  : "Antes de generar este comprobante en hoja carta, completá su dirección y punto de referencia para el documento."}
+              </p>
+
+              {addressError && (
+                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 font-medium">
+                  {addressError}
+                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Dirección *
+                </label>
+                <textarea
+                  rows={2}
+                  maxLength={250}
+                  value={addressInput}
+                  onChange={(e) => setAddressInput(e.target.value)}
+                  placeholder="Ej. Barrio San Juan, de la esquina 2 cuadras al lago"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 focus:outline-none focus:border-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Punto de referencia
+                </label>
+                <input
+                  type="text"
+                  maxLength={150}
+                  value={referenceInput}
+                  onChange={(e) => setReferenceInput(e.target.value)}
+                  placeholder="Ej. Portón negro frente a pulpería La Fe"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 focus:outline-none focus:border-gray-900"
+                />
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50/70 flex flex-wrap items-center justify-end gap-2">
+              {missingAddressAction === "edit-only" ? (
+                <button
+                  type="button"
+                  onClick={() => setMissingAddressAction(null)}
+                  disabled={isSavingAddress}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-200/70 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleContinueWithoutAddress}
+                  disabled={isSavingAddress}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-100 cursor-pointer"
+                >
+                  Continuar sin dirección
+                </button>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSavingAddress}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0F0F0F] hover:bg-gray-800 text-white disabled:opacity-50 cursor-pointer"
+              >
+                {isSavingAddress
+                  ? "Guardando..."
+                  : missingAddressAction === "edit-only"
+                    ? "Guardar dirección"
+                    : "Guardar dirección y continuar"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

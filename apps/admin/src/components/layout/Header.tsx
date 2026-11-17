@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Storefront,
   Buildings,
   CashRegister,
   List,
+  Bell,
+  BellRinging,
 } from '@phosphor-icons/react';
 import { BranchSelector } from './BranchSelector';
 import { usePosShift } from '../../hooks/usePosShift';
 import { usePosPolicies } from '../../hooks/usePosPolicies';
+import { useNotificationCenterStore } from '../../store/notificationCenter.store';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
@@ -32,6 +35,25 @@ export const Header: React.FC<HeaderProps> = ({
     isPosActive && user?.role !== 'VENDEDOR' && user?.role !== 'WAITER';
   const { isOpen: isShiftOpen } = usePosShift(canReadCashRegisterAndPolicies);
   const { requireOpenShiftToSell } = usePosPolicies(canReadCashRegisterAndPolicies);
+  const { items, readByScope, snoozedByScope, openDrawer } =
+    useNotificationCenterStore();
+
+  const { unreadCount, hasUnreadCritical } = useMemo(() => {
+    const scopeKey = `${user?.businessId || 'none'}:${user?.id || 'anon'}`;
+    const readMap = readByScope[scopeKey] || {};
+    const snoozedMap = snoozedByScope[scopeKey] || {};
+    const nowMs = Date.now();
+    let count = 0;
+    let critical = false;
+    for (const item of items) {
+      if ((snoozedMap[item.fingerprint] || 0) > nowMs) continue;
+      if (!readMap[item.fingerprint]) {
+        count++;
+        if (item.severity === 'CRITICAL') critical = true;
+      }
+    }
+    return { unreadCount: count, hasUnreadCritical: critical };
+  }, [items, readByScope, snoozedByScope, user?.businessId, user?.id]);
 
   // Reloj en vivo (zona horaria Managua / es-NI)
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -168,6 +190,44 @@ export const Header: React.FC<HeaderProps> = ({
           />
           <span>{isOnline ? 'En línea' : 'Sin conexión'}</span>
         </div>
+
+        {/* Centro de notificaciones */}
+        <button
+          type="button"
+          onClick={openDrawer}
+          aria-label="Notificaciones del sistema"
+          title={
+            unreadCount > 0
+              ? `${unreadCount} ${unreadCount === 1 ? 'notificación nueva' : 'notificaciones nuevas'}`
+              : 'Notificaciones del sistema'
+          }
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+            unreadCount > 0 && hasUnreadCritical
+              ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
+              : unreadCount > 0
+                ? 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border border-transparent'
+          }`}
+        >
+          {unreadCount > 0 && hasUnreadCritical ? (
+            <BellRinging size={16} weight="fill" className="text-red-600 shrink-0" />
+          ) : (
+            <Bell
+              size={16}
+              weight={unreadCount > 0 ? 'fill' : 'regular'}
+              className={unreadCount > 0 ? 'text-amber-600 shrink-0' : 'text-gray-600 shrink-0'}
+            />
+          )}
+          {unreadCount > 0 && (
+            <span
+              className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold leading-none ${
+                hasUnreadCritical ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'
+              }`}
+            >
+              {unreadCount}
+            </span>
+          )}
+        </button>
 
         <div className="h-4 w-[1px] bg-gray-200 shrink-0 hidden sm:block" />
 

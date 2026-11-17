@@ -980,6 +980,7 @@ export interface PosReceiptSettingsData {
   showTaxId?: boolean;
   showCashier?: boolean;
   showCustomer?: boolean;
+  showCustomerAddress?: boolean;
   showTaxBreakdown?: boolean;
   showBatches?: boolean;
   showListPrice?: boolean;
@@ -1384,6 +1385,173 @@ export const getPosWaiters = async (businessId?: string): Promise<PosWaiterData[
   });
   return res.data;
 };
+
+export interface BatchTraceabilityFinancials {
+  unitCost: number;
+  unitPrice: number;
+  initialInvestedCost: number;
+  currentInvestedCost: number;
+  currentSaleValue: number;
+  soldRevenue: number;
+  writtenOffUnits: number;
+  writtenOffLossAmount: number;
+  pendingExpiredUnits: number;
+  pendingExpiredLossAmount: number;
+  totalExpiredUnits: number;
+  totalExpiredLossAmount: number;
+  potentialRevenueLost: number;
+}
+
+export interface BatchProductInvestment {
+  activeBatchCount: number;
+  totalStock: number;
+  sellableStock: number;
+  expiredStock: number;
+  totalInvestedCost: number;
+  sellableInvestedCost: number;
+  expiredInvestedCost: number;
+  totalSaleValue: number;
+}
+
+export interface BatchTraceabilityData {
+  batch: {
+    id: string;
+    batchNumber: string;
+    expiryDate: string | null;
+    currentQuantity: number;
+    cost: number | null;
+    effectiveCost?: number;
+    status?: 'SIN_FECHA' | 'VENCIDO' | 'CRITICO' | 'PROXIMO' | 'NORMAL';
+    isExpired?: boolean;
+    daysToExpiry?: number | null;
+    createdAt: string;
+    product: {
+      id: string;
+      name: string;
+      sku: string | null;
+      barcode: string | null;
+      unit: string;
+      cost: number | null;
+      price: number;
+    };
+    purchase: {
+      id: string;
+      invoiceNumber: string;
+      purchaseDate: string;
+      supplierName: string | null;
+    } | null;
+  };
+  totals: {
+    totalReceived: number;
+    totalSold: number;
+    totalReturned: number;
+    totalExpired: number;
+    totalAdjusted: number;
+    currentBalance: number;
+    sellableBalance?: number;
+    expiredInStock?: number;
+    totalExpiredWithPending?: number;
+  };
+  financials?: BatchTraceabilityFinancials;
+  productInvestment?: BatchProductInvestment;
+  sales: Array<{
+    saleId: string;
+    invoiceNumber: string;
+    date: string;
+    quantity: number;
+    unitPrice: number;
+    cashierName: string | null;
+    status: string;
+  }>;
+  movements: Array<{
+    id: string;
+    date: string;
+    type: string;
+    quantity: number;
+    stockBefore: number;
+    stockAfter: number;
+    concept: string;
+    reference: string | null;
+    userName: string | null;
+  }>;
+}
+
+export interface ExpiredLossItem {
+  id: string;
+  date: string;
+  productId: string;
+  productName: string;
+  productSku: string | null;
+  productUnit?: string;
+  productStock?: number;
+  batchId: string | null;
+  batchNumber: string | null;
+  expiryDate: string | null;
+  daysExpired?: number;
+  quantity: number;
+  unitCost: number;
+  unitPrice?: number;
+  lossAmount: number;
+  potentialRevenueLoss?: number;
+  reason?: string;
+  notes?: string;
+  userName: string | null;
+  source?: 'WRITE_OFF' | 'EXPIRED_IN_STOCK';
+}
+
+export interface ExpiredLossResponse {
+  data: ExpiredLossItem[];
+  pendingBatches?: ExpiredLossItem[];
+  totals: {
+    totalQuantityExpired: number;
+    totalLossAmount: number;
+    writtenOffQuantity?: number;
+    writtenOffLossAmount?: number;
+    writtenOffCount?: number;
+    pendingQuantity?: number;
+    pendingLossAmount?: number;
+    pendingBatchesCount?: number;
+    totalPotentialRevenueLoss?: number;
+  };
+}
+
+export const getPosBatchTraceability = async (params: {
+  batchId?: string;
+  productId?: string;
+  batchNumber?: string;
+  businessId?: string;
+}): Promise<BatchTraceabilityData> => {
+  const res = await apiClient.get<BatchTraceabilityData>('/pos/reports/batch-traceability', {
+    params,
+  });
+  return res.data;
+};
+
+export const getPosExpiredLossReport = async (params?: {
+  from?: string;
+  to?: string;
+  businessId?: string;
+}): Promise<ExpiredLossResponse> => {
+  const res = await apiClient.get<ExpiredLossResponse>('/pos/reports/expired-loss', {
+    params,
+  });
+  return res.data;
+};
+
+export const getPosSalesByBatch = async (params?: {
+  from?: string;
+  to?: string;
+  productId?: string;
+  page?: number;
+  limit?: number;
+  businessId?: string;
+}): Promise<any> => {
+  const res = await apiClient.get<any>('/pos/reports/sales-by-batch', {
+    params,
+  });
+  return res.data;
+};
+
 
 
 

@@ -17,6 +17,7 @@ import {
 import { formatManaguaDate } from '../../../utils/dateManagua';
 import { formatCurrency, formatQuantity } from '../../../utils/formatters';
 import { getBatchStatusMeta } from '../../../utils/batchStatus';
+import { isBatchExpiredDate, round2, round3 } from '../../../utils/batchExpiry';
 import { extractApiErrorMessage } from '../../../utils/productCost';
 import { EditBatchModal, type BatchToEdit } from './EditBatchModal';
 
@@ -76,6 +77,24 @@ export const ProductBatchesModal: React.FC<ProductBatchesModalProps> = ({
   const activeBatches = batches.filter((b) => b.quantity > 0);
   const emptyBatches = batches.filter((b) => b.quantity <= 0);
   const orderedBatches = [...activeBatches, ...emptyBatches];
+
+  const batchSummary = activeBatches.reduce(
+    (acc, b) => {
+      const qty = round3(Number(b.quantity ?? 0));
+      const unitCost = round2(Number(b.cost ?? product.cost ?? 0));
+      const inv = round2(qty * unitCost);
+      const isExp = b.status === 'VENCIDO' || isBatchExpiredDate(b.expiryDate);
+      if (isExp) {
+        acc.expiredUnits = round3(acc.expiredUnits + qty);
+        acc.expiredInvestment = round2(acc.expiredInvestment + inv);
+      } else {
+        acc.sellableUnits = round3(acc.sellableUnits + qty);
+        acc.sellableInvestment = round2(acc.sellableInvestment + inv);
+      }
+      return acc;
+    },
+    { sellableUnits: 0, sellableInvestment: 0, expiredUnits: 0, expiredInvestment: 0 },
+  );
 
   const handleOpenEdit = (b: PosProductBatchItem) => {
     setBatchToEdit({
@@ -181,6 +200,56 @@ export const ProductBatchesModal: React.FC<ProductBatchesModalProps> = ({
               </div>
             )}
 
+            {canManageCatalog && activeBatches.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="font-semibold text-emerald-900 block">
+                      Inversión en lotes vigentes
+                    </span>
+                    <span className="text-emerald-700">
+                      {formatQuantity(batchSummary.sellableUnits, unit)} vendibles
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-sm text-emerald-900 whitespace-nowrap">
+                    {formatCurrency(batchSummary.sellableInvestment, currency)}
+                  </span>
+                </div>
+
+                <div
+                  className={`p-3.5 rounded-xl border flex items-center justify-between gap-2 ${
+                    batchSummary.expiredUnits > 0
+                      ? 'bg-red-50/80 border-red-200'
+                      : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div>
+                    <span
+                      className={`font-semibold block ${
+                        batchSummary.expiredUnits > 0 ? 'text-red-900' : 'text-gray-700'
+                      }`}
+                    >
+                      Pérdida en lotes vencidos en stock
+                    </span>
+                    <span
+                      className={
+                        batchSummary.expiredUnits > 0 ? 'text-red-700' : 'text-gray-500'
+                      }
+                    >
+                      {formatQuantity(batchSummary.expiredUnits, unit)} sin vender
+                    </span>
+                  </div>
+                  <span
+                    className={`font-mono font-bold text-sm whitespace-nowrap ${
+                      batchSummary.expiredUnits > 0 ? 'text-red-700' : 'text-gray-700'
+                    }`}
+                  >
+                    {formatCurrency(batchSummary.expiredInvestment, currency)}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {isLoading ? (
               <div className="py-10 text-center space-y-2">
                 <div className="w-7 h-7 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto" />
@@ -242,9 +311,9 @@ export const ProductBatchesModal: React.FC<ProductBatchesModalProps> = ({
                               {formatQuantity(b.quantity, unit)}
                             </span>
                           </div>
-                          {canManageCatalog && b.cost != null && (
-                            <span className="text-gray-600 tabular-nums">
-                              Costo: {formatCurrency(b.cost, currency)}
+                          {canManageCatalog && (
+                            <span className="text-gray-700 tabular-nums whitespace-nowrap">
+                              Inversión: {formatCurrency(round2(Number(b.quantity || 0) * Number(b.cost ?? product.cost ?? 0)), currency)}
                             </span>
                           )}
                         </div>
@@ -290,6 +359,7 @@ export const ProductBatchesModal: React.FC<ProductBatchesModalProps> = ({
                         <th className="py-3 px-3.5 text-center">Estado</th>
                         <th className="py-3 px-3.5 text-right">Existencia</th>
                         {canManageCatalog && <th className="py-3 px-3.5 text-right">Costo</th>}
+                        {canManageCatalog && <th className="py-3 px-3.5 text-right">Inversión</th>}
                         {canManageCatalog && <th className="py-3 px-3.5 text-right">Acciones</th>}
                       </tr>
                     </thead>
@@ -339,6 +409,14 @@ export const ProductBatchesModal: React.FC<ProductBatchesModalProps> = ({
                             {canManageCatalog && (
                               <td className="py-2.5 px-3.5 text-right text-gray-700 tabular-nums whitespace-nowrap">
                                 {b.cost != null ? formatCurrency(b.cost, currency) : '—'}
+                              </td>
+                            )}
+                            {canManageCatalog && (
+                              <td className="py-2.5 px-3.5 text-right font-semibold font-mono tabular-nums whitespace-nowrap text-gray-900">
+                                {formatCurrency(
+                                  round2(Number(b.quantity || 0) * Number(b.cost ?? product.cost ?? 0)),
+                                  currency,
+                                )}
                               </td>
                             )}
                             {canManageCatalog && (

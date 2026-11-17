@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Package,
   MagnifyingGlass,
@@ -22,6 +23,7 @@ import {
   PosInventoryAdjustmentType,
   getPosProducts,
   getPosCategories,
+  getPosExpiringBatches,
   getMyBusiness,
   getPosSettings,
   getPosPolicies,
@@ -29,6 +31,7 @@ import {
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatQuantity } from '../../utils/formatters';
 import { getExpiryRelativeInfo } from '../../utils/batchStatus';
+import { isBatchExpiredDate, round3 } from '../../utils/batchExpiry';
 import { getManaguaTodayYMD } from '../../utils/dateManagua';
 import { ProductModal } from '../../components/pos/inventory/ProductModal';
 import { ProductBatchesModal } from '../../components/pos/inventory/ProductBatchesModal';
@@ -41,10 +44,11 @@ import {
   type CategorySelectorItem,
 } from '../../components/pos/CategorySelector';
 
-type StockFilterType = 'all' | 'low' | 'out' | 'no_cost';
+type StockFilterType = 'all' | 'low' | 'near_low' | 'out' | 'no_cost';
 type SortOrderType = 'name_asc' | 'name_desc' | 'stock_asc' | 'stock_desc' | 'price_asc' | 'price_desc';
 
 export const PosInventoryPage: React.FC = () => {
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const userRole = String(user?.role || '').toUpperCase();
   const canManageCatalog = userRole === 'SUPERADMIN' || userRole === 'ENCARGADO';
@@ -71,8 +75,25 @@ export const PosInventoryPage: React.FC = () => {
       return 'all';
     }
   });
-  const [stockFilter, setStockFilter] = useState<StockFilterType>('all');
+  const [stockFilter, setStockFilter] = useState<StockFilterType>(() => {
+    const st = (location.state as any) || null;
+    const raw = String(st?.stockFilter || st?.filter || '').toLowerCase();
+    return ['all', 'low', 'near_low', 'out', 'no_cost'].includes(raw)
+      ? (raw as StockFilterType)
+      : 'all';
+  });
   const [sortBy, setSortBy] = useState<SortOrderType>('name_asc');
+  const [expiredQtyByProduct, setExpiredQtyByProduct] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const st = (location.state as any) || null;
+    if (!st) return;
+    const raw = String(st.stockFilter || st.filter || '').toLowerCase();
+    if (['all', 'low', 'near_low', 'out', 'no_cost'].includes(raw)) {
+      setStockFilter(raw as StockFilterType);
+      setPage(1);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     try {
@@ -118,13 +139,25 @@ export const PosInventoryPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [prodsData, catsData, bizData, settingsData, policiesData] = await Promise.all([
+      const [prodsData, catsData, bizData, settingsData, policiesData, expiringRes] = await Promise.all([
         getPosProducts({ isActive: true }),
         getPosCategories().catch(() => []),
         getMyBusiness().catch(() => null),
         getPosSettings().catch(() => null),
         getPosPolicies().catch(() => null),
+        canManageCatalog ? getPosExpiringBatches(30).catch(() => null) : Promise.resolve(null),
       ]);
+      const expMap: Record<string, number> = {};
+      if (expiringRes && Array.isArray(expiringRes.items)) {
+        for (const b of expiringRes.items) {
+          const qty = Number(b.quantity ?? 0);
+          const pid = b.product?.id;
+          if (pid && qty > 0 && isBatchExpiredDate(b.expiryDate)) {
+            expMap[pid] = round3((expMap[pid] || 0) + qty);
+          }
+        }
+      }
+      setExpiredQtyByProduct(expMap);
       setProducts(Array.isArray(prodsData) ? prodsData : []);
       const validCategories = Array.isArray(catsData) ? catsData : [];
       setCategories(validCategories);
@@ -144,7 +177,7 @@ export const PosInventoryPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [canManageCatalog]);
 
   useEffect(() => {
     loadData();
@@ -176,13 +209,24 @@ export const PosInventoryPage: React.FC = () => {
 
       // Stock status filter
       const isService = Boolean(p.isService || p.type === 'SERVICE');
-      const st = p.stock ?? 0;
+      const rawSt = p.stock ?? 0;
+      const expQty = Number(p.expiredQty ?? expiredQtyByProduct[p.id] ?? 0);
+      const sellable = Math.max(0, rawSt - expQty);
       const minSt = p.minStock ?? 0;
 
       if (stockFilter === 'low') {
-        if (isService || st > minSt || st <= 0) return false;
+        if (isService || minSt <= 0 || sellable > minSt || sellable <= 0) return false;
+      } else if (stockFilter === 'near_low') {
+        if (
+          isService ||
+          minSt <= 0 ||
+          sellable <= minSt ||
+          sellable > Math.max(minSt + 2, Math.ceil(minSt * 1.35))
+        ) {
+          return false;
+        }
       } else if (stockFilter === 'out') {
-        if (isService || st > 0) return false;
+        if (isService || sellable > 0) return false;
       } else if (stockFilter === 'no_cost') {
         if (p.cost && p.cost > 0) return false;
       }
@@ -205,7 +249,7 @@ export const PosInventoryPage: React.FC = () => {
 
       return true;
     });
-  }, [products, searchTerm, selectedCategoryId, stockFilter]);
+  }, [products, searchTerm, selectedCategoryId, stockFilter, expiredQtyByProduct]);
 
   // Sorted products
   const sortedProducts = useMemo(() => {
@@ -331,14 +375,22 @@ export const PosInventoryPage: React.FC = () => {
     if (isService) {
       return { label: 'Servicio', color: 'bg-blue-50 text-blue-700 border-blue-200' };
     }
-    const st = p.stock ?? 0;
+    const rawSt = p.stock ?? 0;
+    const expQty = Number(p.expiredQty ?? expiredQtyByProduct[p.id] ?? 0);
+    const sellable = Math.max(0, rawSt - expQty);
     const minSt = p.minStock ?? 0;
 
-    if (st <= 0) {
+    if (sellable <= 0) {
+      if (rawSt > 0 && expQty > 0) {
+        return { label: '100% vencido', color: 'bg-red-50 text-red-700 border-red-200' };
+      }
       return { label: 'Agotado', color: 'bg-red-50 text-red-700 border-red-200' };
     }
-    if (st <= minSt) {
+    if (minSt > 0 && sellable <= minSt) {
       return { label: 'Bajo mínimo', color: 'bg-amber-50 text-amber-800 border-amber-200' };
+    }
+    if (minSt > 0 && sellable <= Math.max(minSt + 2, Math.ceil(minSt * 1.35))) {
+      return { label: 'Próximo a mín.', color: 'bg-blue-50 text-blue-700 border-blue-200' };
     }
     return { label: 'Normal', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
   };
@@ -508,6 +560,21 @@ export const PosInventoryPage: React.FC = () => {
             }`}
           >
             Bajo mínimo
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStockFilter('near_low');
+              setPage(1);
+            }}
+            className={`min-h-[36px] px-3 rounded-xl text-xs font-semibold transition-colors shadow-2xs ${
+              stockFilter === 'near_low'
+                ? 'bg-blue-600 text-white'
+                : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+            }`}
+          >
+            Próximo a mínimo
           </button>
 
           <button

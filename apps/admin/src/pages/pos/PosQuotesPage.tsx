@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FileText,
@@ -66,6 +66,7 @@ const STATUS_FILTERS: Array<{ value: '' | PosQuoteStatus; label: string }> = [
 
 export const PosQuotesPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const loadFromQuoteConversion = usePosCartStore((s) => s.loadFromQuoteConversion);
   const user = useAuthStore((s) => s.user);
@@ -125,6 +126,16 @@ export const PosQuotesPage: React.FC = () => {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | PosQuoteStatus>('');
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const st = (location.state as any) || null;
+    if (!st?.statusFilter) return;
+    const valid = ['', 'DRAFT', 'SENT', 'ACCEPTED', 'EXPIRED', 'CONVERTED', 'CANCELLED'];
+    if (valid.includes(st.statusFilter)) {
+      setStatusFilter(st.statusFilter);
+      setPage(1);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

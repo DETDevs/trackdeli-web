@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import {
   ChartBar,
   TrendUp,
@@ -10,7 +11,9 @@ import {
   Motorcycle,
   Printer,
   HandCoins,
+  HourglassMedium,
 } from "@phosphor-icons/react";
+import { BatchesReportsTab, type BatchesSubTabKey } from "../components/reports/BatchesReportsTab";
 import { useAuthStore } from "../store/auth.store";
 import {
   PeriodType,
@@ -68,12 +71,14 @@ export type ReportTabKey =
   | "channels"
   | "profit"
   | "control"
+  | "batches"
   | "workshop"
   | "sellers"
   | "tips";
 
 export const ReportsPage: React.FC = () => {
   const user = useAuthStore((state) => state.user);
+  const location = useLocation();
 
   // Verificación de rol: Solo Encargado y Superadmin pueden consultar reportes
   const isAllowedRole =
@@ -102,6 +107,34 @@ export const ReportsPage: React.FC = () => {
   const [selectedTipWaiterId, setSelectedTipWaiterId] = useState<string>("");
   const [selectedTipMethod, setSelectedTipMethod] = useState<string>("");
   const [activeTab, setActiveTab] = useState<ReportTabKey>("sales");
+  const [batchesDeepLink, setBatchesDeepLink] = useState<{
+    subTab: BatchesSubTabKey;
+    statusFilter?: string;
+    ts: number;
+  }>({ subTab: "expirations", ts: 0 });
+
+  useEffect(() => {
+    const st = (location.state as any) || null;
+    if (!st) return;
+    if (st.tab === "batches") {
+      setActiveTab("batches");
+      setBatchesDeepLink({
+        subTab:
+          st.subTab === "losses" || st.subTab === "traceability"
+            ? st.subTab
+            : "expirations",
+        statusFilter: st.statusFilter,
+        ts: st._notifTs || Date.now(),
+      });
+    } else if (
+      st.tab &&
+      ["sales", "channels", "profit", "control", "workshop", "sellers", "tips"].includes(
+        st.tab,
+      )
+    ) {
+      setActiveTab(st.tab);
+    }
+  }, [location.state]);
 
   const { tipEnabled } = usePosPolicies(isAllowedRole);
 
@@ -278,9 +311,12 @@ export const ReportsPage: React.FC = () => {
     return getVisibleChannels(channelConfig, salesByChannelMap);
   }, [channelConfig, salesByChannelMap]);
 
-  // Determinar si el negocio es taller
+  // Determinar si el negocio es taller o usa lotes
   const isWorkshop = Boolean(
     workshopData?.isWorkshop || (business as any)?.salonProfile === "TALLER",
+  );
+  const tracksBatches = Boolean(
+    (business as any)?.tracksBatches || (user as any)?.business?.tracksBatches,
   );
 
   // Si no es taller y estaba en la pestaña de taller, regresar a ventas
@@ -300,11 +336,16 @@ export const ReportsPage: React.FC = () => {
     if (!showTipsTab && activeTab === "tips") {
       setActiveTab("sales");
     }
+    if (business && !tracksBatches && activeTab === "batches") {
+      setActiveTab("sales");
+    }
   }, [
     isWorkshop,
     hasTwoStepSale,
     channelsVisibility.hasAnyNonMostradorChannel,
     showTipsTab,
+    tracksBatches,
+    business,
     activeTab,
   ]);
 
@@ -531,14 +572,17 @@ export const ReportsPage: React.FC = () => {
                   ? "Margen operativo, costo de lo vendido y rentabilidad de ventas"
                   : activeTab === "control"
                     ? "Auditoría de anulaciones, devoluciones, descuentos y arqueos"
-                    : activeTab === "workshop"
-                      ? "Rendimiento de órdenes de taller, servicios y mecánicos"
-                      : activeTab === "tips"
-                        ? "Propinas voluntarias por método de pago y mesero (aparte de las ventas)"
-                        : "Rendimiento por vendedor, tickets enviados vs. cobrados y productos más vendidos"}
+                    : activeTab === "batches"
+                      ? "Alertas de vencimiento, trazabilidad financiera e inventario vencido"
+                      : activeTab === "workshop"
+                        ? "Rendimiento de órdenes de taller, servicios y mecánicos"
+                        : activeTab === "tips"
+                          ? "Propinas voluntarias por método de pago y mesero (aparte de las ventas)"
+                          : "Rendimiento por vendedor, tickets enviados vs. cobrados y productos más vendidos"}
           </p>
         </div>
 
+        {activeTab !== "batches" && (
         <div className="flex flex-wrap items-center gap-3">
           {/* Filtro de Canal (solo visible si el negocio tiene canales activos o con ventas en el período y está en Ventas o Vendedores) */}
           {channelsVisibility.hasAnyNonMostradorChannel &&
@@ -625,6 +669,7 @@ export const ReportsPage: React.FC = () => {
             </button>
           )}
         </div>
+        )}
       </div>
 
       {/* Pestañas de Navegación */}
@@ -699,6 +744,25 @@ export const ReportsPage: React.FC = () => {
             />
             <span>Control</span>
           </button>
+
+          {/* Pestaña: Lotes y vencimientos (solo si tracksBatches está activo) */}
+          {tracksBatches && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("batches")}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === "batches"
+                  ? "bg-gray-900 text-white shadow-2xs"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              }`}
+            >
+              <HourglassMedium
+                size={16}
+                weight={activeTab === "batches" ? "bold" : "regular"}
+              />
+              <span>Lotes y vencimientos</span>
+            </button>
+          )}
 
           {/* Pestaña 4: Taller (solo aparece si isWorkshop es true) */}
           {isWorkshop && (
@@ -840,6 +904,16 @@ export const ReportsPage: React.FC = () => {
               controlData={controlData}
               period={period}
               isLoading={isLoadingControl}
+            />
+          )}
+
+          {/* Pestaña: Lotes y vencimientos */}
+          {activeTab === "batches" && tracksBatches && (
+            <BatchesReportsTab
+              currency={(business as any)?.currency || "NIO"}
+              initialSubTab={batchesDeepLink.subTab}
+              initialStatusFilter={batchesDeepLink.statusFilter}
+              navTrigger={batchesDeepLink.ts}
             />
           )}
 

@@ -15,6 +15,10 @@ import { DeliveryAccessBlocked } from '../components/DeliveryAccessBlocked';
 import { WebAccessDisabledView } from '../components/pos/WebAccessDisabledView';
 import { Header } from '../components/layout/Header';
 import { Sidebar } from '../components/layout/Sidebar';
+import { MembershipBanner } from '../components/notifications/MembershipBanner';
+import { MembershipStatusModal } from '../components/notifications/MembershipStatusModal';
+import { NotificationCenterDrawer } from '../components/notifications/NotificationCenterDrawer';
+import { useNotificationCenterStore } from '../store/notificationCenter.store';
 
 const decodeTokenBusinessId = (token: string | null): string | null => {
   if (!token) return null;
@@ -169,6 +173,45 @@ export const AppLayout = () => {
     productsData?.products?.CARTERA_COBRO?.status === 'ACTIVE' ||
     (business as any)?.hasCarteraCobro === true;
 
+  const membershipAlert = useNotificationCenterStore((s) => s.membership);
+  const tracksBatches = Boolean(
+    (business as any)?.tracksBatches || (user as any)?.business?.tracksBatches,
+  );
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const notifCtx = {
+      hasPos: isPosActive,
+      hasCartera: hasCarteraCobro,
+      tracksBatches,
+    };
+
+    useNotificationCenterStore
+      .getState()
+      .fetchNotifications(true, notifCtx)
+      .catch(() => {});
+
+    const interval = setInterval(() => {
+      useNotificationCenterStore
+        .getState()
+        .fetchNotifications(true, notifCtx)
+        .catch(() => {});
+    }, 3 * 60 * 1000);
+
+    const handleFocus = () => {
+      useNotificationCenterStore
+        .getState()
+        .fetchNotifications(false, notifCtx)
+        .catch(() => {});
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user?.id, user?.businessId, isPosActive, hasCarteraCobro, tracksBatches]);
+
   const activeBranch = branches?.find(b => b.id === user?.businessId);
   const businessName = activeBranch?.name || business?.name || productsData?.businessName;
 
@@ -277,8 +320,11 @@ export const AppLayout = () => {
         />
       </div>
 
+      {/* Banner anticipado / período de gracia de membresía */}
+      <MembershipBanner />
+
       {/* Banner de advertencia si la membresía está inactiva */}
-      {isMembershipInactive && (
+      {isMembershipInactive && !membershipAlert?.shouldShowTopBanner && (
         <div className="bg-amber-50 border-b border-amber-200/80 px-4 lg:px-6 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-amber-900 z-20 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <WarningCircle size={18} weight="fill" className="text-amber-600 shrink-0" />
@@ -350,6 +396,9 @@ export const AppLayout = () => {
           </AnimatePresence>
         </main>
       </div>
+
+      <NotificationCenterDrawer />
+      <MembershipStatusModal />
     </div>
   );
 };

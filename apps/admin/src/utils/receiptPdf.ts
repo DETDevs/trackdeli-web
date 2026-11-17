@@ -2,10 +2,16 @@ import { jsPDF } from 'jspdf';
 import {
   type SaleResponse,
   type CashRegisterTipsSummary,
+  getPosReceiptSettings,
   uploadPosReceiptPdf,
 } from 'api-client';
 import { formatCurrency } from './formatters';
 import { formatManaguaDateTime } from './dateManagua';
+import {
+  enrichSaleWithCustomerAddress,
+  getLocalShowCustomerAddress,
+} from './customerAddress';
+import { useAuthStore } from '../store/auth.store';
 import {
   generateReceiptHtml,
   generateReceiptPdfBlob as generateHtmlPdfBlob,
@@ -38,9 +44,31 @@ export async function generateReceiptPdfBlob(
   const invoiceNum = sale.invoiceNumber || sale.id.slice(-6).toUpperCase();
   const fileName = `comprobante-${invoiceNum}.pdf`;
 
+  const rawSettings = await getPosReceiptSettings().catch(() => null);
+  const resolvedBizId =
+    rawSettings?.businessId ||
+    (sale as any)?.businessId ||
+    useAuthStore.getState().user?.businessId;
+  const effectiveShowCustomerAddress =
+    rawSettings?.showCustomerAddress !== undefined
+      ? Boolean(rawSettings.showCustomerAddress)
+      : Boolean(getLocalShowCustomerAddress(resolvedBizId));
+  const receiptSettings = rawSettings
+    ? { ...rawSettings, showCustomerAddress: effectiveShowCustomerAddress }
+    : effectiveShowCustomerAddress
+      ? { showCustomerAddress: true }
+      : null;
+
+  const resolvedSale = receiptSettings?.showCustomerAddress
+    ? await enrichSaleWithCustomerAddress(sale)
+    : sale;
+
   const adaptedSale = {
-    ...sale,
-    cashierName: cashierName || (sale as any).cashierName || sale.cashier?.name,
+    ...resolvedSale,
+    cashierName:
+      cashierName ||
+      (resolvedSale as any).cashierName ||
+      (resolvedSale as any).cashier?.name,
   };
 
   // Renderizar usando la plantilla unificada idéntica al desktop
@@ -48,16 +76,23 @@ export async function generateReceiptPdfBlob(
     adaptedSale,
     businessInfo,
     undefined,
-    undefined,
+    receiptSettings,
     {
       format: 'ticket',
-      paperWidthMm: 80,
+      paperWidthMm: receiptSettings?.paperWidthMm === 58 ? 58 : 80,
       isReprint: options?.isReprint,
-      isVoided: Boolean(options?.isVoided || (sale as any).isVoided || sale.status === 'CANCELLED'),
-    }
+      isVoided: Boolean(
+        options?.isVoided ||
+          (resolvedSale as any).isVoided ||
+          resolvedSale.status === 'CANCELLED',
+      ),
+    },
   );
 
-  const blob = await generateHtmlPdfBlob(html, { format: 'ticket', paperWidthMm: 80 });
+  const blob = await generateHtmlPdfBlob(html, {
+    format: 'ticket',
+    paperWidthMm: receiptSettings?.paperWidthMm === 58 ? 58 : 80,
+  });
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, 200] });
 
   return { blob, fileName, doc };

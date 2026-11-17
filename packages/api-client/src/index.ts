@@ -10,4 +10,5 @@ export * from './endpoints/inviteCodes';
 export * from './endpoints/customers';
 export * from './endpoints/pos';
 export * from './endpoints/quotes';
+export * from './endpoints/notifications';
 export * from './endpoints/organizations';

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   CreditCard,
   Receipt,
@@ -20,11 +21,40 @@ import { ReceivablesNotice } from '../components/finances/ReceivablesNotice';
 export type FinanceTabKey = 'payables' | 'expenses' | 'income-statement' | 'receivables';
 
 export const FinancesPage: React.FC = () => {
+  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const isSuperAdmin = user?.role === 'SUPERADMIN';
   const isAllowedRole = isSuperAdmin || user?.role === 'ENCARGADO';
 
   const [activeTab, setActiveTab] = useState<FinanceTabKey>('payables');
+  const [payablesDeepLink, setPayablesDeepLink] = useState<{
+    onlyOverdue: boolean;
+    ts: number;
+  }>({ onlyOverdue: false, ts: 0 });
+  const [receivablesDeepLink, setReceivablesDeepLink] = useState<{
+    filter: 'ALL' | 'OVERDUE' | 'DUE_SOON' | 'CURRENT';
+    ts: number;
+  }>({ filter: 'ALL', ts: 0 });
+
+  useEffect(() => {
+    const st = (location.state as any) || null;
+    if (!st) return;
+    const ts = st._notifTs || Date.now();
+    if (st.tab === 'receivables') {
+      setActiveTab('receivables');
+      const rawFilter = String(st.filter || 'ALL').toUpperCase();
+      const mappedFilter =
+        rawFilter === 'OVERDUE' || rawFilter === 'DUE_SOON' || rawFilter === 'CURRENT'
+          ? rawFilter
+          : 'ALL';
+      setReceivablesDeepLink({ filter: mappedFilter, ts });
+    } else if (st.tab === 'payables') {
+      setActiveTab('payables');
+      setPayablesDeepLink({ onlyOverdue: Boolean(st.onlyOverdue), ts });
+    } else if (st.tab === 'expenses' || st.tab === 'income-statement') {
+      setActiveTab(st.tab);
+    }
+  }, [location.state]);
 
   // Negocio y moneda
   const { data: business } = useQuery({
@@ -148,10 +178,22 @@ export const FinancesPage: React.FC = () => {
 
       {/* Contenido de la pestaña activa */}
       <div>
-        {activeTab === 'payables' && <PayablesTab currency={currency} />}
+        {activeTab === 'payables' && (
+          <PayablesTab
+            currency={currency}
+            initialOnlyOverdue={payablesDeepLink.onlyOverdue}
+            filterTrigger={payablesDeepLink.ts}
+          />
+        )}
         {activeTab === 'expenses' && <ExpensesTab currency={currency} />}
         {activeTab === 'income-statement' && <IncomeStatementTab currency={currency} />}
-        {activeTab === 'receivables' && <ReceivablesNotice currency={currency} />}
+        {activeTab === 'receivables' && (
+          <ReceivablesNotice
+            currency={currency}
+            initialFilter={receivablesDeepLink.filter}
+            filterTrigger={receivablesDeepLink.ts}
+          />
+        )}
       </div>
     </div>
   );
