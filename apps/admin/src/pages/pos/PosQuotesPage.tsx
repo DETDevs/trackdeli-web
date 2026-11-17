@@ -45,7 +45,7 @@ import { usePosCartStore } from '../../store/posCart.store';
 import { usePosWebAccess } from '../../hooks/usePosWebAccess';
 import { usePosPolicies } from '../../hooks/usePosPolicies';
 import { formatManaguaDate } from '../../utils/dateManagua';
-import { formatQuoteMoney } from '../../utils/quoteReceiptHtml';
+import { formatQuoteMoney, resolveQuoteCreatorName } from '../../utils/quoteReceiptHtml';
 import type { QuoteEstimateBusinessContext } from '../../utils/quoteEstimate';
 import { QuoteEditorModal } from '../../components/pos/quotes/QuoteEditorModal';
 import { QuoteDetailModal } from '../../components/pos/quotes/QuoteDetailModal';
@@ -503,7 +503,7 @@ export const PosQuotesPage: React.FC = () => {
                           {q.quoteNumber}
                         </button>
                         <div className="text-xs text-slate-500 mt-0.5">
-                          {formatManaguaDate(q.createdAt)} · {q.createdByName}
+                          {formatManaguaDate(q.createdAt)} · {resolveQuoteCreatorName(q, user)}
                         </div>
                       </td>
                       <td className="py-3 px-4 align-top">

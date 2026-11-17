@@ -59,6 +59,7 @@ export interface ReceiptHtmlOptions {
     reprintedBy?: string;
     reason?: string;
   };
+  currentUser?: { id?: string; name?: string; email?: string } | null;
 }
 
 /**
@@ -151,6 +152,7 @@ export const generateReceiptHtml = (
     return generateQuoteReceiptHtml(quoteObj, {
       format: options.format,
       paperWidthMm: options.paperWidthMm,
+      currentUser: options.currentUser,
     });
   }
 

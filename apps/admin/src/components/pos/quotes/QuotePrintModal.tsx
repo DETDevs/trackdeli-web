@@ -20,6 +20,7 @@ import {
   generateReceiptHtml,
   printReceiptViaIframe,
 } from '../../../utils/receiptHtml';
+import { useAuthStore } from '../../../store/auth.store';
 
 interface QuotePrintModalProps {
   isOpen: boolean;
@@ -36,6 +37,7 @@ export const QuotePrintModal: React.FC<QuotePrintModalProps> = ({
   businessId,
   onClose,
 }) => {
+  const user = useAuthStore((s) => s.user);
   const [quote, setQuote] = useState<PosQuote | null>(initialQuote || null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -97,8 +99,9 @@ export const QuotePrintModal: React.FC<QuotePrintModalProps> = ({
       quote,
       format,
       paperWidthMm,
+      currentUser: user,
     });
-  }, [quote, printable, format, paperWidthMm]);
+  }, [quote, printable, format, paperWidthMm, user]);
 
   if (!isOpen || !quoteId) return null;
 

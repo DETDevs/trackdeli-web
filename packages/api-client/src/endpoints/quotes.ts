@@ -53,6 +53,11 @@ export interface PosQuote {
   status: PosQuoteStatus;
   createdById: string;
   createdByName: string;
+  createdBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
   customerId: string | null;
   customerName: string | null;
   customerPhone: string | null;

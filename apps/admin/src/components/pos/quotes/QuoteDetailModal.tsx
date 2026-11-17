@@ -26,7 +26,8 @@ import {
   type PosQuote,
 } from 'api-client';
 import { formatManaguaDateTime } from '../../../utils/dateManagua';
-import { formatQuoteMoney } from '../../../utils/quoteReceiptHtml';
+import { formatQuoteMoney, resolveQuoteCreatorName } from '../../../utils/quoteReceiptHtml';
+import { useAuthStore } from '../../../store/auth.store';
 
 interface QuoteDetailModalProps {
   isOpen: boolean;
@@ -59,6 +60,7 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
   onOpenCancel,
   onMutated,
 }) => {
+  const currentUser = useAuthStore((s) => s.user);
   const [quote, setQuote] = useState<PosQuote | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -256,7 +258,7 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
                   </p>
                   <p>
                     <span className="font-semibold text-slate-800">Creada por:</span>{' '}
-                    {quote.createdByName || 'Usuario'}
+                    {resolveQuoteCreatorName(quote, currentUser)}
                   </p>
                   <p>
                     <span className="font-semibold text-slate-800">Fecha de creación:</span>{' '}

@@ -6,6 +6,39 @@ export interface QuoteReceiptHtmlOptions {
   format?: 'ticket' | 'carta';
   paperWidthMm?: number; // 58 | 80 (por defecto 80)
   omitLogo?: boolean;
+  currentUser?: { id?: string; name?: string; email?: string } | null;
+}
+
+/**
+ * Resuelve el nombre visible del emisor/elaborador de la proforma, priorizando
+ * siempre el nombre real de la persona o usuario frente a correos electrónicos.
+ */
+export function resolveQuoteCreatorName(
+  quote?: Partial<PosQuote> | null,
+  fallbackUser?: { id?: string; name?: string; email?: string } | null
+): string {
+  if (!quote) return fallbackUser?.name?.trim() || 'Usuario';
+
+  const fromRel = (quote as any)?.createdBy?.name?.trim();
+  if (fromRel) return fromRel;
+
+  const raw = quote.createdByName?.trim();
+  if (raw && !raw.includes('@')) {
+    return raw;
+  }
+
+  if (fallbackUser?.name?.trim()) {
+    if (
+      (fallbackUser.id && quote.createdById && fallbackUser.id === quote.createdById) ||
+      (fallbackUser.email && raw && fallbackUser.email.toLowerCase() === raw.toLowerCase()) ||
+      !raw ||
+      raw.includes('@')
+    ) {
+      return fallbackUser.name.trim();
+    }
+  }
+
+  return raw || (quote as any)?.createdBy?.email || fallbackUser?.name?.trim() || 'Usuario';
 }
 
 function escapeHtml(value: unknown): string {
@@ -75,6 +108,7 @@ export function generateQuoteReceiptHtml(
   const validUntilLabel = escapeHtml(quote.validUntilLabel || '—');
   const validityDays = Number(quote.validityDays || 15);
   const quoteNumber = escapeHtml(quote.quoteNumber || 'PROFORMA');
+  const creatorName = resolveQuoteCreatorName(quote, options?.currentUser);
 
   const items = Array.isArray(quote.items) ? quote.items : [];
   const subtotal = Number(quote.subtotal || 0);
@@ -255,7 +289,7 @@ export function generateQuoteReceiptHtml(
     <div>
       <div><span class="bold">Fecha de emisión:</span> ${escapeHtml(issuedAtLabel)}</div>
       <div><span class="bold">Válida hasta:</span> ${validUntilLabel} (${validityDays} ${validityDays === 1 ? 'día' : 'días'})</div>
-      ${quote.createdByName ? `<div><span class="bold">Atendido por:</span> ${escapeHtml(quote.createdByName)}</div>` : ''}
+      ${creatorName ? `<div><span class="bold">Atendido por:</span> ${escapeHtml(creatorName)}</div>` : ''}
     </div>
 
     <div class="divider"></div>
@@ -655,7 +689,7 @@ export function generateQuoteReceiptHtml(
           <div class="card-title">Información de la proforma</div>
           <div class="info-row"><span class="info-label">Vigencia:</span> ${validityDays} ${validityDays === 1 ? 'día calendario' : 'días calendario'}</div>
           <div class="info-row"><span class="info-label">Fecha límite:</span> ${validUntilLabel}</div>
-          ${quote.createdByName ? `<div class="info-row"><span class="info-label">Elaborada por:</span> ${escapeHtml(quote.createdByName)}</div>` : ''}
+          ${creatorName ? `<div class="info-row"><span class="info-label">Elaborada por:</span> ${escapeHtml(creatorName)}</div>` : ''}
           <div class="info-row"><span class="info-label">Moneda:</span> ${escapeHtml(currency)}</div>
         </div>
       </div>
