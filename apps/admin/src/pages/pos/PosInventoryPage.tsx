@@ -14,6 +14,7 @@ import {
   CaretRight,
   SlidersHorizontal,
   Info,
+  UploadSimple,
 } from '@phosphor-icons/react';
 import {
   PosProductItem,
@@ -38,6 +39,7 @@ import { ProductBatchesModal } from '../../components/pos/inventory/ProductBatch
 import { CategoriesModal } from '../../components/pos/inventory/CategoriesModal';
 import { StockAdjustmentModal } from '../../components/pos/inventory/StockAdjustmentModal';
 import { DeleteProductConfirmModal } from '../../components/pos/inventory/DeleteProductConfirmModal';
+import { ImportCatalogModal } from '../../components/pos/inventory/ImportCatalogModal';
 import {
   CategorySelector,
   normalizeCategorySearch,
@@ -127,6 +129,9 @@ export const PosInventoryPage: React.FC = () => {
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<PosProductItem | null>(null);
+
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const businessIdParam = userRole === 'SUPERADMIN' ? user?.businessId : undefined;
 
   // Currency & batch policy
   const currency = business?.currency || 'NIO';
@@ -440,6 +445,15 @@ export const PosInventoryPage: React.FC = () => {
               >
                 <Tag size={16} weight="bold" />
                 <span>Categorías</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(true)}
+                className="min-h-[44px] px-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <UploadSimple size={16} weight="bold" />
+                <span>Importar catálogo</span>
               </button>
 
               <button
@@ -1139,6 +1153,18 @@ export const PosInventoryPage: React.FC = () => {
           onSuccess={() => {
             loadData();
           }}
+        />
+      )}
+
+      {isImportModalOpen && canManageCatalog && (
+        <ImportCatalogModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onSuccess={() => {
+            loadData();
+          }}
+          businessId={businessIdParam}
+          userRole={userRole}
         />
       )}
     </div>

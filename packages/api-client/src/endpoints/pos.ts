@@ -738,6 +738,16 @@ export const getPosSuppliers = async (businessId?: string): Promise<any[]> => {
   return Array.isArray(res.data) ? res.data : [];
 };
 
+export const createPosSupplier = async (
+  dto: { name: string },
+  businessId?: string,
+): Promise<any> => {
+  const res = await apiClient.post<any>('/pos/suppliers', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
 export interface VoidPosSaleDto {
   reason: string;
   restock?: boolean;
@@ -1566,6 +1576,101 @@ export const getPosSalesByBatch = async (params?: {
 }): Promise<any> => {
   const res = await apiClient.get<any>('/pos/reports/sales-by-batch', {
     params,
+  });
+  return res.data;
+};
+
+export interface PosImportTarget {
+  id: string;
+  label: string;
+  kind: 'core' | 'dynamic';
+  dataType: string;
+  required: boolean;
+  options?: string[];
+}
+
+export interface PosProductImportAnalyzeResponse {
+  sheets: string[];
+  selectedSheet: string;
+  headerRow: number;
+  headers: string[];
+  sampleRows: any[][];
+  suggestedMapping: Record<string, { target: string }>;
+  targets: PosImportTarget[];
+}
+
+export interface PosProductImportResult {
+  created: number;
+  updated: number;
+  unchanged: number;
+  errors: Array<{ row: number; column?: string; message: string }>;
+  warnings: Array<{ row: number; column?: string; message: string }>;
+  ignoredColumns?: string[];
+  totalRows: number;
+}
+
+export const downloadPosProductsImportTemplate = async (
+  businessId?: string,
+): Promise<Blob> => {
+  const res = await apiClient.get<Blob>('/pos/products/import-template', {
+    params: businessId ? { businessId } : undefined,
+    responseType: 'blob',
+  });
+  return res.data;
+};
+
+export const analyzePosProductsImport = async (
+  file: File | Blob,
+  options?: {
+    sheet?: string;
+    headerRow?: number;
+    businessId?: string;
+  },
+): Promise<PosProductImportAnalyzeResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (options?.sheet) formData.append('sheet', options.sheet);
+  if (options?.headerRow !== undefined) {
+    formData.append('headerRow', String(options.headerRow));
+  }
+
+  const res = await apiClient.post<PosProductImportAnalyzeResponse>(
+    '/pos/products/import/analyze',
+    formData,
+    {
+      params: options?.businessId ? { businessId: options.businessId } : undefined,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 60000,
+    },
+  );
+  return res.data;
+};
+
+export const importPosProducts = async (params: {
+  file: File | Blob;
+  mapping: Record<string, { target: string }>;
+  sheet: string;
+  headerRow: number;
+  dryRun: boolean;
+  businessId?: string;
+}): Promise<PosProductImportResult> => {
+  const formData = new FormData();
+  formData.append('file', params.file);
+  formData.append('mapping', JSON.stringify(params.mapping));
+  formData.append('sheet', params.sheet);
+  formData.append('headerRow', String(params.headerRow));
+
+  const res = await apiClient.post<PosProductImportResult>('/pos/products/import', formData, {
+    params: {
+      dryRun: String(params.dryRun),
+      ...(params.businessId ? { businessId: params.businessId } : {}),
+    },
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    timeout: 120000,
   });
   return res.data;
 };
