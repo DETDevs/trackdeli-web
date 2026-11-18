@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { registerWebDevice } from 'api-client';
 import { useAuthStore } from '../store/auth.store';
 
@@ -20,7 +21,23 @@ export const getDeviceStorageKeys = (bizId?: string | null) => {
   };
 };
 
+export const getStoredWebDeviceHeaders = (
+  bizId?: string | null,
+): { 'X-Device-Id': string; 'X-Device-Secret': string } | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  const { idKey, secretKey } = getDeviceStorageKeys(bizId);
+  const id = localStorage.getItem(idKey) || (!bizId ? null : localStorage.getItem('trackdeli_pos_device_id'));
+  const secret =
+    localStorage.getItem(secretKey) || (!bizId ? null : localStorage.getItem('trackdeli_pos_device_secret'));
+  if (!id || !secret) return undefined;
+  return {
+    'X-Device-Id': id,
+    'X-Device-Secret': secret,
+  };
+};
+
 export function usePosWebDevice(enabled: boolean = true) {
+  const queryClient = useQueryClient();
   const businessId = useAuthStore((s) => s.user?.businessId);
 
   // Migración automática de claves legacy al primer arranque con negocio activo
@@ -153,6 +170,7 @@ export function usePosWebDevice(enabled: boolean = true) {
 
         setDeviceId(newDeviceId);
         setDeviceSecret(res.secret);
+        queryClient.invalidateQueries({ queryKey: ['pos', 'cash-register', 'status'] });
       } catch (err: any) {
         if (!isMounted) return;
         const code = err?.response?.data?.code || '';

@@ -6,6 +6,7 @@ interface OpenShiftModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  onAlreadyOpen?: () => void;
   onOpenShift: (dto: OpenCashRegisterDto) => Promise<any>;
   isOpening: boolean;
 }
@@ -26,6 +27,7 @@ export const OpenShiftModal: React.FC<OpenShiftModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  onAlreadyOpen,
   onOpenShift,
   isOpening,
 }) => {
@@ -84,10 +86,14 @@ export const OpenShiftModal: React.FC<OpenShiftModalProps> = ({
       } as any);
       onSuccess?.();
     } catch (err: any) {
+      const code = err?.response?.data?.code;
       const msg =
         err?.response?.data?.message ||
         'No se pudo abrir el turno de caja. Verificá tus permisos o la conexión.';
       setErrorMessage(msg);
+      if (code === 'WEB_REGISTER_ALREADY_OPEN') {
+        onAlreadyOpen?.();
+      }
     }
   };
 

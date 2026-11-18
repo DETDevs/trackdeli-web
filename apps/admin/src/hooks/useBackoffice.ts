@@ -1,5 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from 'api-client';
+import {
+  apiClient,
+  getOpenCashRegistersList,
+  type PosOpenCashRegisterItem,
+} from 'api-client';
 
 /* =========================================================================
  * 1. Tipos e Interfaces
@@ -261,6 +265,7 @@ export interface BackofficeCashRegisterItem {
   notes?: string | null;
   deviceId?: string | null;
   deviceName?: string | null;
+  registerSource?: 'WEB' | 'DESKTOP' | 'MOBILE' | string;
   recountAttempts?: number;
   discrepancyReason?: string | null;
   discrepancyNote?: string | null;
@@ -269,16 +274,7 @@ export interface BackofficeCashRegisterItem {
   discrepancyAuthorizer?: { id: string; name: string; role?: string } | null;
 }
 
-export interface PosOpenCashRegisterItem {
-  id: string;
-  deviceId: string | null;
-  deviceName: string | null;
-  cashierId: string;
-  cashierName: string;
-  openedAt: string;
-  openingCash: number;
-  status: string;
-}
+export type { PosOpenCashRegisterItem };
 
 export interface CashRegisterMovement {
   id: string;
@@ -547,10 +543,7 @@ export const useBackofficeCashRegisterDetail = (registerId: string | null, busin
 export const usePosOpenCashRegisters = (enabled: boolean = true) => {
   return useQuery<PosOpenCashRegisterItem[]>({
     queryKey: ['pos', 'cash-registers', 'open-list'],
-    queryFn: async () => {
-      const res = await apiClient.get<PosOpenCashRegisterItem[]>('/pos/cash-register/open-list');
-      return res.data;
-    },
+    queryFn: () => getOpenCashRegistersList(),
     enabled,
     staleTime: 15000,
     refetchInterval: 30000,

@@ -16,10 +16,13 @@ import {
   useBackofficeCashRegisters,
   useBackofficeDashboard,
   usePosOpenCashRegisters,
+  type BackofficeCashRegisterItem,
+  type PosOpenCashRegisterItem,
 } from '../../hooks/useBackoffice';
 import { useBackofficeDateFilter } from '../../hooks/useBackofficeDateFilter';
 import { PosDateFilterPills } from '../../components/pos/PosDateFilterPills';
 import { CashRegisterDetailModal } from '../../components/pos/CashRegisterDetailModal';
+import { RemoteCloseCashRegisterModal } from '../../components/pos/RemoteCloseCashRegisterModal';
 import { ModuleNotEnabledAlert } from '../../components/pos/ModuleNotEnabledAlert';
 import { WebAccessDisabledView } from '../../components/pos/WebAccessDisabledView';
 import { useAuthStore } from '../../store/auth.store';
@@ -35,6 +38,7 @@ export const PosCashRegistersPage: React.FC = () => {
 
   const [page, setPage] = useState(1);
   const [selectedRegisterId, setSelectedRegisterId] = useState<string | null>(null);
+  const [registerToClose, setRegisterToClose] = useState<PosOpenCashRegisterItem | null>(null);
   const [showOnlyDiscrepancy, setShowOnlyDiscrepancy] = useState(false);
 
   const { data: dashboardData } = useBackofficeDashboard();
@@ -79,6 +83,37 @@ export const PosCashRegistersPage: React.FC = () => {
     if (isManagerOrAdmin) {
       refetchOpenList();
     }
+  };
+
+  const handleRequestCloseFromRow = (reg: BackofficeCashRegisterItem) => {
+    const matchedOpen = openRegisters.find((o) => o.id === reg.id);
+    if (matchedOpen) {
+      setRegisterToClose(matchedOpen);
+      return;
+    }
+    const inferredSource =
+      reg.registerSource === 'WEB' || reg.registerSource === 'MOBILE' || reg.registerSource === 'DESKTOP'
+        ? reg.registerSource
+        : undefined;
+    setRegisterToClose({
+      id: reg.id,
+      deviceId: reg.deviceId ?? null,
+      deviceName: reg.deviceName ?? null,
+      registerSource: inferredSource,
+      registerType: inferredSource,
+      cashierId: reg.openedBy?.id || '',
+      cashierName: reg.openedBy?.name || 'Cajero',
+      openedAt: reg.openedAt,
+      openingCash: reg.openingCash,
+      status: reg.status,
+    });
+  };
+
+  const getRegisterTypeLabel = (source?: string) => {
+    if (source === 'WEB') return 'Web';
+    if (source === 'MOBILE') return 'Móvil';
+    if (source === 'DESKTOP') return 'Computadora';
+    return null;
   };
 
   if (
@@ -146,42 +181,73 @@ export const PosCashRegistersPage: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {openRegisters.map((op) => (
-                <div
-                  key={op.id}
-                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-200/80 flex flex-col justify-between space-y-2.5"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-0.5 min-w-0">
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-gray-900">
-                        <Desktop size={14} className="text-brand-600 shrink-0" />
-                        <span>{op.deviceName || 'Caja sin nombre'}</span>
+              {openRegisters.map((op) => {
+                const source = (op.registerSource || op.registerType || '').toUpperCase();
+                const typeLabel = getRegisterTypeLabel(source);
+                const pendingCount = Number(op.pendingOfflineSalesCount ?? 0);
+                const hasPending = Boolean(op.hasPendingOfflineSales || pendingCount > 0);
+                return (
+                  <div
+                    key={op.id}
+                    className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-200/80 flex flex-col justify-between space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 font-bold text-xs text-gray-900">
+                          <Desktop size={14} className="text-brand-600 shrink-0" />
+                          <span className="break-words">{op.deviceName || 'Caja sin nombre'}</span>
+                          {typeLabel && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200/80 text-gray-700">
+                              {typeLabel}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-gray-600">
+                          <User size={12} className="text-gray-500 shrink-0" />
+                          <span>
+                            Cajero: <strong className="text-gray-800 font-medium">{op.cashierName || 'Cajero'}</strong>
+                          </span>
+                        </div>
+                        {source === 'DESKTOP' && hasPending && (
+                          <p className="text-xs font-semibold text-red-700 pt-0.5">
+                            {pendingCount}{' '}
+                            {pendingCount === 1
+                              ? 'venta sin internet pendiente'
+                              : 'ventas sin internet pendientes'}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1 text-xs text-gray-600">
-                        <User size={12} className="text-gray-500 shrink-0" />
-                        <span>Cajero: <strong className="text-gray-800 font-medium">{op.cashierName || 'Cajero'}</strong></span>
-                      </div>
-                    </div>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                      Abierta
-                    </span>
-                  </div>
-
-                  <div className="pt-2 border-t border-gray-200/60 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-1 text-xs text-gray-600">
-                      <Clock size={12} className="shrink-0" />
-                      <span>{formatDateTime(op.openedAt)}</span>
-                    </div>
-                    <div className="text-right ml-auto">
-                      <span className="text-xs text-gray-600 uppercase block">Fondo inicial</span>
-                      <span className="font-semibold text-gray-900 font-mono whitespace-nowrap tabular-nums">
-                        {formatCurrency(op.openingCash, currency)}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                        Abierta
                       </span>
                     </div>
+
+                    <div className="pt-2 border-t border-gray-200/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-1 text-xs text-gray-600">
+                        <Clock size={12} className="shrink-0" />
+                        <span>{formatDateTime(op.openedAt)}</span>
+                      </div>
+                      <div className="text-right ml-auto">
+                        <span className="text-xs text-gray-600 uppercase block">Fondo inicial</span>
+                        <span className="font-semibold text-gray-900 font-mono whitespace-nowrap tabular-nums">
+                          {formatCurrency(op.openingCash, currency)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setRegisterToClose(op)}
+                        className="w-full sm:w-auto min-h-[44px] px-3.5 py-2 rounded-xl border border-red-200 bg-white hover:bg-red-50 text-xs font-semibold text-red-700 transition-colors cursor-pointer"
+                      >
+                        Cerrar caja
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -369,17 +435,31 @@ export const PosCashRegistersPage: React.FC = () => {
                         </td>
 
                         <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedRegisterId(reg.id);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors cursor-pointer"
-                          >
-                            <span>Arqueo</span>
-                            <ArrowRight size={11} />
-                          </button>
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            {isManagerOrAdmin && reg.status === 'OPEN' && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRequestCloseFromRow(reg);
+                                }}
+                                className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors cursor-pointer"
+                              >
+                                Cerrar caja
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedRegisterId(reg.id);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors cursor-pointer"
+                            >
+                              <span>Arqueo</span>
+                              <ArrowRight size={11} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -476,6 +556,20 @@ export const PosCashRegistersPage: React.FC = () => {
                       )}
                     </div>
                   </div>
+                  {isManagerOrAdmin && reg.status === 'OPEN' && (
+                    <div className="pt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRequestCloseFromRow(reg);
+                        }}
+                        className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-xs font-semibold text-red-700 transition-colors cursor-pointer"
+                      >
+                        Cerrar caja
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -560,6 +654,15 @@ export const PosCashRegistersPage: React.FC = () => {
       <CashRegisterDetailModal
         registerId={selectedRegisterId}
         onClose={() => setSelectedRegisterId(null)}
+        currency={currency}
+      />
+
+      {/* Modal de Cierre Remoto por Encargado/Superadmin */}
+      <RemoteCloseCashRegisterModal
+        register={registerToClose}
+        isOpen={Boolean(registerToClose)}
+        onClose={() => setRegisterToClose(null)}
+        onSuccess={handleRefreshAll}
         currency={currency}
       />
     </div>

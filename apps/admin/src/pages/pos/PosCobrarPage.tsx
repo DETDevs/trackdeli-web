@@ -40,6 +40,7 @@ import { usePosPolicies } from '../../hooks/usePosPolicies';
 import { usePosCartStore } from '../../store/posCart.store';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency } from '../../utils/formatters';
+import { formatManaguaTime } from '../../utils/dateManagua';
 import { type ReceiptBusinessInfo } from '../../utils/receiptPdf';
 
 // Subcomponentes del flujo de cobro
@@ -86,6 +87,8 @@ export const PosCobrarPage: React.FC = () => {
     shiftId,
     cashierName,
     openedAt,
+    isResumedFromOtherBrowser,
+    dismissResumedNotice,
     openShift,
     isOpening: isOpeningShift,
     closeShift,
@@ -571,7 +574,7 @@ export const PosCobrarPage: React.FC = () => {
   }
 
   // 7. Política obligatoria y caja cerrada: Bloquear pantalla con apertura obligatoria
-  if (requireOpenShiftToSell && !isShiftOpen) {
+  if (requireOpenShiftToSell && !isShiftOpen && !isCloseShiftModalOpen) {
     const branchDiffers =
       Boolean(activeBranch?.name) &&
       activeBranch?.name.trim().toLowerCase() !== (businessInfo?.name || '').trim().toLowerCase();
@@ -674,6 +677,9 @@ export const PosCobrarPage: React.FC = () => {
           onClose={() => setIsOpenShiftModalOpen(false)}
           onSuccess={() => {
             setIsOpenShiftModalOpen(false);
+            refetchShift();
+          }}
+          onAlreadyOpen={() => {
             refetchShift();
           }}
           onOpenShift={handleOpenShiftWithIdempotency}
@@ -794,6 +800,7 @@ export const PosCobrarPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['pos', 'quotes'] });
       queryClient.invalidateQueries({ queryKey: ['pos', 'quote'] });
       queryClient.invalidateQueries({ queryKey: ['pos', 'sales'] });
+      queryClient.invalidateQueries({ queryKey: ['pos', 'cash-register', 'status'] });
       queryClient.invalidateQueries({ queryKey: ['backoffice'] });
     } catch (err: any) {
       const handled = handleDeviceApiError(err);
@@ -1083,6 +1090,30 @@ export const PosCobrarPage: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* Aviso corto al retomar caja web abierta desde otro navegador */}
+      {isShiftOpen && isResumedFromOtherBrowser && openedAt && (() => {
+        const openedLabel = formatManaguaTime(openedAt);
+        const suffix = openedLabel.endsWith('.') ? '' : '.';
+        return (
+          <div
+            role="status"
+            className="bg-blue-50 border-b border-blue-200 px-3 sm:px-5 py-2 flex items-center justify-between gap-2 text-xs text-blue-900 shrink-0"
+          >
+            <span className="font-medium">
+              Retomaste tu caja abierta desde las {openedLabel}{suffix}
+            </span>
+            <button
+              type="button"
+              onClick={dismissResumedNotice}
+              aria-label="Cerrar aviso"
+              className="min-h-[36px] px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-800 hover:bg-blue-100 transition-colors shrink-0 cursor-pointer"
+            >
+              Entendido
+            </button>
+          </div>
+        );
+      })()}
 
       {/* 2. BUSCADOR Y CATEGORÍAS FIJOS (Nunca se cortan ni saltan al hacer scroll) */}
       <div className="bg-[#FAFAFA] border-b border-gray-200/70 px-3 sm:px-5 pt-2.5 pb-2 shrink-0 z-20">
@@ -1381,6 +1412,9 @@ export const PosCobrarPage: React.FC = () => {
           setIsOpenShiftModalOpen(false);
           refetchShift();
         }}
+        onAlreadyOpen={() => {
+          refetchShift();
+        }}
         onOpenShift={handleOpenShiftWithIdempotency}
         isOpening={isOpeningShift}
       />
@@ -1390,7 +1424,6 @@ export const PosCobrarPage: React.FC = () => {
         isOpen={isCloseShiftModalOpen}
         onClose={() => setIsCloseShiftModalOpen(false)}
         onSuccess={() => {
-          setIsCloseShiftModalOpen(false);
           refetchShift();
         }}
         currentShift={{

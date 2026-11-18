@@ -50,9 +50,29 @@ export interface CashRegisterStatusResponse {
   openedAt: string | null;
   cashierName: string | null;
   shift?: {
+    id?: string;
+    deviceId?: string | null;
+    deviceName?: string | null;
+    registerSource?: 'WEB' | 'DESKTOP' | 'MOBILE' | string;
     tipsSummary?: CashRegisterTipsSummary | null;
     [key: string]: any;
   } | null;
+}
+
+export interface PosOpenCashRegisterItem {
+  id: string;
+  deviceId: string | null;
+  deviceName: string | null;
+  registerSource?: 'WEB' | 'DESKTOP' | 'MOBILE';
+  registerType?: 'WEB' | 'DESKTOP' | 'MOBILE';
+  cashierId: string;
+  cashierName: string | null;
+  openedAt: string;
+  openingCash: number;
+  status: string;
+  lastSeenAt?: string | null;
+  hasPendingOfflineSales?: boolean;
+  pendingOfflineSalesCount?: number;
 }
 
 export interface OpenCashRegisterDto {
@@ -355,11 +375,22 @@ export const registerWebDevice = async (
   return res.data;
 };
 
-export const getCashRegisterStatus = async (businessId?: string): Promise<CashRegisterStatusResponse> => {
+export const getCashRegisterStatus = async (
+  businessId?: string,
+  deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string },
+): Promise<CashRegisterStatusResponse> => {
   const res = await apiClient.get<CashRegisterStatusResponse>('/pos/cash-register/status', {
     params: businessId ? { businessId } : undefined,
+    headers: deviceHeaders,
   });
   return res.data;
+};
+
+export const getOpenCashRegistersList = async (businessId?: string): Promise<PosOpenCashRegisterItem[]> => {
+  const res = await apiClient.get<PosOpenCashRegisterItem[]>('/pos/cash-register/open-list', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
 };
 
 export const openCashRegister = async (
@@ -557,6 +588,36 @@ export const closeCashRegister = async (
 ): Promise<any> => {
   const res = await apiClient.post('/pos/cash-register/close', dto, {
     headers: deviceHeaders,
+  });
+  return res.data;
+};
+
+export const closeCashRegisterById = async (
+  id: string,
+  dto: CloseCashRegisterDto,
+  options?: {
+    businessId?: string;
+    deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string; 'Idempotency-Key'?: string };
+  },
+): Promise<any> => {
+  const res = await apiClient.post(`/pos/cash-register/${id}/close`, dto, {
+    params: options?.businessId ? { businessId: options.businessId } : undefined,
+    headers: options?.deviceHeaders,
+  });
+  return res.data;
+};
+
+export const forceCloseCashRegisterById = async (
+  id: string,
+  dto: CloseCashRegisterDto,
+  options?: {
+    businessId?: string;
+    deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string; 'Idempotency-Key'?: string };
+  },
+): Promise<any> => {
+  const res = await apiClient.post(`/pos/cash-register/${id}/force-close`, dto, {
+    params: options?.businessId ? { businessId: options.businessId } : undefined,
+    headers: options?.deviceHeaders,
   });
   return res.data;
 };
