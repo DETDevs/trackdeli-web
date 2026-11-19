@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   X,
   UploadSimple,
@@ -102,6 +103,9 @@ function getApiErrorMessage(err: any, fallback: string): string {
   let msg: any = data?.message;
   if (msg && typeof msg === 'object') msg = msg.message || JSON.stringify(msg);
   if (Array.isArray(data?.message)) msg = data.message.join(', ');
+  if (status === 500 && (!msg || /^internal server error$/i.test(String(msg).trim()))) {
+    return 'Ocurrió un error interno al procesar la importación. Revisá que no haya códigos de barras o SKUs repetidos e intentá de nuevo.';
+  }
   if (status === 502 || status === 503 || status === 504) {
     return 'El servidor no pudo procesar el archivo en este momento. Intentá de nuevo en unos segundos; si persiste, guardá el archivo como CSV y volvé a importarlo.';
   }
@@ -221,7 +225,9 @@ export const ImportCatalogModal: React.FC<ImportCatalogModalProps> = ({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      setErrorMsg(getApiErrorMessage(err, 'No se pudo descargar la plantilla de tu negocio.'));
+      const msg = getApiErrorMessage(err, 'No se pudo descargar la plantilla de tu negocio.');
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -251,12 +257,12 @@ export const ImportCatalogModal: React.FC<ImportCatalogModalProps> = ({
       setMapping(preserveExistingMapping || fixMappingByExactLabel(cleanData));
       setStep(2);
     } catch (err: any) {
-      setErrorMsg(
-        getApiErrorMessage(
-          err,
-          'No se pudo analizar el archivo. Asegurate de que sea un .xlsx o .csv válido.',
-        ),
+      const msg = getApiErrorMessage(
+        err,
+        'No se pudo analizar el archivo. Asegurate de que sea un .xlsx o .csv válido.',
       );
+      setErrorMsg(msg);
+      toast.error(msg);
       setFile(null);
       setStep(1);
     } finally {
@@ -268,6 +274,7 @@ export const ImportCatalogModal: React.FC<ImportCatalogModalProps> = ({
     const validationErr = validateFileBeforeUpload(selectedFile);
     if (validationErr) {
       setErrorMsg(validationErr);
+      toast.error(validationErr);
       setFile(null);
       return;
     }
@@ -378,9 +385,16 @@ export const ImportCatalogModal: React.FC<ImportCatalogModalProps> = ({
         businessId,
       });
       setPreviewData(res);
+      if (res.errors?.length > 0) {
+        toast(
+          `Atención: se encontraron ${res.errors.length} fila(s) con errores. Revisá el detalle antes de importar.`,
+        );
+      }
       setStep(3);
     } catch (err: any) {
-      setErrorMsg(getApiErrorMessage(err, 'No se pudo generar la vista previa.'));
+      const msg = getApiErrorMessage(err, 'No se pudo generar la vista previa.');
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -408,7 +422,9 @@ export const ImportCatalogModal: React.FC<ImportCatalogModalProps> = ({
       });
       setPreviewData(res);
     } catch (err: any) {
-      setErrorMsg(getApiErrorMessage(err, 'No se pudieron crear los proveedores automáticamente.'));
+      const msg = getApiErrorMessage(err, 'No se pudieron crear los proveedores automáticamente.');
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setIsCreatingSuppliers(false);
     }
@@ -445,7 +461,9 @@ export const ImportCatalogModal: React.FC<ImportCatalogModalProps> = ({
       setStep(4);
       onSuccess();
     } catch (err: any) {
-      setErrorMsg(getApiErrorMessage(err, 'No se pudo completar la importación.'));
+      const msg = getApiErrorMessage(err, 'No se pudo completar la importación.');
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       submitLockRef.current = false;
       setIsProcessing(false);
