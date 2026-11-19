@@ -19,13 +19,18 @@ import {
   getPosExchangeRate,
   getPosBanks,
   getPosStaffOptions,
+  getPosChannelDrivers,
+  getCustomer,
+  updateCustomer,
   type PosBankItem,
   type PosStaffOption,
+  type PosChannelDriver,
   type CreateSalePaymentPayload,
   type CreateSaleTipPayload,
   type CreditPlanPayload,
 } from 'api-client';
 import { useAuthStore } from '../../../store/auth.store';
+import { usePosCartStore } from '../../../store/posCart.store';
 import { formatCurrency } from '../../../utils/formatters';
 import { calculateTipFromTotal, type CalculatedSaleSummary } from '../../../utils/saleCalculation';
 import { usePosPolicies } from '../../../hooks/usePosPolicies';
@@ -36,6 +41,7 @@ import {
   type CreditPlanPreviewResult,
 } from '../../../utils/creditPlan';
 import { CustomerSelector, type SelectedCustomerData } from './CustomerSelector';
+import { DeliveryCheckoutFields } from './DeliveryCheckoutFields';
 import { ManagerApprovalModal } from './ManagerApprovalModal';
 
 export interface FinalPaymentSubmission {
@@ -52,6 +58,11 @@ export interface FinalPaymentSubmission {
   customerName?: string;
   customerPhone?: string;
   customerRuc?: string;
+  deliveryFee?: number;
+  deliveryAddress?: string;
+  deliveryPhone?: string;
+  deliveryReference?: string;
+  deliveryDriverId?: string;
   notes?: string;
   creditDueDate?: string;
   creditPlan?: CreditPlanPayload;
@@ -78,7 +89,9 @@ interface PaymentModalProps {
   carteraActive?: boolean;
   posVertical?: string;
   deliveryChannelEnabled?: boolean;
+  deliveryRequireDriver?: boolean;
   channel?: string;
+  lockChannel?: boolean;
   initialCustomer?: SelectedCustomerData | null;
   sourceQuoteNumber?: string | null;
   isQuoteOfflineBlocked?: boolean;
@@ -107,11 +120,27 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   carteraActive = true,
   posVertical = 'RETAIL',
   deliveryChannelEnabled = false,
+  deliveryRequireDriver = false,
   channel = 'MOSTRADOR',
+  lockChannel = false,
   initialCustomer = null,
   sourceQuoteNumber = null,
   isQuoteOfflineBlocked = false,
 }) => {
+  const effectiveChannel = lockChannel ? 'MOSTRADOR' : channel;
+  const deliveryFee = usePosCartStore((s) => s.deliveryFee);
+  const deliveryAddress = usePosCartStore((s) => s.deliveryAddress);
+  const deliveryPhone = usePosCartStore((s) => s.deliveryPhone);
+  const deliveryReference = usePosCartStore((s) => s.deliveryReference);
+  const deliveryDriverId = usePosCartStore((s) => s.deliveryDriverId);
+  const setDeliveryFee = usePosCartStore((s) => s.setDeliveryFee);
+  const setDeliveryAddress = usePosCartStore((s) => s.setDeliveryAddress);
+  const setDeliveryPhone = usePosCartStore((s) => s.setDeliveryPhone);
+  const setDeliveryReference = usePosCartStore((s) => s.setDeliveryReference);
+  const setDeliveryDriverId = usePosCartStore((s) => s.setDeliveryDriverId);
+
+  const [drivers, setDrivers] = useState<PosChannelDriver[]>([]);
+  const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
   const {
     enabledPaymentMethods,
     multiCurrencyEnabled,
@@ -207,13 +236,26 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [tipReference, setTipReference] = useState<string>('');
 
   const [localError, setLocalError] = useState<string | null>(null);
+  const wasOpenRef = useRef<boolean>(false);
 
-  const tipBlockedByChannel = ['PEDIDOSYA', 'DOMICILIO', 'WHATSAPP'].includes(channel);
+  const tipBlockedByChannel = ['PEDIDOSYA', 'DOMICILIO', 'WHATSAPP'].includes(effectiveChannel);
   const canOfferTip = Boolean(tipEnabled && !tipBlockedByChannel);
 
-  // Inicializar estado cuando se abre el modal
+  // Cargar repartidores si el canal es DOMICILIO y el negocio exige repartidor
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && effectiveChannel === 'DOMICILIO' && deliveryRequireDriver) {
+      setIsLoadingDrivers(true);
+      getPosChannelDrivers()
+        .then((list) => setDrivers(list || []))
+        .catch(() => setDrivers([]))
+        .finally(() => setIsLoadingDrivers(false));
+    }
+  }, [isOpen, effectiveChannel, deliveryRequireDriver]);
+
+  // Inicializar estado únicamente cuando el modal pasa de cerrado a abierto
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      wasOpenRef.current = true;
       if (!idempotencyKeyRef.current) {
         idempotencyKeyRef.current =
           typeof crypto !== 'undefined' && crypto.randomUUID
@@ -245,6 +287,34 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           deliveryReference: initialCustomer.deliveryReference ?? null,
           creditSummary: initialCustomer.creditSummary ?? null,
         });
+        if (initialCustomer.phone && !deliveryPhone) {
+          setDeliveryPhone(initialCustomer.phone);
+        }
+        if (initialCustomer.lastAddressText && !deliveryAddress) {
+          setDeliveryAddress(initialCustomer.lastAddressText);
+        }
+        if (initialCustomer.deliveryReference && !deliveryReference) {
+          setDeliveryReference(initialCustomer.deliveryReference);
+        }
+        if (initialCustomer.id && (!initialCustomer.lastAddressText || !initialCustomer.deliveryReference)) {
+          getCustomer(initialCustomer.id)
+            .then((fullCust) => {
+              if (!fullCust) return;
+              setSelectedCustomer((prev) => ({
+                ...prev,
+                lastAddressText: prev.lastAddressText || fullCust.lastAddressText || null,
+                deliveryReference: prev.deliveryReference || fullCust.deliveryReference || null,
+              }));
+              const storeState = usePosCartStore.getState();
+              if (!storeState.deliveryAddress.trim() && fullCust.lastAddressText) {
+                setDeliveryAddress(fullCust.lastAddressText);
+              }
+              if (!storeState.deliveryReference.trim() && fullCust.deliveryReference) {
+                setDeliveryReference(fullCust.deliveryReference);
+              }
+            })
+            .catch(() => {});
+        }
       } else {
         setSelectedCustomer({
           id: null,
@@ -322,11 +392,32 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           bankId: '',
         },
       ]);
-    } else {
-      // Limpiar clave cuando se cierra
+    } else if (!isOpen && wasOpenRef.current) {
+      wasOpenRef.current = false;
       idempotencyKeyRef.current = '';
     }
-  }, [isOpen, total, multiCurrencyEnabled, tipEnabled]);
+  }, [isOpen, total, multiCurrencyEnabled, tipEnabled, initialCustomer, deliveryPhone, deliveryAddress, deliveryReference, setDeliveryPhone, setDeliveryAddress, setDeliveryReference, pinnedSellerStorageKey]);
+
+  // Si cambia el total mientras el modal está abierto (ej. al editar la tarifa de envío),
+  // sincronizar el monto recibido sin reiniciar el cliente ni los demás campos
+  useEffect(() => {
+    if (!isOpen) return;
+    if (currency === 'NIO') {
+      setAmountTenderedStr(total.toFixed(2));
+    } else {
+      const usdVal = Math.ceil((total / exchangeRate) * 100) / 100;
+      setAmountTenderedStr(usdVal.toFixed(2));
+    }
+    setMixedLines((prev) => {
+      if (prev.length !== 2) return prev;
+      const half = Math.round((total / 2) * 100) / 100;
+      const rest = Math.round((total - half) * 100) / 100;
+      return [
+        { ...prev[0], amountStr: half.toFixed(2), amountTenderedStr: half.toFixed(2) },
+        { ...prev[1], amountStr: rest.toFixed(2), amountTenderedStr: rest.toFixed(2) },
+      ];
+    });
+  }, [total, isOpen, currency, exchangeRate]);
 
   // Actualizar primera fecha de pago de crédito cuando cambia la frecuencia
   useEffect(() => {
@@ -533,6 +624,49 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       return;
     }
 
+    // Validaciones para canal A domicilio
+    if (effectiveChannel === 'DOMICILIO') {
+      const hasCustomerName =
+        Boolean(selectedCustomer.id) ||
+        (Boolean(selectedCustomer.name?.trim()) && selectedCustomer.name !== 'Consumidor final');
+      if (!hasCustomerName) {
+        setLocalError('Falta el nombre del cliente');
+        return;
+      }
+
+      const resolvedDeliveryPhone = (deliveryPhone || selectedCustomer.phone || '').trim();
+      if (!resolvedDeliveryPhone) {
+        setLocalError('Falta el teléfono del cliente');
+        return;
+      }
+
+      const resolvedDeliveryAddress = deliveryAddress.trim();
+      if (!resolvedDeliveryAddress) {
+        setLocalError('Falta la dirección del cliente');
+        return;
+      }
+
+      if (deliveryRequireDriver && !deliveryDriverId) {
+        setLocalError('Se requiere asignar un repartidor para la entrega a domicilio');
+        return;
+      }
+    }
+
+    const saveDeliveryToCustomerSilently = () => {
+      if (effectiveChannel !== 'DOMICILIO' || !selectedCustomer.id) return;
+      const addr = deliveryAddress.trim();
+      const ref = deliveryReference.trim();
+      const prevAddr = (selectedCustomer.lastAddressText || '').trim();
+      const prevRef = (selectedCustomer.deliveryReference || '').trim();
+      const addrChanged = Boolean(addr && addr !== prevAddr);
+      const refChanged = ref !== prevRef;
+      if (!addrChanged && !refChanged) return;
+      const updateBody: { address?: string; deliveryReference?: string | null } = {};
+      if (addrChanged) updateBody.address = addr;
+      if (refChanged) updateBody.deliveryReference = ref || null;
+      updateCustomer(selectedCustomer.id, updateBody).catch(() => {});
+    };
+
     // Validación de turno e idempotencia
     if (!idempotencyKeyRef.current) {
       idempotencyKeyRef.current =
@@ -620,14 +754,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       });
 
       const selectedSellerObj = staffOptions.find((u) => u.id === directSellerId);
+      const effectivePhone =
+        effectiveChannel === 'DOMICILIO'
+          ? (deliveryPhone || selectedCustomer.phone || '').trim() || undefined
+          : selectedCustomer.phone || undefined;
       const submission: FinalPaymentSubmission = {
         method: 'MIXTO',
         amountPaid: mixedSummary.totalCoveredNio,
         change: mixedSummary.changeNio,
         customerName: selectedCustomer.name !== 'Consumidor final' ? selectedCustomer.name : undefined,
-        customerPhone: selectedCustomer.phone || undefined,
+        customerPhone: effectivePhone,
         customerId: selectedCustomer.id || undefined,
         customerRuc: selectedCustomer.ruc || undefined,
+        deliveryFee: effectiveChannel === 'DOMICILIO' ? Math.max(0, Number(deliveryFee || 0)) : undefined,
+        deliveryAddress: effectiveChannel === 'DOMICILIO' ? deliveryAddress.trim() || undefined : undefined,
+        deliveryPhone: effectiveChannel === 'DOMICILIO' ? effectivePhone : undefined,
+        deliveryReference: effectiveChannel === 'DOMICILIO' ? deliveryReference.trim() : undefined,
+        deliveryDriverId: effectiveChannel === 'DOMICILIO' ? deliveryDriverId || undefined : undefined,
         notes: notes.trim() || undefined,
         payments: paymentsPayload,
         tip: tipPayload,
@@ -637,6 +780,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       };
 
       try {
+        saveDeliveryToCustomerSilently();
         await onSubmitSale(submission);
       } catch {
         // El error ya es manejado en el componente padre
@@ -721,6 +865,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     };
 
     const selectedSingleSellerObj = staffOptions.find((u) => u.id === directSellerId);
+    const effectivePhone =
+      effectiveChannel === 'DOMICILIO'
+        ? (deliveryPhone || selectedCustomer.phone || '').trim() || undefined
+        : selectedCustomer.phone || undefined;
     const submission: FinalPaymentSubmission = {
       method: singleMethod,
       amountPaid: singleMethod === 'EFECTIVO' ? singleCoveredNio : total,
@@ -733,8 +881,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       exchangeRate: currency === 'USD' ? exchangeRate : undefined,
       customerId: selectedCustomer.id || undefined,
       customerName: selectedCustomer.name !== 'Consumidor final' ? selectedCustomer.name : undefined,
-      customerPhone: selectedCustomer.phone || undefined,
+      customerPhone: effectivePhone,
       customerRuc: selectedCustomer.ruc || undefined,
+      deliveryFee: effectiveChannel === 'DOMICILIO' ? Math.max(0, Number(deliveryFee || 0)) : undefined,
+      deliveryAddress: effectiveChannel === 'DOMICILIO' ? deliveryAddress.trim() || undefined : undefined,
+      deliveryPhone: effectiveChannel === 'DOMICILIO' ? effectivePhone : undefined,
+      deliveryReference: effectiveChannel === 'DOMICILIO' ? deliveryReference.trim() : undefined,
+      deliveryDriverId: effectiveChannel === 'DOMICILIO' ? deliveryDriverId || undefined : undefined,
       notes: notes.trim() || undefined,
       creditDueDate: finalDueDateStr,
       creditPlan: creditPlanPayload,
@@ -747,6 +900,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     };
 
     try {
+      saveDeliveryToCustomerSilently();
       await onSubmitSale(submission);
     } catch {
       // Manejado arriba
@@ -795,6 +949,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <div className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight tabular-nums whitespace-nowrap">
               {formatCurrency(total)}
             </div>
+            {effectiveChannel === 'DOMICILIO' && (
+              <div className="mt-1 text-xs font-semibold text-blue-900 bg-blue-50 border border-blue-200/80 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1.5 tabular-nums">
+                <span>A domicilio · Envío: {formatCurrency(deliveryFee)}</span>
+              </div>
+            )}
             {tipPreviewNio > 0 && (
               <div className="mt-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 tabular-nums">
                 <span>+ Propina: {formatCurrency(tipPreviewNio)}</span>
@@ -841,14 +1000,51 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
           {/* 1. Selector de Cliente */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">
-              Cliente de la venta
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-gray-700">
+                Cliente de la venta {effectiveChannel === 'DOMICILIO' && <span className="text-red-500">*</span>}
+              </label>
+              {effectiveChannel === 'DOMICILIO' && (!selectedCustomer.id && selectedCustomer.name === 'Consumidor final') && (
+                <span className="text-xs font-bold text-red-600">Obligatorio para envío</span>
+              )}
+            </div>
             <CustomerSelector
               selectedCustomer={selectedCustomer}
               onChangeCustomer={(c) => {
                 setSelectedCustomer(c);
                 setApprovalToken(null);
+                setLocalError(null);
+                if (c.id || (c.name && c.name !== 'Consumidor final')) {
+                  setDeliveryPhone(c.phone || '');
+                  setDeliveryAddress(c.lastAddressText || '');
+                  setDeliveryReference(c.deliveryReference || '');
+                  if (c.id && (!c.lastAddressText || !c.deliveryReference)) {
+                    getCustomer(c.id)
+                      .then((fullCust) => {
+                        if (!fullCust) return;
+                        setSelectedCustomer((prev) =>
+                          prev.id === c.id
+                            ? {
+                                ...prev,
+                                lastAddressText: prev.lastAddressText || fullCust.lastAddressText || null,
+                                deliveryReference: prev.deliveryReference || fullCust.deliveryReference || null,
+                              }
+                            : prev,
+                        );
+                        if (!c.lastAddressText && fullCust.lastAddressText) {
+                          setDeliveryAddress(fullCust.lastAddressText);
+                        }
+                        if (!c.deliveryReference && fullCust.deliveryReference) {
+                          setDeliveryReference(fullCust.deliveryReference);
+                        }
+                      })
+                      .catch(() => {});
+                  }
+                } else {
+                  setDeliveryPhone('');
+                  setDeliveryAddress('');
+                  setDeliveryReference('');
+                }
               }}
               carteraActive={carteraActive}
               userRole={userRole}
@@ -856,6 +1052,34 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               deliveryChannelEnabled={deliveryChannelEnabled}
             />
           </div>
+
+          {/* 1b. Datos de entrega a domicilio */}
+          {effectiveChannel === 'DOMICILIO' && (
+            <DeliveryCheckoutFields
+              deliveryPhone={deliveryPhone}
+              onChangeDeliveryPhone={(val) => {
+                setDeliveryPhone(val);
+                setLocalError(null);
+              }}
+              deliveryFee={deliveryFee}
+              onChangeDeliveryFee={setDeliveryFee}
+              deliveryAddress={deliveryAddress}
+              onChangeDeliveryAddress={(val) => {
+                setDeliveryAddress(val);
+                setLocalError(null);
+              }}
+              deliveryReference={deliveryReference}
+              onChangeDeliveryReference={setDeliveryReference}
+              requireDriver={Boolean(deliveryRequireDriver)}
+              deliveryDriverId={deliveryDriverId}
+              onChangeDeliveryDriverId={(val) => {
+                setDeliveryDriverId(val);
+                setLocalError(null);
+              }}
+              drivers={drivers}
+              isLoadingDrivers={isLoadingDrivers}
+            />
+          )}
 
           {/* 2. Modalidad: Simple vs Mixto */}
           <div className="grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1 border border-gray-200 text-xs font-bold">

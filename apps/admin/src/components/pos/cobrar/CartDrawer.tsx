@@ -8,6 +8,8 @@ import {
   ArrowRight,
   FileText,
   WifiSlash,
+  Storefront,
+  Motorcycle,
 } from '@phosphor-icons/react';
 import { usePosCartStore, type DiscountType } from '../../../store/posCart.store';
 import { formatCurrency } from '../../../utils/formatters';
@@ -18,6 +20,9 @@ interface CartDrawerProps {
   onProceedToPayment: () => void;
   onSaveAsQuote?: () => void;
   isOnline?: boolean;
+  deliveryChannelEnabled?: boolean;
+  defaultDeliveryFee?: number;
+  lockChannel?: boolean;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -26,10 +31,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onProceedToPayment,
   onSaveAsQuote,
   isOnline = true,
+  deliveryChannelEnabled = false,
+  defaultDeliveryFee = 0,
+  lockChannel = false,
 }) => {
   const items = usePosCartStore((s) => s.items);
   const discountType = usePosCartStore((s) => s.discountType);
   const discountValue = usePosCartStore((s) => s.discountValue);
+  const channel = usePosCartStore((s) => s.channel);
+  const setChannel = usePosCartStore((s) => s.setChannel);
   const removeItem = usePosCartStore((s) => s.removeItem);
   const deleteItem = usePosCartStore((s) => s.deleteItem);
   const updateQuantity = usePosCartStore((s) => s.updateQuantity);
@@ -38,16 +48,18 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const sourceQuote = usePosCartStore((s) => s.sourceQuote);
   const discardSourceQuote = usePosCartStore((s) => s.discardSourceQuote);
   const getCalculationSummary = usePosCartStore((s) => s.getCalculationSummary);
+  const getEffectiveDeliveryFee = usePosCartStore((s) => s.getEffectiveDeliveryFee);
   const businessContext = usePosCartStore((s) => s.businessContext);
 
   if (!isOpen) return null;
 
   const isQuoteOfflineBlocked = Boolean(sourceQuote && !isOnline);
+  const effectiveChannel = lockChannel || !deliveryChannelEnabled ? 'MOSTRADOR' : channel;
+  const effectiveDeliveryFee = effectiveChannel === 'DOMICILIO' ? getEffectiveDeliveryFee() : 0;
 
   const calcSummary = getCalculationSummary();
   const subtotal = calcSummary.subtotal;
-  // discountAmount used via calcSummary
-  const total = calcSummary.total;
+  const total = Math.round((calcSummary.total + effectiveDeliveryFee) * 100) / 100;
 
   const hasListDiscount = calcSummary.listDiscountTotal > 0 && calcSummary.listPriceTotal > 0;
   const hasTaxable = calcSummary.taxAmount > 0;
@@ -102,6 +114,39 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Selector de canal (Mostrador / A domicilio) */}
+        {deliveryChannelEnabled && !lockChannel && (
+          <div className="px-5 py-2.5 bg-gray-50 border-b border-gray-200/80 flex items-center justify-between gap-2 shrink-0">
+            <span className="text-xs font-bold text-gray-600">Canal:</span>
+            <div className="inline-flex rounded-xl bg-gray-200/70 p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => setChannel('MOSTRADOR')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] flex items-center gap-1.5 cursor-pointer ${
+                  effectiveChannel === 'MOSTRADOR'
+                    ? 'bg-gray-900 text-white shadow-2xs'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                <Storefront size={15} weight={effectiveChannel === 'MOSTRADOR' ? 'fill' : 'regular'} />
+                <span>Mostrador</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChannel('DOMICILIO', defaultDeliveryFee)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] flex items-center gap-1.5 cursor-pointer ${
+                  effectiveChannel === 'DOMICILIO'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                <Motorcycle size={15} weight={effectiveChannel === 'DOMICILIO' ? 'fill' : 'regular'} />
+                <span>A domicilio</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Items list */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 divide-y divide-gray-100">
@@ -337,9 +382,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       <span>{formatCurrency(calcSummary.taxAmount)}</span>
                     </div>
                   )}
+                  {effectiveChannel === 'DOMICILIO' && (
+                    <div className="flex justify-between text-gray-700 font-medium">
+                      <span>Envío</span>
+                      <span className="font-semibold text-gray-900">{formatCurrency(effectiveDeliveryFee)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm sm:text-base font-bold text-gray-900 pt-1 border-t border-gray-200">
                     <span>TOTAL A PAGAR {hasTaxable ? '(con IVA)' : ''}</span>
-                    <span className="text-emerald-800 font-black">{formatCurrency(calcSummary.total)}</span>
+                    <span className="text-emerald-800 font-black">{formatCurrency(total)}</span>
                   </div>
                 </>
               ) : (
@@ -368,9 +419,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       </div>
                     </>
                   )}
+                  {effectiveChannel === 'DOMICILIO' && (
+                    <div className="flex justify-between text-gray-700 font-medium">
+                      <span>Envío</span>
+                      <span className="font-semibold text-gray-900">{formatCurrency(effectiveDeliveryFee)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm sm:text-base font-bold text-gray-900 pt-1 border-t border-gray-200">
                     <span>{hasTaxable ? 'TOTAL A PAGAR (con IVA)' : 'Total a cobrar'}</span>
-                    <span className="text-emerald-800 font-black">{formatCurrency(calcSummary.total)}</span>
+                    <span className="text-emerald-800 font-black">{formatCurrency(total)}</span>
                   </div>
                 </>
               )}

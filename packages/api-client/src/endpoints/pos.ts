@@ -281,6 +281,12 @@ export interface CreateSalePayload {
   cashRegisterId?: string;
   clientGeneratedId?: string;
   channel?: string;
+  deliveryFee?: number;
+  deliveryAddress?: string;
+  deliveryPhone?: string;
+  deliveryReference?: string;
+  deliveryDriverId?: string;
+  deliveryDriverName?: string;
   items: CreateSaleItemPayload[];
   discountAmount?: number;
   discount?: number;
@@ -324,6 +330,13 @@ export interface CreateSalePayload {
 export interface SaleResponse {
   id: string;
   invoiceNumber: string;
+  channel?: string;
+  deliveryFee?: number | null;
+  deliveryAddress?: string | null;
+  deliveryPhone?: string | null;
+  deliveryReference?: string | null;
+  deliveryDriverId?: string | null;
+  deliveryDriverName?: string | null;
   total: number;
   subtotal: number;
   subtotalBeforeTax?: number;
@@ -542,6 +555,23 @@ export const updateChannelConfig = async (
     params: businessId ? { businessId } : undefined,
   });
   return res.data;
+};
+
+export interface PosChannelDriver {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  vehicleType?: string | null;
+  vehiclePlate?: string | null;
+  isActive: boolean;
+}
+
+export const getPosChannelDrivers = async (businessId?: string): Promise<PosChannelDriver[]> => {
+  const res = await apiClient.get<PosChannelDriver[]>('/pos/channels/drivers', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
 };
 
 export interface DenominationItemDto {

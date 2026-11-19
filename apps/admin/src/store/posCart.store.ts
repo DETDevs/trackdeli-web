@@ -38,6 +38,7 @@ export interface CartSourceQuote {
   customerName: string | null;
   customerPhone: string | null;
   customerRuc: string | null;
+  customerAddress: string | null;
   vehicleInfo: string | null;
   discountAmount: number;
   hasPriceChanges: boolean;
@@ -76,6 +77,7 @@ export function computeItemUnitPrice(
 }
 
 export type DiscountType = 'FIXED' | 'PERCENT';
+export type PosSaleChannel = 'MOSTRADOR' | 'DOMICILIO';
 
 interface PosCartState {
   items: CartItem[];
@@ -83,6 +85,12 @@ interface PosCartState {
   discountValue: number;
   businessContext: BusinessCalculationContext;
   sourceQuote: CartSourceQuote | null;
+  channel: PosSaleChannel;
+  deliveryFee: number;
+  deliveryAddress: string;
+  deliveryPhone: string;
+  deliveryReference: string;
+  deliveryDriverId: string;
 
   setBusinessContext: (context: Partial<BusinessCalculationContext>) => void;
   addItem: (product: PosProductItem) => void;
@@ -90,11 +98,19 @@ interface PosCartState {
   deleteItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   setDiscount: (type: DiscountType, value: number) => void;
+  setChannel: (channel: PosSaleChannel, defaultFee?: number) => void;
+  setDeliveryFee: (fee: number) => void;
+  setDeliveryAddress: (address: string) => void;
+  setDeliveryPhone: (phone: string) => void;
+  setDeliveryReference: (reference: string) => void;
+  setDeliveryDriverId: (driverId: string) => void;
+  resetChannel: () => void;
   clearCart: () => void;
   loadFromQuoteConversion: (conversion: PrepareQuoteConversionResponse) => void;
   discardSourceQuote: () => void;
 
   getCalculationSummary: () => CalculatedSaleSummary;
+  getEffectiveDeliveryFee: () => number;
   getSubtotal: () => number;
   getDiscountAmount: () => number;
   getTotal: () => number;
@@ -105,6 +121,12 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
   discountType: 'PERCENT',
   discountValue: 0,
   sourceQuote: null,
+  channel: 'MOSTRADOR',
+  deliveryFee: 0,
+  deliveryAddress: '',
+  deliveryPhone: '',
+  deliveryReference: '',
+  deliveryDriverId: '',
   businessContext: {
     useListPrice: false,
     taxEnabled: true,
@@ -269,12 +291,78 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
     });
   },
 
+  setChannel: (channel, defaultFee) => {
+    set((state) => {
+      if (channel === 'DOMICILIO') {
+        const feeToUse =
+          defaultFee !== undefined
+            ? Math.max(0, Number(defaultFee) || 0)
+            : state.deliveryFee;
+        const nextAddress =
+          state.deliveryAddress.trim() ||
+          state.sourceQuote?.customerAddress?.trim() ||
+          '';
+        const nextPhone =
+          state.deliveryPhone.trim() ||
+          state.sourceQuote?.customerPhone?.trim() ||
+          '';
+        return {
+          channel: 'DOMICILIO',
+          deliveryFee: feeToUse,
+          deliveryAddress: nextAddress,
+          deliveryPhone: nextPhone,
+        };
+      }
+      return {
+        channel: 'MOSTRADOR',
+      };
+    });
+  },
+
+  setDeliveryFee: (fee) => {
+    const safeFee = Math.max(0, Number.isFinite(fee) ? Math.round(fee * 100) / 100 : 0);
+    set({ deliveryFee: safeFee });
+  },
+
+  setDeliveryAddress: (address) => {
+    set({ deliveryAddress: address });
+  },
+
+  setDeliveryPhone: (phone) => {
+    set({ deliveryPhone: phone });
+  },
+
+  setDeliveryReference: (reference) => {
+    set({ deliveryReference: reference });
+  },
+
+  setDeliveryDriverId: (driverId) => {
+    set({ deliveryDriverId: driverId });
+  },
+
+  resetChannel: () => {
+    set({
+      channel: 'MOSTRADOR',
+      deliveryFee: 0,
+      deliveryAddress: '',
+      deliveryPhone: '',
+      deliveryReference: '',
+      deliveryDriverId: '',
+    });
+  },
+
   clearCart: () => {
     set({
       items: [],
       discountType: 'PERCENT',
       discountValue: 0,
       sourceQuote: null,
+      channel: 'MOSTRADOR',
+      deliveryFee: 0,
+      deliveryAddress: '',
+      deliveryPhone: '',
+      deliveryReference: '',
+      deliveryDriverId: '',
     });
   },
 
@@ -325,10 +413,18 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
 
     const discountAmt = Math.max(0, Number(conversion.discountAmount || 0));
 
-    set({
+    set((state) => ({
       items,
       discountType: discountAmt > 0 ? 'FIXED' : 'PERCENT',
       discountValue: discountAmt > 0 ? discountAmt : 0,
+      deliveryAddress:
+        state.channel === 'DOMICILIO' && !state.deliveryAddress.trim()
+          ? conversion.customerAddress?.trim() || ''
+          : state.deliveryAddress,
+      deliveryPhone:
+        state.channel === 'DOMICILIO' && !state.deliveryPhone.trim()
+          ? conversion.customerPhone?.trim() || ''
+          : state.deliveryPhone,
       sourceQuote: {
         quoteId: conversion.quoteId,
         quoteNumber: conversion.quoteNumber,
@@ -341,6 +437,7 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
         customerName: conversion.customerName,
         customerPhone: conversion.customerPhone,
         customerRuc: conversion.customerRuc,
+        customerAddress: conversion.customerAddress || null,
         vehicleInfo: conversion.vehicleInfo,
         discountAmount: discountAmt,
         hasPriceChanges: conversion.hasPriceChanges,
@@ -351,7 +448,7 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
         batchItemNotes,
         missingProductNotes,
       },
-    });
+    }));
   },
 
   discardSourceQuote: () => {
@@ -360,6 +457,12 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
       discountType: 'PERCENT',
       discountValue: 0,
       sourceQuote: null,
+      channel: 'MOSTRADOR',
+      deliveryFee: 0,
+      deliveryAddress: '',
+      deliveryPhone: '',
+      deliveryReference: '',
+      deliveryDriverId: '',
     });
   },
 
@@ -394,6 +497,12 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
     );
   },
 
+  getEffectiveDeliveryFee: () => {
+    const { channel, deliveryFee, items } = get();
+    if (channel !== 'DOMICILIO' || items.length === 0) return 0;
+    return Math.max(0, Math.round(Number(deliveryFee || 0) * 100) / 100);
+  },
+
   getSubtotal: () => {
     return get().getCalculationSummary().subtotal;
   },
@@ -403,6 +512,8 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
   },
 
   getTotal: () => {
-    return get().getCalculationSummary().total;
+    const productTotal = get().getCalculationSummary().total;
+    const fee = get().getEffectiveDeliveryFee();
+    return Math.round((productTotal + fee) * 100) / 100;
   },
 }));

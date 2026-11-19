@@ -123,6 +123,13 @@ export interface BackofficeSaleItemSummary {
   amountPaid: number;
   change: number;
   itemsCount: number;
+  channel?: 'MOSTRADOR' | 'DOMICILIO' | 'PEDIDOSYA' | string;
+  deliveryFee?: number | null;
+  deliveryAddress?: string | null;
+  deliveryPhone?: string | null;
+  deliveryReference?: string | null;
+  deliveryDriverId?: string | null;
+  deliveryDriverName?: string | null;
   cashier?: { id: string; name: string } | null;
   sellerId?: string | null;
   sellerName?: string | null;
@@ -329,6 +336,7 @@ export interface SalesQueryParams {
   from?: string;
   to?: string;
   paymentMethod?: string;
+  channel?: string;
   cashierId?: string;
   staffId?: string;
   sellerId?: string;
@@ -380,14 +388,133 @@ export const useBackofficeDashboard = (businessId?: string) => {
   });
 };
 
+const isDeliverySaleLine = (it: any): boolean =>
+  !it?.productId &&
+  String(it?.productName || it?.name || '')
+    .trim()
+    .toLowerCase()
+    .startsWith('envío a domicilio');
+
+const extractVehiclePlaca = (vehicleInfo?: string | null): string | null => {
+  if (!vehicleInfo) return null;
+  const parts = vehicleInfo.split('·').map((s) => s.trim());
+  return parts[0] || vehicleInfo.trim() || null;
+};
+
 export const useBackofficeSales = (params: SalesQueryParams) => {
   return useQuery<PaginatedResponse<BackofficeSaleItemSummary>>({
     queryKey: ['backoffice', 'sales', params],
     queryFn: async () => {
-      const res = await apiClient.get<PaginatedResponse<BackofficeSaleItemSummary>>('/backoffice/sales', {
-        params,
+      const page = Math.max(1, Number(params.page) || 1);
+      const limit = Math.max(1, Number(params.limit) || 20);
+      const batchLimit = 200;
+      const maxPages = 25;
+      const seenIds = new Set<string>();
+      const rawSales: any[] = [];
+
+      for (let p = 1; p <= maxPages; p++) {
+        const res = await apiClient.get<any[]>('/pos/sales', {
+          params: {
+            from: params.from,
+            to: params.to,
+            paymentMethod: params.paymentMethod,
+            channel: params.channel,
+            staffId: params.staffId,
+            sellerId: params.sellerId,
+            status: params.status,
+            businessId: params.businessId,
+            limit: batchLimit,
+            page: p,
+          },
+        });
+        const batch = Array.isArray(res.data) ? res.data : [];
+        for (const s of batch) {
+          if (s && s.id && !seenIds.has(s.id)) {
+            seenIds.add(s.id);
+            rawSales.push(s);
+          }
+        }
+        if (batch.length < batchLimit) break;
+      }
+
+      const mapped: BackofficeSaleItemSummary[] = rawSales.map((sale) => {
+        const isVoided = sale.status === 'CANCELLED' || sale.status === 'VOIDED';
+        const total = Number(sale.total ?? 0);
+        const refundTotal = Number(sale.refundTotal ?? 0);
+        const netTotal =
+          sale.netTotal != null ? Number(sale.netTotal) : Math.max(0, total - refundTotal);
+        const rawItems = Array.isArray(sale.items) ? sale.items : [];
+        const itemsCount =
+          rawItems.length > 0
+            ? rawItems.filter((it: any) => !isDeliverySaleLine(it)).length
+            : Number(sale.linesCount ?? 0);
+
+        return {
+          id: sale.id,
+          invoiceNumber: sale.invoiceNumber,
+          invoiceDate: sale.invoiceDate || sale.createdAt,
+          createdAt: sale.createdAt,
+          status: sale.status,
+          isVoided,
+          voidReason: sale.voidReason || null,
+          voidedAt: sale.voidedAt || null,
+          paymentMethod: sale.paymentMethod || null,
+          subtotal: Number(sale.subtotal ?? 0),
+          discountAmount: Number(sale.discountAmount ?? 0),
+          taxAmount: Number(sale.taxAmount ?? 0),
+          total,
+          netTotal,
+          amountPaid: Number(sale.amountPaid ?? 0),
+          change: Number(sale.change ?? 0),
+          itemsCount,
+          channel: sale.channel || 'MOSTRADOR',
+          deliveryFee: sale.deliveryFee != null ? Number(sale.deliveryFee) : 0,
+          deliveryAddress: sale.deliveryAddress || null,
+          deliveryPhone: sale.deliveryPhone || null,
+          deliveryReference: sale.deliveryReference || null,
+          deliveryDriverId: sale.deliveryDriverId || null,
+          deliveryDriverName: sale.deliveryDriverName || null,
+          cashier: sale.cashier ? { id: sale.cashier.id, name: sale.cashier.name } : null,
+          sellerId: sale.sellerId || null,
+          sellerName: sale.sellerName || sale.seller?.name || null,
+          seller: sale.seller ? { id: sale.seller.id, name: sale.seller.name } : null,
+          customer: {
+            id: sale.customerId || sale.customer?.id || null,
+            name: sale.customerName || sale.customer?.name || null,
+            phone: sale.customerPhone || sale.customer?.phone || null,
+            ruc: sale.customerRuc || sale.customer?.ruc || null,
+          },
+          taller: {
+            placa: extractVehiclePlaca(sale.vehicleInfo),
+            vehiculo: sale.vehicleInfo || null,
+            tecnico: sale.waiterName || null,
+            area: sale.zoneName || sale.tableNumber || null,
+          },
+        };
       });
-      return res.data;
+
+      const filtered = mapped.filter((s) => {
+        if (params.excludeVoided && s.isVoided) return false;
+        if (params.channel && (s.channel || 'MOSTRADOR').toUpperCase() !== params.channel.toUpperCase()) {
+          return false;
+        }
+        return true;
+      });
+
+      const total = filtered.length;
+      const totalPages = Math.ceil(total / limit) || 1;
+      const startIdx = (page - 1) * limit;
+      const data = filtered.slice(startIdx, startIdx + limit);
+
+      return {
+        data,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages,
+        },
+      };
     },
     staleTime: 15000,
   });

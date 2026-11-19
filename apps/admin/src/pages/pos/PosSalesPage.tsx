@@ -11,9 +11,10 @@ import {
   Printer,
   ArrowUUpLeft,
   FileText,
+  Motorcycle,
 } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
-import { apiClient, getMyBusiness, getPosStaffOptions } from 'api-client';
+import { apiClient, getMyBusiness, getPosSettings, getPosStaffOptions, type PosSettingsData } from 'api-client';
 import { useAuthStore } from '../../store/auth.store';
 import { useBackofficeSales, useBackofficeDashboard } from '../../hooks/useBackoffice';
 import { useBackofficeDateFilter } from '../../hooks/useBackofficeDateFilter';
@@ -45,10 +46,12 @@ export const PosSalesPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'SALES' | 'RETURNS'>('SALES');
   const [paymentMethod, setPaymentMethod] = useState<string>('ALL');
+  const [channelFilter, setChannelFilter] = useState<'ALL' | 'MOSTRADOR' | 'DOMICILIO'>('ALL');
   const [staffFilter, setStaffFilter] = useState<string>('ALL');
   const [excludeVoided, setExcludeVoided] = useState<boolean>(false);
   const [page, setPage] = useState<number>(1);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
+  const [openDeliveryBadgeKey, setOpenDeliveryBadgeKey] = useState<string | null>(null);
 
   // Estados de impresión y Hoja de Ruta
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -96,6 +99,31 @@ export const PosSalesPage: React.FC = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Configuración POS para saber si el canal a domicilio está activo
+  const { data: posSettingsData } = useQuery<PosSettingsData>({
+    queryKey: ['pos', 'settings'],
+    queryFn: () => getPosSettings(),
+    enabled: Boolean(user),
+    staleTime: 60 * 1000,
+  });
+
+  const deliveryChannelEnabled = Boolean(
+    posSettingsData?.channels?.delivery?.enabled ?? (businessData as any)?.deliveryChannelEnabled,
+  );
+
+  useEffect(() => {
+    if (!deliveryChannelEnabled && channelFilter !== 'ALL') {
+      setChannelFilter('ALL');
+    }
+  }, [deliveryChannelEnabled, channelFilter]);
+
+  useEffect(() => {
+    if (!openDeliveryBadgeKey) return;
+    const handleDocClick = () => setOpenDeliveryBadgeKey(null);
+    document.addEventListener('click', handleDocClick);
+    return () => document.removeEventListener('click', handleDocClick);
+  }, [openDeliveryBadgeKey]);
+
   // Consultar configuración para saber moneda y perfil de salón
   const { data: dashboardData } = useBackofficeDashboard();
   const currency = dashboardData?.currency || 'NIO';
@@ -112,6 +140,7 @@ export const PosSalesPage: React.FC = () => {
     from,
     to,
     paymentMethod: paymentMethod !== 'ALL' ? paymentMethod : undefined,
+    channel: deliveryChannelEnabled && channelFilter !== 'ALL' ? channelFilter : undefined,
     staffId: staffFilter !== 'ALL' ? staffFilter : undefined,
     excludeVoided: excludeVoided ? true : undefined,
     page,
@@ -245,6 +274,7 @@ export const PosSalesPage: React.FC = () => {
               from,
               to,
               paymentMethod: paymentMethod !== 'ALL' ? paymentMethod : undefined,
+              channel: deliveryChannelEnabled && channelFilter !== 'ALL' ? channelFilter : undefined,
               staffId: staffFilter !== 'ALL' ? staffFilter : undefined,
               status: excludeVoided ? 'COMPLETED' : undefined,
               limit: batchLimit,
@@ -335,7 +365,7 @@ export const PosSalesPage: React.FC = () => {
                 Ventas del Punto de Venta
               </h2>
               {isTallerProfile && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                   <Wrench size={11} />
                   Perfil Taller
                 </span>
@@ -495,6 +525,24 @@ export const PosSalesPage: React.FC = () => {
                 <option value="OTROS">Otros</option>
               </select>
 
+              {/* Canal de venta (solo si el negocio tiene el canal a domicilio activo) */}
+              {deliveryChannelEnabled && (
+                <select
+                  aria-label="Filtrar por canal"
+                  data-testid="sales-channel-filter"
+                  value={channelFilter}
+                  onChange={(e) => {
+                    setChannelFilter(e.target.value as 'ALL' | 'MOSTRADOR' | 'DOMICILIO');
+                    setPage(1);
+                  }}
+                  className="h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-800 bg-white focus:outline-none focus:border-gray-900 shadow-2xs"
+                >
+                  <option value="ALL">Todos los canales</option>
+                  <option value="MOSTRADOR">Mostrador</option>
+                  <option value="DOMICILIO">A domicilio</option>
+                </select>
+              )}
+
               {/* Checkbox Excluir Anuladas */}
               <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none px-2 py-1 rounded-lg border border-gray-100 hover:bg-gray-50">
                 <input
@@ -535,7 +583,7 @@ export const PosSalesPage: React.FC = () => {
           <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-gray-700">
-                <thead className="bg-gray-50/80 border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                <thead className="bg-gray-50/80 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   <tr>
                     <th className="px-4 py-3">Comp. original</th>
                     <th className="px-4 py-3">Fecha y Hora</th>
@@ -565,7 +613,7 @@ export const PosSalesPage: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-gray-600">{ret.reason || 'Sin motivo'}</td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-50 text-gray-700 border border-gray-200/60">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200/60">
                             {formatPaymentMethodDisplay(ret.refundMethod)}
                           </span>
                         </td>
@@ -626,10 +674,10 @@ export const PosSalesPage: React.FC = () => {
           ) : (
             <>
               {/* Vista Escritorio: Tabla */}
-              <div className="hidden md:block bg-white rounded-2xl border border-gray-200/80 shadow-2xs overflow-hidden">
+              <div className="hidden md:block bg-white rounded-2xl border border-gray-200/80 shadow-2xs overflow-visible">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs text-gray-700">
-                    <thead className="bg-gray-50/80 border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                    <thead className="bg-gray-50/80 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       <tr>
                         <th className="px-4 py-3">Comprobante</th>
                         <th className="px-4 py-3">Fecha y Hora</th>
@@ -644,97 +692,160 @@ export const PosSalesPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {sales.map((sale) => (
-                        <tr
-                          key={sale.id}
-                          onClick={() => setSelectedSaleId(sale.id)}
-                          className="hover:bg-gray-50/70 transition-colors cursor-pointer group"
-                        >
-                          <td className="px-4 py-3 font-semibold text-gray-900">
-                            #{sale.invoiceNumber}
-                          </td>
+                      {sales.map((sale) => {
+                        const isDelivery = sale.channel === 'DOMICILIO';
+                        const badgeKey = `desktop-${sale.id}`;
+                        const isBadgeOpen = openDeliveryBadgeKey === badgeKey;
+                        const tooltipSummary = isDelivery
+                          ? `A domicilio · Dirección: ${sale.deliveryAddress || 'Sin dirección'}${
+                              sale.deliveryReference ? ` · Ref: ${sale.deliveryReference}` : ''
+                            }${sale.deliveryDriverName ? ` · Repartidor: ${sale.deliveryDriverName}` : ''}`
+                          : '';
 
-                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                            {formatDateTime(sale.createdAt)}
-                          </td>
-
-                          <td className="px-4 py-3 max-w-[200px]">
-                            {isTallerProfile && (sale.taller?.placa || sale.taller?.vehiculo) ? (
-                              <div className="space-y-0.5">
-                                <div className="flex items-center gap-1.5 font-semibold text-gray-900 truncate">
-                                  <Car size={13} className="text-amber-700 shrink-0" />
-                                  <span>{sale.taller.placa || 'Sin placa'}</span>
-                                  {sale.taller.vehiculo && (
-                                    <span className="text-gray-500 font-normal truncate">
-                                      · {sale.taller.vehiculo}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-[11px] text-gray-500 truncate">
-                                  {sale.customer?.name || 'Cliente general'}
-                                  {sale.taller.tecnico && ` · Tec: ${sale.taller.tecnico}`}
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="truncate">
-                                <p className="font-medium text-gray-900 truncate">
-                                  {sale.customer?.name || 'Cliente general'}
-                                </p>
-                                {sale.customer?.phone && (
-                                  <p className="text-[11px] text-gray-400">{sale.customer.phone}</p>
+                        return (
+                          <tr
+                            key={sale.id}
+                            onClick={() => setSelectedSaleId(sale.id)}
+                            className="hover:bg-gray-50/70 transition-colors cursor-pointer group"
+                          >
+                            <td className="px-4 py-3 font-semibold text-gray-900">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span>#{sale.invoiceNumber}</span>
+                                {isDelivery && (
+                                  <div
+                                    className="relative inline-flex"
+                                    onMouseEnter={() => setOpenDeliveryBadgeKey(badgeKey)}
+                                    onMouseLeave={() =>
+                                      setOpenDeliveryBadgeKey((prev) => (prev === badgeKey ? null : prev))
+                                    }
+                                  >
+                                    <button
+                                      type="button"
+                                      data-testid="sale-delivery-badge"
+                                      title={tooltipSummary}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenDeliveryBadgeKey((prev) =>
+                                          prev === badgeKey ? null : badgeKey,
+                                        );
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+                                    >
+                                      <Motorcycle size={13} weight="bold" className="shrink-0" />
+                                      <span>A domicilio</span>
+                                    </button>
+                                    {isBadgeOpen && (
+                                      <div
+                                        role="tooltip"
+                                        data-testid="sale-delivery-tooltip"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="absolute left-0 top-full mt-1.5 z-40 w-64 p-3 rounded-xl bg-gray-900 text-white text-xs font-normal shadow-xl space-y-1.5"
+                                      >
+                                        <div className="font-bold text-blue-300 flex items-center gap-1.5">
+                                          <Motorcycle size={14} weight="bold" />
+                                          <span>Detalle de entrega</span>
+                                        </div>
+                                        <div>
+                                          <span className="font-semibold text-gray-300">Dirección: </span>
+                                          <span>{sale.deliveryAddress || 'Sin dirección'}</span>
+                                        </div>
+                                        <div>
+                                          <span className="font-semibold text-gray-300">Referencia: </span>
+                                          <span>{sale.deliveryReference || 'Sin referencia'}</span>
+                                        </div>
+                                        <div>
+                                          <span className="font-semibold text-gray-300">Repartidor: </span>
+                                          <span>{sale.deliveryDriverName || 'Sin repartidor'}</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            )}
-                          </td>
+                            </td>
 
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-50 text-gray-700 border border-gray-200/60">
-                              {sale.paymentMethod || 'Efectivo'}
-                            </span>
-                          </td>
+                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                              {formatDateTime(sale.createdAt)}
+                            </td>
 
-                          <td className="px-4 py-3 text-gray-600 max-w-[150px]">
-                            <div className="truncate font-medium text-gray-800">
-                              {sale.sellerName || sale.cashier?.name || 'Cajero'}
-                            </div>
-                            {sale.sellerName && sale.cashier?.name && sale.sellerName !== sale.cashier.name && (
-                              <div className="text-xs text-gray-500 truncate">
-                                Caja: {sale.cashier.name}
+                            <td className="px-4 py-3 max-w-[200px]">
+                              {isTallerProfile && (sale.taller?.placa || sale.taller?.vehiculo) ? (
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5 font-semibold text-gray-900 truncate">
+                                    <Car size={13} className="text-amber-700 shrink-0" />
+                                    <span>{sale.taller.placa || 'Sin placa'}</span>
+                                    {sale.taller.vehiculo && (
+                                      <span className="text-gray-500 font-normal truncate">
+                                        · {sale.taller.vehiculo}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-500 truncate">
+                                    {sale.customer?.name || 'Cliente general'}
+                                    {sale.taller.tecnico && ` · Tec: ${sale.taller.tecnico}`}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="truncate">
+                                  <p className="font-medium text-gray-900 truncate">
+                                    {sale.customer?.name || 'Cliente general'}
+                                  </p>
+                                  {sale.customer?.phone && (
+                                    <p className="text-xs text-gray-400">{sale.customer.phone}</p>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200/60">
+                                {sale.paymentMethod || 'Efectivo'}
+                              </span>
+                            </td>
+
+                            <td className="px-4 py-3 text-gray-600 max-w-[150px]">
+                              <div className="truncate font-medium text-gray-800">
+                                {sale.sellerName || sale.cashier?.name || 'Cajero'}
                               </div>
-                            )}
-                          </td>
+                              {sale.sellerName && sale.cashier?.name && sale.sellerName !== sale.cashier.name && (
+                                <div className="text-xs text-gray-500 truncate">
+                                  Caja: {sale.cashier.name}
+                                </div>
+                              )}
+                            </td>
 
-                          <td className="px-4 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
-                            {formatCurrency(sale.netTotal, currency)}
-                          </td>
+                            <td className="px-4 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
+                              {formatCurrency(sale.netTotal, currency)}
+                            </td>
 
-                          <td className="px-4 py-3 text-center whitespace-nowrap">
-                            {sale.isVoided ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200">
-                                Anulada
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Pagada
-                              </span>
-                            )}
-                          </td>
+                            <td className="px-4 py-3 text-center whitespace-nowrap">
+                              {sale.isVoided ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                                  Anulada
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  Pagada
+                                </span>
+                              )}
+                            </td>
 
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedSaleId(sale.id);
-                              }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
-                            >
-                              <span>Ver</span>
-                              <ArrowRight size={11} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedSaleId(sale.id);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
+                              >
+                                <span>Ver</span>
+                                <ArrowRight size={11} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -742,61 +853,117 @@ export const PosSalesPage: React.FC = () => {
 
               {/* Vista Celular: Tarjetas legibles y optimizadas */}
               <div className="md:hidden space-y-2.5">
-                {sales.map((sale) => (
-                  <div
-                    key={sale.id}
-                    onClick={() => setSelectedSaleId(sale.id)}
-                    className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs space-y-2.5 active:bg-gray-50 cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-xs text-gray-900">
-                            #{sale.invoiceNumber}
-                          </span>
-                          {sale.isVoided ? (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
-                              Anulada
+                {sales.map((sale) => {
+                  const isDelivery = sale.channel === 'DOMICILIO';
+                  const badgeKey = `mobile-${sale.id}`;
+                  const isBadgeOpen = openDeliveryBadgeKey === badgeKey;
+                  const tooltipSummary = isDelivery
+                    ? `A domicilio · Dirección: ${sale.deliveryAddress || 'Sin dirección'}${
+                        sale.deliveryReference ? ` · Ref: ${sale.deliveryReference}` : ''
+                      }${sale.deliveryDriverName ? ` · Repartidor: ${sale.deliveryDriverName}` : ''}`
+                    : '';
+
+                  return (
+                    <div
+                      key={sale.id}
+                      onClick={() => setSelectedSaleId(sale.id)}
+                      className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs space-y-2.5 active:bg-gray-50 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-xs text-gray-900">
+                              #{sale.invoiceNumber}
                             </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              Pagada
+                            {sale.isVoided ? (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                                Anulada
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Pagada
+                              </span>
+                            )}
+                            {isDelivery && (
+                              <div className="relative inline-flex">
+                                <button
+                                  type="button"
+                                  data-testid="sale-delivery-badge-mobile"
+                                  title={tooltipSummary}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenDeliveryBadgeKey((prev) =>
+                                      prev === badgeKey ? null : badgeKey,
+                                    );
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200"
+                                >
+                                  <Motorcycle size={13} weight="bold" className="shrink-0" />
+                                  <span>A domicilio</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {formatDateTime(sale.createdAt)}
+                          </p>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="text-sm font-bold text-gray-900 block whitespace-nowrap tabular-nums">
+                            {formatCurrency(sale.netTotal, currency)}
+                          </span>
+                          <span className="text-xs text-gray-600">
+                            {sale.itemsCount} {sale.itemsCount === 1 ? 'ítem' : 'ítems'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {isDelivery && isBadgeOpen && (
+                        <div
+                          role="tooltip"
+                          data-testid="sale-delivery-tooltip-mobile"
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-3 rounded-xl bg-gray-900 text-white text-xs space-y-1"
+                        >
+                          <div className="font-bold text-blue-300 flex items-center gap-1.5">
+                            <Motorcycle size={14} weight="bold" />
+                            <span>Detalle de entrega</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-300">Dirección: </span>
+                            <span>{sale.deliveryAddress || 'Sin dirección'}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-300">Referencia: </span>
+                            <span>{sale.deliveryReference || 'Sin referencia'}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-300">Repartidor: </span>
+                            <span>{sale.deliveryDriverName || 'Sin repartidor'}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs text-gray-600">
+                        <div className="min-w-0">
+                          <span className="block leading-snug break-words">
+                            {sale.customer?.name || 'Cliente general'}
+                          </span>
+                          {sale.sellerName && (
+                            <span className="inline-block mt-0.5 text-xs text-violet-700 font-medium">
+                              Ruta / Vendedor: {sale.sellerName}
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-600 mt-0.5">
-                          {formatDateTime(sale.createdAt)}
-                        </p>
-                      </div>
 
-                      <div className="text-right shrink-0">
-                        <span className="text-sm font-bold text-gray-900 block whitespace-nowrap tabular-nums">
-                          {formatCurrency(sale.netTotal, currency)}
-                        </span>
-                        <span className="text-xs text-gray-600">
-                          {sale.itemsCount} {sale.itemsCount === 1 ? 'ítem' : 'ítems'}
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-50 text-gray-700 border border-gray-200/60 shrink-0">
+                          {sale.paymentMethod || 'Efectivo'}
                         </span>
                       </div>
                     </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs text-gray-600">
-                      <div className="min-w-0">
-                        <span className="block leading-snug break-words">
-                          {sale.customer?.name || 'Cliente general'}
-                        </span>
-                        {sale.sellerName && (
-                          <span className="inline-block mt-0.5 text-xs text-violet-700 font-medium">
-                            Ruta / Vendedor: {sale.sellerName}
-                          </span>
-                        )}
-                      </div>
-
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-50 text-gray-700 border border-gray-200/60 shrink-0">
-                        {sale.paymentMethod || 'Efectivo'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Paginación */}

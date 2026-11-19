@@ -20,6 +20,8 @@ import {
   DotsThreeVertical,
   FileText,
   WifiSlash,
+  Storefront,
+  Motorcycle,
 } from '@phosphor-icons/react';
 import {
   getPosCategories,
@@ -57,7 +59,11 @@ import { RecentSalesModal } from '../../components/pos/cobrar/RecentSalesModal';
 import { SaveAsQuoteModal } from '../../components/pos/cobrar/SaveAsQuoteModal';
 import { QuotePrintModal } from '../../components/pos/quotes/QuotePrintModal';
 
-export const PosCobrarPage: React.FC = () => {
+export interface PosCobrarPageProps {
+  lockChannel?: boolean;
+}
+
+export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = false }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -111,6 +117,8 @@ export const PosCobrarPage: React.FC = () => {
 
   // 5. Carrito
   const cartItems = usePosCartStore((s) => s.items);
+  const channel = usePosCartStore((s) => s.channel);
+  const setChannel = usePosCartStore((s) => s.setChannel);
   const addItem = usePosCartStore((s) => s.addItem);
   const removeItem = usePosCartStore((s) => s.removeItem);
   const clearCart = usePosCartStore((s) => s.clearCart);
@@ -119,6 +127,7 @@ export const PosCobrarPage: React.FC = () => {
   const getSubtotal = usePosCartStore((s) => s.getSubtotal);
   const getDiscountAmount = usePosCartStore((s) => s.getDiscountAmount);
   const getTotal = usePosCartStore((s) => s.getTotal);
+  const getEffectiveDeliveryFee = usePosCartStore((s) => s.getEffectiveDeliveryFee);
   const getCalculationSummary = usePosCartStore((s) => s.getCalculationSummary);
   const setBusinessContext = usePosCartStore((s) => s.setBusinessContext);
 
@@ -145,6 +154,8 @@ export const PosCobrarPage: React.FC = () => {
       name: sourceQuote.customerName?.trim() || 'Cliente de proforma',
       phone: sourceQuote.customerPhone || null,
       ruc: sourceQuote.customerRuc || null,
+      lastAddressText: sourceQuote.customerAddress || null,
+      deliveryReference: null,
       creditLimit: null,
       creditSummary: null,
     };
@@ -296,6 +307,15 @@ export const PosCobrarPage: React.FC = () => {
     (user as any)?.business?.salonProfile,
   ].some((v) => String(v || '').toUpperCase() === 'TALLER');
   const deliveryChannelEnabled = Boolean(posSettingsData?.channels?.delivery?.enabled);
+  const defaultDeliveryFee = Number(posSettingsData?.channels?.delivery?.defaultFee ?? 0);
+  const deliveryRequireDriver = Boolean(posSettingsData?.channels?.delivery?.requireDriver);
+  const effectiveChannel = lockChannel || !deliveryChannelEnabled ? 'MOSTRADOR' : channel;
+
+  React.useEffect(() => {
+    if ((lockChannel || (posSettingsData && !deliveryChannelEnabled)) && channel !== 'MOSTRADOR') {
+      setChannel('MOSTRADOR');
+    }
+  }, [lockChannel, posSettingsData, deliveryChannelEnabled, channel, setChannel]);
   const carteraActive = Boolean(
     posSettingsData?.hasCarteraCobro ??
       (businessData as any)?.hasCarteraCobro ??
@@ -399,7 +419,8 @@ export const PosCobrarPage: React.FC = () => {
 
   const subtotal = getSubtotal();
   const discountAmount = getDiscountAmount();
-  const total = getTotal();
+  const effectiveDeliveryFee = effectiveChannel === 'DOMICILIO' ? getEffectiveDeliveryFee() : 0;
+  const total = effectiveChannel === 'DOMICILIO' ? getTotal() : getCalculationSummary().total;
   const totalItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   // 1. Estados de carga inicial
@@ -742,17 +763,44 @@ export const PosCobrarPage: React.FC = () => {
         ? crypto.randomUUID()
         : `sale-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
 
+    const saleDeliveryFee =
+      effectiveChannel === 'DOMICILIO'
+        ? Math.max(0, Math.round(Number(paymentData.deliveryFee ?? effectiveDeliveryFee ?? 0) * 100) / 100)
+        : 0;
+    const finalSubtotal = Math.round((currentCalc.subtotal + saleDeliveryFee) * 100) / 100;
+    const finalSubtotalBeforeTax = Math.round((currentCalc.subtotalBeforeTax + saleDeliveryFee) * 100) / 100;
+    const finalTotal = Math.round((currentCalc.total + saleDeliveryFee) * 100) / 100;
+
     const salePayload: any = {
-      channel: 'MOSTRADOR',
+      channel: effectiveChannel,
+      deliveryFee: effectiveChannel === 'DOMICILIO' ? saleDeliveryFee : undefined,
+      deliveryAddress:
+        effectiveChannel === 'DOMICILIO'
+          ? paymentData.deliveryAddress?.trim() || undefined
+          : undefined,
+      deliveryPhone:
+        effectiveChannel === 'DOMICILIO'
+          ? paymentData.deliveryPhone?.trim() || paymentData.customerPhone || undefined
+          : undefined,
+      deliveryReference:
+        effectiveChannel === 'DOMICILIO'
+          ? paymentData.deliveryReference !== undefined
+            ? paymentData.deliveryReference.trim()
+            : undefined
+          : undefined,
+      deliveryDriverId:
+        effectiveChannel === 'DOMICILIO'
+          ? paymentData.deliveryDriverId || undefined
+          : undefined,
       quoteId: sourceQuote?.quoteId || undefined,
       vehicleInfo: sourceQuote?.vehicleInfo || undefined,
       items: itemsPayload,
-      subtotal: currentCalc.subtotal,
+      subtotal: finalSubtotal,
       discountAmount: currentCalc.discountAmount > 0 ? currentCalc.discountAmount : undefined,
       discount: currentCalc.discountAmount > 0 ? currentCalc.discountAmount : undefined,
-      subtotalBeforeTax: currentCalc.subtotalBeforeTax,
-      total: currentCalc.total,
-      clientTotal: currentCalc.total,
+      subtotalBeforeTax: finalSubtotalBeforeTax,
+      total: finalTotal,
+      clientTotal: finalTotal,
       taxModel: currentCalc.taxModel,
       taxAmount: currentCalc.taxAmount,
       taxEnabled: currentCalc.taxAmount > 0,
@@ -1118,6 +1166,39 @@ export const PosCobrarPage: React.FC = () => {
       {/* 2. BUSCADOR Y CATEGORÍAS FIJOS (Nunca se cortan ni saltan al hacer scroll) */}
       <div className="bg-[#FAFAFA] border-b border-gray-200/70 px-3 sm:px-5 pt-2.5 pb-2 shrink-0 z-20">
         <div className="max-w-5xl w-full mx-auto space-y-2.5">
+          {/* Selector de canal (Mostrador / A domicilio) */}
+          {deliveryChannelEnabled && !lockChannel && (
+            <div className="flex items-center justify-between gap-2 bg-white border border-gray-200/80 rounded-2xl px-3 py-1.5 shadow-2xs">
+              <span className="text-xs font-bold text-gray-600">Canal de venta</span>
+              <div className="inline-flex rounded-xl bg-gray-100 p-1 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setChannel('MOSTRADOR')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] flex items-center gap-1.5 cursor-pointer ${
+                    effectiveChannel === 'MOSTRADOR'
+                      ? 'bg-gray-900 text-white shadow-2xs'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  <Storefront size={15} weight={effectiveChannel === 'MOSTRADOR' ? 'fill' : 'regular'} />
+                  <span>Mostrador</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChannel('DOMICILIO', defaultDeliveryFee)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] flex items-center gap-1.5 cursor-pointer ${
+                    effectiveChannel === 'DOMICILIO'
+                      ? 'bg-blue-600 text-white shadow-2xs'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  <Motorcycle size={15} weight={effectiveChannel === 'DOMICILIO' ? 'fill' : 'regular'} />
+                  <span>A domicilio</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Buscador de productos */}
           <div className="relative">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
@@ -1319,7 +1400,14 @@ export const PosCobrarPage: React.FC = () => {
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-gray-600 font-medium leading-tight">Total a cobrar</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-xs text-gray-600 font-medium leading-tight">Total a cobrar</p>
+                {effectiveChannel === 'DOMICILIO' && (
+                  <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 text-xs font-bold leading-none">
+                    Envío: {formatCurrency(effectiveDeliveryFee)}
+                  </span>
+                )}
+              </div>
               <p className="text-base sm:text-lg font-black text-gray-900 leading-tight tabular-nums truncate">
                 {formatCurrency(total)}
               </p>
@@ -1344,6 +1432,9 @@ export const PosCobrarPage: React.FC = () => {
         isOpen={isCartDrawerOpen}
         onClose={() => setIsCartDrawerOpen(false)}
         isOnline={isOnline}
+        deliveryChannelEnabled={deliveryChannelEnabled}
+        defaultDeliveryFee={defaultDeliveryFee}
+        lockChannel={lockChannel}
         onProceedToPayment={() => {
           setSaleErrorMessage(null);
           setIsCartDrawerOpen(false);
@@ -1360,7 +1451,7 @@ export const PosCobrarPage: React.FC = () => {
         onClose={() => setIsSaveAsQuoteOpen(false)}
         cartItems={cartItems}
         discountAmount={discountAmount}
-        estimatedTotal={total}
+        estimatedTotal={getCalculationSummary().total}
         currency={(businessData as any)?.currency || 'NIO'}
         isTaller={isTallerBusiness}
         userRole={user?.role}
@@ -1398,7 +1489,9 @@ export const PosCobrarPage: React.FC = () => {
         carteraActive={carteraActive}
         posVertical={resolvedPosVertical}
         deliveryChannelEnabled={deliveryChannelEnabled}
-        channel="MOSTRADOR"
+        deliveryRequireDriver={deliveryRequireDriver}
+        channel={effectiveChannel}
+        lockChannel={lockChannel}
         initialCustomer={quoteInitialCustomer}
         sourceQuoteNumber={sourceQuote?.quoteNumber || null}
         isQuoteOfflineBlocked={isQuoteOfflineBlocked}

@@ -52,18 +52,32 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
     MIXTO: 'Pago mixto',
   };
 
+  const isDelivery = sale.channel === 'DOMICILIO';
+  const deliveryFee = isDelivery ? Number(sale.deliveryFee ?? 0) : 0;
   const isPerLine =
     sale.taxModel === 'PER_LINE' ||
     (sale.items || []).some((it: any) => it.taxable !== undefined && it.taxable !== null);
-  const listPriceTotal = Number((sale as any).listPriceTotal || 0);
+  const rawListPriceTotal = Number((sale as any).listPriceTotal || 0);
+  const listPriceTotal =
+    isDelivery && deliveryFee > 0 && rawListPriceTotal >= deliveryFee
+      ? Math.round((rawListPriceTotal - deliveryFee) * 100) / 100
+      : rawListPriceTotal;
   const listDiscountTotal = Number((sale as any).listDiscountTotal || 0);
   const discountManual = Number(sale.discountAmount || 0);
   const taxAmount = Number(sale.taxAmount || 0);
   const total = Number(sale.total || 0);
-  const subtotalBeforeTax =
+  const productsSubtotal =
+    isDelivery && deliveryFee > 0
+      ? Math.max(0, Math.round((Number(sale.subtotal || 0) - deliveryFee) * 100) / 100)
+      : Number(sale.subtotal || 0);
+  const rawSubtotalBeforeTax =
     (sale as any).subtotalBeforeTax != null
       ? Number((sale as any).subtotalBeforeTax)
       : Math.max(0, Number(sale.subtotal || 0) - discountManual);
+  const subtotalBeforeTax =
+    isDelivery && deliveryFee > 0
+      ? Math.max(0, Math.round((rawSubtotalBeforeTax - deliveryFee) * 100) / 100)
+      : rawSubtotalBeforeTax;
   const hasTaxable = taxAmount > 0 || (sale.items || []).some((it: any) => Boolean(it.taxable));
   const hasListDiscount = listDiscountTotal > 0 && listPriceTotal > 0;
   const listDiscountPct = hasListDiscount ? Math.round((listDiscountTotal / listPriceTotal) * 100) : 0;
@@ -183,6 +197,36 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
             </span>
           </div>
 
+          {isDelivery && (
+            <>
+              <div className="flex justify-between items-center text-gray-600">
+                <span>Canal</span>
+                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold text-xs">
+                  A domicilio
+                </span>
+              </div>
+              {sale.deliveryAddress && (
+                <div className="flex justify-between items-start gap-3 text-gray-600">
+                  <span className="shrink-0">Dirección</span>
+                  <div className="text-right">
+                    <span className="font-semibold text-gray-800 block">{sale.deliveryAddress}</span>
+                    {sale.deliveryReference && (
+                      <span className="text-xs text-gray-500 block">
+                        Ref: {sale.deliveryReference}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {sale.deliveryDriverName && (
+                <div className="flex justify-between items-center text-gray-600">
+                  <span>Repartidor</span>
+                  <span className="font-semibold text-gray-800">{sale.deliveryDriverName}</span>
+                </div>
+              )}
+            </>
+          )}
+
           <div className="flex justify-between items-center text-gray-600">
             <span>Forma de cobro</span>
             <span className="font-bold text-gray-900">
@@ -295,6 +339,14 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
                     <span className="whitespace-nowrap tabular-nums shrink-0">{formatCurrency(taxAmount)}</span>
                   </div>
                 )}
+                {isDelivery && (
+                  <div className="flex justify-between gap-2 text-gray-700 font-medium">
+                    <span>Envío</span>
+                    <span className="font-semibold text-gray-900 whitespace-nowrap tabular-nums shrink-0">
+                      {formatCurrency(deliveryFee)}
+                    </span>
+                  </div>
+                )}
                 <div className="pt-2 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
                   <span className="text-xs sm:text-sm font-bold text-gray-900">
                     {hasTaxable ? 'TOTAL A PAGAR (con IVA)' : 'Total cobrado'}
@@ -308,7 +360,7 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
               <>
                 <div className="flex justify-between gap-2 text-gray-600">
                   <span>Subtotal</span>
-                  <span className="font-semibold text-gray-800 whitespace-nowrap tabular-nums shrink-0">{formatCurrency(sale.subtotal)}</span>
+                  <span className="font-semibold text-gray-800 whitespace-nowrap tabular-nums shrink-0">{formatCurrency(productsSubtotal)}</span>
                 </div>
                 {discountManual > 0 && (
                   <div className="flex justify-between gap-2 text-emerald-700 font-medium">
@@ -328,6 +380,14 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
                     </div>
                   </>
                 )}
+                {isDelivery && (
+                  <div className="flex justify-between gap-2 text-gray-700 font-medium">
+                    <span>Envío</span>
+                    <span className="font-semibold text-gray-900 whitespace-nowrap tabular-nums shrink-0">
+                      {formatCurrency(deliveryFee)}
+                    </span>
+                  </div>
+                )}
                 <div className="pt-2 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
                   <span className="text-xs sm:text-sm font-bold text-gray-900">
                     {hasTaxable ? 'TOTAL A PAGAR (con IVA)' : 'Total cobrado'}
@@ -339,10 +399,26 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
               </>
             ) : (
               <>
+                {isDelivery && (
+                  <div className="flex justify-between gap-2 text-gray-600">
+                    <span>Subtotal</span>
+                    <span className="font-semibold text-gray-800 whitespace-nowrap tabular-nums shrink-0">
+                      {formatCurrency(productsSubtotal)}
+                    </span>
+                  </div>
+                )}
                 {discountManual > 0 && (
                   <div className="flex justify-between gap-2 text-emerald-700 font-medium">
                     <span>Descuento</span>
                     <span className="whitespace-nowrap tabular-nums shrink-0">-{formatCurrency(discountManual)}</span>
+                  </div>
+                )}
+                {isDelivery && (
+                  <div className="flex justify-between gap-2 text-gray-700 font-medium">
+                    <span>Envío</span>
+                    <span className="font-semibold text-gray-900 whitespace-nowrap tabular-nums shrink-0">
+                      {formatCurrency(deliveryFee)}
+                    </span>
                   </div>
                 )}
                 <div className="pt-2 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
