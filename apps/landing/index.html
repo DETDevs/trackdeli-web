@@ -37,8 +37,24 @@
       href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('nexol-theme');
+          var isDark =
+            saved === 'dark' ||
+            (saved !== 'light' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (saved === 'dark' || saved === 'light') {
+            document.documentElement.setAttribute('data-theme', saved);
+          }
+          if (isDark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-[#FAFAF8] text-[#141414] font-sans antialiased selection:bg-[#8FD14F] selection:text-[#141414]">
+  <body class="bg-[var(--lp-bg)] text-[var(--lp-ink)] font-sans antialiased selection:bg-[#8FD14F] selection:text-[#141414]">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

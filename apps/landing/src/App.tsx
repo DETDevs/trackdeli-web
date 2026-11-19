@@ -8,6 +8,8 @@ import { useGSAP } from '@gsap/react';
 
 import { ReleaseInfo, FALLBACK_RELEASE, WHATSAPP_TEST_URL, WHATSAPP_QUOTE_URL, WHATSAPP_SUPPORT_URL, RubroKey, TICKETS } from './data/constants';
 import { SawtoothDivider, TicketReceiptBody } from './components/ui';
+import { ThemeToggle } from './components/ThemeToggle';
+import type { ThemePreference } from './hooks/useTheme';
 import { UnaVentaScenes } from './sections/UnaVentaScenes';
 import { RubrosSectionGSAP } from './sections/RubrosSectionGSAP';
 
@@ -15,9 +17,11 @@ gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 export interface AppProps {
   onNavigate?: (path: string) => void;
+  theme: ThemePreference;
+  onThemeChange: (next: ThemePreference) => void;
 }
 
-export const App: React.FC<AppProps> = ({ onNavigate }) => {
+export const App: React.FC<AppProps> = ({ onNavigate, theme, onThemeChange }) => {
   const [selectedRubro, setSelectedRubro] = useState<RubroKey>('ferreteria');
   const [release, setRelease] = useState<ReleaseInfo>(FALLBACK_RELEASE);
   const [isWindows, setIsWindows] = useState<boolean>(true);
@@ -116,8 +120,15 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
           const s = window.scrollY;
           const p = Math.min(1, Math.max(0, s / SPAN));
           const e = ease(p);
+          const settled = p >= 1;
           const yStart = m.y0 - s;
+          brand.style.visibility = settled ? 'visible' : 'hidden';
+          if (settled) {
+            gsap.set(wm, { visibility: 'hidden' });
+            return;
+          }
           gsap.set(wm, {
+            visibility: 'visible',
             x: m.x0 + (m.tx - m.x0) * e,
             y: yStart + (m.ty - yStart) * e,
             scale: 1 + (m.k - 1) * e,
@@ -134,9 +145,9 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
           const br = brand.getBoundingClientRect();
           m.x0 = (window.innerWidth - w) / 2;
           m.y0 = heroBottom - h * 0.64;
-          m.k = br.height / h;
+          m.k = br.width / w;
           m.tx = br.left;
-          m.ty = br.top;
+          m.ty = br.top + (br.height - h * m.k) / 2;
           gsap.set(wm, { opacity: 1 });
           render();
         };
@@ -156,6 +167,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
         return () => {
           ScrollTrigger.removeEventListener('refresh', measure);
           st.kill();
+          brand.style.visibility = '';
         };
       }
 
@@ -408,7 +420,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
   const activeTicket = TICKETS[selectedRubro];
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8] text-[#141414] font-sans relative selection:bg-[#8FD14F] selection:text-[#141414]">
+    <div className="min-h-screen bg-[var(--lp-bg)] text-[var(--lp-ink)] font-sans relative selection:bg-[#8FD14F] selection:text-[#141414]">
       {/* Subtle Dot Texture with Parallax */}
       <motion.div
         style={{ y: prefersReducedMotion ? 0 : dotParallax }}
@@ -421,7 +433,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
         <div
           ref={wmFixedRef}
           aria-hidden="true"
-          className="pointer-events-none fixed left-0 top-0 z-[5] select-none whitespace-nowrap font-serif text-[28vw] leading-none"
+          className="pointer-events-none fixed left-0 top-0 z-[5] select-none whitespace-nowrap font-serif text-[28vw] leading-none tracking-tight"
           style={{
             color: '#FFFFFF',
             mixBlendMode: 'difference',
@@ -435,45 +447,46 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
       )}
 
       {/* Header */}
-      <header className="border-b border-[#E8E8E4] bg-[#FAFAF8]/95 backdrop-blur-xs sticky top-0 z-40">
-        <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
-          <a href="#" className="flex items-center gap-2 sm:gap-3 group text-[#141414] shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-[#141414] text-[#FAFAF8] flex items-center justify-center font-serif text-xl leading-none">
+      <header className="border-b border-[var(--lp-line)] bg-[var(--lp-bg)] sticky top-0 z-40">
+        <div className="max-w-[1120px] mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+          <a href="#" className="flex items-center gap-1.5 sm:gap-3 group text-[var(--lp-ink)] shrink-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[var(--lp-btn-bg)] text-[var(--lp-btn-ink)] flex items-center justify-center font-serif text-lg sm:text-xl leading-none">
               N
             </div>
-            <span className="flex items-baseline gap-1 sm:gap-1.5 text-[#141414]">
+            <span className="flex items-baseline gap-1 sm:gap-1.5 text-[var(--lp-ink)]">
               <span
                 ref={brandWordRef}
-                className={`inline-block font-serif text-xl sm:text-2xl leading-none tracking-tight ${pinned ? 'invisible' : ''}`}
+                className="inline-block font-serif text-lg sm:text-2xl leading-none tracking-tight"
               >
                 Nexol
               </span>
-              <span className="text-xs font-semibold tracking-wide text-[#4A4A4A]">POS</span>
+              <span className="text-[11px] sm:text-xs font-semibold tracking-wide text-[var(--lp-ink-2)]">POS</span>
             </span>
           </a>
 
-          <nav className="flex items-center gap-2.5 sm:gap-6 text-xs sm:text-sm">
+          <nav className="flex items-center gap-2 sm:gap-5 text-xs sm:text-sm">
             <a
               href="#descargar"
-              className="text-[#6B6B6B] hover:text-[#141414] transition-colors py-1.5 font-medium"
+              className="text-[var(--lp-muted)] hover:text-[var(--lp-ink)] transition-colors py-1.5 font-medium"
             >
               Descargar
             </a>
             <a
               href="/manual"
               onClick={handleManualClick}
-              className="text-[#6B6B6B] hover:text-[#141414] transition-colors py-1.5 font-medium"
+              className="text-[var(--lp-muted)] hover:text-[var(--lp-ink)] transition-colors py-1.5 font-medium"
             >
               Manual
             </a>
+            <ThemeToggle theme={theme} onChange={onThemeChange} />
             <motion.a
               href={WHATSAPP_TEST_URL}
               target="_blank"
               rel="noopener noreferrer"
               whileTap={{ scale: 0.98 }}
-              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-md bg-[#141414] text-[#FAFAF8] font-medium text-xs sm:text-sm hover:bg-black transition-all cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1.5 rounded-md bg-[var(--lp-btn-bg)] text-[var(--lp-btn-ink)] font-medium text-xs sm:text-sm hover:bg-[var(--lp-btn-hover)] transition-all cursor-pointer whitespace-nowrap"
             >
-              <WhatsappLogo size={16} weight="fill" />
+              <WhatsappLogo size={15} weight="fill" className="sm:w-4 sm:h-4" />
               <span>Pedir prueba</span>
             </motion.a>
           </nav>
@@ -484,7 +497,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
         {/* 1. Hero Section */}
         <section
           ref={heroRef}
-          className="relative pt-12 sm:pt-16 pb-[28vw] sm:pb-[25vw] lg:pb-[16vw] border-b border-[#E8E8E4]"
+          className="relative pt-12 sm:pt-16 pb-[28vw] sm:pb-[25vw] lg:pb-[16vw] border-b border-[var(--lp-line)]"
         >
           {/* Wordmark estático (celular/tablet/reduced motion): recortado a la mitad por el borde inferior */}
           {!pinned && (
@@ -505,7 +518,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-start">
               {/* Left Column: Line-by-line Masked Title Reveal */}
               <div className="lg:col-span-7 flex flex-col items-start text-left">
-                <h1 className="font-serif text-[36px] sm:text-[44px] md:text-[56px] lg:text-[68px] leading-[1.05] tracking-[-0.01em] text-[#141414] text-left">
+                <h1 className="font-serif text-[36px] sm:text-[44px] md:text-[56px] lg:text-[68px] leading-[1.05] tracking-[-0.01em] text-[var(--lp-ink)] text-left">
                   <span className="block overflow-hidden pb-1">
                     <motion.span
                       initial={prefersReducedMotion ? false : { y: '100%', opacity: 0 }}
@@ -543,7 +556,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                   initial={prefersReducedMotion ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.45, delay: 0.36, ease: 'easeOut' }}
-                  className="mt-6 text-[18px] leading-[1.6] text-[#6B6B6B] max-w-[70ch] text-left font-sans"
+                  className="mt-6 text-[18px] leading-[1.6] text-[var(--lp-muted)] max-w-[70ch] text-left font-sans"
                 >
                   Nexol POS es la caja, el inventario y los reportes de tu comercio, restaurante, ferretería, farmacia o taller en Nicaragua.
                 </motion.p>
@@ -578,7 +591,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                   <motion.a
                     href="#descargar"
                     whileTap={{ scale: 0.98 }}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-lg border border-[#E8E8E4] bg-[#FFFFFF] text-[#141414] font-medium text-base hover:bg-[#F2F2EF] transition-colors text-center cursor-pointer"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-lg border border-[var(--lp-line)] bg-[var(--lp-surface)] text-[var(--lp-ink)] font-medium text-base hover:bg-[var(--lp-soft)] transition-colors text-center cursor-pointer"
                   >
                     <DownloadSimple size={18} weight="bold" />
                     <span>Descargar para Windows</span>
@@ -589,9 +602,9 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                   initial={prefersReducedMotion ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.45, delay: 0.52 }}
-                  className="mt-6 flex items-center gap-2 text-xs text-[#6B6B6B]"
+                  className="mt-6 flex items-center gap-2 text-xs text-[var(--lp-muted)]"
                 >
-                  <CheckCircle size={15} weight="fill" className="text-[#5FA22B]" />
+                  <CheckCircle size={15} weight="fill" className="text-[var(--lp-lima-ink)]" />
                   <span>Prueba de 6 horas, sin compromiso</span>
                 </motion.div>
               </div>
@@ -607,8 +620,8 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                   }}
                 >
                   {/* Printer Slot */}
-                  <div className="w-full h-3.5 bg-[#141414] rounded-t-md shadow-inner flex items-center justify-center px-6 relative z-20">
-                    <div className="w-full h-[2px] bg-[#292929]" />
+                  <div className="w-full h-3.5 bg-[#141414] dark:bg-[#262626] dark:border-x dark:border-t dark:border-[#3A3A3A] rounded-t-md shadow-inner flex items-center justify-center px-6 relative z-20">
+                    <div className="w-full h-[2px] bg-[#292929] dark:bg-[#141414]" />
                   </div>
 
                   {/* Ticket Container with AnimatePresence for tear-off on switch */}
@@ -655,7 +668,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                     {/* Sawtooth / Serrated Edge */}
                     <div className="w-full h-3 bg-[#FFFFFF] border-x border-[#E8E8E4] relative overflow-hidden">
                       <svg
-                        className="w-full h-full text-[#FAFAF8] fill-current"
+                        className="w-full h-full text-[var(--lp-bg)] fill-current"
                         viewBox="0 0 340 12"
                         preserveAspectRatio="none"
                       >
@@ -668,7 +681,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                   <div
                     role="group"
                     aria-label="Seleccionar rubro del ticket"
-                    className="mt-3 p-1 rounded-xl bg-[#F2F2EF] border border-[#E8E8E4] grid grid-cols-4 gap-1 w-full"
+                    className="mt-3 p-1 rounded-xl bg-[var(--lp-soft)] border border-[var(--lp-line)] grid grid-cols-4 gap-1 w-full"
                   >
                     {(['ferreteria', 'restaurante', 'farmacia', 'taller'] as RubroKey[]).map((key) => {
                       const isSelected = selectedRubro === key;
@@ -681,8 +694,8 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                           whileTap={{ scale: 0.98 }}
                           className={`py-1.5 px-1 text-[11px] sm:text-xs rounded-lg transition-all font-medium text-center cursor-pointer select-none ${
                             isSelected
-                              ? 'bg-[#141414] text-[#FAFAF8] shadow-xs font-semibold'
-                              : 'text-[#6B6B6B] hover:text-[#141414]'
+                              ? 'bg-[var(--lp-btn-bg)] text-[var(--lp-btn-ink)] shadow-xs font-semibold'
+                              : 'text-[var(--lp-muted)] hover:text-[var(--lp-ink)]'
                           }`}
                         >
                           {TICKETS[key].label}
@@ -712,7 +725,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
 
 
         {/* 4. Section: Precio ($45 gigante de fondo + contador) */}
-        <section className="relative overflow-hidden py-20 sm:py-32 bg-[#FAFAF8]">
+        <section className="relative overflow-hidden py-20 sm:py-32 bg-[var(--lp-bg)]">
           <div
             ref={priceBgRef}
             aria-hidden="true"
@@ -720,7 +733,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
           >
             <span
               ref={priceNumberRef}
-              className="block origin-right font-serif text-[28vw] leading-[0.8] tracking-[-0.04em] text-[#ECEDE5] select-none"
+              className="block origin-right font-serif text-[28vw] leading-[0.8] tracking-[-0.04em] text-[var(--lp-watermark)] select-none"
             >
               {prefersReducedMotion ? '$45' : '$0'}
             </span>
@@ -728,7 +741,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
 
           <div ref={priceRef} className="relative z-10 w-full px-4 sm:px-6 lg:px-[4vw] text-left">
             <div className="overflow-hidden pb-2">
-              <h2 className="zara-reveal-h2 font-serif text-[clamp(40px,7vw,112px)] leading-[1] tracking-[-0.02em] text-[#141414]">
+              <h2 className="zara-reveal-h2 font-serif text-[clamp(40px,7vw,112px)] leading-[1] tracking-[-0.02em] text-[var(--lp-ink)]">
                 Precio claro y sin sorpresas
               </h2>
             </div>
@@ -736,17 +749,17 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
 
             <div className="mt-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
               <div className="lg:col-span-5 space-y-2">
-                <div className="font-serif text-[clamp(28px,3vw,44px)] leading-tight text-[#141414]">al mes</div>
-                <div className="text-sm font-medium text-[#4A4A4A] max-w-[34ch]">
+                <div className="font-serif text-[clamp(28px,3vw,44px)] leading-tight text-[var(--lp-ink)]">al mes</div>
+                <div className="text-sm font-medium text-[var(--lp-ink-2)] max-w-[34ch]">
                   por negocio · facturación mensual en córdobas o dólares
                 </div>
               </div>
 
               <div className="lg:col-span-6 lg:col-start-7 space-y-4">
-                <div className="text-xs uppercase tracking-wider font-semibold text-[#4A4A4A]">
+                <div className="text-xs uppercase tracking-wider font-semibold text-[var(--lp-ink-2)]">
                   Tu suscripción incluye
                 </div>
-                <ul className="space-y-2.5 text-[15px] sm:text-base text-[#141414]">
+                <ul className="space-y-2.5 text-[15px] sm:text-base text-[var(--lp-ink)]">
                   {[
                     'POS en Windows para tu punto de venta',
                     'Backoffice web de consulta y configuración',
@@ -754,7 +767,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                     'Actualizaciones continuas automáticas'
                   ].map((item, idx) => (
                     <li key={idx} className="flex items-center gap-2.5">
-                      <CheckCircle size={18} weight="fill" className="text-[#5FA22B] shrink-0" />
+                      <CheckCircle size={18} weight="fill" className="text-[var(--lp-lima-ink)] shrink-0" />
                       <span>{item}</span>
                     </li>
                   ))}
@@ -762,8 +775,8 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
               </div>
             </div>
 
-            <div className="mt-12 pt-6 border-t border-[#141414]/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <p className="text-xs sm:text-sm text-[#4A4A4A] text-left">
+            <div className="mt-12 pt-6 border-t border-[var(--lp-line-strong)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <p className="text-xs sm:text-sm text-[var(--lp-ink-2)] text-left">
                 Cartera de cobro, citas y equipo se cotizan aparte.
               </p>
 
@@ -772,7 +785,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                 target="_blank"
                 rel="noopener noreferrer"
                 whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md bg-[#141414] text-[#FAFAF8] font-medium text-sm hover:bg-black transition-colors self-start sm:self-auto cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md bg-[var(--lp-btn-bg)] text-[var(--lp-btn-ink)] font-medium text-sm hover:bg-[var(--lp-btn-hover)] transition-colors self-start sm:self-auto cursor-pointer"
               >
                 <WhatsappLogo size={17} weight="fill" />
                 <span>Pedir cotización</span>
@@ -782,14 +795,14 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
         </section>
 
         {/* 5. Section: Descarga */}
-        <section id="descargar" className="relative py-20 sm:py-32 bg-[#141414] text-[#FAFAF8] scroll-mt-10">
+        <section id="descargar" className="relative py-20 sm:py-32 bg-[var(--lp-scene-alt)] text-[var(--lp-scene-alt-ink)] dark:border-y dark:border-[var(--lp-line)] scroll-mt-10">
           <div className="w-full px-4 sm:px-6 lg:px-[4vw] text-left">
             <div className="overflow-hidden pb-2">
-              <h2 className="zara-reveal-h2 font-serif text-[clamp(40px,8vw,128px)] leading-[1] tracking-[-0.02em] text-[#FAFAF8]">
+              <h2 className="zara-reveal-h2 font-serif text-[clamp(40px,8vw,128px)] leading-[1] tracking-[-0.02em] text-[var(--lp-scene-alt-ink)]">
                 Descargá Nexol POS para Windows
               </h2>
             </div>
-            <p className="mt-4 text-[18px] text-[#A3A3A3] max-w-[50ch] font-sans">
+            <p className="mt-4 text-[18px] text-[var(--lp-scene-alt-muted)] max-w-[50ch] font-sans">
               Instalá la aplicación en la computadora de tu negocio y comenzá a facturar.
             </p>
 
@@ -875,7 +888,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                 )}
               </div>
 
-              <div className="pt-3 border-t border-white/15 flex items-center gap-2 text-xs text-[#A3A3A3] max-w-2xl">
+              <div className="pt-3 border-t border-white/15 flex items-center gap-2 text-xs text-[var(--lp-scene-alt-muted)] max-w-2xl">
                 <CheckCircle size={15} weight="fill" className="text-[#8FD14F]" />
                 <span>Requisitos: Windows 10 u 11 de 64 bits · internet para iniciar sesión</span>
               </div>
@@ -883,14 +896,14 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
 
             {/* 3 Numbered Steps */}
             <div className="mt-16 space-y-6 max-w-3xl text-left">
-              <h3 className="font-serif text-3xl text-[#FAFAF8]">Pasos para instalar</h3>
+              <h3 className="font-serif text-3xl text-[var(--lp-scene-alt-ink)]">Pasos para instalar</h3>
 
               <div className="space-y-0">
                 <div className="flex items-start gap-4 py-4 border-t border-white/15">
                   <div className="w-7 h-7 rounded-full bg-[#8FD14F] text-[#141414] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
                     1
                   </div>
-                  <div className="text-sm leading-[1.6] text-[#FAFAF8]">
+                  <div className="text-sm leading-[1.6] text-[var(--lp-scene-alt-ink)]">
                     <strong>Descargá y abrí el instalador</strong> en tu computadora. La instalación se realiza en segundos.
                   </div>
                 </div>
@@ -899,7 +912,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                   <div className="w-7 h-7 rounded-full bg-[#8FD14F] text-[#141414] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
                     2
                   </div>
-                  <div className="text-sm leading-[1.6] text-[#FAFAF8]">
+                  <div className="text-sm leading-[1.6] text-[var(--lp-scene-alt-ink)]">
                     Si Windows muestra la pantalla "Windows protegió su PC", tocá <strong>Más información</strong> y luego <strong>Ejecutar de todos modos</strong>. Es una verificación normal de Windows en versiones nuevas de software.
                   </div>
                 </div>
@@ -908,7 +921,7 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                   <div className="w-7 h-7 rounded-full bg-[#8FD14F] text-[#141414] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
                     3
                   </div>
-                  <div className="text-sm leading-[1.6] text-[#FAFAF8]">
+                  <div className="text-sm leading-[1.6] text-[var(--lp-scene-alt-ink)]">
                     <strong>Iniciá sesión</strong> con el usuario y la clave que te dio NEXOL para comenzar a registrar tus ventas e inventario.
                   </div>
                 </div>
@@ -922,26 +935,26 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
       <SawtoothDivider />
 
       {/* Footer */}
-      <footer className="py-12 bg-[#FAFAF8] text-left relative z-10">
+      <footer className="py-12 bg-[var(--lp-bg)] text-left relative z-10">
         <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-8 border-b border-[#E8E8E4]">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-8 border-b border-[var(--lp-line)]">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#141414] text-[#FAFAF8] flex items-center justify-center font-serif text-xl leading-none">
+                <div className="w-8 h-8 rounded-lg bg-[var(--lp-btn-bg)] text-[var(--lp-btn-ink)] flex items-center justify-center font-serif text-xl leading-none">
                   N
                 </div>
-                <span className="font-semibold text-base tracking-tight text-[#141414]">
+                <span className="font-semibold text-base tracking-tight text-[var(--lp-ink)]">
                   Nexol POS
                 </span>
               </div>
-              <p className="text-xs text-[#6B6B6B]">NEXOL · Managua, Nicaragua</p>
+              <p className="text-xs text-[var(--lp-muted)]">NEXOL · Managua, Nicaragua</p>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8 text-xs text-[#6B6B6B]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8 text-xs text-[var(--lp-muted)]">
               <a
                 href="/manual"
                 onClick={handleManualClick}
-                className="hover:text-[#141414] transition-colors"
+                className="hover:text-[var(--lp-ink)] transition-colors"
               >
                 Manual
               </a>
@@ -950,19 +963,19 @@ export const App: React.FC<AppProps> = ({ onNavigate }) => {
                 href={WHATSAPP_SUPPORT_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 hover:text-[#141414] transition-colors"
+                className="flex items-center gap-2 hover:text-[var(--lp-ink)] transition-colors"
               >
-                <WhatsappLogo size={16} weight="fill" className="text-[#141414]" />
+                <WhatsappLogo size={16} weight="fill" className="text-[var(--lp-ink)]" />
                 <span>WhatsApp: +505 8714 0989</span>
               </a>
 
-              <a href="mailto:soporte@nexol.com.ni" className="hover:text-[#141414] transition-colors">
+              <a href="mailto:soporte@nexol.com.ni" className="hover:text-[var(--lp-ink)] transition-colors">
                 soporte@nexol.com.ni
               </a>
             </div>
           </div>
 
-          <div className="pt-6 text-xs text-[#6B6B6B] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="pt-6 text-xs text-[var(--lp-muted)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>© {new Date().getFullYear()} NEXOL. Todos los derechos reservados.</div>
             <div>Punto de venta y facturación para negocios locales.</div>
           </div>

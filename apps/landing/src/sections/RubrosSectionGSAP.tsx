@@ -202,10 +202,10 @@ export const RubrosSectionGSAP: React.FC<{
       id="rubros-showcase"
       ref={rootRef}
       aria-labelledby="rubros-titulo"
-      className={`relative w-full overflow-hidden bg-[#FAFAF8] ${pinned ? 'h-screen' : ''}`}
+      className={`relative w-full overflow-hidden bg-[var(--lp-bg)] ${pinned ? 'h-screen' : ''}`}
     >
       {/* Intro: título de la sección */}
-      <div className={`rubro-intro ${base} ${stackedCol} overflow-hidden bg-[#FAFAF8] text-[#141414]`}>
+      <div className={`rubro-intro ${base} ${stackedCol} overflow-hidden bg-[var(--lp-bg)] text-[var(--lp-ink)]`}>
         <div className={`intro-block ${pinned ? 'absolute inset-x-0 top-[16vh] px-[4vw]' : ''}`}>
           <h2
             id="rubros-titulo"
@@ -215,7 +215,7 @@ export const RubrosSectionGSAP: React.FC<{
             <MaskLine>cómo trabaja</MaskLine>
             <MaskLine>tu negocio</MaskLine>
           </h2>
-          <div className="mt-6 max-w-[40ch] text-sm sm:text-base text-[#4A4A4A]">
+          <div className="mt-6 max-w-[40ch] text-sm sm:text-base text-[var(--lp-ink-2)]">
             <MaskLine>Adaptado a la dinámica real de tu mostrador, mesa o taller en Nicaragua.</MaskLine>
           </div>
         </div>
@@ -229,7 +229,7 @@ export const RubrosSectionGSAP: React.FC<{
           <div
             key={rubro.id}
             className={`rubro-scene ${base} ${stackedCol} overflow-hidden ${
-              dark ? 'bg-[#141414] text-[#FAFAF8]' : 'bg-[#FAFAF8] text-[#141414]'
+              dark ? 'bg-[var(--lp-scene-alt)] text-[var(--lp-scene-alt-ink)]' : 'bg-[var(--lp-bg)] text-[var(--lp-ink)]'
             }`}
           >
             <h3
@@ -244,7 +244,7 @@ export const RubrosSectionGSAP: React.FC<{
             </h3>
 
             <div
-              className={`max-w-[40ch] text-sm sm:text-base ${dark ? 'text-[#D4D4D0]' : 'text-[#4A4A4A]'} ${
+              className={`max-w-[40ch] text-sm sm:text-base ${dark ? 'text-[var(--lp-scene-alt-desc)]' : 'text-[var(--lp-ink-2)]'} ${
                 pinned ? 'absolute bottom-[8vh] left-[4vw]' : ''
               }`}
             >
@@ -252,7 +252,7 @@ export const RubrosSectionGSAP: React.FC<{
             </div>
 
             <div className={pinned ? 'absolute right-[6vw] top-1/2 w-full max-w-[340px] -translate-y-1/2' : 'w-full max-w-[340px]'}>
-              <RubroTicket ticket={ticket} edgeColor={dark ? '#141414' : '#FAFAF8'} />
+              <RubroTicket ticket={ticket} edgeColor={dark ? 'var(--lp-scene-alt)' : 'var(--lp-bg)'} />
             </div>
           </div>
         );

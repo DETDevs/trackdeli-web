@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ManualPage } from './manual/ManualPage';
+import { useTheme } from './hooks/useTheme';
 import './index.css';
 
 const isManualRoute = (pathname: string) => {
@@ -10,6 +11,7 @@ const isManualRoute = (pathname: string) => {
 
 const Root: React.FC = () => {
   const [pathname, setPathname] = useState<string>(() => window.location.pathname);
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     const handlePopState = () => {
@@ -33,7 +35,7 @@ const Root: React.FC = () => {
   return isManualRoute(pathname) ? (
     <ManualPage onNavigate={navigate} />
   ) : (
-    <App onNavigate={navigate} />
+    <App onNavigate={navigate} theme={theme} onThemeChange={setTheme} />
   );
 };
 

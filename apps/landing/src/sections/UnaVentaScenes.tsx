@@ -303,10 +303,10 @@ export const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = (
       id="una-venta"
       ref={rootRef}
       aria-labelledby="una-venta-titulo"
-      className={`relative w-full overflow-hidden bg-[#FAFAF8] ${pinned ? 'h-screen' : ''}`}
+      className={`relative w-full overflow-hidden bg-[var(--lp-bg)] ${pinned ? 'h-screen' : ''}`}
     >
       {/* Escena 0: Una venta. */}
-      <div className={`escena escena-0 ${sceneBase} overflow-hidden bg-[#FAFAF8] text-[#141414]`}>
+      <div className={`escena escena-0 ${sceneBase} overflow-hidden bg-[var(--lp-bg)] text-[var(--lp-ink)]`}>
         <div className={P('absolute inset-x-0 top-[20vh] px-[4vw]')}>
           <h2
             id="una-venta-titulo"
@@ -314,20 +314,20 @@ export const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = (
           >
             <MaskLine>Una venta.</MaskLine>
           </h2>
-          <p className="una-ticket mt-[3vh] font-mono text-[clamp(11px,1.25vw,18px)] text-[#141414] will-change-transform">
+          <p className="una-ticket mt-[3vh] font-mono text-[clamp(11px,1.25vw,18px)] text-[var(--lp-ink)] will-change-transform">
             <span className="una-ticket-in flex items-start gap-2.5">
-              <span className="mt-[0.45em] inline-block h-2 w-2 shrink-0 rounded-full bg-[#5FA22B]" aria-hidden="true" />
+              <span className="mt-[0.45em] inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--lp-lima-ink)]" aria-hidden="true" />
               <span>Cobro registrado · Ticket #00428 · +C$1,320.00</span>
             </span>
           </p>
         </div>
-        <div className={`una-cap max-w-[34ch] text-sm sm:text-base text-[#4A4A4A] ${P('absolute bottom-[6vh] left-[4vw]')}`}>
+        <div className={`una-cap max-w-[34ch] text-sm sm:text-base text-[var(--lp-ink-2)] ${P('absolute bottom-[6vh] left-[4vw]')}`}>
           <MaskLine>Una sola venta mueve tu caja, tu inventario y tus reportes.</MaskLine>
         </div>
       </div>
 
       {/* Escena 1: Caja */}
-      <div className={`escena escena-1 ${sceneBase} overflow-hidden bg-[#141414] text-[#FAFAF8]`}>
+      <div className={`escena escena-1 ${sceneBase} overflow-hidden bg-[var(--lp-scene-alt)] text-[var(--lp-scene-alt-ink)]`}>
         <ScreenPhoto
           file={AVAILABLE_SCREENS.caja}
           alt="Pantalla de caja del POS"
@@ -341,7 +341,7 @@ export const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = (
         </h3>
         <div className={P('absolute right-[4vw] top-[34vh] text-right')}>
           <div className="overflow-hidden">
-            <span data-in className="mb-2 block text-xs uppercase tracking-wider text-[#A3A3A3]">
+            <span data-in className="mb-2 block text-xs uppercase tracking-wider text-[var(--lp-scene-alt-muted)]">
               Total del día en caja
             </span>
           </div>
@@ -351,13 +351,13 @@ export const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = (
             C$9,770
           </MaskLine>
         </div>
-        <div className={`max-w-[34ch] text-sm sm:text-base text-[#D4D4D0] ${P('absolute bottom-[6vh] left-[4vw]')}`}>
+        <div className={`max-w-[34ch] text-sm sm:text-base text-[var(--lp-scene-alt-desc)] ${P('absolute bottom-[6vh] left-[4vw]')}`}>
           <MaskLine>Cobrás en córdobas o dólares y el total del día se actualiza.</MaskLine>
         </div>
       </div>
 
       {/* Escena 2: Inventario */}
-      <div className={`escena escena-2 ${sceneBase} overflow-hidden bg-[#FAFAF8] text-[#141414]`}>
+      <div className={`escena escena-2 ${sceneBase} overflow-hidden bg-[var(--lp-bg)] text-[var(--lp-ink)]`}>
         <ScreenPhoto
           file={AVAILABLE_SCREENS.inventario}
           alt="Pantalla de inventario del POS"
@@ -374,27 +374,27 @@ export const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = (
             <span className="text-sm font-medium">Aceite 15W40</span>
             <span className="escena-stock font-mono text-sm font-bold">19 / 30 LT</span>
           </div>
-          <div className={`inv-bar bg-[#E8E8E4] ${P('absolute inset-x-0 top-[56vh] h-[8vh]', 'relative -mx-[5vw] h-14')}`}>
+          <div className={`inv-bar bg-[var(--lp-line)] ${P('absolute inset-x-0 top-[56vh] h-[8vh]', 'relative -mx-[5vw] h-14')}`}>
             <div
               className="inv-fill absolute inset-0 origin-left will-change-transform"
               style={{ transform: `scaleX(${19 / 30})` }}
             >
-              <div className="absolute inset-0 bg-[#141414]" />
+              <div className="absolute inset-0 bg-[var(--lp-ink)]" />
               <div className="inv-fill-amber absolute inset-0 bg-[#F59E0B]" />
             </div>
-            <div className="absolute -bottom-2 -top-2 w-0.5 bg-[#141414]" style={{ left: '66.667%' }} aria-hidden="true" />
+            <div className="absolute -bottom-2 -top-2 w-0.5 bg-[var(--lp-ink)]" style={{ left: '66.667%' }} aria-hidden="true" />
           </div>
-          <p className={`inv-warn text-xs font-semibold text-[#B45309] ${P('absolute left-[4vw] top-[67vh]', 'mt-4')}`}>
+          <p className={`inv-warn text-xs font-semibold text-[#B45309] dark:text-[#FBBF24] ${P('absolute left-[4vw] top-[67vh]', 'mt-4')}`}>
             Bajo el mínimo
           </p>
         </div>
-        <div className={`max-w-[34ch] text-sm sm:text-base text-[#4A4A4A] ${P('absolute bottom-[6vh] left-[4vw]')}`}>
+        <div className={`max-w-[34ch] text-sm sm:text-base text-[var(--lp-ink-2)] ${P('absolute bottom-[6vh] left-[4vw]')}`}>
           <MaskLine>Cada venta descuenta lo que gastó y te avisa antes de quedarte sin stock.</MaskLine>
         </div>
       </div>
 
       {/* Escena 3: Reportes */}
-      <div className={`escena escena-3 ${sceneBase} overflow-hidden bg-[#141414] text-[#FAFAF8] ${P('', '!pb-0')}`}>
+      <div className={`escena escena-3 ${sceneBase} overflow-hidden bg-[var(--lp-scene-alt)] text-[var(--lp-scene-alt-ink)] ${P('', '!pb-0')}`}>
         <ScreenPhoto
           file={AVAILABLE_SCREENS.reportes}
           alt="Pantalla del backoffice de reportes"
@@ -408,7 +408,7 @@ export const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = (
         </h3>
         <div className={P('absolute right-[4vw] top-[8vh] text-right', '-mt-4')}>
           <div className="overflow-hidden">
-            <span data-in className="block text-xs uppercase tracking-wider text-[#A3A3A3]">
+            <span data-in className="block text-xs uppercase tracking-wider text-[var(--lp-scene-alt-muted)]">
               Ventas de hoy
             </span>
           </div>
@@ -418,7 +418,7 @@ export const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = (
             C$9,770
           </MaskLine>
         </div>
-        <div className={`max-w-[34ch] text-sm sm:text-base text-[#D4D4D0] ${P('absolute bottom-[calc(46vh+9vh)] left-[4vw]')}`}>
+        <div className={`max-w-[34ch] text-sm sm:text-base text-[var(--lp-scene-alt-desc)] ${P('absolute bottom-[calc(46vh+9vh)] left-[4vw]')}`}>
           <MaskLine>Mirá cómo va tu negocio desde el celular.</MaskLine>
         </div>
 
@@ -431,11 +431,11 @@ export const UnaVentaScenes: React.FC<{ pinned: boolean; reduced: boolean }> = (
                   style={{ height: `${(bar.amount / REPORT_MAX) * 100}%` }}
                 >
                   <div className="rep-bar absolute inset-0 origin-bottom will-change-transform">
-                    <div className="absolute inset-0 bg-[#FAFAF8]/85" />
+                    <div className="absolute inset-0 bg-[var(--lp-rep-bar)]" />
                     {bar.peak && <div className="rep-bar-lima absolute inset-0 bg-[#8FD14F]" />}
                   </div>
                   <span
-                    className={`rep-label absolute left-0 right-0 whitespace-nowrap text-center font-mono text-[#FAFAF8] ${P(
+                    className={`rep-label absolute left-0 right-0 whitespace-nowrap text-center font-mono text-[var(--lp-scene-alt-ink)] ${P(
                       '-top-6 text-[11px]',
                       '-top-5 text-[9px] sm:text-[11px]'
                     )}`}

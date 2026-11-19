@@ -8,7 +8,7 @@ export const SawtoothDivider: React.FC<{ flip?: boolean; className?: string }> =
 }) => (
   <div className={`w-full h-3 overflow-hidden select-none pointer-events-none ${className}`}>
     <svg
-      className={`w-full h-full text-[#FAFAF8] fill-current ${flip ? 'rotate-180' : ''}`}
+      className={`w-full h-full text-[var(--lp-bg)] fill-current ${flip ? 'rotate-180' : ''}`}
       viewBox="0 0 1120 12"
       preserveAspectRatio="none"
       aria-hidden="true"
