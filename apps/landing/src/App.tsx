@@ -13,7 +13,11 @@ import { RubrosSectionGSAP } from './sections/RubrosSectionGSAP';
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
-export const App: React.FC = () => {
+export interface AppProps {
+  onNavigate?: (path: string) => void;
+}
+
+export const App: React.FC<AppProps> = ({ onNavigate }) => {
   const [selectedRubro, setSelectedRubro] = useState<RubroKey>('ferreteria');
   const [release, setRelease] = useState<ReleaseInfo>(FALLBACK_RELEASE);
   const [isWindows, setIsWindows] = useState<boolean>(true);
@@ -54,6 +58,22 @@ export const App: React.FC = () => {
   // Texture Parallax
   const { scrollY } = useScroll();
   const dotParallax = useTransform(scrollY, [0, 3000], [0, 24]);
+
+  const handleManualClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (
+      !onNavigate ||
+      e.defaultPrevented ||
+      e.button !== 0 ||
+      e.metaKey ||
+      e.ctrlKey ||
+      e.shiftKey ||
+      e.altKey
+    ) {
+      return;
+    }
+    e.preventDefault();
+    onNavigate('/manual');
+  };
 
   // Detect motion preferences & pointer type
   useEffect(() => {
@@ -416,15 +436,15 @@ export const App: React.FC = () => {
 
       {/* Header */}
       <header className="border-b border-[#E8E8E4] bg-[#FAFAF8]/95 backdrop-blur-xs sticky top-0 z-40">
-        <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <a href="#" className="flex items-center gap-3 group text-[#141414]">
+        <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+          <a href="#" className="flex items-center gap-2 sm:gap-3 group text-[#141414] shrink-0">
             <div className="w-8 h-8 rounded-lg bg-[#141414] text-[#FAFAF8] flex items-center justify-center font-serif text-xl leading-none">
               N
             </div>
-            <span className="flex items-baseline gap-1.5 text-[#141414]">
+            <span className="flex items-baseline gap-1 sm:gap-1.5 text-[#141414]">
               <span
                 ref={brandWordRef}
-                className={`inline-block font-serif text-2xl leading-none tracking-tight ${pinned ? 'invisible' : ''}`}
+                className={`inline-block font-serif text-xl sm:text-2xl leading-none tracking-tight ${pinned ? 'invisible' : ''}`}
               >
                 Nexol
               </span>
@@ -432,19 +452,26 @@ export const App: React.FC = () => {
             </span>
           </a>
 
-          <nav className="flex items-center gap-4 sm:gap-6 text-sm">
+          <nav className="flex items-center gap-2.5 sm:gap-6 text-xs sm:text-sm">
             <a
               href="#descargar"
               className="text-[#6B6B6B] hover:text-[#141414] transition-colors py-1.5 font-medium"
             >
               Descargar
             </a>
+            <a
+              href="/manual"
+              onClick={handleManualClick}
+              className="text-[#6B6B6B] hover:text-[#141414] transition-colors py-1.5 font-medium"
+            >
+              Manual
+            </a>
             <motion.a
               href={WHATSAPP_TEST_URL}
               target="_blank"
               rel="noopener noreferrer"
               whileTap={{ scale: 0.98 }}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-[#141414] text-[#FAFAF8] font-medium text-xs sm:text-sm hover:bg-black transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-md bg-[#141414] text-[#FAFAF8] font-medium text-xs sm:text-sm hover:bg-black transition-all cursor-pointer whitespace-nowrap"
             >
               <WhatsappLogo size={16} weight="fill" />
               <span>Pedir prueba</span>
@@ -911,6 +938,14 @@ export const App: React.FC = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8 text-xs text-[#6B6B6B]">
+              <a
+                href="/manual"
+                onClick={handleManualClick}
+                className="hover:text-[#141414] transition-colors"
+              >
+                Manual
+              </a>
+
               <a
                 href={WHATSAPP_SUPPORT_URL}
                 target="_blank"
