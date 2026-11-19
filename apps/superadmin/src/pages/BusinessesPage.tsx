@@ -534,11 +534,11 @@ export const BusinessesPage = () => {
         }
       />
 
-      <div className="p-4 lg:p-8 space-y-4 lg:space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-4 lg:space-y-6 max-w-7xl mx-auto">
         {/* Barra de búsqueda y Pestañas con contador integradas */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
           {/* Buscador */}
-          <div className="relative w-full md:w-80">
+          <div className="relative w-full xl:w-80">
             <MagnifyingGlass
               size={16}
               className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
@@ -553,7 +553,7 @@ export const BusinessesPage = () => {
           </div>
 
           {/* Pestañas de estado con contador */}
-          <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl border border-gray-200/60 shadow-2xs self-stretch md:self-auto overflow-x-auto">
+          <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl border border-gray-200/60 shadow-2xs self-stretch xl:self-auto overflow-x-auto max-w-full">
             {tabOptions.map((tab) => {
               const isActive = activeTab === tab.id;
               return (

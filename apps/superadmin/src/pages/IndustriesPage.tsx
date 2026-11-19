@@ -184,16 +184,97 @@ export const IndustriesPage = () => {
         }
       />
 
-      <div className="p-4 lg:p-8 max-w-7xl mx-auto">
-        <DataTable
-          columns={columns}
-          data={industries}
-          keyExtractor={(row) => row.id}
-          onRowClick={(row) => navigate(`/industries/${row.id}`)}
-          pageSize={10}
-          isLoading={isLoading}
-          emptyMessage="No se encontraron tipos de negocio"
-        />
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        {/* Vista móvil: tarjetas */}
+        <div className="md:hidden space-y-2.5">
+          {isLoading ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-xs text-gray-400">
+              Cargando tipos de negocio...
+            </div>
+          ) : industries.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-xs text-gray-400">
+              No se encontraron tipos de negocio
+            </div>
+          ) : (
+            industries.map((row) => (
+              <div
+                key={row.id}
+                onClick={() => navigate(`/industries/${row.id}`)}
+                className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs space-y-3 cursor-pointer active:bg-gray-50/70"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
+                      <Tag size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm text-gray-900 truncate">{row.name}</p>
+                      <p className="text-xs text-gray-400 font-mono truncate">{row.code}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => toggleStatus(e, row.id, row.isActive)}
+                    disabled={updateMutation.isPending}
+                    className="shrink-0 cursor-pointer"
+                  >
+                    <Badge variant={row.isActive ? 'success' : 'neutral'} dot size="sm">
+                      {row.isActive ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </button>
+                </div>
+
+                <div className="flex items-center flex-wrap gap-2 text-xs text-gray-600">
+                  <span className="px-2 py-0.5 rounded bg-gray-50 border border-gray-200/70 font-medium">
+                    {row.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-gray-50 border border-gray-200/70">
+                    {row._count?.fields ?? row.fields?.length ?? 0} campos
+                  </span>
+                  {row.tracksBatches && (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Lotes por defecto
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => openEditModal(e, row)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200/60 transition-colors cursor-pointer"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/industries/${row.id}`)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-xs cursor-pointer"
+                  >
+                    <span>Campos</span>
+                    <ArrowRight size={12} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Vista desktop: tabla */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={industries}
+            keyExtractor={(row) => row.id}
+            onRowClick={(row) => navigate(`/industries/${row.id}`)}
+            pageSize={10}
+            isLoading={isLoading}
+            emptyMessage="No se encontraron tipos de negocio"
+          />
+        </div>
       </div>
 
       <Modal

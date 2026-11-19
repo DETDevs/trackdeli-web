@@ -107,11 +107,11 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
   const activeCount = [isDeliveryActive, isPosActive, isCarteraActive, isCitasActive].filter(Boolean).length;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-6 sm:p-7 shadow-xs space-y-6">
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 lg:p-7 shadow-xs space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
         <div>
-          <div className="flex items-center gap-2.5">
-            <Sliders size={20} className="text-brand-600" weight="duotone" />
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <Sliders size={20} className="text-brand-600 shrink-0" weight="duotone" />
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
               Productos Contratados
             </h3>
@@ -136,7 +136,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
 
       {/* 1. Productos Activos: Tarjetas Completas */}
       {activeCount > 0 && (
-        <div className={`grid grid-cols-1 ${activeCount > 1 ? 'lg:grid-cols-2' : ''} gap-5 sm:gap-6`}>
+        <div className={`grid grid-cols-1 ${activeCount > 1 ? 'xl:grid-cols-2' : ''} gap-4 sm:gap-6`}>
           {isDeliveryActive && (
             <ProductCard
               productType="DELIVERY"
@@ -184,9 +184,9 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
               onRegisterPaymentClick={() => onRegisterPaymentClick?.('DELIVERY')}
             >
               <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1">
                   <span className="text-xs text-gray-500 font-medium">Modelo</span>
-                  <span className="font-semibold text-gray-900 text-xs">
+                  <span className="font-semibold text-gray-900 text-xs text-right">
                     {businessType === 'EMPRESA_RIDERS'
                       ? 'Empresa de Riders'
                       : 'Comercio Común (Membresía)'}
@@ -194,7 +194,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                 </div>
 
                 {businessType === 'EMPRESA_RIDERS' && (
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-200/60 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-gray-200/60 text-xs">
                     <div>
                       <span className="text-gray-400">Comisión Base: </span>
                       <span className="font-semibold text-gray-900">
@@ -215,7 +215,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                         %
                       </span>
                     </div>
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <span className="text-gray-400">Timeout despacho: </span>
                       <span className="font-semibold text-gray-900">
                         {deliverySub?.dispatchTimeoutMin ?? businessDispatchTimeoutMin ?? 3} min
@@ -225,9 +225,9 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                 )}
 
                 {businessType !== 'EMPRESA_RIDERS' && (
-                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+                  <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
                     <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
-                    <span className="font-semibold text-gray-900 font-mono">
+                    <span className="font-semibold text-gray-900 font-mono text-right">
                       {deliverySub?.deliveryMonthlyFee
                         ? `$${Number(deliverySub.deliveryMonthlyFee).toFixed(2)} / mes`
                         : 'Sin cuota fija'}
@@ -277,43 +277,43 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
               onRegisterPaymentClick={() => onRegisterPaymentClick?.('POS')}
             >
               <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1">
                   <span className="text-xs text-gray-500 font-medium">Vertical</span>
-                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs">
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs text-right">
                     {posSub?.posVertical === 'RETAIL' ? (
                       <>
-                        <ShoppingBag size={14} className="text-purple-600" />
+                        <ShoppingBag size={14} className="text-purple-600 shrink-0" />
                         <span>Retail / Comercio</span>
                       </>
                     ) : (
                       <>
-                        <ForkKnife size={14} className="text-purple-600" />
+                        <ForkKnife size={14} className="text-purple-600 shrink-0" />
                         <span>Restaurante / Mesas</span>
                       </>
                     )}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
                   <span className="text-xs text-gray-500 font-medium">Perfil del Salón</span>
-                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs">
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs text-right">
                     {salonProfile === 'TALLER' || posSub?.salonProfile === 'TALLER' ? (
                       <>
-                        <Wrench size={14} className="text-amber-600" />
+                        <Wrench size={14} className="text-amber-600 shrink-0" />
                         <span>Taller Automotriz</span>
                       </>
                     ) : (
                       <>
-                        <ForkKnife size={14} className="text-purple-600" />
+                        <ForkKnife size={14} className="text-purple-600 shrink-0" />
                         <span>Restaurante</span>
                       </>
                     )}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
                   <span className="text-xs text-gray-500 font-medium">Computadoras</span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="font-semibold text-gray-900 text-right">
                     {activeDevices !== undefined ? `${activeDevices} activa${activeDevices === 1 ? '' : 's'} / ` : ''}
                     {maxDevices === null || (maxDevices === undefined && posSub?.maxDevices === null)
                       ? 'Sin límite'
@@ -321,9 +321,9 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
                   <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
-                  <span className="font-semibold text-gray-900 font-mono">
+                  <span className="font-semibold text-gray-900 font-mono text-right">
                     {posSub?.posMonthlyFee
                       ? `$${Number(posSub.posMonthlyFee).toFixed(2)} / mes`
                       : 'Sin cuota fija'}
@@ -372,17 +372,17 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
               onRegisterPaymentClick={() => onRegisterPaymentClick?.('CARTERA_COBRO')}
             >
               <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1">
                   <span className="text-xs text-gray-500 font-medium">Módulo</span>
-                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs">
-                    <CreditCard size={14} className="text-emerald-600" />
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs text-right">
+                    <CreditCard size={14} className="text-emerald-600 shrink-0" />
                     <span>Finanzas (Cobranza, Pagos y Gastos)</span>
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
                   <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
-                  <span className="font-semibold text-gray-900 font-mono">
+                  <span className="font-semibold text-gray-900 font-mono text-right">
                     {carteraSub?.carteraMonthlyFee
                       ? `$${Number(carteraSub.carteraMonthlyFee).toFixed(2)} / mes`
                       : 'Sin cuota fija'}
@@ -431,17 +431,17 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
               onRegisterPaymentClick={() => onRegisterPaymentClick?.('CITAS')}
             >
               <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1">
                   <span className="text-xs text-gray-500 font-medium">Módulo</span>
-                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs">
-                    <CalendarBlank size={14} className="text-sky-600" />
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs text-right">
+                    <CalendarBlank size={14} className="text-sky-600 shrink-0" />
                     <span>Reservas y Agenda</span>
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 text-xs">
+                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
                   <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
-                  <span className="font-semibold text-gray-900 font-mono">
+                  <span className="font-semibold text-gray-900 font-mono text-right">
                     {citasSub?.citasMonthlyFee
                       ? `$${Number(citasSub.citasMonthlyFee).toFixed(2)} / mes`
                       : 'Sin cuota fija'}
@@ -474,12 +474,12 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto shrink-0">
                   <button
                     type="button"
                     onClick={() => setAuditLogModal({ isOpen: true, productType: 'DELIVERY' })}
                     title="Historial de auditoría"
-                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
                   >
                     <ClockCounterClockwise size={13} />
                     <span>Auditoría</span>
@@ -495,7 +495,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                           isCurrentlyActive: false,
                         })
                       }
-                      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
                     >
                       <span>Activar Delivery</span>
                     </button>
@@ -505,7 +505,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                       data-testid="btn-register-payment-delivery"
                       type="button"
                       onClick={() => onRegisterPaymentClick?.('DELIVERY')}
-                      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
                     >
                       <CreditCard size={12} weight="bold" />
                       <span>Registrar pago</span>
@@ -528,12 +528,12 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto shrink-0">
                   <button
                     type="button"
                     onClick={() => setAuditLogModal({ isOpen: true, productType: 'POS' })}
                     title="Historial de auditoría"
-                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
                   >
                     <ClockCounterClockwise size={13} />
                     <span>Auditoría</span>
@@ -544,7 +544,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                     data-testid="btn-register-payment-pos"
                     type="button"
                     onClick={() => onRegisterPaymentClick?.('POS')}
-                    className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
                   >
                     <CreditCard size={12} weight="bold" />
                     <span>Registrar pago</span>
@@ -566,12 +566,12 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto shrink-0">
                   <button
                     type="button"
                     onClick={() => setAuditLogModal({ isOpen: true, productType: 'CARTERA_COBRO' })}
                     title="Historial de auditoría"
-                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
                   >
                     <ClockCounterClockwise size={13} />
                     <span>Auditoría</span>
@@ -582,7 +582,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                     data-testid="btn-register-payment-cartera_cobro"
                     type="button"
                     onClick={() => onRegisterPaymentClick?.('CARTERA_COBRO')}
-                    className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
                   >
                     <CreditCard size={12} weight="bold" />
                     <span>Registrar pago</span>
@@ -604,12 +604,12 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto shrink-0">
                   <button
                     type="button"
                     onClick={() => setAuditLogModal({ isOpen: true, productType: 'CITAS' })}
                     title="Historial de auditoría"
-                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
                   >
                     <ClockCounterClockwise size={13} />
                     <span>Auditoría</span>
@@ -620,7 +620,7 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
                     data-testid="btn-register-payment-citas"
                     type="button"
                     onClick={() => onRegisterPaymentClick?.('CITAS')}
-                    className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
                   >
                     <CreditCard size={12} weight="bold" />
                     <span>Registrar pago</span>

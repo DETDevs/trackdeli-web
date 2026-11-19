@@ -276,36 +276,38 @@ export const BusinessProductFieldsSection = ({ businessId, industryName, posVert
     );
   };
 
+  const sortedFields = [...(fields || [])].sort((a, b) => a.order - b.order);
+
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-4 mt-6">
+    <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <ListDashes size={20} className="text-gray-500" />
+            <ListDashes size={20} className="text-gray-500 shrink-0" />
             <h3 className="text-sm font-semibold text-gray-900">Campos del catálogo</h3>
           </div>
-          <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+          <div className="mt-2 flex items-center flex-wrap gap-2 text-xs text-gray-500">
             {industryName ? (
               <span>
                 Industria base: <span className="font-medium text-gray-700">{industryName}</span> 
                 {posVertical ? ` (${posVertical})` : ''}
               </span>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center flex-wrap gap-2">
                 <span className="text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded">Sin industria asignada</span>
                 {!isAssigningIndustry ? (
                   <button 
                     onClick={() => setIsAssigningIndustry(true)}
-                    className="text-brand-600 hover:text-brand-700 font-medium underline"
+                    className="text-brand-600 hover:text-brand-700 font-medium underline cursor-pointer"
                   >
                     Asignar ahora
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center flex-wrap gap-2">
                     <select
                       value={selectedIndustryId}
                       onChange={(e) => setSelectedIndustryId(e.target.value)}
-                      className="h-7 px-2 border border-gray-200 rounded text-xs focus:outline-none focus:border-gray-900"
+                      className="h-8 px-2 border border-gray-200 rounded text-xs focus:outline-none focus:border-gray-900 max-w-full"
                     >
                       <option value="" disabled>Seleccionar industria...</option>
                       {industries.filter(i => i.isActive).map(i => (
@@ -315,13 +317,13 @@ export const BusinessProductFieldsSection = ({ businessId, industryName, posVert
                     <button
                       onClick={handleAssignIndustry}
                       disabled={!selectedIndustryId || updateBusinessMutation.isPending}
-                      className="bg-gray-900 text-white px-2 h-7 rounded text-xs font-medium hover:bg-gray-800 disabled:opacity-50"
+                      className="bg-gray-900 text-white px-2.5 h-8 rounded text-xs font-medium hover:bg-gray-800 disabled:opacity-50 cursor-pointer"
                     >
                       Asignar
                     </button>
                     <button
                       onClick={() => setIsAssigningIndustry(false)}
-                      className="text-gray-500 hover:text-gray-700"
+                      className="text-gray-500 hover:text-gray-700 px-1.5 h-8 cursor-pointer"
                     >
                       Cancelar
                     </button>
@@ -394,10 +396,95 @@ export const BusinessProductFieldsSection = ({ businessId, industryName, posVert
         Estos campos son exclusivos de este negocio. Modificar la plantilla de la industria ya no afectará a los campos de aquí. El "Key" de un campo se genera automáticamente desde su etiqueta y no se puede cambiar.
       </div>
 
-      <div className="overflow-x-auto border border-gray-100 rounded-xl">
+      {/* Vista móvil: tarjetas */}
+      <div className="md:hidden space-y-2.5">
+        {isLoading ? (
+          <div className="p-6 text-center text-xs text-gray-400 border border-gray-100 rounded-xl">
+            Cargando campos...
+          </div>
+        ) : sortedFields.length === 0 ? (
+          <div className="p-6 text-center text-xs text-gray-400 border border-dashed border-gray-200 rounded-xl">
+            No hay campos configurados para este negocio.
+          </div>
+        ) : (
+          sortedFields.map((row) => (
+            <div key={row.id} className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/40 space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="font-semibold text-sm text-gray-900 block truncate">{row.label}</span>
+                  <span className="text-xs text-gray-400 font-mono break-all">{row.key}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => toggleStatus(e, row.id, row.isActive)}
+                  disabled={toggleMutation.isPending}
+                  className="shrink-0 cursor-pointer"
+                >
+                  <Badge variant={row.isActive ? 'success' : 'neutral'} dot size="sm">
+                    {row.isActive ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                </button>
+              </div>
+
+              <div className="flex items-center flex-wrap gap-1.5 text-xs">
+                {row.dataType === 'LIST' ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Badge variant="info" size="sm">Lista</Badge>
+                    <span className="text-[11px] text-gray-500">
+                      {plural(row.fieldOptions?.length ?? 0, 'opción', 'opciones')}
+                      {row.allowCreateInline === false ? ' · cerrada' : ''}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-white border border-gray-200 text-xs font-medium text-gray-700">
+                    {row.dataType}
+                  </span>
+                )}
+                {(row.required ?? row.isRequired) && <Badge variant="warning" size="sm">Requerido</Badge>}
+                {(row.searchable ?? row.isSearchable) && <Badge variant="info" size="sm">Buscable</Badge>}
+                {row.showInPos && <Badge variant="neutral" size="sm">En POS</Badge>}
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60">
+                <div className="flex items-center gap-1 text-xs text-gray-600">
+                  <span className="text-[11px] text-gray-400 mr-1">Orden:</span>
+                  <button
+                    type="button"
+                    onClick={(e) => moveField(e, row.id, 'UP')}
+                    className="w-7 h-7 flex items-center justify-center bg-white border border-gray-200 hover:bg-gray-100 rounded text-gray-600 cursor-pointer"
+                    aria-label="Subir orden"
+                  >
+                    ↑
+                  </button>
+                  <span className="text-xs font-medium w-5 text-center">{row.order}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => moveField(e, row.id, 'DOWN')}
+                    className="w-7 h-7 flex items-center justify-center bg-white border border-gray-200 hover:bg-gray-100 rounded text-gray-600 cursor-pointer"
+                    aria-label="Bajar orden"
+                  >
+                    ↓
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(row)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 bg-white hover:bg-gray-100 border border-gray-200 transition-colors cursor-pointer"
+                >
+                  Editar
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Vista desktop: tabla */}
+      <div className="hidden md:block overflow-x-auto border border-gray-100 rounded-xl">
         <DataTable
           columns={columns}
-          data={[...(fields || [])].sort((a, b) => a.order - b.order)}
+          data={sortedFields}
           keyExtractor={(row) => row.id}
           isLoading={isLoading}
           emptyMessage="No hay campos configurados para este negocio."

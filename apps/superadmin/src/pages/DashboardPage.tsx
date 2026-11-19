@@ -44,12 +44,12 @@ export const DashboardPage = () => {
         subtitle="Métricas de cobro, riesgo de membresías y adopción de la plataforma"
       />
 
-      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
         {/* 1. Fila de 4 tarjetas principales */}
         {loadingSummary || !summary ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 animate-pulse">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 lg:gap-4 animate-pulse">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 space-y-3 shadow-xs">
+              <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 space-y-3 shadow-xs">
                 <div className="h-3 bg-gray-200 rounded w-1/2" />
                 <div className="h-7 bg-gray-200 rounded w-3/4" />
                 <div className="h-3 bg-gray-100 rounded w-2/3" />
@@ -57,7 +57,7 @@ export const DashboardPage = () => {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 lg:gap-4">
             {/* Tarjeta 1: MRR */}
             <StatCard
               title="Ingreso Mensual (MRR)"
@@ -76,18 +76,18 @@ export const DashboardPage = () => {
 
             {/* Tarjeta 3: En gracia / vencidos (con acento cuando > 0) */}
             <div
-              className={`bg-white rounded-xl p-5 shadow-xs transition-all hover:shadow-sm border ${
+              className={`bg-white rounded-xl p-4 sm:p-5 shadow-xs transition-all hover:shadow-sm border ${
                 totalOverdueRisk > 0
                   ? 'border-red-200 bg-red-50/20'
                   : 'border-gray-100'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider min-w-0">
                   En gracia / Vencidos
                 </span>
                 <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                     totalOverdueRisk > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-50 text-gray-600'
                   }`}
                 >
@@ -95,9 +95,9 @@ export const DashboardPage = () => {
                 </div>
               </div>
 
-              <div className="mt-3 flex items-baseline gap-2">
+              <div className="mt-3 flex items-baseline gap-2 flex-wrap">
                 <span
-                  className={`text-2xl font-semibold tracking-tight ${
+                  className={`text-xl sm:text-2xl font-semibold tracking-tight ${
                     totalOverdueRisk > 0 ? 'text-red-600 font-bold' : 'text-gray-900'
                   }`}
                 >
@@ -110,30 +110,30 @@ export const DashboardPage = () => {
                 )}
               </div>
 
-              <p className="text-xs text-gray-500 mt-2 truncate">
+              <p className="text-xs text-gray-500 mt-2">
                 {overdueCount} vencidos · {inGraceCount} en gracia
                 {overdueRiskAmount > 0 && ` ($${overdueRiskAmount.toFixed(2)})`}
               </p>
             </div>
 
             {/* Tarjeta 4: Negocios activos */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-xs transition-all hover:shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-xs transition-all hover:shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider min-w-0">
                   Negocios Activos
                 </span>
-                <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-brand-600">
+                <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-brand-600 shrink-0">
                   <Storefront size={18} />
                 </div>
               </div>
 
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-2xl font-semibold text-gray-900 tracking-tight">
+                <span className="text-xl sm:text-2xl font-semibold text-gray-900 tracking-tight">
                   {summary.active_businesses.total}
                 </span>
               </div>
 
-              <div className="mt-2 text-xs flex items-center justify-between gap-1 text-gray-500">
+              <div className="mt-2 text-xs flex items-center justify-between flex-wrap gap-1.5 text-gray-500">
                 <span className="text-emerald-700 font-medium">
                   +{summary.active_businesses.new_this_month} este mes
                 </span>
@@ -148,7 +148,7 @@ export const DashboardPage = () => {
         {/* 2 y 3. Grid central: Cobros pendientes (bloque principal ancho) + Columna lateral */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Bloque principal ancho: Cobros pendientes (8 cols) */}
-          <div className="lg:col-span-8 bg-white rounded-2xl border border-gray-100 p-5 lg:p-6 shadow-xs space-y-4">
+          <div className="lg:col-span-8 bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 lg:p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-700">
@@ -335,10 +335,10 @@ export const DashboardPage = () => {
         {/* 4. Pagos recientes (últimos 10) y Actividad reciente compacta */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Pagos recientes (7 cols) */}
-          <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-100 p-5 lg:p-6 shadow-xs space-y-3">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 lg:p-6 shadow-xs space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
-                <Wallet size={18} className="text-emerald-600" weight="duotone" />
+                <Wallet size={18} className="text-emerald-600 shrink-0" weight="duotone" />
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
                   Pagos recientes
                 </h3>
@@ -365,7 +365,7 @@ export const DashboardPage = () => {
                       >
                         {payment.business_name}
                       </Link>
-                      <div className="text-[11px] text-gray-500 flex items-center gap-1.5 mt-0.5">
+                      <div className="text-[11px] text-gray-500 flex items-center flex-wrap gap-x-1.5 gap-y-0.5 mt-0.5">
                         <span className="font-medium text-gray-700">{payment.payment_method}</span>
                         <span>·</span>
                         <span>{payment.period}</span>
@@ -387,10 +387,10 @@ export const DashboardPage = () => {
           </div>
 
           {/* Actividad reciente (5 cols) */}
-          <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 p-5 lg:p-6 shadow-xs space-y-3">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 lg:p-6 shadow-xs space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
-                <FileText size={18} className="text-gray-700" weight="duotone" />
+                <FileText size={18} className="text-gray-700 shrink-0" weight="duotone" />
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
                   Actividad reciente
                 </h3>

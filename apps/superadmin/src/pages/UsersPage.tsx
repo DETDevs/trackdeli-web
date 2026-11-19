@@ -184,9 +184,9 @@ export const UsersPage = () => {
         }
       />
 
-      <div className="p-4 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
         {isError && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-center justify-between">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex flex-wrap items-center justify-between gap-2">
             <span>No se pudo cargar la lista de usuarios.</span>
             <button
               onClick={() => refetch()}
@@ -237,8 +237,8 @@ export const UsersPage = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-50 text-xs">
-            <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 pt-2 border-t border-gray-50 text-xs">
+            <div className="flex items-center gap-1 overflow-x-auto max-w-full py-0.5">
               {[
                 { id: 'ALL', label: 'Todos los roles' },
                 { id: 'SUPERADMIN', label: 'SuperAdmin' },
@@ -253,7 +253,7 @@ export const UsersPage = () => {
                     setRoleFilter(r.id);
                     setCurrentPage(1);
                   }}
-                  className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer whitespace-nowrap font-medium ${
+                  className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer whitespace-nowrap font-medium shrink-0 ${
                     roleFilter === r.id
                       ? 'bg-gray-900 text-white shadow-xs'
                       : 'bg-gray-50 hover:bg-gray-100 text-gray-600'
@@ -264,13 +264,13 @@ export const UsersPage = () => {
               ))}
             </div>
 
-            <div className="flex items-center gap-1 bg-gray-50 p-0.5 rounded-lg border border-gray-100">
+            <div className="flex items-center gap-1 bg-gray-50 p-0.5 rounded-lg border border-gray-100 overflow-x-auto max-w-full self-start lg:self-auto">
               <button
                 onClick={() => {
                   setStatusFilter('ALL');
                   setCurrentPage(1);
                 }}
-                className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium ${
+                className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium whitespace-nowrap shrink-0 ${
                   statusFilter === 'ALL'
                     ? 'bg-white text-gray-900 shadow-xs'
                     : 'text-gray-500 hover:text-gray-800'
@@ -283,7 +283,7 @@ export const UsersPage = () => {
                   setStatusFilter('ACTIVE');
                   setCurrentPage(1);
                 }}
-                className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium ${
+                className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium whitespace-nowrap shrink-0 ${
                   statusFilter === 'ACTIVE'
                     ? 'bg-white text-green-700 shadow-xs'
                     : 'text-gray-500 hover:text-gray-800'
@@ -296,7 +296,7 @@ export const UsersPage = () => {
                   setStatusFilter('INACTIVE');
                   setCurrentPage(1);
                 }}
-                className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium ${
+                className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium whitespace-nowrap shrink-0 ${
                   statusFilter === 'INACTIVE'
                     ? 'bg-white text-gray-900 shadow-xs'
                     : 'text-gray-500 hover:text-gray-800'
@@ -353,8 +353,98 @@ export const UsersPage = () => {
 
         {!isLoading && !isError && filteredUsers.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-100 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            {/* Vista móvil y tablet: tarjetas */}
+            <div className="lg:hidden divide-y divide-gray-100">
+              {paginatedUsers.map((u) => {
+                const bizName = u.businessId ? businessMap.get(u.businessId) : null;
+
+                return (
+                  <div key={u.id} className="p-4 space-y-2.5 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center text-xs font-semibold text-gray-700 shrink-0">
+                          {initials(u.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-900 truncate text-sm">{u.name}</p>
+                          <p className="text-[11px] text-gray-500 font-mono break-all flex items-center gap-1 mt-0.5">
+                            <EnvelopeSimple size={11} className="text-gray-400 shrink-0" />
+                            <span>{u.email}</span>
+                          </p>
+                          {u.phone && (
+                            <p className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5">
+                              <Phone size={10} className="shrink-0" />
+                              <span>{u.phone}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 ${
+                          u.isActive
+                            ? 'bg-green-50 text-green-700 border border-green-200/60'
+                            : 'bg-gray-100 text-gray-500 border border-gray-200'
+                        }`}
+                      >
+                        <Circle
+                          size={6}
+                          weight="fill"
+                          className={u.isActive ? 'text-green-500' : 'text-gray-400'}
+                        />
+                        {u.isActive ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      {renderRoleBadge(u.role)}
+                      {u.businessId ? (
+                        <Link
+                          to={`/businesses/${u.businessId}`}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-50 border border-gray-200/70 text-gray-800 hover:text-brand-600 font-medium max-w-full"
+                        >
+                          <Storefront size={12} className="text-gray-400 shrink-0" />
+                          <span className="truncate">{bizName || 'Ver negocio'}</span>
+                        </Link>
+                      ) : (
+                        <span className="text-gray-400 italic text-[11px]">Plataforma global</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                      <span className="text-[11px] text-gray-400">
+                        Registro: {formatDateTime(u.createdAt)}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setPasswordTargetUser(u)}
+                          title="Cambiar contraseña"
+                          className="p-1.5 text-gray-500 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 border border-gray-200/60 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Key size={15} />
+                        </button>
+
+                        <button
+                          onClick={() => setDeactivateTargetUser(u)}
+                          title={u.isActive ? 'Desactivar usuario' : 'Activar usuario'}
+                          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                            u.isActive
+                              ? 'text-gray-500 bg-gray-50 border-gray-200/60 hover:text-amber-700 hover:bg-amber-50'
+                              : 'text-gray-500 bg-gray-50 border-gray-200/60 hover:text-green-700 hover:bg-green-50'
+                          }`}
+                        >
+                          {u.isActive ? <Lock size={15} /> : <LockOpen size={15} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Vista desktop: tabla */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[820px]">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50 text-[11px] font-medium text-gray-400 uppercase tracking-wider">
                     <th className="py-3 px-4">Usuario</th>
@@ -468,7 +558,7 @@ export const UsersPage = () => {
             </div>
 
             <div className="px-4 py-3.5 border-t border-gray-100 bg-gray-50/50 text-xs text-gray-500 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex items-center justify-between w-full sm:w-auto gap-3">
+              <div className="flex flex-wrap items-center justify-between w-full sm:w-auto gap-3">
                 <span>
                   Mostrando{' '}
                   <strong className="font-semibold text-gray-900">
@@ -503,7 +593,7 @@ export const UsersPage = () => {
               </div>
 
               {totalPages > 1 && (
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center justify-center gap-1">
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={validCurrentPage === 1}

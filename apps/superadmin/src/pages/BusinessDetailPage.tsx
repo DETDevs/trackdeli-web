@@ -373,7 +373,7 @@ export const BusinessDetailPage = () => {
     return (
       <div>
         <TopBar title="Detalle de Negocio" />
-        <div className="p-8 max-w-6xl mx-auto flex items-center justify-center py-24 text-gray-400 text-sm">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto flex items-center justify-center py-24 text-gray-400 text-sm">
           <div className="animate-spin rounded-full h-6 w-6 border-2 border-brand-500 border-t-transparent mr-3" />
           <span>Cargando información del negocio...</span>
         </div>
@@ -385,7 +385,7 @@ export const BusinessDetailPage = () => {
     return (
       <div>
         <TopBar title="Detalle de Negocio" />
-        <div className="p-8 max-w-6xl mx-auto space-y-4">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-4">
           <button
             onClick={() => navigate('/businesses')}
             className="inline-flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-900"
@@ -460,10 +460,10 @@ export const BusinessDetailPage = () => {
         title={business.name}
         subtitle={`ID: ${business.id}`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2 w-full md:w-auto">
             <button
               onClick={() => setIsEditDataModalOpen(true)}
-              className="h-9 px-3.5 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              className="h-9 px-3 sm:px-3.5 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <PencilSimple size={15} />
               <span>Editar datos</span>
@@ -478,7 +478,7 @@ export const BusinessDetailPage = () => {
                 setModelDispatchTimeoutMin(String(business.dispatchTimeoutMin || 3));
                 setIsEditModelModalOpen(true);
               }}
-              className="h-9 px-3.5 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              className="h-9 px-3 sm:px-3.5 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <Gear size={15} />
               <span>Configurar Modelo</span>
@@ -488,7 +488,7 @@ export const BusinessDetailPage = () => {
               <button
                 onClick={() => setIsDeactivateModalOpen(true)}
                 disabled={toggleMutation.isPending}
-                className="h-9 px-4 rounded-xl text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200/60 transition-colors shadow-xs cursor-pointer"
+                className="h-9 px-3.5 sm:px-4 rounded-xl text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200/60 transition-colors shadow-xs cursor-pointer whitespace-nowrap"
               >
                 Desactivar negocio
               </button>
@@ -496,7 +496,7 @@ export const BusinessDetailPage = () => {
               <button
                 onClick={() => toggleMutation.mutate(business.id)}
                 disabled={toggleMutation.isPending}
-                className="h-9 px-4 rounded-xl text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200/60 transition-colors shadow-xs cursor-pointer"
+                className="h-9 px-3.5 sm:px-4 rounded-xl text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200/60 transition-colors shadow-xs cursor-pointer whitespace-nowrap"
               >
                 Activar negocio
               </button>
@@ -505,7 +505,7 @@ export const BusinessDetailPage = () => {
         }
       />
 
-      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-5 lg:space-y-6 max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <button
             onClick={() => navigate('/businesses')}
@@ -576,7 +576,7 @@ export const BusinessDetailPage = () => {
             />
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
             <StatCard
               title="Membresía"
               value={
@@ -644,14 +644,14 @@ export const BusinessDetailPage = () => {
         />
 
         {/* Sección: Control de lotes y vencimientos */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5">
+            <div className="flex items-start gap-3.5 min-w-0 flex-1">
               <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 shrink-0 mt-0.5">
                 <Package size={22} weight="duotone" />
               </div>
-              <div>
-                <div className="flex items-center gap-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-bold text-gray-900 leading-tight">
                     Control de lotes y vencimientos
                   </h3>
@@ -673,13 +673,13 @@ export const BusinessDetailPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
               {business.tracksBatches ? (
                 <button
                   type="button"
                   onClick={handleDeactivateBatchesClick}
                   disabled={updateMutation.isPending}
-                  className="h-9 px-4 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                  className="w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
                 >
                   Desactivar control de lotes
                 </button>
@@ -688,7 +688,7 @@ export const BusinessDetailPage = () => {
                   type="button"
                   onClick={() => setIsActivateBatchesModalOpen(true)}
                   disabled={updateMutation.isPending}
-                  className="h-9 px-4 rounded-xl text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                  className="w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
                 >
                   Activar control de lotes
                 </button>
@@ -698,14 +698,14 @@ export const BusinessDetailPage = () => {
         </div>
 
         {/* Sección: Usar precio de etiqueta */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5">
+            <div className="flex items-start gap-3.5 min-w-0 flex-1">
               <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700 shrink-0 mt-0.5">
                 <Tag size={22} weight="duotone" />
               </div>
-              <div>
-                <div className="flex items-center gap-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-bold text-gray-900 leading-tight">
                     Usar precio de etiqueta
                   </h3>
@@ -727,12 +727,12 @@ export const BusinessDetailPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
               <button
                 type="button"
                 onClick={handleToggleUseListPrice}
                 disabled={updateMutation.isPending}
-                className={`h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
+                className={`w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
                   business.useListPrice
                     ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
                     : 'text-white bg-blue-600 hover:bg-blue-700'
@@ -745,14 +745,14 @@ export const BusinessDetailPage = () => {
         </div>
 
         {/* Sección: Venta en dos pasos (vendedor → caja) */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5">
+            <div className="flex items-start gap-3.5 min-w-0 flex-1">
               <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-700 shrink-0 mt-0.5">
                 <Receipt size={22} weight="duotone" />
               </div>
-              <div>
-                <div className="flex items-center gap-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-bold text-gray-900 leading-tight">
                     Venta en dos pasos (vendedor → caja)
                   </h3>
@@ -774,12 +774,12 @@ export const BusinessDetailPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
               <button
                 type="button"
                 onClick={handleToggleTwoStepSale}
                 disabled={updateMutation.isPending}
-                className={`h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
+                className={`w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
                   business.twoStepSaleEnabled
                     ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
                     : 'text-white bg-amber-600 hover:bg-amber-700'
@@ -795,7 +795,7 @@ export const BusinessDetailPage = () => {
           {business.twoStepSaleEnabled && (
             <div className="pt-4 border-t border-gray-100 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/40 p-3.5 rounded-xl border border-amber-200/60">
-                <div className="space-y-0.5">
+                <div className="space-y-0.5 min-w-0">
                   <div className="text-xs font-bold text-gray-900">
                     Vencimiento del ticket
                   </div>
@@ -804,9 +804,9 @@ export const BusinessDetailPage = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center flex-wrap gap-2">
                   {isEditingTtl ? (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center flex-wrap gap-1.5">
                       <input
                         type="number"
                         min={1}
@@ -870,14 +870,14 @@ export const BusinessDetailPage = () => {
         </div>
 
         {/* Sección: Venta a domicilio */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5">
+            <div className="flex items-start gap-3.5 min-w-0 flex-1">
               <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 shrink-0 mt-0.5">
                 <Motorcycle size={22} weight="duotone" />
               </div>
-              <div>
-                <div className="flex items-center gap-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-bold text-gray-900 leading-tight">
                     Venta a domicilio
                   </h3>
@@ -899,12 +899,12 @@ export const BusinessDetailPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
               <button
                 type="button"
                 onClick={handleToggleDeliveryChannel}
                 disabled={updateMutation.isPending}
-                className={`h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
+                className={`w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
                   business.deliveryChannelEnabled
                     ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
                     : 'text-white bg-indigo-600 hover:bg-indigo-700'
@@ -919,14 +919,14 @@ export const BusinessDetailPage = () => {
         </div>
 
         {/* Sección: PedidosYa */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-2xs space-y-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5">
+            <div className="flex items-start gap-3.5 min-w-0 flex-1">
               <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-700 shrink-0 mt-0.5">
                 <DeviceMobile size={22} weight="duotone" />
               </div>
-              <div>
-                <div className="flex items-center gap-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-bold text-gray-900 leading-tight">
                     PedidosYa
                   </h3>
@@ -948,12 +948,12 @@ export const BusinessDetailPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
               <button
                 type="button"
                 onClick={handleTogglePedidosYaChannel}
                 disabled={updateMutation.isPending}
-                className={`h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
+                className={`w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
                   business.pedidosYaChannelEnabled
                     ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
                     : 'text-white bg-rose-600 hover:bg-rose-700'
@@ -968,11 +968,11 @@ export const BusinessDetailPage = () => {
         </div>
 
         {business.businessType === 'EMPRESA_RIDERS' ? (
-          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-6">
+          <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
               <div>
                 <div className="flex items-center gap-2">
-                  <Coins size={20} className="text-amber-700" weight="duotone" />
+                  <Coins size={20} className="text-amber-700 shrink-0" weight="duotone" />
                   <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
                     Comisiones y Liquidaciones
                   </h3>
@@ -994,7 +994,7 @@ export const BusinessDetailPage = () => {
                   setModelDispatchTimeoutMin(String(business.dispatchTimeoutMin || 3));
                   setIsEditModelModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition-colors shadow-xs self-start sm:self-auto cursor-pointer"
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition-colors shadow-xs cursor-pointer shrink-0"
               >
                 <Gear size={14} />
                 <span>Modificar Tasas de Comisión</span>
@@ -1070,11 +1070,11 @@ export const BusinessDetailPage = () => {
           </div>
         ) : (
           <>
-            <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-6">
+            <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
                 <div>
                   <div className="flex items-center gap-2">
-                    <CreditCard size={18} className="text-gray-600" />
+                    <CreditCard size={18} className="text-gray-600 shrink-0" />
                     <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
                       Membresía
                     </h3>
@@ -1099,7 +1099,7 @@ export const BusinessDetailPage = () => {
                 <button
                   id="btn-register-membership-payment"
                   onClick={() => handleOpenRegisterPayment(undefined)}
-                  className={`flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold transition-all shadow-xs self-start sm:self-auto cursor-pointer ${
+                  className={`w-full sm:w-auto flex items-center justify-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer shrink-0 ${
                     billingInfo.isGraceOrExpired
                       ? 'bg-orange-600 hover:bg-orange-700 text-white ring-2 ring-orange-400 ring-offset-2 shadow-md'
                       : 'bg-gray-900 hover:bg-gray-800 text-white'
@@ -1113,7 +1113,7 @@ export const BusinessDetailPage = () => {
               {/* Bloque principal de membresía: Vence / Período / Próximo cobro */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-gray-50/70 border border-gray-100">
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                       Vence
                     </span>
@@ -1147,7 +1147,7 @@ export const BusinessDetailPage = () => {
                   )}
                 </div>
 
-                <div className="space-y-1 md:border-l md:border-gray-200/80 md:pl-4">
+                <div className="space-y-1 border-t border-gray-200/80 pt-3 md:border-t-0 md:pt-0 md:border-l md:pl-4">
                   <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                     Período
                   </span>
@@ -1159,7 +1159,7 @@ export const BusinessDetailPage = () => {
                   </p>
                 </div>
 
-                <div className="space-y-1 md:border-l md:border-gray-200/80 md:pl-4">
+                <div className="space-y-1 border-t border-gray-200/80 pt-3 md:border-t-0 md:pt-0 md:border-l md:pl-4">
                   <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                     Próximo cobro
                   </span>
@@ -1179,7 +1179,7 @@ export const BusinessDetailPage = () => {
               </div>
 
               {latestMembership ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 bg-gray-50/70 p-4 rounded-xl border border-gray-100">
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 bg-gray-50/70 p-4 rounded-xl border border-gray-100">
                   <div>
                     <span className="text-[11px] font-medium text-gray-400 uppercase">
                       Monto
@@ -1235,7 +1235,7 @@ export const BusinessDetailPage = () => {
                     </p>
                   </div>
 
-                  <div>
+                  <div className="col-span-2 sm:col-span-1">
                     <span className="text-[11px] font-medium text-gray-400 uppercase">
                       Comprobante
                     </span>
@@ -1267,8 +1267,8 @@ export const BusinessDetailPage = () => {
               businessName={business.name}
             />
 
-            <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
+            <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-sm font-semibold text-gray-900">
                   Historial de Membresías
                 </h3>
@@ -1280,8 +1280,8 @@ export const BusinessDetailPage = () => {
                 </span>
               </div>
 
-              {/* Celular: tarjetas */}
-              <div className="md:hidden space-y-3">
+              {/* Celular y tablet: tarjetas */}
+              <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {memberships.map((m) => {
                   const mPeriod = getMembershipPeriodDates(m, billingInfo.anchorDay);
                   const isCancelled = m.status === 'CANCELLED';
@@ -1357,12 +1357,12 @@ export const BusinessDetailPage = () => {
                         </dd>
                       </dl>
 
-                      <div className="flex items-center justify-end gap-2 pt-1">
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                         {m.paymentProofUrl && (
                           <button
                             type="button"
                             onClick={() => setSelectedProofUrl(m.paymentProofUrl)}
-                            className="h-11 min-h-[44px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-brand-700 bg-brand-50 border border-brand-200/50 cursor-pointer"
+                            className="h-10 min-h-[40px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-brand-700 bg-brand-50 border border-brand-200/50 cursor-pointer"
                           >
                             <Paperclip size={14} />
                             Ver comprobante
@@ -1373,7 +1373,7 @@ export const BusinessDetailPage = () => {
                             <button
                               type="button"
                               onClick={() => setMembershipToEdit(m)}
-                              className="h-11 min-h-[44px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200/80 cursor-pointer"
+                              className="h-10 min-h-[40px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200/80 cursor-pointer"
                             >
                               <PencilSimple size={14} weight="bold" />
                               Editar
@@ -1381,7 +1381,7 @@ export const BusinessDetailPage = () => {
                             <button
                               type="button"
                               onClick={() => handleOpenVoidModal(m)}
-                              className="h-11 min-h-[44px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 cursor-pointer"
+                              className="h-10 min-h-[40px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 cursor-pointer"
                             >
                               <Prohibit size={14} weight="bold" />
                               Anular
@@ -1393,23 +1393,23 @@ export const BusinessDetailPage = () => {
                   );
                 })}
                 {!loadingMemberships && memberships.length === 0 && (
-                  <p className="py-6 text-center text-xs text-gray-500">No hay historial de membresías registrado</p>
+                  <p className="sm:col-span-2 py-6 text-center text-xs text-gray-500">No hay historial de membresías registrado</p>
                 )}
               </div>
 
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs min-w-[820px]">
                   <thead>
                     <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-medium bg-gray-50/50">
-                      <th className="py-2.5 px-3">Período</th>
-                      <th className="py-2.5 px-3">Vence</th>
-                      <th className="py-2.5 px-3">Producto(s)</th>
-                      <th className="py-2.5 px-3">Monto</th>
-                      <th className="py-2.5 px-3">Método</th>
-                      <th className="py-2.5 px-3">Pago recibido</th>
-                      <th className="py-2.5 px-3">Comprobante</th>
-                      <th className="py-2.5 px-3 text-right">Estado</th>
-                      <th className="py-2.5 px-3 text-right">Acciones</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Período</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Vence</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Producto(s)</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Monto</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Método</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Pago recibido</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Comprobante</th>
+                      <th className="py-2.5 px-3 text-right whitespace-nowrap">Estado</th>
+                      <th className="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-gray-700">
@@ -1613,11 +1613,11 @@ export const BusinessDetailPage = () => {
         )}
 
         <div className={isDeliveryActive ? "grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6" : "space-y-6"}>
-          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
+          <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs">
             <div className="flex flex-col gap-4 mb-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <Users size={18} className="text-gray-500" />
+                  <Users size={18} className="text-gray-500 shrink-0" />
                   <h3 className="text-sm font-semibold text-gray-900">
                     Usuarios y cupo
                   </h3>
@@ -1626,7 +1626,7 @@ export const BusinessDetailPage = () => {
                   id="btn-add-biz-user"
                   onClick={() => setIsAddUserModalOpen(true)}
                   disabled={business?.userUsage && business.userUsage.used >= business.userUsage.limit}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs shrink-0"
                   title={business?.userUsage && business.userUsage.used >= business.userUsage.limit ? "Límite de usuarios alcanzado" : ""}
                 >
                   <Plus size={14} weight="bold" />
@@ -1637,7 +1637,7 @@ export const BusinessDetailPage = () => {
               {business?.userUsage && (
                 <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className={`text-xs font-bold ${business.userUsage.used >= business.userUsage.limit ? 'text-red-600' : 'text-gray-800'}`}>
                           {business.userUsage.used} de {business.userUsage.limit} usuarios activos
@@ -1653,12 +1653,12 @@ export const BusinessDetailPage = () => {
                       )}
                     </div>
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
                       <label className="text-xs text-gray-600 font-medium">Extras:</label>
                       <input 
                         type="number" 
                         min="0"
-                        className="w-16 h-7 px-2 border border-gray-300 rounded text-xs focus:border-gray-900 focus:outline-none"
+                        className="w-16 h-8 px-2 border border-gray-300 rounded text-xs focus:border-gray-900 focus:outline-none bg-white"
                         value={extraSlotsInput}
                         onChange={(e) => setExtraSlotsInput(e.target.value)}
                       />
@@ -1672,7 +1672,7 @@ export const BusinessDetailPage = () => {
                           }
                         }}
                         disabled={updateQuotaMutation.isPending || parseInt(extraSlotsInput, 10) === business.userUsage.extra}
-                        className="text-[11px] px-2 py-1 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 text-gray-800 rounded font-medium transition-colors"
+                        className="text-[11px] px-3 py-1.5 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 text-gray-800 rounded font-medium transition-colors cursor-pointer"
                       >
                         Aplicar
                       </button>
@@ -1684,12 +1684,12 @@ export const BusinessDetailPage = () => {
 
             <div className="divide-y divide-gray-100">
               {businessUsers.map((u) => (
-                <div key={u.id} className="py-3 flex items-center justify-between text-xs gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                <div key={u.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2.5 sm:gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center flex-wrap gap-2">
                       <p className="font-medium text-gray-900 truncate">{u.name}</p>
                       <span
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${
                           u.role === 'ENCARGADO'
                             ? 'bg-green-50 text-green-700 border border-green-200/60'
                             : u.role === 'CAJERO'
@@ -1708,26 +1708,26 @@ export const BusinessDetailPage = () => {
                           : u.role}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-gray-400 mt-0.5 flex-wrap">
-                      <span className="flex items-center gap-1 font-mono text-[11px]">
-                        <EnvelopeSimple size={12} />
+                    <div className="flex items-center gap-x-3 gap-y-1 text-gray-400 mt-0.5 flex-wrap">
+                      <span className="flex items-center gap-1 font-mono text-[11px] break-all sm:break-normal">
+                        <EnvelopeSimple size={12} className="shrink-0" />
                         {u.email}
                       </span>
                       {u.phone && (
                         <span className="flex items-center gap-1">
-                          <Phone size={12} />
+                          <Phone size={12} className="shrink-0" />
                           {u.phone}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
                     <Badge variant={u.isActive ? 'success' : 'neutral'} size="sm">
                       {u.isActive ? 'Activo' : 'Inactivo'}
                     </Badge>
 
-                    <div className="flex items-center gap-1 ml-1 border-l border-gray-100 pl-2">
+                    <div className="flex items-center gap-1 sm:ml-1 sm:border-l sm:border-gray-100 sm:pl-2">
                       <button
                         onClick={() => setPasswordTargetUser(u)}
                         title="Cambiar contraseña"
@@ -1769,9 +1769,9 @@ export const BusinessDetailPage = () => {
           </div>
 
           {isDeliveryActive && (
-            <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
+            <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs">
               <div className="flex items-center gap-2 mb-4">
-                <Motorcycle size={18} className="text-gray-500" />
+                <Motorcycle size={18} className="text-gray-500 shrink-0" />
                 <h3 className="text-sm font-semibold text-gray-900">
                   Repartidores Vinculados ({business.riders.length})
                 </h3>
@@ -1779,21 +1779,21 @@ export const BusinessDetailPage = () => {
 
               <div className="divide-y divide-gray-100">
                 {business.riders.map((r) => (
-                  <div key={r.id} className="py-3 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center font-medium text-gray-700">
+                  <div key={r.id} className="py-3 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center font-medium text-gray-700 shrink-0">
                         {r.name.charAt(0)}
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{r.name}</p>
-                        <p className="text-[11px] text-gray-400">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{r.name}</p>
+                        <p className="text-[11px] text-gray-400 truncate">
                           {r.vehicleType || 'Repartidor'}{' '}
                           {r.vehiclePlate ? `· ${r.vehiclePlate}` : ''}
                         </p>
                       </div>
                     </div>
                     {r.phone && (
-                      <span className="text-xs text-gray-500 font-mono">
+                      <span className="text-xs text-gray-500 font-mono shrink-0">
                         {r.phone}
                       </span>
                     )}
@@ -1810,8 +1810,8 @@ export const BusinessDetailPage = () => {
         </div>
 
         {isDeliveryActive && (
-          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
               <h3 className="text-sm font-semibold text-gray-900">Últimos Pedidos</h3>
               <span className="text-xs text-gray-400">
                 Mostrando los 10 más recientes
@@ -1819,7 +1819,7 @@ export const BusinessDetailPage = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-xs min-w-[620px]">
                 <thead>
                   <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-medium">
                     <th className="py-2.5 px-3">ID</th>
@@ -1848,10 +1848,10 @@ export const BusinessDetailPage = () => {
                         <td className="py-3 px-3">
                           {o.deliveryUser?.name || <span className="text-gray-400">Sin asignar</span>}
                         </td>
-                        <td className="py-3 px-3 font-medium text-gray-900">
+                        <td className="py-3 px-3 font-medium text-gray-900 whitespace-nowrap">
                           C$ {Number(o.deliveryFee).toFixed(2)}
                         </td>
-                        <td className="py-3 px-3 text-gray-500">
+                        <td className="py-3 px-3 text-gray-500 whitespace-nowrap">
                           {formatDateTime(o.createdAt)}
                         </td>
                         <td className="py-3 px-3 text-right">
@@ -1887,7 +1887,7 @@ export const BusinessDetailPage = () => {
         )}
 
         {business.latitude && business.longitude && (
-          <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-4">
+          <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-4">
             <h3 className="text-sm font-semibold text-gray-900">Ubicación del Negocio</h3>
             <div className="h-64 rounded-xl overflow-hidden border border-gray-100">
               <div ref={mapContainer} className="w-full h-full" />
@@ -1896,7 +1896,7 @@ export const BusinessDetailPage = () => {
         )}
 
         {/* Zona de peligro */}
-        <div className="bg-red-50/40 rounded-xl border border-red-200/80 p-5 sm:p-6 shadow-xs space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between gap-4">
+        <div className="bg-red-50/40 rounded-xl border border-red-200/80 p-4 sm:p-6 shadow-xs space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-red-900 font-semibold text-sm">
               <Warning size={18} weight="fill" className="text-red-600" />
@@ -2096,7 +2096,7 @@ export const BusinessDetailPage = () => {
                 <span>Configuración de Comisiones y Despacho</span>
               </p>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-medium text-gray-700 mb-1">
                     Comisión Base (%)
@@ -2164,7 +2164,7 @@ export const BusinessDetailPage = () => {
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+          <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <button
               type="button"
               onClick={() => setIsEditModelModalOpen(false)}

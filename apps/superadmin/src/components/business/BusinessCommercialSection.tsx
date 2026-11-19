@@ -81,7 +81,7 @@ export const BusinessCommercialSection: React.FC<Props> = ({ businessId, busines
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-4">
+      <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-4">
         {header()}
         <p className="text-xs text-gray-500">Cargando acuerdo comercial…</p>
       </div>
@@ -90,7 +90,7 @@ export const BusinessCommercialSection: React.FC<Props> = ({ businessId, busines
 
   if (isError) {
     return (
-      <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-4">
+      <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-4">
         {header()}
         <p className="text-xs text-red-700">No se pudo cargar el acuerdo comercial.</p>
       </div>
@@ -100,7 +100,7 @@ export const BusinessCommercialSection: React.FC<Props> = ({ businessId, busines
   // ── Sin acuerdo ──
   if (!data) {
     return (
-      <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-4">
+      <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-4">
         {header()}
         <div className="py-6 px-4 rounded-xl border border-dashed border-gray-200 text-center space-y-3">
           <p className="text-xs text-gray-500">Este negocio todavía no tiene un acuerdo comercial registrado.</p>
@@ -264,7 +264,44 @@ export const BusinessCommercialSection: React.FC<Props> = ({ businessId, busines
       {isCredit && installments.length > 0 && (
         <div className="space-y-2">
           <h4 className="text-xs font-semibold text-gray-700">Plan de cuotas</h4>
-          <div className="overflow-x-auto rounded-xl border border-gray-100">
+          <div className="md:hidden space-y-2.5">
+            {installments.map((i) => {
+              const b = INSTALLMENT_BADGE[i.status];
+              return (
+                <div
+                  key={i.id}
+                  className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                    i.status === 'VENCIDA' ? 'bg-red-50/60 border-red-200' : 'bg-gray-50/50 border-gray-200/80'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-gray-900">
+                      Cuota #{i.installmentNumber} · Vence{' '}
+                      <span className={i.status === 'VENCIDA' ? 'text-red-700' : 'text-gray-700'}>
+                        {formatDateShort(i.dueDate)}
+                      </span>
+                    </span>
+                    <Badge variant={b.variant}>{b.label}</Badge>
+                  </div>
+                  <dl className="grid grid-cols-3 gap-2 pt-1.5 border-t border-gray-200/60">
+                    <div>
+                      <dt className="text-[11px] text-gray-500">Monto</dt>
+                      <dd className="font-mono font-semibold text-gray-900">{formatCurrency(i.amount)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] text-gray-500">Abonado</dt>
+                      <dd className="font-mono font-semibold text-emerald-700">{formatCurrency(i.paidAmount)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] text-gray-500">Pendiente</dt>
+                      <dd className="font-mono font-semibold text-gray-900">{formatCurrency(i.pendingAmount)}</dd>
+                    </div>
+                  </dl>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
             <table className="w-full text-xs text-left min-w-[520px]">
               <thead className="bg-gray-50/70 text-gray-500">
                 <tr>
@@ -306,45 +343,42 @@ export const BusinessCommercialSection: React.FC<Props> = ({ businessId, busines
         {payments.length === 0 ? (
           <p className="text-xs text-gray-500 py-2">Todavía no hay pagos registrados para este acuerdo.</p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-gray-100">
-            <table className="w-full text-xs text-left min-w-[640px]">
-              <thead className="bg-gray-50/70 text-gray-500">
-                <tr>
-                  <th className="py-2 px-3 font-medium">Fecha</th>
-                  <th className="py-2 px-3 font-medium">Tipo</th>
-                  <th className="py-2 px-3 font-medium text-right">Monto</th>
-                  <th className="py-2 px-3 font-medium">Método</th>
-                  <th className="py-2 px-3 font-medium">Referencia</th>
-                  <th className="py-2 px-3 font-medium">Comprobante</th>
-                  <th className="py-2 px-3 font-medium text-right" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {payments.map((p) => {
-                  const voided = !!p.voidedAt;
-                  const strike = voided ? 'line-through text-gray-400' : '';
-                  return (
-                    <tr key={p.id} className={voided ? 'bg-gray-50/60' : ''}>
-                      <td className={`py-2 px-3 whitespace-nowrap align-top ${strike || 'text-gray-700'}`}>{formatDateShort(p.paidAt)}</td>
-                      <td className="py-2 px-3 align-top">
-                        <span className={strike || 'text-gray-900'}>{PAYMENT_KIND_LABELS[p.kind]}</span>
-                        {voided && (
-                          <p className="text-xs text-red-700 mt-0.5 no-underline">Anulado: {p.voidReason}</p>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-right align-top whitespace-nowrap">
-                        <span className={`font-mono font-semibold ${strike || 'text-gray-900'}`}>{formatCurrency(p.amount)}</span>
+          <>
+            <div className="md:hidden space-y-2.5">
+              {payments.map((p) => {
+                const voided = !!p.voidedAt;
+                const strike = voided ? 'line-through text-gray-400' : '';
+                return (
+                  <div
+                    key={p.id}
+                    className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                      voided ? 'bg-gray-50/60 border-gray-200' : 'bg-white border-gray-200/80'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className={`font-semibold ${strike || 'text-gray-900'}`}>{PAYMENT_KIND_LABELS[p.kind]}</p>
+                        <p className={`text-[11px] ${strike || 'text-gray-500'}`}>{formatDateShort(p.paidAt)}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`font-mono font-semibold ${strike || 'text-gray-900'}`}>
+                          {formatCurrency(p.amount)}
+                        </span>
                         {p.paidAmountNio != null && (
-                          <p className={`text-xs ${voided ? 'line-through text-gray-400' : 'text-gray-500'}`}>
+                          <p className={`text-[11px] ${voided ? 'line-through text-gray-400' : 'text-gray-500'}`}>
                             {formatCurrency(p.paidAmountNio, 'NIO')}
                             {p.exchangeRate ? ` a ${p.exchangeRate}` : ''}
                           </p>
                         )}
-                      </td>
-                      <td className={`py-2 px-3 align-top ${strike || 'text-gray-700'}`}>{METHOD_LABELS[p.paymentMethod] || p.paymentMethod}</td>
-                      <td className={`py-2 px-3 align-top ${strike || 'text-gray-700'}`}>{p.referenceNumber || '—'}</td>
-                      <td className="py-2 px-3 align-top">
-                        {p.paymentProofUrl ? (
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-600 pt-1.5 border-t border-gray-100">
+                      <span className={strike}>
+                        {METHOD_LABELS[p.paymentMethod] || p.paymentMethod}
+                        {p.referenceNumber ? ` · Ref. ${p.referenceNumber}` : ''}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        {p.paymentProofUrl && (
                           <a
                             href={p.paymentProofUrl}
                             target="_blank"
@@ -354,11 +388,7 @@ export const BusinessCommercialSection: React.FC<Props> = ({ businessId, busines
                             <Paperclip size={12} />
                             <span>{p.paymentProofUrl.toLowerCase().endsWith('.pdf') ? 'Ver PDF' : 'Ver imagen'}</span>
                           </a>
-                        ) : (
-                          <span className="text-gray-400">—</span>
                         )}
-                      </td>
-                      <td className="py-2 px-3 text-right align-top">
                         {!voided && (
                           <button
                             type="button"
@@ -369,19 +399,90 @@ export const BusinessCommercialSection: React.FC<Props> = ({ businessId, busines
                             <span>Anular</span>
                           </button>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </div>
+                    {voided && <p className="text-xs text-red-700">Anulado: {p.voidReason}</p>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-xs text-left min-w-[640px]">
+                <thead className="bg-gray-50/70 text-gray-500">
+                  <tr>
+                    <th className="py-2 px-3 font-medium">Fecha</th>
+                    <th className="py-2 px-3 font-medium">Tipo</th>
+                    <th className="py-2 px-3 font-medium text-right">Monto</th>
+                    <th className="py-2 px-3 font-medium">Método</th>
+                    <th className="py-2 px-3 font-medium">Referencia</th>
+                    <th className="py-2 px-3 font-medium">Comprobante</th>
+                    <th className="py-2 px-3 font-medium text-right" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {payments.map((p) => {
+                    const voided = !!p.voidedAt;
+                    const strike = voided ? 'line-through text-gray-400' : '';
+                    return (
+                      <tr key={p.id} className={voided ? 'bg-gray-50/60' : ''}>
+                        <td className={`py-2 px-3 whitespace-nowrap align-top ${strike || 'text-gray-700'}`}>{formatDateShort(p.paidAt)}</td>
+                        <td className="py-2 px-3 align-top">
+                          <span className={strike || 'text-gray-900'}>{PAYMENT_KIND_LABELS[p.kind]}</span>
+                          {voided && (
+                            <p className="text-xs text-red-700 mt-0.5 no-underline">Anulado: {p.voidReason}</p>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-right align-top whitespace-nowrap">
+                          <span className={`font-mono font-semibold ${strike || 'text-gray-900'}`}>{formatCurrency(p.amount)}</span>
+                          {p.paidAmountNio != null && (
+                            <p className={`text-xs ${voided ? 'line-through text-gray-400' : 'text-gray-500'}`}>
+                              {formatCurrency(p.paidAmountNio, 'NIO')}
+                              {p.exchangeRate ? ` a ${p.exchangeRate}` : ''}
+                            </p>
+                          )}
+                        </td>
+                        <td className={`py-2 px-3 align-top ${strike || 'text-gray-700'}`}>{METHOD_LABELS[p.paymentMethod] || p.paymentMethod}</td>
+                        <td className={`py-2 px-3 align-top ${strike || 'text-gray-700'}`}>{p.referenceNumber || '—'}</td>
+                        <td className="py-2 px-3 align-top">
+                          {p.paymentProofUrl ? (
+                            <a
+                              href={p.paymentProofUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800"
+                            >
+                              <Paperclip size={12} />
+                              <span>{p.paymentProofUrl.toLowerCase().endsWith('.pdf') ? 'Ver PDF' : 'Ver imagen'}</span>
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-right align-top">
+                          {!voided && (
+                            <button
+                              type="button"
+                              onClick={() => setVoidTarget(p)}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 cursor-pointer"
+                            >
+                              <Prohibit size={12} />
+                              <span>Anular</span>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {/* Equipo entregado */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h4 className="text-xs font-semibold text-gray-700">Equipo entregado ({equipment.length})</h4>
           <button type="button" onClick={() => setEquipmentModal({ open: true, item: null })} className={btnSecondary}>
             <Plus size={14} weight="bold" />
@@ -391,49 +492,91 @@ export const BusinessCommercialSection: React.FC<Props> = ({ businessId, busines
         {equipment.length === 0 ? (
           <p className="text-xs text-gray-500 py-2">No hay equipo registrado.</p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-gray-100">
-            <table className="w-full text-xs text-left min-w-[640px]">
-              <thead className="bg-gray-50/70 text-gray-500">
-                <tr>
-                  <th className="py-2 px-3 font-medium">Tipo</th>
-                  <th className="py-2 px-3 font-medium">Marca y modelo</th>
-                  <th className="py-2 px-3 font-medium">Serie</th>
-                  <th className="py-2 px-3 font-medium text-right">Precio</th>
-                  <th className="py-2 px-3 font-medium">Estado</th>
-                  <th className="py-2 px-3 font-medium">Entrega</th>
-                  <th className="py-2 px-3 font-medium text-right" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {equipment.map((e) => (
-                  <tr key={e.id} className={e.status === 'RETIRADO' ? 'text-gray-400' : 'text-gray-700'}>
-                    <td className="py-2 px-3">{EQUIPMENT_TYPE_LABELS[e.equipmentType]}</td>
-                    <td className="py-2 px-3">
-                      {e.brand} {e.model}
-                    </td>
-                    <td className="py-2 px-3 font-mono">{e.serialNumber || '—'}</td>
-                    <td className="py-2 px-3 text-right font-mono">{e.price != null ? formatCurrency(e.price) : '—'}</td>
-                    <td className="py-2 px-3">
-                      <Badge variant={e.status === 'ENTREGADO' ? 'success' : e.status === 'RETIRADO' ? 'neutral' : 'warning'}>
-                        {EQUIPMENT_STATUS_LABELS[e.status]}
-                      </Badge>
-                    </td>
-                    <td className="py-2 px-3 whitespace-nowrap">{e.deliveredAt ? formatDateShort(e.deliveredAt) : '—'}</td>
-                    <td className="py-2 px-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setEquipmentModal({ open: true, item: e })}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 cursor-pointer"
-                      >
-                        <PencilSimple size={12} />
-                        <span>Editar</span>
-                      </button>
-                    </td>
+          <>
+            <div className="md:hidden space-y-2.5">
+              {equipment.map((e) => (
+                <div
+                  key={e.id}
+                  className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                    e.status === 'RETIRADO' ? 'bg-gray-50/50 border-gray-200 text-gray-400' : 'bg-white border-gray-200/80 text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900">
+                        {EQUIPMENT_TYPE_LABELS[e.equipmentType]} · {e.brand} {e.model}
+                      </p>
+                      <p className="font-mono text-[11px] text-gray-500 mt-0.5 break-all">
+                        Serie: {e.serialNumber || '—'}
+                      </p>
+                    </div>
+                    <Badge variant={e.status === 'ENTREGADO' ? 'success' : e.status === 'RETIRADO' ? 'neutral' : 'warning'}>
+                      {EQUIPMENT_STATUS_LABELS[e.status]}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100">
+                    <div className="flex items-center gap-3 text-[11px] text-gray-500">
+                      <span className="font-mono font-semibold text-gray-900">
+                        {e.price != null ? formatCurrency(e.price) : '—'}
+                      </span>
+                      <span>Entrega: {e.deliveredAt ? formatDateShort(e.deliveredAt) : '—'}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEquipmentModal({ open: true, item: e })}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <PencilSimple size={12} />
+                      <span>Editar</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-xs text-left min-w-[640px]">
+                <thead className="bg-gray-50/70 text-gray-500">
+                  <tr>
+                    <th className="py-2 px-3 font-medium">Tipo</th>
+                    <th className="py-2 px-3 font-medium">Marca y modelo</th>
+                    <th className="py-2 px-3 font-medium">Serie</th>
+                    <th className="py-2 px-3 font-medium text-right">Precio</th>
+                    <th className="py-2 px-3 font-medium">Estado</th>
+                    <th className="py-2 px-3 font-medium">Entrega</th>
+                    <th className="py-2 px-3 font-medium text-right" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {equipment.map((e) => (
+                    <tr key={e.id} className={e.status === 'RETIRADO' ? 'text-gray-400' : 'text-gray-700'}>
+                      <td className="py-2 px-3">{EQUIPMENT_TYPE_LABELS[e.equipmentType]}</td>
+                      <td className="py-2 px-3">
+                        {e.brand} {e.model}
+                      </td>
+                      <td className="py-2 px-3 font-mono">{e.serialNumber || '—'}</td>
+                      <td className="py-2 px-3 text-right font-mono">{e.price != null ? formatCurrency(e.price) : '—'}</td>
+                      <td className="py-2 px-3">
+                        <Badge variant={e.status === 'ENTREGADO' ? 'success' : e.status === 'RETIRADO' ? 'neutral' : 'warning'}>
+                          {EQUIPMENT_STATUS_LABELS[e.status]}
+                        </Badge>
+                      </td>
+                      <td className="py-2 px-3 whitespace-nowrap">{e.deliveredAt ? formatDateShort(e.deliveredAt) : '—'}</td>
+                      <td className="py-2 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setEquipmentModal({ open: true, item: e })}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 cursor-pointer"
+                        >
+                          <PencilSimple size={12} />
+                          <span>Editar</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
         <div className="flex flex-col sm:flex-row sm:justify-end gap-1 sm:gap-6 text-xs text-gray-600 pt-1">
           <span>

@@ -138,7 +138,7 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
 
       {/* Membresía y Monto */}
       <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-100 space-y-1">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-1.5">
           <div className="flex items-center gap-1.5 flex-wrap">
             <Badge variant={pill.variant} dot size="sm">
               {pill.label}
@@ -292,7 +292,7 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
       </div>
 
       {/* Botones de acción */}
-      <div className="flex items-center justify-end gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+      <div className="flex flex-wrap items-center justify-end gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
         {onRegisterPayment && (
           <button
             type="button"

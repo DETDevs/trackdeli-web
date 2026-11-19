@@ -105,7 +105,7 @@ export function DataTable<T>({
       </div>
 
       {data.length > pageSize && (
-        <div className="py-3 px-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 bg-white">
+        <div className="py-3 px-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-500 bg-white">
           <span>
             Mostrando {startIndex + 1} a {Math.min(startIndex + pageSize, data.length)} de{' '}
             {data.length} registros

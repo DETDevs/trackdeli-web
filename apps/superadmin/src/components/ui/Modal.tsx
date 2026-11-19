@@ -36,14 +36,14 @@ export const Modal: React.FC<ModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
       />
 
       <div
-        className={`relative w-full ${maxWidth} bg-white rounded-t-2xl sm:rounded-2xl border border-gray-100 shadow-2xl overflow-hidden z-10 max-h-[92vh] sm:max-h-[90vh] flex flex-col`}
+        className={`relative w-full ${maxWidth} bg-white rounded-t-2xl sm:rounded-2xl border border-gray-100 shadow-2xl overflow-hidden z-10 max-h-[92dvh] sm:max-h-[90dvh] flex flex-col`}
       >
         <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 sm:py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
-          <div>
+          <div className="min-w-0 pr-2">
             <h3 className="text-sm sm:text-base font-semibold text-gray-900 leading-tight">{title}</h3>
             {subtitle && (
               <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
@@ -51,7 +51,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
             aria-label="Cerrar modal"
           >
             <X size={18} />

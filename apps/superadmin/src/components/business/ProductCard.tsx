@@ -63,7 +63,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   return (
     <div
-      className={`p-5 sm:p-6 rounded-2xl border transition-all flex flex-col justify-between h-full ${
+      className={`p-4 sm:p-6 rounded-2xl border transition-all flex flex-col justify-between h-full ${
         isActive
           ? isCanceledRenewal
             ? 'border-amber-200/80 bg-white shadow-2xs hover:shadow-xs'
@@ -73,7 +73,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     >
       <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-2 flex-wrap sm:flex-nowrap">
           <div className="flex items-center gap-3 min-w-0">
             <div
               className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
@@ -111,7 +111,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
         {/* Date and Details / Inactive notice */}
         <div className="space-y-2.5 pt-1 text-xs">
-          <div className="flex items-center justify-between text-xs text-gray-400 pb-1.5 border-b border-gray-100">
+          <div className="flex items-center justify-between gap-1 flex-wrap text-xs text-gray-400 pb-1.5 border-b border-gray-100">
             <span className="font-medium text-gray-500">
               {isActive
                 ? isCanceledRenewal && coverageEndDate
@@ -177,24 +177,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Footer Actions */}
       <div className="pt-4 mt-5 border-t border-gray-100 space-y-2">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={onAuditClick}
-            className="inline-flex items-center gap-1.5 h-8 px-2.5 -ml-1 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 -ml-1 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer whitespace-nowrap"
           >
             <ClockCounterClockwise size={14} />
             <span>Auditoría</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isActive ? (
               isMembershipProduct ? (
                 <>
                   <button
                     type="button"
                     onClick={onConfigureClick}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs cursor-pointer"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs cursor-pointer whitespace-nowrap"
                   >
                     <Gear size={13} />
                     <span>Configurar</span>
@@ -204,7 +204,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                     <button
                       type="button"
                       onClick={onRegisterPaymentClick}
-                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer whitespace-nowrap"
                     >
                       <CreditCard size={13} weight="bold" />
                       <span>Renovar pago</span>
@@ -213,7 +213,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                     <button
                       type="button"
                       onClick={onCancelRenewalClick}
-                      className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 transition-colors cursor-pointer whitespace-nowrap"
                     >
                       <span>Cancelar renovación</span>
                     </button>
@@ -224,7 +224,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   <button
                     type="button"
                     onClick={onConfigureClick}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs cursor-pointer"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs cursor-pointer whitespace-nowrap"
                   >
                     <Gear size={13} />
                     <span>Configurar</span>
@@ -232,7 +232,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   <button
                     type="button"
                     onClick={onDeactivateClick}
-                    className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100/80 border border-red-200/60 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100/80 border border-red-200/60 transition-colors cursor-pointer whitespace-nowrap"
                   >
                     <span>Desactivar</span>
                   </button>
@@ -244,7 +244,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 data-testid={`btn-register-payment-${productType.toLowerCase()}`}
                 type="button"
                 onClick={onRegisterPaymentClick}
-                className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer whitespace-nowrap"
               >
                 <CreditCard size={13} weight="bold" />
                 <span>Registrar pago</span>
@@ -253,7 +253,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <button
                 type="button"
                 onClick={onActivateClick}
-                className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer whitespace-nowrap"
               >
                 <Plus size={13} weight="bold" />
                 <span>{activateButtonLabel || `Activar ${title}`}</span>

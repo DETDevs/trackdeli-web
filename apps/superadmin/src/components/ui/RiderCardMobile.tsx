@@ -68,7 +68,7 @@ export const RiderCardMobile: React.FC<RiderCardMobileProps> = ({ rider, onToggl
         </button>
       </div>
 
-      <div className="flex items-center justify-between text-xs text-gray-600 pt-1">
+      <div className="flex items-center justify-between flex-wrap gap-2 text-xs text-gray-600 pt-1">
         <div className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
           <span className="text-gray-500">{getVehicleIcon(rider.vehicleType)}</span>
           <span className="font-medium text-gray-900">

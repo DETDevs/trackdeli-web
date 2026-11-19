@@ -176,17 +176,17 @@ export const IndustryDetailPage = () => {
         title={`Campos de: ${industry?.name || '...'}`}
         subtitle={`${activeFieldsCount}/15 campos activos`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2 w-full md:w-auto">
             <button
               onClick={() => navigate('/industries')}
-              className="flex items-center gap-2 h-9 px-3.5 rounded-xl border border-gray-200 text-gray-700 text-xs font-medium hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 h-9 px-3.5 rounded-xl border border-gray-200 text-gray-700 text-xs font-medium hover:bg-gray-50 transition-colors cursor-pointer whitespace-nowrap"
             >
               <ArrowLeft size={14} />
               <span>Volver</span>
             </button>
             <button
               onClick={openCreateModal}
-              className="flex items-center gap-2 h-9 px-3.5 rounded-xl bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition-colors shadow-xs"
+              className="flex items-center gap-2 h-9 px-3.5 rounded-xl bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition-colors shadow-xs cursor-pointer whitespace-nowrap"
             >
               <Plus size={14} weight="bold" />
               <span>Nuevo Campo</span>
@@ -195,18 +195,101 @@ export const IndustryDetailPage = () => {
         }
       />
 
-      <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-4">
-        <div className="bg-blue-50 text-blue-800 text-sm p-4 rounded-lg border border-blue-200">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
+        <div className="bg-blue-50 text-blue-800 text-xs sm:text-sm p-3.5 sm:p-4 rounded-lg border border-blue-200">
           <strong>Aviso:</strong> Los cambios en la plantilla solo afectan a negocios nuevos. Los negocios existentes mantendrán la estructura que tenían al momento de su creación.
         </div>
-        
-        <DataTable
-          columns={columns}
-          data={[...(industry?.fields || [])].sort((a, b) => a.order - b.order)}
-          keyExtractor={(row) => row.id}
-          isLoading={isLoading}
-          emptyMessage="No hay campos configurados para este tipo de negocio."
-        />
+
+        {/* Vista móvil: tarjetas */}
+        <div className="md:hidden space-y-2.5">
+          {isLoading ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-xs text-gray-400">
+              Cargando campos...
+            </div>
+          ) : !industry?.fields || industry.fields.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-xs text-gray-400">
+              No hay campos configurados para este tipo de negocio.
+            </div>
+          ) : (
+            [...industry.fields]
+              .sort((a, b) => a.order - b.order)
+              .map((row) => (
+                <div
+                  key={row.id}
+                  className="bg-white rounded-xl border border-gray-200/80 p-3.5 shadow-2xs space-y-2.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-semibold text-sm text-gray-900 block truncate">
+                        {row.label}
+                      </span>
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded bg-gray-50 border border-gray-200 text-xs text-gray-700 font-medium">
+                        {row.dataType}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => toggleStatus(e, row.id, row.isActive)}
+                      disabled={updateMutation.isPending}
+                      className="shrink-0 cursor-pointer"
+                    >
+                      <Badge variant={row.isActive ? 'success' : 'neutral'} dot size="sm">
+                        {row.isActive ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </button>
+                  </div>
+
+                  {(row.isRequired || row.isSearchable || row.showInPos) && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {row.isRequired && <Badge variant="warning" size="sm">Requerido</Badge>}
+                      {row.isSearchable && <Badge variant="info" size="sm">Buscable</Badge>}
+                      {row.showInPos && <Badge variant="neutral" size="sm">En POS</Badge>}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                    <div className="flex items-center gap-1 text-xs text-gray-600">
+                      <span className="text-[11px] text-gray-400 mr-1">Orden:</span>
+                      <button
+                        type="button"
+                        onClick={(e) => moveField(e, row.id, 'UP')}
+                        className="w-7 h-7 flex items-center justify-center bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded text-gray-600 cursor-pointer"
+                      >
+                        ↑
+                      </button>
+                      <span className="text-xs font-medium w-5 text-center">{row.order}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => moveField(e, row.id, 'DOWN')}
+                        className="w-7 h-7 flex items-center justify-center bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded text-gray-600 cursor-pointer"
+                      >
+                        ↓
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => openEditModal(e, row)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200/60 transition-colors cursor-pointer"
+                    >
+                      Editar
+                    </button>
+                  </div>
+                </div>
+              ))
+          )}
+        </div>
+
+        {/* Vista desktop: tabla */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={[...(industry?.fields || [])].sort((a, b) => a.order - b.order)}
+            keyExtractor={(row) => row.id}
+            isLoading={isLoading}
+            emptyMessage="No hay campos configurados para este tipo de negocio."
+          />
+        </div>
       </div>
 
       <FieldFormModal

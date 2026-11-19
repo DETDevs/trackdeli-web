@@ -90,9 +90,9 @@ export const LogsPage = () => {
         subtitle="Registro cronológico de eventos relevantes del sistema"
       />
 
-      <div className="p-8 space-y-6 max-w-5xl mx-auto">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="relative w-full sm:w-80">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-4">
+          <div className="relative w-full md:w-80">
             <MagnifyingGlass
               size={16}
               className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
@@ -119,7 +119,7 @@ export const LogsPage = () => {
               <button
                 key={f.key}
                 onClick={() => setFilterType(f.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors shrink-0 ${
                   filterType === f.key
                     ? 'bg-gray-900 text-white'
                     : 'text-gray-500 hover:text-gray-900'
@@ -137,7 +137,7 @@ export const LogsPage = () => {
             <p>Cargando actividad...</p>
           </div>
         ) : Object.keys(groupedLogs).length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-100 p-12 text-center text-sm text-gray-400">
+          <div className="bg-white rounded-xl border border-gray-100 p-8 sm:p-12 text-center text-sm text-gray-400">
             No se encontraron eventos registrados con los filtros actuales
           </div>
         ) : (
@@ -152,12 +152,12 @@ export const LogsPage = () => {
                   {groupItems.map((log) => (
                     <div
                       key={log.id}
-                      className="p-4 flex items-start justify-between gap-4 hover:bg-gray-50/50 transition-colors"
+                      className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4 hover:bg-gray-50/50 transition-colors"
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
                         <div className="mt-0.5 shrink-0">{getLogIcon(log.type)}</div>
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-gray-900">
+                        <div className="space-y-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-900 break-words">
                             {log.description}
                           </p>
                           <div className="flex items-center gap-2 flex-wrap">
@@ -169,13 +169,13 @@ export const LogsPage = () => {
                             </Badge>
                             {log.businessName && (
                               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
-                                <Buildings size={12} className="text-gray-400" />
+                                <Buildings size={12} className="text-gray-400 shrink-0" />
                                 <span>{log.businessName}</span>
                               </span>
                             )}
                             {log.riderName && (
                               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
-                                <Motorcycle size={12} className="text-gray-400" />
+                                <Motorcycle size={12} className="text-gray-400 shrink-0" />
                                 <span>{log.riderName}</span>
                               </span>
                             )}
@@ -188,7 +188,7 @@ export const LogsPage = () => {
                         </div>
                       </div>
 
-                      <span className="text-xs text-gray-400 shrink-0 font-medium font-mono">
+                      <span className="text-xs text-gray-400 shrink-0 font-medium font-mono self-end sm:self-auto">
                         {formatTimeOnly(log.createdAt)}
                       </span>
                     </div>

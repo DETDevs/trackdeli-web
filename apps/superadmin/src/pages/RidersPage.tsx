@@ -170,12 +170,12 @@ export const RidersPage = () => {
         subtitle={`Total de ${riders.length} repartidores independientes registrados`}
       />
 
-      <div className="p-4 lg:p-8 space-y-4 lg:space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-4 lg:space-y-6 max-w-7xl mx-auto">
         <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-brand-500 animate-pulse shrink-0" />
                 Mapa de Repartidores en Vivo
               </h3>
               <p className="text-xs text-gray-400">
@@ -190,8 +190,8 @@ export const RidersPage = () => {
           <MapboxRidersMap riders={activeRiders} height="h-[250px] sm:h-[350px] md:h-[400px]" />
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
             <div className="relative w-full sm:w-72">
               <MagnifyingGlass
                 size={16}
@@ -219,7 +219,7 @@ export const RidersPage = () => {
             </select>
           </div>
 
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200/80 shadow-2xs self-stretch sm:self-auto overflow-x-auto">
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200/80 shadow-2xs self-stretch lg:self-auto overflow-x-auto max-w-full">
             <button
               onClick={() => setTab('ALL')}
               className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-center shrink-0 ${

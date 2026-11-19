@@ -30,8 +30,8 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen w-screen flex items-center justify-center bg-gray-25 p-4 font-sans">
-      <div className="w-full max-w-md bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+    <div className="min-h-dvh w-full flex items-center justify-center bg-gray-25 p-4 font-sans">
+      <div className="w-full max-w-md bg-white rounded-2xl border border-gray-100 p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-12 h-12 rounded-2xl bg-gray-900 text-white flex items-center justify-center font-bold text-lg mb-4 shadow-sm">
             TD

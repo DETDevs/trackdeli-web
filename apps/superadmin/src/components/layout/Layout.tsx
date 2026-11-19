@@ -24,10 +24,10 @@ export const Layout = () => {
 
   return (
     <SidebarContext.Provider value={{ sidebarOpen, setSidebarOpen }}>
-      <div className="flex h-screen w-screen overflow-hidden bg-gray-25 font-sans">
+      <div className="flex h-dvh w-full overflow-hidden bg-gray-25 font-sans">
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/40 z-30 lg:hidden backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-black/40 z-30 lg:hidden backdrop-blur-sm transition-opacity"
             onClick={() => setSidebarOpen(false)}
           />
         )}
@@ -35,7 +35,7 @@ export const Layout = () => {
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto min-w-0">
             <Outlet />
           </main>
         </div>

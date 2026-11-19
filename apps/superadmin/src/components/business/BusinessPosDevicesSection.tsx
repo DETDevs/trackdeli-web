@@ -568,12 +568,12 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-xs space-y-6">
+    <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-6">
       {/* Header de la sección */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
         <div>
           <div className="flex items-center gap-2">
-            <Desktop size={20} className="text-purple-700" weight="duotone" />
+            <Desktop size={20} className="text-purple-700 shrink-0" weight="duotone" />
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
               Terminales POS y Configuración de Operación
             </h3>
@@ -583,12 +583,12 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {!isEditingConfig ? (
             <button
               type="button"
               onClick={() => setIsEditingConfig(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer"
             >
               <PencilSimple size={14} />
               <span>Editar Configuración POS</span>
@@ -618,7 +618,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                     : ''
                 );
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
             >
               Cancelar
             </button>
@@ -628,14 +628,14 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
 
       {/* Modo Edición vs Modo Visualización de Configuración */}
       {isEditingConfig ? (
-        <form onSubmit={handleSaveConfig} className="p-4 rounded-xl bg-purple-50/40 border border-purple-200/80 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <form onSubmit={handleSaveConfig} className="p-3.5 sm:p-4 rounded-xl bg-purple-50/40 border border-purple-200/80 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {/* Campo 1: Perfil del Salón */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
                 Perfil del Salón *
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setSalonProfile('RESTAURANTE')}
@@ -749,17 +749,17 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           {/* Fila: Configuración de Acceso Web y Facturación */}
           <div className="pt-3 border-t border-purple-200/60 space-y-3">
             <div className="flex items-center gap-2">
-              <Globe size={16} className="text-purple-700" weight="duotone" />
+              <Globe size={16} className="text-purple-700 shrink-0" weight="duotone" />
               <h5 className="text-xs font-bold text-purple-950 uppercase tracking-wider">
                 Acceso Web y Facturación Móvil
               </h5>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Campo: Interruptor Web Admin Básico */}
               <div className="p-3.5 rounded-xl border bg-white border-purple-200/80 flex items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-0.5">
+                <div className="min-w-0">
+                  <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
                     <label className="block text-xs font-bold text-gray-900">
                       Web admin básico
                     </label>
@@ -796,8 +796,8 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                     : 'border-purple-200/80'
                 }`}
               >
-                <div>
-                  <div className="flex items-center gap-1.5 mb-0.5">
+                <div className="min-w-0">
+                  <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
                     <label
                       className={`block text-xs font-bold ${
                         !webAdminEnabled ? 'text-gray-400' : 'text-gray-900'
@@ -848,8 +848,8 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                 <>
                   {/* Dispositivos web autorizados */}
                   <div className="p-3.5 rounded-xl border bg-white border-purple-200/80">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                      <div className="flex items-center flex-wrap gap-2">
                         <label className="block text-xs font-bold text-gray-900">
                           Dispositivos web autorizados *
                         </label>
@@ -939,13 +939,13 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         </form>
       ) : (
         /* Tarjetas de Resumen de Configuración */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
-            <div>
+            <div className="min-w-0">
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
                 Perfil del Salón
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {currentProfile === 'TALLER' ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
                     <Wrench size={14} weight="bold" className="text-amber-700" />
@@ -967,11 +967,11 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           </div>
 
           <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
-            <div>
+            <div className="min-w-0">
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
                 Límite de Computadoras
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center flex-wrap gap-2">
                 <span className="text-base font-extrabold text-gray-900">
                   {effectiveActiveDevices}
                 </span>
@@ -1168,7 +1168,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         </div>
 
         {/* Metadatos y Fechas (Hora local de Nicaragua) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="bg-white p-3 rounded-lg border border-gray-200/80">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
               Horas de Prueba
@@ -1311,7 +1311,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             <div className="flex items-center gap-2 flex-wrap">
               {/* Extender con selector 1 h / 6 h / 12 h / 24 h */}
               {trialHours && (
-                <div className="inline-flex items-center gap-1.5 bg-white p-1 rounded-lg border border-gray-200 shadow-2xs">
+                <div className="inline-flex flex-wrap items-center gap-1.5 bg-white p-1 rounded-lg border border-gray-200 shadow-2xs max-w-full">
                   <span className="text-[11px] text-gray-500 font-medium pl-1.5">Extender:</span>
                   <select
                     value={extendHours}
@@ -1408,103 +1408,203 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             </p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-gray-100">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                  <th className="py-2.5 px-3">Equipo / Nombre</th>
-                  <th className="py-2.5 px-3">ID Dispositivo</th>
-                  <th className="py-2.5 px-3">Estado</th>
-                  <th className="py-2.5 px-3">Última Conexión</th>
-                  <th className="py-2.5 px-3">Fecha Registro</th>
-                  <th className="py-2.5 px-3 text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
-                {devices.map((device) => {
-                  const isActive = device.status === 'ACTIVE';
-                  const isProcessing = revokingDeviceId === device.id;
+          <>
+            {/* Vista móvil: tarjetas */}
+            <div className="md:hidden space-y-2.5">
+              {devices.map((device) => {
+                const isActive = device.status === 'ACTIVE';
+                const isProcessing = revokingDeviceId === device.id;
 
-                  return (
-                    <tr key={device.id} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2">
-                          <Desktop size={16} className={isActive ? 'text-purple-600' : 'text-gray-400'} />
-                          <span className="font-semibold text-gray-900">{device.name || 'Sin nombre'}</span>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-gray-500">
+                return (
+                  <div
+                    key={device.id}
+                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/40 space-y-2.5 text-xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Desktop
+                          size={17}
+                          className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`}
+                        />
+                        <span className="font-semibold text-gray-900 truncate">
+                          {device.name || 'Sin nombre'}
+                        </span>
+                      </div>
+                      {isActive ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                          <CheckCircle size={11} weight="bold" />
+                          <span>Activa</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shrink-0">
+                          <Prohibit size={11} weight="bold" />
+                          <span>Revocada</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="bg-white px-2.5 py-2 rounded-lg border border-gray-100">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                        ID Dispositivo
+                      </span>
+                      <p className="font-mono text-[11px] text-gray-600 break-all mt-0.5">
                         {device.deviceId}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {isActive ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle size={11} weight="bold" />
-                            <span>Activa</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                            <Prohibit size={11} weight="bold" />
-                            <span>Revocada</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-gray-600">
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div>
+                        <span className="text-gray-400 block">Última conexión</span>
                         {device.lastSeenAt ? (
-                          <div>
-                            <span className="block text-[11px] text-gray-900">
+                          <>
+                            <span className="text-gray-900 font-medium block">
                               {formatDateTime(device.lastSeenAt)}
                             </span>
-                            <span className="block text-[10px] text-gray-400">
+                            <span className="text-[10px] text-gray-400">
                               {formatRelativeTime(device.lastSeenAt)}
                             </span>
-                          </div>
+                          </>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
-                      </td>
-                      <td className="py-2.5 px-3 text-gray-500 text-[11px]">
-                        {formatDateTime(device.createdAt)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        {isActive ? (
-                          <button
-                            type="button"
-                            disabled={isProcessing}
-                            onClick={() => handleRevokeDevice(device)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                            title="Revocar acceso a esta computadora"
-                          >
-                            <Prohibit size={13} weight="bold" />
-                            <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={isProcessing}
-                            onClick={() => handleReactivateDevice(device)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                            title="Reactivar acceso a esta computadora"
-                          >
-                            <ArrowCounterClockwise size={13} weight="bold" />
-                            <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 block">Fecha registro</span>
+                        <span className="text-gray-700 font-medium block">
+                          {formatDateTime(device.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-200/60 flex justify-end">
+                      {isActive ? (
+                        <button
+                          type="button"
+                          disabled={isProcessing}
+                          onClick={() => handleRevokeDevice(device)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <Prohibit size={13} weight="bold" />
+                          <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isProcessing}
+                          onClick={() => handleReactivateDevice(device)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <ArrowCounterClockwise size={13} weight="bold" />
+                          <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Vista desktop: tabla con scroll horizontal */}
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-left border-collapse min-w-[720px]">
+                <thead>
+                  <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <th className="py-2.5 px-3 whitespace-nowrap">Equipo / Nombre</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">ID Dispositivo</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Estado</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Última Conexión</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Fecha Registro</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
+                  {devices.map((device) => {
+                    const isActive = device.status === 'ACTIVE';
+                    const isProcessing = revokingDeviceId === device.id;
+
+                    return (
+                      <tr key={device.id} className="hover:bg-gray-50/60 transition-colors">
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-2">
+                            <Desktop size={16} className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
+                            <span className="font-semibold text-gray-900 whitespace-nowrap">{device.name || 'Sin nombre'}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-gray-500 max-w-[200px] xl:max-w-[300px]">
+                          <span className="block truncate" title={device.deviceId}>
+                            {device.deviceId}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          {isActive ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle size={11} weight="bold" />
+                              <span>Activa</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                              <Prohibit size={11} weight="bold" />
+                              <span>Revocada</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">
+                          {device.lastSeenAt ? (
+                            <div>
+                              <span className="block text-[11px] text-gray-900">
+                                {formatDateTime(device.lastSeenAt)}
+                              </span>
+                              <span className="block text-[10px] text-gray-400">
+                                {formatRelativeTime(device.lastSeenAt)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-500 text-[11px] whitespace-nowrap">
+                          {formatDateTime(device.createdAt)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          {isActive ? (
+                            <button
+                              type="button"
+                              disabled={isProcessing}
+                              onClick={() => handleRevokeDevice(device)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                              title="Revocar acceso a esta computadora"
+                            >
+                              <Prohibit size={13} weight="bold" />
+                              <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isProcessing}
+                              onClick={() => handleReactivateDevice(device)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                              title="Reactivar acceso a esta computadora"
+                            >
+                              <ArrowCounterClockwise size={13} weight="bold" />
+                              <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {/* Listado de Dispositivos Web */}
       <div className="space-y-3 pt-4 border-t border-gray-100">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Globe size={18} className="text-purple-600" weight="duotone" />
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center flex-wrap gap-2 min-w-0">
+            <Globe size={18} className="text-purple-600 shrink-0" weight="duotone" />
             <h4 className="text-xs font-semibold text-gray-800 uppercase tracking-wider">
               Dispositivos Web
             </h4>
@@ -1512,13 +1612,13 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
               ({webDevices.length})
             </span>
             {!currentWebBilling && (
-              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-200">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-200">
                 Facturación web desactivada
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => refetchWebDevices()}
@@ -1569,123 +1669,225 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             </p>
           </div>
         ) : (
-          /* Tabla de dispositivos web */
-          <div className="overflow-x-auto rounded-xl border border-gray-100">
-            <table className="w-full text-left border-collapse min-w-[700px]">
-              <thead>
-                <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                  <th className="py-2.5 px-3">Usuario</th>
-                  <th className="py-2.5 px-3">Nombre / Navegador</th>
-                  <th className="py-2.5 px-3">IP</th>
-                  <th className="py-2.5 px-3">Última Actividad</th>
-                  <th className="py-2.5 px-3">Estado</th>
-                  <th className="py-2.5 px-3 text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
-                {webDevices.map((device) => {
-                  const isActive = device.status === 'ACTIVE';
-                  const isProcessing = revokingWebDeviceId === device.id;
-                  const browserDisplay = formatBrowserInfo(device.userAgent, device.platform);
+          <>
+            {/* Vista móvil: tarjetas de dispositivos web */}
+            <div className="md:hidden space-y-2.5">
+              {webDevices.map((device) => {
+                const isActive = device.status === 'ACTIVE';
+                const isProcessing = revokingWebDeviceId === device.id;
+                const browserDisplay = formatBrowserInfo(device.userAgent, device.platform);
 
-                  return (
-                    <tr key={device.id} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="py-2.5 px-3">
-                        <div className="font-semibold text-gray-900">
+                return (
+                  <div
+                    key={device.id}
+                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/40 space-y-2.5 text-xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">
                           {device.user?.name || 'Usuario desconocido'}
-                        </div>
+                        </p>
                         {device.user?.email && (
-                          <div className="text-[11px] text-gray-400">
+                          <p className="text-[11px] text-gray-400 break-all">
                             {device.user.email}
-                          </div>
+                          </p>
                         )}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <DeviceMobile size={15} className={isActive ? 'text-purple-600' : 'text-gray-400'} />
-                          <span className="font-medium text-gray-900">
-                            {device.name || 'Dispositivo Web'}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">
-                          {browserDisplay}
-                        </div>
-                        {device.deviceId && (
-                          <div className="font-mono text-[10px] text-gray-400 mt-0.5">
-                            ID: {device.deviceId.length > 16 ? `${device.deviceId.slice(0, 16)}...` : device.deviceId}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-gray-600">
-                        {device.ipAddress || '—'}
-                      </td>
-                      <td className="py-2.5 px-3 text-gray-600">
+                      </div>
+                      {isActive ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                          <CheckCircle size={11} weight="bold" />
+                          <span>Activo</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
+                          <Prohibit size={11} weight="bold" />
+                          <span>Revocado</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="bg-white p-2.5 rounded-lg border border-gray-100 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <DeviceMobile size={14} className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
+                        <span className="font-medium text-gray-900 truncate">
+                          {device.name || 'Dispositivo Web'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500">{browserDisplay}</p>
+                      {device.deviceId && (
+                        <p className="font-mono text-[10px] text-gray-400 break-all">
+                          ID: {device.deviceId.length > 20 ? `${device.deviceId.slice(0, 20)}...` : device.deviceId}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div>
+                        <span className="text-gray-400 block">IP</span>
+                        <span className="font-mono text-gray-700">{device.ipAddress || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 block">Última actividad</span>
                         {device.lastSeenAt ? (
-                          <div>
-                            <span className="block text-[11px] text-gray-900">
-                              {formatDateTime(device.lastSeenAt)}
-                            </span>
-                            <span className="block text-[10px] text-gray-400">
-                              {formatRelativeTime(device.lastSeenAt)}
-                            </span>
-                          </div>
+                          <span className="text-gray-900 font-medium block">
+                            {formatDateTime(device.lastSeenAt)}
+                          </span>
                         ) : device.firstSeenAt ? (
-                          <div>
-                            <span className="block text-[11px] text-gray-900">
-                              {formatDateTime(device.firstSeenAt)}
-                            </span>
-                            <span className="block text-[10px] text-gray-400">
-                              Primera conexión
-                            </span>
-                          </div>
+                          <span className="text-gray-900 font-medium block">
+                            {formatDateTime(device.firstSeenAt)}
+                          </span>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {isActive ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle size={11} weight="bold" />
-                            <span>Activo</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                            <Prohibit size={11} weight="bold" />
-                            <span>Revocado</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        {isActive ? (
-                          <button
-                            type="button"
-                            disabled={isProcessing}
-                            onClick={() => handleRevokeWebDevice(device)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                            title="Revocar acceso a este dispositivo web"
-                          >
-                            <Prohibit size={13} weight="bold" />
-                            <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={isProcessing}
-                            onClick={() => handleReactivateWebDevice(device)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                            title="Reactivar acceso a este dispositivo web"
-                          >
-                            <ArrowCounterClockwise size={13} weight="bold" />
-                            <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-200/60 flex justify-end">
+                      {isActive ? (
+                        <button
+                          type="button"
+                          disabled={isProcessing}
+                          onClick={() => handleRevokeWebDevice(device)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <Prohibit size={13} weight="bold" />
+                          <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isProcessing}
+                          onClick={() => handleReactivateWebDevice(device)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <ArrowCounterClockwise size={13} weight="bold" />
+                          <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Tabla desktop de dispositivos web */}
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <th className="py-2.5 px-3">Usuario</th>
+                    <th className="py-2.5 px-3">Nombre / Navegador</th>
+                    <th className="py-2.5 px-3">IP</th>
+                    <th className="py-2.5 px-3">Última Actividad</th>
+                    <th className="py-2.5 px-3">Estado</th>
+                    <th className="py-2.5 px-3 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
+                  {webDevices.map((device) => {
+                    const isActive = device.status === 'ACTIVE';
+                    const isProcessing = revokingWebDeviceId === device.id;
+                    const browserDisplay = formatBrowserInfo(device.userAgent, device.platform);
+
+                    return (
+                      <tr key={device.id} className="hover:bg-gray-50/60 transition-colors">
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-gray-900">
+                            {device.user?.name || 'Usuario desconocido'}
+                          </div>
+                          {device.user?.email && (
+                            <div className="text-[11px] text-gray-400">
+                              {device.user.email}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-1.5">
+                            <DeviceMobile size={15} className={isActive ? 'text-purple-600' : 'text-gray-400'} />
+                            <span className="font-medium text-gray-900">
+                              {device.name || 'Dispositivo Web'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-gray-500 mt-0.5">
+                            {browserDisplay}
+                          </div>
+                          {device.deviceId && (
+                            <div className="font-mono text-[10px] text-gray-400 mt-0.5">
+                              ID: {device.deviceId.length > 16 ? `${device.deviceId.slice(0, 16)}...` : device.deviceId}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-gray-600">
+                          {device.ipAddress || '—'}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-600">
+                          {device.lastSeenAt ? (
+                            <div>
+                              <span className="block text-[11px] text-gray-900">
+                                {formatDateTime(device.lastSeenAt)}
+                              </span>
+                              <span className="block text-[10px] text-gray-400">
+                                {formatRelativeTime(device.lastSeenAt)}
+                              </span>
+                            </div>
+                          ) : device.firstSeenAt ? (
+                            <div>
+                              <span className="block text-[11px] text-gray-900">
+                                {formatDateTime(device.firstSeenAt)}
+                              </span>
+                              <span className="block text-[10px] text-gray-400">
+                                Primera conexión
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {isActive ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle size={11} weight="bold" />
+                              <span>Activo</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              <Prohibit size={11} weight="bold" />
+                              <span>Revocado</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          {isActive ? (
+                            <button
+                              type="button"
+                              disabled={isProcessing}
+                              onClick={() => handleRevokeWebDevice(device)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                              title="Revocar acceso a este dispositivo web"
+                            >
+                              <Prohibit size={13} weight="bold" />
+                              <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isProcessing}
+                              onClick={() => handleReactivateWebDevice(device)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                              title="Reactivar acceso a este dispositivo web"
+                            >
+                              <ArrowCounterClockwise size={13} weight="bold" />
+                              <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>
