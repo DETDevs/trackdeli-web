@@ -9,7 +9,18 @@ export interface Customer {
   notes?: string | null;
   ruc?: string | null;
   creditLimit?: number | null;
+  groupId?: string | null;
+  group?: {
+    id: string;
+    name: string;
+    taxId?: string | null;
+  } | null;
+  externalCode?: string | null;
+  currentBalance?: number | null;
+  balance?: number | null;
+  isActive?: boolean;
   isBlocked?: boolean;
+  consecutiveNoShows?: number;
   lastLatitude?: number | null;
   lastLongitude?: number | null;
   lastAddressText?: string | null;
@@ -21,6 +32,7 @@ export interface Customer {
     appointments?: number;
     creditAccounts?: number;
     sales?: number;
+    orders?: number;
   };
   business?: {
     id: string;
@@ -299,6 +311,85 @@ export interface PaginatedCustomersResponse {
   totalPages: number;
 }
 
+export interface CustomerHistorySaleItem {
+  id: string;
+  saleId?: string;
+  productId?: string | null;
+  productName: string;
+  barcode?: string | null;
+  unitPrice: number;
+  priceTier?: string;
+  quantity: number;
+  discount?: number;
+  subtotal: number;
+  returnedQty?: number;
+  listPrice?: number | null;
+  listPriceDiscount?: number;
+  manualDiscountShare?: number;
+  taxable?: boolean;
+  taxRate?: number;
+  taxAmount?: number;
+  origin?: string;
+}
+
+export interface CustomerHistorySale {
+  id: string;
+  businessId?: string;
+  invoiceNumber: string;
+  invoiceDate?: string;
+  customerId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerRuc?: string | null;
+  subtotal: number;
+  discountAmount?: number;
+  taxAmount?: number;
+  total: number;
+  paymentMethod?: string;
+  amountPaid?: number;
+  change?: number | string;
+  status?: string;
+  channel?: 'MOSTRADOR' | 'DOMICILIO' | 'PEDIDOSYA' | 'MESA' | string | null;
+  deliveryFee?: number;
+  deliveryAddress?: string | null;
+  deliveryPhone?: string | null;
+  deliveryReference?: string | null;
+  deliveryDriverId?: string | null;
+  deliveryDriverName?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  items?: CustomerHistorySaleItem[];
+}
+
+export interface CustomerHistoryOrder {
+  id: string;
+  businessId: string;
+  status: string;
+  customerName: string;
+  customerPhone: string;
+  originBusinessName?: string | null;
+  originBusinessClientId?: string | null;
+  originBusinessClient?: {
+    id: string;
+    name: string;
+  } | null;
+  destinationAddress?: string | null;
+  destinationLat?: number | string | null;
+  destinationLng?: number | string | null;
+  description?: string | null;
+  deliveryPaymentStatus?: string;
+  deliveryFee: number | string;
+  distanceKm?: number;
+  createdAt: string;
+  deliveredAt?: string | null;
+  deliveryUser?: {
+    id: string;
+    name: string;
+    phone?: string | null;
+  } | null;
+  photos?: any[];
+}
+
 export interface CustomerHistoryResponse {
   customer: Customer & {
     email?: string | null;
@@ -306,36 +397,77 @@ export interface CustomerHistoryResponse {
     creditLimit?: number | null;
     ruc?: string | null;
     isBlocked?: boolean;
+    isActive?: boolean;
     consecutiveNoShows?: number;
   };
   products?: {
     citas: boolean;
     carteraCobro: boolean;
   };
-  appointments?: any[];
-  creditAccounts?: any[];
+  appointments?: any[] | null;
+  creditAccounts?: any[] | null;
+  orders?: CustomerHistoryOrder[] | null;
+  sales?: CustomerHistorySale[] | null;
+  _count?: {
+    orders?: number;
+    sales?: number;
+    appointments?: number;
+    creditAccounts?: number;
+  };
 }
 
-export interface UpdateCustomerInput {
-  name?: string;
-  phone?: string;
-  address?: string;
-  deliveryReference?: string | null;
-  email?: string;
-  notes?: string;
-  latitude?: number | null;
-  longitude?: number | null;
-  isBlocked?: boolean;
-}
-
-export const getCustomers = async (params?: {
+export interface GetCustomersParams {
   search?: string;
+  status?: 'active' | 'inactive' | 'all';
+  groupId?: string;
+  onlyWithBalance?: boolean;
   page?: number;
   limit?: number;
   businessId?: string;
-}): Promise<PaginatedCustomersResponse> => {
+}
+
+export interface CreateCustomerInput {
+  name: string;
+  phone?: string | null;
+  ruc?: string | null;
+  documentId?: string | null;
+  email?: string | null;
+  address?: string | null;
+  deliveryReference?: string | null;
+  notes?: string | null;
+  creditLimit?: number | null;
+  isBlocked?: boolean;
+  checkDuplicates?: boolean;
+  confirmDuplicates?: boolean;
+}
+
+export type CreateCustomerDto = CreateCustomerInput;
+
+export interface UpdateCustomerInput {
+  name?: string;
+  phone?: string | null;
+  ruc?: string | null;
+  documentId?: string | null;
+  address?: string | null;
+  deliveryReference?: string | null;
+  email?: string | null;
+  notes?: string | null;
+  creditLimit?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  isBlocked?: boolean;
+  checkDuplicates?: boolean;
+  confirmDuplicates?: boolean;
+}
+
+export type UpdateCustomerDto = UpdateCustomerInput;
+
+export const getCustomers = async (params?: GetCustomersParams): Promise<PaginatedCustomersResponse> => {
   const queryParams: Record<string, any> = {};
   if (params?.search) queryParams.q = params.search;
+  if (params?.status) queryParams.status = params.status;
+  if (params?.groupId) queryParams.groupId = params.groupId;
+  if (params?.onlyWithBalance !== undefined) queryParams.onlyWithBalance = params.onlyWithBalance;
   if (params?.page) queryParams.page = params.page;
   if (params?.limit) queryParams.limit = params.limit;
 
@@ -421,6 +553,26 @@ export const getCustomerHistory = async (id: string, businessId?: string): Promi
   }
 };
 
+export const createCustomer = async (
+  data: CreateCustomerInput,
+  businessId?: string
+): Promise<Customer> => {
+  const url = businessId
+    ? `/businesses/${businessId}/customers`
+    : '/businesses/me/customers';
+
+  try {
+    const res = await apiClient.post(url, data);
+    return res.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      const res2 = await apiClient.post('/customers', data);
+      return res2.data;
+    }
+    throw err;
+  }
+};
+
 export const updateCustomer = async (
   id: string,
   data: UpdateCustomerInput,
@@ -436,6 +588,27 @@ export const updateCustomer = async (
   } catch (err: any) {
     if (err?.response?.status === 404) {
       const res2 = await apiClient.patch(`/customers/${id}`, data);
+      return res2.data;
+    }
+    throw err;
+  }
+};
+
+export const updateCustomerStatus = async (
+  id: string,
+  isActive: boolean,
+  businessId?: string
+): Promise<Customer> => {
+  const url = businessId
+    ? `/businesses/${businessId}/customers/${id}/status`
+    : `/businesses/me/customers/${id}/status`;
+
+  try {
+    const res = await apiClient.patch(url, { isActive });
+    return res.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      const res2 = await apiClient.patch(`/customers/${id}/status`, { isActive });
       return res2.data;
     }
     throw err;
