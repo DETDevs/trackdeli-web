@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   X,
   Package,
@@ -195,7 +196,15 @@ export const ProductBatchesModal: React.FC<ProductBatchesModalProps> = ({
               <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl flex items-start gap-2 text-xs text-blue-900">
                 <Info size={16} className="shrink-0 text-blue-700 mt-0.5" />
                 <span>
-                  Desde acá podés editar código o vencimiento de cada lote y dar de baja lotes vencidos. Para ingresar un lote nuevo por compra, usá Compras en NEXOL POS de escritorio o registrá una entrada por Ajuste de existencia.
+                  Desde acá podés editar código o vencimiento de cada lote y dar de baja lotes vencidos. Para ingresar un lote nuevo por compra, andá a{' '}
+                  <Link
+                    to="/pos/purchases"
+                    onClick={onClose}
+                    className="font-semibold underline hover:text-blue-950"
+                  >
+                    Compras
+                  </Link>{' '}
+                  o registrá una entrada por Ajuste de existencia.
                 </span>
               </div>
             )}

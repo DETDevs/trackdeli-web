@@ -59,8 +59,12 @@ interface ProductModalProps {
   business?: any;
   posSettings?: PosSettingsData | null;
   currency?: string;
+  initialName?: string;
+  initialBarcode?: string;
+  lockInitialStockZero?: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onProductCreated?: (product: PosProductItem) => void;
   onOpenCategoriesModal?: () => void;
   onRequestStockAdjustment?: (
     product: PosProductItem,
@@ -96,8 +100,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   business,
   posSettings: posSettingsProp,
   currency = 'NIO',
+  initialName = '',
+  initialBarcode = '',
+  lockInitialStockZero = false,
   onClose,
   onSaved,
+  onProductCreated,
   onOpenCategoriesModal,
   onRequestStockAdjustment,
 }) => {
@@ -472,9 +480,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       const defaultTracksBatches = Boolean(canManageBatches && isPharmacy);
 
       setItemType('PRODUCT');
-      setName('');
+      setName(initialName || '');
       setDescription('');
-      setBarcode('');
+      setBarcode(initialBarcode || '');
       setSku('');
       setCategoryId(defaultCatId);
       setSupplierId('');
@@ -515,9 +523,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
       initialSnapshotRef.current = buildFormSnapshot({
         itemType: 'PRODUCT',
-        name: '',
+        name: initialName || '',
         description: '',
-        barcode: '',
+        barcode: initialBarcode || '',
         sku: '',
         categoryId: defaultCatId,
         supplierId: '',
@@ -555,6 +563,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     canManageBatches,
     isPharmacy,
     isRestaurant,
+    initialName,
+    initialBarcode,
     loadBatches,
     buildFormSnapshot,
   ]);
@@ -921,7 +931,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           }
         }
       } else {
-        await createPosProduct(payload);
+        const created = await createPosProduct(payload);
+        onProductCreated?.(created);
       }
 
       onSaved();
@@ -944,7 +955,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   return (
     <>
       <div
-        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 animate-in fade-in duration-150"
+        className={`fixed inset-0 ${
+          lockInitialStockZero ? 'z-[55]' : 'z-50'
+        } bg-black/50 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 animate-in fade-in duration-150`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="product-modal-title"
@@ -1875,7 +1888,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                             type="number"
                             step={isUnd ? '1' : '0.001'}
                             min="0"
-                            disabled={isReadOnly || Boolean(product && tracksBatches)}
+                            disabled={
+                              isReadOnly ||
+                              Boolean(product && tracksBatches) ||
+                              Boolean(lockInitialStockZero && !product)
+                            }
                             value={stock}
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => {
@@ -1888,6 +1905,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                                 : 'border-gray-200 focus:border-purple-600'
                             }`}
                           />
+                          {lockInitialStockZero && !product && (
+                            <p className="mt-1 text-xs text-gray-600">
+                              La existencia ingresará al guardar la compra.
+                            </p>
+                          )}
                           {product && tracksBatches && (
                             <p className="mt-1 text-xs text-gray-600">
                               Con control de lotes, modificá la existencia con{' '}

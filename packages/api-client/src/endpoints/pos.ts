@@ -994,6 +994,7 @@ export interface CreatePurchaseDto {
   invoiceNumber?: string;
   purchaseDate?: string;
   notes?: string;
+  force?: boolean;
   paymentCondition?: 'CONTADO' | 'CREDITO';
   dueDate?: string;
   downPayment?: number;
@@ -1002,12 +1003,99 @@ export interface CreatePurchaseDto {
   items: CreatePurchaseItemDto[];
 }
 
+export interface PosPurchaseItem {
+  id: string;
+  purchaseId: string;
+  productId: string;
+  product?: PosProductItem | null;
+  quantity: number;
+  unitCost: number;
+  subtotal: number;
+  lotNumber?: string | null;
+  batchNumber?: string | null;
+  expiryDate?: string | null;
+  createdAt?: string;
+}
+
+export interface PosPurchasePayablePayment {
+  id: string;
+  payableAccountId: string;
+  amount: number;
+  paymentMethod: string;
+  paidAt: string;
+  notes?: string | null;
+  isVoided: boolean;
+  voidedAt?: string | null;
+  voidReason?: string | null;
+  paidBy?: { id: string; name: string } | null;
+  paidByUser?: { id: string; name: string } | null;
+}
+
+export interface PosPurchasePayableAccount {
+  id: string;
+  businessId: string;
+  purchaseId: string;
+  supplierId: string;
+  originalAmount: number;
+  balance: number;
+  status: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED' | string;
+  dueDate: string;
+  notes?: string | null;
+  payments?: PosPurchasePayablePayment[];
+}
+
+export interface PosPurchase {
+  id: string;
+  businessId: string;
+  supplierId?: string | null;
+  supplier?: PosSupplier | null;
+  invoiceNumber?: string | null;
+  purchaseDate: string;
+  notes?: string | null;
+  status: 'RECEIVED' | 'VOIDED' | string;
+  total: number;
+  createdById: string;
+  createdBy?: { id: string; name: string; email?: string } | null;
+  voidedAt?: string | null;
+  voidedById?: string | null;
+  voidedBy?: { id: string; name: string; email?: string } | null;
+  voidReason?: string | null;
+  items: PosPurchaseItem[];
+  payableAccount?: PosPurchasePayableAccount | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PosPurchasesListResponse {
+  data: PosPurchase[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface GetPosPurchasesParams {
+  from?: string;
+  to?: string;
+  supplierId?: string;
+  status?: 'RECEIVED' | 'VOIDED' | string;
+  page?: number;
+  limit?: number;
+  businessId?: string;
+}
+
+export interface VoidPosPurchaseDto {
+  reason: string;
+}
+
 export const createPosPurchase = async (
   dto: CreatePurchaseDto,
   deviceHeaders?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string; 'Idempotency-Key'?: string },
   businessId?: string,
-): Promise<any> => {
-  const res = await apiClient.post<any>('/pos/purchases', dto, {
+): Promise<PosPurchase> => {
+  const res = await apiClient.post<PosPurchase>('/pos/purchases', dto, {
     headers: deviceHeaders,
     params: businessId ? { businessId } : undefined,
   });
@@ -1015,17 +1103,51 @@ export const createPosPurchase = async (
 };
 
 export const getPosPurchases = async (
-  params?: {
-    from?: string;
-    to?: string;
-    supplierId?: string;
-    status?: string;
-    page?: number;
-    limit?: number;
-    businessId?: string;
-  }
-): Promise<any> => {
+  params?: GetPosPurchasesParams,
+): Promise<PosPurchasesListResponse> => {
   const res = await apiClient.get<any>('/pos/purchases', { params });
+  const raw = res.data;
+  if (Array.isArray(raw)) {
+    return {
+      data: raw,
+      pagination: { page: 1, limit: raw.length || 20, total: raw.length, totalPages: 1 },
+    };
+  }
+  const items: PosPurchase[] = Array.isArray(raw?.data) ? raw.data : [];
+  const p = raw?.pagination || {};
+  const limit = Number(p.limit) || Number(params?.limit) || 20;
+  const total = Number(p.total) ?? items.length;
+  return {
+    data: items,
+    pagination: {
+      page: Number(p.page) || Number(params?.page) || 1,
+      limit,
+      total,
+      totalPages: Number(p.totalPages) || Math.max(1, Math.ceil(total / limit)),
+    },
+  };
+};
+
+export const getPosPurchaseById = async (
+  id: string,
+  businessId?: string,
+): Promise<PosPurchase> => {
+  const res = await apiClient.get<PosPurchase>(`/pos/purchases/${id}`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const voidPosPurchase = async (
+  id: string,
+  dto: VoidPosPurchaseDto,
+  headers?: { 'X-Device-Id'?: string; 'X-Device-Secret'?: string; 'Idempotency-Key'?: string },
+  businessId?: string,
+): Promise<PosPurchase> => {
+  const res = await apiClient.post<PosPurchase>(`/pos/purchases/${id}/void`, dto, {
+    headers,
+    params: businessId ? { businessId } : undefined,
+  });
   return res.data;
 };
 

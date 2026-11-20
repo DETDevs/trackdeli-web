@@ -22,6 +22,7 @@ import {
   Motorcycle,
   Link as LinkIcon,
   Coins,
+  Truck,
 } from '@phosphor-icons/react';
 
 interface SidebarProps {
@@ -100,6 +101,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Catálogo',
       icon: Package,
       show: Boolean(isPosActive && webAdminEnabled && (isPosManager || isCajero)),
+    },
+    // 4b. Compras (abre /pos/purchases — solo ENCARGADO y SUPERADMIN)
+    {
+      to: '/pos/purchases',
+      label: 'Compras',
+      icon: Truck,
+      show: Boolean(isPosActive && webAdminEnabled && isPosManager),
     },
     // 5. Historial Ventas (abre /pos/sales)
     {
