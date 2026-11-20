@@ -67,6 +67,7 @@ export interface FinalPaymentSubmission {
   creditDueDate?: string;
   creditPlan?: CreditPlanPayload;
   approvalToken?: string;
+  discountApprovalToken?: string;
   payments: CreateSalePaymentPayload[];
   tip?: CreateSaleTipPayload;
   sellerId?: string;
@@ -949,6 +950,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <div className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight tabular-nums whitespace-nowrap">
               {formatCurrency(total)}
             </div>
+            {calcSummary && (calcSummary.lineDiscountTotal > 0 || calcSummary.discountAmount > 0) && (
+              <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-emerald-900">
+                {calcSummary.lineDiscountTotal > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-100/80 border border-emerald-200/80">
+                    Desc. por producto: -{formatCurrency(calcSummary.lineDiscountTotal)}
+                  </span>
+                )}
+                {calcSummary.discountAmount > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-100/80 border border-emerald-200/80">
+                    Desc. general: -{formatCurrency(calcSummary.discountAmount)}
+                  </span>
+                )}
+              </div>
+            )}
             {effectiveChannel === 'DOMICILIO' && (
               <div className="mt-1 text-xs font-semibold text-blue-900 bg-blue-50 border border-blue-200/80 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1.5 tabular-nums">
                 <span>A domicilio · Envío: {formatCurrency(deliveryFee)}</span>

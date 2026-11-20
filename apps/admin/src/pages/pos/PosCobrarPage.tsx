@@ -58,6 +58,7 @@ import { NetworkErrorModal } from '../../components/pos/cobrar/NetworkErrorModal
 import { RecentSalesModal } from '../../components/pos/cobrar/RecentSalesModal';
 import { SaveAsQuoteModal } from '../../components/pos/cobrar/SaveAsQuoteModal';
 import { QuotePrintModal } from '../../components/pos/quotes/QuotePrintModal';
+import { ManagerApprovalModal } from '../../components/pos/cobrar/ManagerApprovalModal';
 
 export interface PosCobrarPageProps {
   lockChannel?: boolean;
@@ -112,6 +113,8 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
     cashCloseTolerance,
     cashCloseMaxRecounts,
     multiCurrencyEnabled,
+    discountsEnabled,
+    cashierMaxDiscountPercent,
     isLoading: isLoadingPolicies,
   } = usePosPolicies(Boolean(webBillingEnabled && canCobrar));
 
@@ -198,6 +201,9 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
   const [completedSale, setCompletedSale] = useState<SaleResponse | null>(null);
   const [isSubmittingSale, setIsSubmittingSale] = useState(false);
   const [saleErrorMessage, setSaleErrorMessage] = useState<string | null>(null);
+  const [pendingDiscountApprovalSubmission, setPendingDiscountApprovalSubmission] =
+    useState<FinalPaymentSubmission | null>(null);
+  const [discountApprovalMessage, setDiscountApprovalMessage] = useState<string>('');
 
   // Claves de idempotencia para operaciones de caja (reutilizadas en reintentos hasta éxito)
   const openShiftKeyRef = useRef<string>('');
@@ -747,6 +753,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         unitPrice: line.unitPrice,
         quantity: Number(Number(line.quantity).toFixed(3)),
         discount: line.discount || 0,
+        priceTier: line.priceTier,
         subtotal: line.subtotal,
         listPrice: line.listPrice != null ? line.listPrice : undefined,
         listPriceDiscount: line.listPriceDiscount,
@@ -826,6 +833,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
       creditDueDate: paymentData.creditDueDate,
       creditPlan: paymentData.creditPlan,
       approvalToken: paymentData.approvalToken,
+      discountApprovalToken: paymentData.discountApprovalToken,
       payments: paymentData.payments,
       tip: paymentData.tip,
       sellerId: paymentData.sellerId,
@@ -897,6 +905,21 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         setSaleErrorMessage('Esta proforma sigue en borrador; emitila antes de convertirla.');
       } else if (errCode === 'QUOTE_NOT_FOUND') {
         setSaleErrorMessage('No se encontró la proforma asociada a este cobro.');
+      } else if (errCode === 'DISCOUNT_LIMIT_EXCEEDED') {
+        setDiscountApprovalMessage(
+          errMsg ||
+            `El descuento aplicado supera el máximo permitido para cajero (${cashierMaxDiscountPercent}%). Ingresá las credenciales del encargado para autorizar.`,
+        );
+        setPendingDiscountApprovalSubmission({
+          ...paymentData,
+          clientGeneratedId: idempotencyKey,
+        });
+      } else if (
+        errCode === 'DISCOUNTS_DISABLED' ||
+        errCode === 'DISCOUNT_NOT_ALLOWED_ON_ITEM' ||
+        errCode === 'DISCOUNT_NOT_ALLOWED'
+      ) {
+        setSaleErrorMessage(errMsg || 'El descuento aplicado no está permitido.');
       } else if (errCode === 'PRICE_MISMATCH') {
         setSaleErrorMessage(
           errMsg || 'El catálogo de precios cambió. Recargá los productos para actualizar los precios.',
@@ -1435,6 +1458,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         deliveryChannelEnabled={deliveryChannelEnabled}
         defaultDeliveryFee={defaultDeliveryFee}
         lockChannel={lockChannel}
+        discountsEnabled={discountsEnabled}
         onProceedToPayment={() => {
           setSaleErrorMessage(null);
           setIsCartDrawerOpen(false);
@@ -1573,6 +1597,29 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         }}
         businessInfo={businessInfo}
         cashierName={cashierName || user?.name || 'Cajero'}
+      />
+
+      {/* Modal de Autorización de Encargado para Descuento */}
+      <ManagerApprovalModal
+        isOpen={Boolean(pendingDiscountApprovalSubmission)}
+        onClose={() => setPendingDiscountApprovalSubmission(null)}
+        actionTitle="Autorizar descuento de encargado"
+        actionDescription={
+          discountApprovalMessage ||
+          `El descuento supera el límite permitido para cajero (${cashierMaxDiscountPercent}%). Ingresá las credenciales del encargado para autorizar.`
+        }
+        actionCode="APLICAR_DESCUENTO"
+        entityType="Sale"
+        onApproved={(token) => {
+          const pending = pendingDiscountApprovalSubmission;
+          setPendingDiscountApprovalSubmission(null);
+          if (pending) {
+            void handleFinalSubmitSale({
+              ...pending,
+              discountApprovalToken: token,
+            });
+          }
+        }}
       />
     </div>
   );

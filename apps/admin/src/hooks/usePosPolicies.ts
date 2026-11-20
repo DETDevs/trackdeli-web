@@ -51,6 +51,11 @@ export function usePosPolicies(enabled: boolean = true) {
     : (typeof policies?.cashDifferenceTolerance === 'number' ? policies.cashDifferenceTolerance : 0);
   const cashCloseMaxRecounts = typeof policies?.cashCloseMaxRecounts === 'number' ? policies.cashCloseMaxRecounts : 1;
   const multiCurrencyEnabled = Boolean(policies?.multiCurrencyEnabled);
+  const discountsEnabled = policies?.discountsEnabled !== false;
+  const cashierMaxDiscountPercent =
+    typeof policies?.cashierMaxDiscountPercent === 'number'
+      ? policies.cashierMaxDiscountPercent
+      : 10;
 
   // Métodos habilitados
   const paymentMethodsString = policies?.paymentMethodsEnabled || 'EFECTIVO,TARJETA,TRANSFERENCIA,CREDITO';
@@ -89,6 +94,8 @@ export function usePosPolicies(enabled: boolean = true) {
     cashCloseTolerance,
     cashCloseMaxRecounts,
     multiCurrencyEnabled,
+    discountsEnabled,
+    cashierMaxDiscountPercent,
     enabledPaymentMethods,
     requireReferenceCard,
     requireReferenceTransfer,

@@ -121,6 +121,10 @@ export interface PosProductItem {
   wholesale_min_qty?: number | null;
   wholesale_enabled?: boolean;
   wholesaleEnabled?: boolean;
+  allowDiscount?: boolean;
+  allow_discount?: boolean;
+  promoDiscountPct?: number | null;
+  promo_discount_pct?: number | null;
   listPrice?: number | null;
   markupPct?: number | null;
   taxable?: boolean;
@@ -153,6 +157,7 @@ export interface CreateSaleItemPayload {
   unitPrice: number;
   quantity: number;
   discount?: number;
+  priceTier?: 'RETAIL' | 'WHOLESALE' | 'PROMO' | string;
   barcode?: string;
   listPrice?: number | null;
   listPriceDiscount?: number;
@@ -320,6 +325,7 @@ export interface CreateSalePayload {
   creditDueDate?: string;
   creditPlan?: CreditPlanPayload;
   approvalToken?: string;
+  discountApprovalToken?: string;
   quoteId?: string;
   sellerId?: string;
   sellerName?: string;

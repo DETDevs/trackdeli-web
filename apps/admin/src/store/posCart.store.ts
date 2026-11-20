@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { type PosProductItem, type PrepareQuoteConversionResponse } from 'api-client';
 import {
   calculateSaleTotals,
+  isLineBlockedFromManualDiscount,
   type BusinessCalculationContext,
   type CalculatedSaleSummary,
 } from '../utils/saleCalculation';
@@ -14,6 +15,11 @@ export interface CartItem {
   wholesalePrice?: number | null;
   wholesaleMinQty?: number | null;
   isWholesale: boolean;
+  priceTier?: 'RETAIL' | 'WHOLESALE' | 'PROMO';
+  allowDiscount?: boolean;
+  promoDiscountPct?: number | null;
+  lineDiscountType?: DiscountType;
+  lineDiscountValue?: number;
   quantity: number;
   stock?: number;
   type?: 'PRODUCT' | 'SERVICE';
@@ -55,7 +61,10 @@ export function computeItemUnitPrice(
   quantity: number,
   wholesalePrice?: number | null,
   wholesaleMinQty?: number | null,
-): { unitPrice: number; isWholesale: boolean } {
+  promoDiscountPct?: number | null,
+  useListPrice?: boolean,
+  listPrice?: number | null,
+): { unitPrice: number; isWholesale: boolean; priceTier: 'RETAIL' | 'WHOLESALE' | 'PROMO' } {
   const hasWholesale =
     wholesalePrice != null &&
     Number(wholesalePrice) > 0 &&
@@ -67,12 +76,33 @@ export function computeItemUnitPrice(
     return {
       unitPrice: Number(wholesalePrice),
       isWholesale: true,
+      priceTier: 'WHOLESALE',
     };
+  }
+
+  const hasListPriceActive =
+    Boolean(useListPrice) &&
+    listPrice != null &&
+    Number(listPrice) > 0 &&
+    Number(listPrice) > Number(regularPrice);
+
+  const promoPct = promoDiscountPct != null ? Number(promoDiscountPct) : 0;
+  if (!hasListPriceActive && Number.isFinite(promoPct) && promoPct > 0 && promoPct < 100) {
+    const base = Number(regularPrice) || 0;
+    const promoUnitPrice = Math.round(base * (1 - promoPct / 100) * 100) / 100;
+    if (promoUnitPrice < base) {
+      return {
+        unitPrice: promoUnitPrice,
+        isWholesale: false,
+        priceTier: 'PROMO',
+      };
+    }
   }
 
   return {
     unitPrice: Number(regularPrice) || 0,
     isWholesale: false,
+    priceTier: 'RETAIL',
   };
 }
 
@@ -97,6 +127,7 @@ interface PosCartState {
   removeItem: (productId: string) => void;
   deleteItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  setItemDiscount: (productId: string, type: DiscountType, value: number) => void;
   setDiscount: (type: DiscountType, value: number) => void;
   setChannel: (channel: PosSaleChannel, defaultFee?: number) => void;
   setDeliveryFee: (fee: number) => void;
@@ -158,18 +189,53 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
         product.listPrice !== undefined && product.listPrice !== null
           ? Number(product.listPrice)
           : null;
+      const rawAllowDiscount =
+        product.allowDiscount !== undefined
+          ? Boolean(product.allowDiscount)
+          : (product as any).allow_discount !== undefined
+            ? Boolean((product as any).allow_discount)
+            : true;
+      const rawPromo =
+        product.promoDiscountPct !== undefined
+          ? product.promoDiscountPct
+          : (product as any).promo_discount_pct;
+      const promoDiscountPct =
+        rawPromo != null && Number(rawPromo) > 0 && Number(rawPromo) < 100
+          ? Number(rawPromo)
+          : null;
       const taxable = product.taxable !== undefined ? Boolean(product.taxable) : undefined;
 
       if (existing) {
         const newQty = existing.quantity + 1;
+        const effectiveListPrice = rawListPrice !== null ? rawListPrice : existing.listPrice;
+        const effectivePromoPct =
+          promoDiscountPct !== null ? promoDiscountPct : existing.promoDiscountPct;
+        const effectiveAllowDiscount =
+          rawAllowDiscount !== undefined ? rawAllowDiscount : existing.allowDiscount !== false;
         const pricing = existing.isPriceProtected
-          ? { unitPrice: existing.unitPrice, isWholesale: existing.isWholesale }
+          ? {
+              unitPrice: existing.unitPrice,
+              isWholesale: existing.isWholesale,
+              priceTier: existing.priceTier || (existing.isWholesale ? 'WHOLESALE' : 'RETAIL'),
+            }
           : computeItemUnitPrice(
               existing.regularPrice,
               newQty,
               existing.wholesalePrice,
               existing.wholesaleMinQty,
+              effectivePromoPct,
+              state.businessContext.useListPrice,
+              effectiveListPrice,
             );
+        const blocked = isLineBlockedFromManualDiscount(
+          {
+            unitPrice: pricing.unitPrice,
+            priceTier: pricing.priceTier,
+            allowDiscount: effectiveAllowDiscount,
+            listPrice: effectiveListPrice,
+          },
+          state.businessContext.useListPrice,
+        );
         return {
           items: state.items.map((i) =>
             i.productId === product.id
@@ -178,7 +244,11 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
                   quantity: newQty,
                   unitPrice: pricing.unitPrice,
                   isWholesale: pricing.isWholesale,
-                  listPrice: rawListPrice !== null ? rawListPrice : i.listPrice,
+                  priceTier: pricing.priceTier,
+                  allowDiscount: effectiveAllowDiscount,
+                  promoDiscountPct: effectivePromoPct,
+                  lineDiscountValue: blocked ? 0 : i.lineDiscountValue,
+                  listPrice: effectiveListPrice,
                   taxable: taxable !== undefined ? taxable : i.taxable,
                 }
               : i
@@ -192,6 +262,9 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
         1,
         rawWholesalePrice,
         rawWholesaleMinQty,
+        promoDiscountPct,
+        state.businessContext.useListPrice,
+        rawListPrice,
       );
 
       return {
@@ -205,6 +278,11 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
             wholesaleMinQty: rawWholesaleMinQty != null ? Number(rawWholesaleMinQty) : null,
             unitPrice: pricing.unitPrice,
             isWholesale: pricing.isWholesale,
+            priceTier: pricing.priceTier,
+            allowDiscount: rawAllowDiscount,
+            promoDiscountPct,
+            lineDiscountType: 'PERCENT',
+            lineDiscountValue: 0,
             quantity: 1,
             stock: product.stock,
             type: product.type || 'PRODUCT',
@@ -228,13 +306,29 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
       }
       const newQty = existing.quantity - 1;
       const pricing = existing.isPriceProtected
-        ? { unitPrice: existing.unitPrice, isWholesale: existing.isWholesale }
+        ? {
+            unitPrice: existing.unitPrice,
+            isWholesale: existing.isWholesale,
+            priceTier: existing.priceTier || (existing.isWholesale ? 'WHOLESALE' : 'RETAIL'),
+          }
         : computeItemUnitPrice(
             existing.regularPrice,
             newQty,
             existing.wholesalePrice,
             existing.wholesaleMinQty,
+            existing.promoDiscountPct,
+            state.businessContext.useListPrice,
+            existing.listPrice,
           );
+      const blocked = isLineBlockedFromManualDiscount(
+        {
+          unitPrice: pricing.unitPrice,
+          priceTier: pricing.priceTier,
+          allowDiscount: existing.allowDiscount !== false,
+          listPrice: existing.listPrice,
+        },
+        state.businessContext.useListPrice,
+      );
       return {
         items: state.items.map((i) =>
           i.productId === productId
@@ -243,6 +337,8 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
                 quantity: newQty,
                 unitPrice: pricing.unitPrice,
                 isWholesale: pricing.isWholesale,
+                priceTier: pricing.priceTier,
+                lineDiscountValue: blocked ? 0 : i.lineDiscountValue,
               }
             : i
         ),
@@ -265,22 +361,68 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
         items: state.items.map((i) => {
           if (i.productId !== productId) return i;
           const pricing = i.isPriceProtected
-            ? { unitPrice: i.unitPrice, isWholesale: i.isWholesale }
+            ? {
+                unitPrice: i.unitPrice,
+                isWholesale: i.isWholesale,
+                priceTier: i.priceTier || (i.isWholesale ? 'WHOLESALE' : 'RETAIL'),
+              }
             : computeItemUnitPrice(
                 i.regularPrice,
                 quantity,
                 i.wholesalePrice,
                 i.wholesaleMinQty,
+                i.promoDiscountPct,
+                state.businessContext.useListPrice,
+                i.listPrice,
               );
+          const blocked = isLineBlockedFromManualDiscount(
+            {
+              unitPrice: pricing.unitPrice,
+              priceTier: pricing.priceTier,
+              allowDiscount: i.allowDiscount !== false,
+              listPrice: i.listPrice,
+            },
+            state.businessContext.useListPrice,
+          );
           return {
             ...i,
             quantity,
             unitPrice: pricing.unitPrice,
             isWholesale: pricing.isWholesale,
+            priceTier: pricing.priceTier,
+            lineDiscountValue: blocked ? 0 : i.lineDiscountValue,
           };
         }),
       };
     });
+  },
+
+  setItemDiscount: (productId, type, value) => {
+    const safeVal = Math.max(0, isNaN(value) ? 0 : value);
+    set((state) => ({
+      items: state.items.map((i) => {
+        if (i.productId !== productId) return i;
+        const blocked = isLineBlockedFromManualDiscount(
+          {
+            unitPrice: i.unitPrice,
+            priceTier: i.priceTier || (i.isWholesale ? 'WHOLESALE' : 'RETAIL'),
+            allowDiscount: i.allowDiscount !== false,
+            listPrice: i.listPrice,
+          },
+          state.businessContext.useListPrice,
+        );
+        if (blocked) {
+          return { ...i, lineDiscountType: 'PERCENT', lineDiscountValue: 0 };
+        }
+        const lineGross = Math.round(i.unitPrice * i.quantity * 100) / 100;
+        return {
+          ...i,
+          lineDiscountType: type,
+          lineDiscountValue:
+            type === 'PERCENT' ? Math.min(100, safeVal) : Math.min(lineGross, safeVal),
+        };
+      }),
+    }));
   },
 
   setDiscount: (type, value) => {
@@ -468,30 +610,65 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
 
   getCalculationSummary: () => {
     const { items, discountType, discountValue, businessContext } = get();
-    const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    const mappedItems = items.map((i) => {
+      const priceTier: 'RETAIL' | 'WHOLESALE' | 'PROMO' =
+        i.priceTier || (i.isWholesale ? 'WHOLESALE' : 'RETAIL');
+      const allowDiscount = i.allowDiscount !== false;
+      const listPrice = i.listPrice !== undefined ? i.listPrice : null;
+      const lineGross = Math.round(i.unitPrice * i.quantity * 100) / 100;
+      const blocked = isLineBlockedFromManualDiscount(
+        {
+          unitPrice: i.unitPrice,
+          priceTier,
+          allowDiscount,
+          listPrice,
+        },
+        businessContext.useListPrice,
+      );
 
-    let rawManualDiscount = 0;
-    if (subtotal > 0 && discountValue > 0) {
-      if (discountType === 'PERCENT') {
-        const calculated = (subtotal * discountValue) / 100;
-        rawManualDiscount = Math.min(subtotal, Math.round(calculated * 100) / 100);
-      } else {
-        rawManualDiscount = Math.min(subtotal, discountValue);
+      let lineDiscount = 0;
+      if (!blocked && (i.lineDiscountValue || 0) > 0) {
+        const val = Number(i.lineDiscountValue || 0);
+        if ((i.lineDiscountType || 'PERCENT') === 'PERCENT') {
+          lineDiscount = Math.min(lineGross, Math.round(((lineGross * val) / 100) * 100) / 100);
+        } else {
+          lineDiscount = Math.min(lineGross, Math.round(val * 100) / 100);
+        }
       }
-    }
 
-    return calculateSaleTotals(
-      items.map((i) => ({
+      return {
         productId: i.productId,
         productName: i.productName,
         barcode: i.barcode,
         unitPrice: i.unitPrice,
         quantity: i.quantity,
-        discount: 0,
-        priceTier: i.isWholesale ? 'WHOLESALE' : 'RETAIL',
-        listPrice: i.listPrice !== undefined ? i.listPrice : null,
+        discount: lineDiscount,
+        priceTier,
+        allowDiscount,
+        listPrice,
         taxable: i.taxable !== undefined ? i.taxable : null,
-      })),
+        _eligibleForGlobal: !blocked && lineDiscount <= 0,
+        _lineGross: lineGross,
+      };
+    });
+
+    const eligibleGlobalBase = mappedItems.reduce(
+      (sum, item) => sum + (item._eligibleForGlobal ? item._lineGross : 0),
+      0,
+    );
+
+    let rawManualDiscount = 0;
+    if (eligibleGlobalBase > 0 && discountValue > 0) {
+      if (discountType === 'PERCENT') {
+        const calculated = (eligibleGlobalBase * discountValue) / 100;
+        rawManualDiscount = Math.min(eligibleGlobalBase, Math.round(calculated * 100) / 100);
+      } else {
+        rawManualDiscount = Math.min(eligibleGlobalBase, discountValue);
+      }
+    }
+
+    return calculateSaleTotals(
+      mappedItems.map(({ _eligibleForGlobal, _lineGross, ...rest }) => rest),
       rawManualDiscount,
       businessContext,
     );

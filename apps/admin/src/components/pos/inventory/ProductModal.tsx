@@ -161,6 +161,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [wholesaleEnabledLocal, setWholesaleEnabledLocal] = useState(false);
   const [wholesalePrice, setWholesalePrice] = useState('');
   const [wholesaleMinQty, setWholesaleMinQty] = useState('');
+  const [allowDiscount, setAllowDiscount] = useState(true);
+  const [promoEnabled, setPromoEnabled] = useState(false);
+  const [promoDiscountPct, setPromoDiscountPct] = useState('');
 
   const [trackStock, setTrackStock] = useState(true);
   const [stock, setStock] = useState('0');
@@ -300,6 +303,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       wholesaleEnabledLocal: boolean;
       wholesalePrice: string;
       wholesaleMinQty: string;
+      allowDiscount: boolean;
+      promoEnabled: boolean;
+      promoDiscountPct: string;
       trackStock: boolean;
       stock: string;
       minStock: string;
@@ -349,6 +355,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       const hasWp = wp != null && Number(wp) > 0;
       const nextWp = hasWp ? String(wp) : '';
       const nextWmq = wmq != null && Number(wmq) > 0 ? String(wmq) : '';
+      const rawAllowDiscount =
+        product.allowDiscount !== undefined
+          ? product.allowDiscount
+          : (product as any).allow_discount;
+      const nextAllowDiscount = rawAllowDiscount !== false;
+      const rawPromoPct = product.promoDiscountPct ?? product.promo_discount_pct;
+      const hasPromoPct =
+        rawPromoPct != null && Number(rawPromoPct) > 0 && Number(rawPromoPct) < 100;
+      const nextPromoPct = hasPromoPct ? String(rawPromoPct) : '';
 
       const nextTrackStock = nextType === 'SERVICE' ? false : product.trackStock ?? true;
       const nextStock = product.stock != null ? String(product.stock) : '0';
@@ -384,6 +399,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setWholesaleEnabledLocal(hasWp);
       setWholesalePrice(nextWp);
       setWholesaleMinQty(nextWmq);
+      setAllowDiscount(nextAllowDiscount);
+      setPromoEnabled(hasPromoPct);
+      setPromoDiscountPct(nextPromoPct);
       setTrackStock(nextTrackStock);
       setStock(nextStock);
       setMinStock(nextMinStock);
@@ -419,6 +437,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         wholesaleEnabledLocal: hasWp,
         wholesalePrice: nextWp,
         wholesaleMinQty: nextWmq,
+        allowDiscount: nextAllowDiscount,
+        promoEnabled: hasPromoPct,
+        promoDiscountPct: nextPromoPct,
         trackStock: nextTrackStock,
         stock: nextStock,
         minStock: nextMinStock,
@@ -463,6 +484,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setWholesaleEnabledLocal(false);
       setWholesalePrice('');
       setWholesaleMinQty('');
+      setAllowDiscount(true);
+      setPromoEnabled(false);
+      setPromoDiscountPct('');
       setTrackStock(defaultTrackStock);
       setStock('0');
       setMinStock('5');
@@ -503,6 +527,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         wholesaleEnabledLocal: false,
         wholesalePrice: '',
         wholesaleMinQty: '',
+        allowDiscount: true,
+        promoEnabled: false,
+        promoDiscountPct: '',
         trackStock: defaultTrackStock,
         stock: '0',
         minStock: '5',
@@ -579,6 +606,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     wholesaleEnabledLocal,
     wholesalePrice,
     wholesaleMinQty,
+    allowDiscount,
+    promoEnabled,
+    promoDiscountPct,
     trackStock,
     stock,
     minStock,
@@ -709,6 +739,19 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       }
     }
 
+    const hasActiveListPrice =
+      (useListPrice || (isPharmacy && !isService)) &&
+      listPrice.trim() !== '' &&
+      Number(listPrice.replace(',', '.')) > (Number.isFinite(numPrice) ? numPrice : 0);
+
+    if (promoEnabled && !hasActiveListPrice) {
+      const pctNum = Number(promoDiscountPct.replace(',', '.'));
+      if (!promoDiscountPct.trim() || !Number.isFinite(pctNum) || pctNum <= 0 || pctNum >= 100) {
+        nextFieldErrors.promoDiscountPct =
+          'El descuento promocional debe ser mayor a 0% y menor a 100%.';
+      }
+    }
+
     // Validación de campos de farmacia (paridad con backend 233a)
     if (isPharmacy && !isService) {
       const validation = validateProductForIndustry('farmacia', itemType, {
@@ -778,6 +821,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         ? null
         : undefined;
 
+    const parsedPromoPct =
+      promoEnabled && !hasActiveListPrice && promoDiscountPct.trim() !== ''
+        ? Math.round(Number(promoDiscountPct.replace(',', '.')) * 100) / 100
+        : product
+        ? null
+        : undefined;
+
     const isUnd = unit === 'UND';
     const parseStockNum = (val: string) => {
       const n = Number(val.replace(',', '.')) || 0;
@@ -806,6 +856,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       markupPct: numMarkupPct,
       taxable,
       listPrice: numListPrice,
+      allowDiscount,
+      promoDiscountPct: parsedPromoPct,
       trackStock: isService ? false : trackStock,
       minStock: parsedMinStock,
       maxStock: parsedMaxStock,
@@ -1605,6 +1657,125 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       )}
                     </div>
                   )}
+
+                  {/* Descuentos del producto (catálogo y punto de venta) */}
+                  <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/40 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">
+                        Descuentos del producto
+                      </span>
+                    </div>
+
+                    <label className="flex items-center justify-between p-2.5 rounded-xl border border-gray-200 bg-white cursor-pointer">
+                      <div className="pr-3">
+                        <span className="text-xs font-semibold text-gray-900 block">
+                          Permitir descuento manual en caja
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          Si lo desactivás, no recibirá descuento por producto ni descuento general de la venta.
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        disabled={isReadOnly}
+                        checked={allowDiscount}
+                        onChange={(e) => setAllowDiscount(e.target.checked)}
+                        className="w-5 h-5 text-purple-600 rounded border-gray-300 shrink-0"
+                      />
+                    </label>
+
+                    {!((useListPrice || (isPharmacy && !isService)) &&
+                      listPrice.trim() !== '' &&
+                      Number(listPrice.replace(',', '.')) > (numericPrice ?? 0)) && (
+                      <div className="p-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/40 space-y-2.5">
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <div className="pr-3">
+                            <span className="text-xs font-semibold text-gray-900 block">
+                              Descuento promocional fijo en catálogo (%)
+                            </span>
+                            <span className="text-xs text-gray-600">
+                              Aplica automáticamente en punto de venta. No se acumula con descuentos manuales en caja.
+                            </span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            disabled={isReadOnly}
+                            checked={promoEnabled}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setPromoEnabled(checked);
+                              if (!checked) {
+                                setPromoDiscountPct('');
+                                if (fieldErrors.promoDiscountPct) {
+                                  setFieldErrors((p) => ({ ...p, promoDiscountPct: '' }));
+                                }
+                              }
+                            }}
+                            className="w-5 h-5 text-emerald-600 rounded border-gray-300 shrink-0"
+                          />
+                        </label>
+
+                        {promoEnabled && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 items-center">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-800 mb-1">
+                                Porcentaje de descuento (%) *
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                max="99.99"
+                                disabled={isReadOnly}
+                                value={promoDiscountPct}
+                                onChange={(e) => {
+                                  setPromoDiscountPct(e.target.value);
+                                  if (fieldErrors.promoDiscountPct) {
+                                    setFieldErrors((p) => ({ ...p, promoDiscountPct: '' }));
+                                  }
+                                }}
+                                placeholder="Ej. 10"
+                                className={`w-full h-11 px-3 rounded-xl border bg-white text-xs font-mono text-gray-900 focus:outline-none ${
+                                  fieldErrors.promoDiscountPct
+                                    ? 'border-red-500'
+                                    : 'border-gray-200 focus:border-emerald-600'
+                                }`}
+                              />
+                              {fieldErrors.promoDiscountPct && (
+                                <p className="mt-1 text-xs text-red-700 font-medium">
+                                  {fieldErrors.promoDiscountPct}
+                                </p>
+                              )}
+                            </div>
+
+                            {numericPrice !== null &&
+                              numericPrice > 0 &&
+                              Number(promoDiscountPct.replace(',', '.')) > 0 &&
+                              Number(promoDiscountPct.replace(',', '.')) < 100 && (
+                                <div className="p-2.5 rounded-xl bg-white border border-emerald-200 text-xs">
+                                  <span className="text-gray-600 block">Precio final en caja:</span>
+                                  <div className="flex items-baseline gap-2 mt-0.5">
+                                    <span className="text-sm font-black text-emerald-800 font-mono">
+                                      {formatCurrency(
+                                        Math.round(
+                                          numericPrice *
+                                            (1 - Number(promoDiscountPct.replace(',', '.')) / 100) *
+                                            100,
+                                        ) / 100,
+                                        currency,
+                                      )}
+                                    </span>
+                                    <span className="text-xs text-gray-400 line-through font-mono">
+                                      {formatCurrency(numericPrice, currency)}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </section>

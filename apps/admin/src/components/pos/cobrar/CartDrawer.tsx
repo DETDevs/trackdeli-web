@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Plus,
@@ -10,8 +10,10 @@ import {
   WifiSlash,
   Storefront,
   Motorcycle,
+  Percent,
 } from '@phosphor-icons/react';
 import { usePosCartStore, type DiscountType } from '../../../store/posCart.store';
+import { isLineBlockedFromManualDiscount } from '../../../utils/saleCalculation';
 import { formatCurrency } from '../../../utils/formatters';
 
 interface CartDrawerProps {
@@ -23,6 +25,7 @@ interface CartDrawerProps {
   deliveryChannelEnabled?: boolean;
   defaultDeliveryFee?: number;
   lockChannel?: boolean;
+  discountsEnabled?: boolean;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -34,6 +37,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   deliveryChannelEnabled = false,
   defaultDeliveryFee = 0,
   lockChannel = false,
+  discountsEnabled = true,
 }) => {
   const items = usePosCartStore((s) => s.items);
   const discountType = usePosCartStore((s) => s.discountType);
@@ -43,6 +47,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const removeItem = usePosCartStore((s) => s.removeItem);
   const deleteItem = usePosCartStore((s) => s.deleteItem);
   const updateQuantity = usePosCartStore((s) => s.updateQuantity);
+  const setItemDiscount = usePosCartStore((s) => s.setItemDiscount);
   const setDiscount = usePosCartStore((s) => s.setDiscount);
   const clearCart = usePosCartStore((s) => s.clearCart);
   const sourceQuote = usePosCartStore((s) => s.sourceQuote);
@@ -50,6 +55,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const getCalculationSummary = usePosCartStore((s) => s.getCalculationSummary);
   const getEffectiveDeliveryFee = usePosCartStore((s) => s.getEffectiveDeliveryFee);
   const businessContext = usePosCartStore((s) => s.businessContext);
+  const [editingDiscountProductId, setEditingDiscountProductId] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -58,7 +64,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const effectiveDeliveryFee = effectiveChannel === 'DOMICILIO' ? getEffectiveDeliveryFee() : 0;
 
   const calcSummary = getCalculationSummary();
-  const subtotal = calcSummary.subtotal;
   const total = Math.round((calcSummary.total + effectiveDeliveryFee) * 100) / 100;
 
   const hasListDiscount = calcSummary.listDiscountTotal > 0 && calcSummary.listPriceTotal > 0;
@@ -174,183 +179,401 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
           {items.length === 0 ? (
             <div className="py-12 text-center text-gray-400 text-sm">
-              El carrito está vacío. Agrega productos del catálogo.
+              El carrito está vacío. Agregá productos del catálogo.
             </div>
           ) : (
-            items.map((item) => (
-              <div key={item.productId} className="pt-3 first:pt-0 flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs sm:text-sm font-semibold text-gray-900 leading-snug break-words">
-                      {item.productName}
-                    </span>
-                    {item.taxable !== undefined && (
-                      <span
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold ${
-                          item.taxable
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
+            items.map((item) => {
+              const priceTier = item.priceTier || (item.isWholesale ? 'WHOLESALE' : 'RETAIL');
+              const isPromo = priceTier === 'PROMO';
+              const blockedFromManual = isLineBlockedFromManualDiscount(
+                {
+                  unitPrice: item.unitPrice,
+                  priceTier,
+                  allowDiscount: item.allowDiscount !== false,
+                  listPrice: item.listPrice,
+                },
+                businessContext.useListPrice,
+              );
+              const lineCalc = calcSummary.lines.find((l) => l.productId === item.productId);
+              const lineManualDisc = lineCalc?.discount || 0;
+              const lineGross = Math.round(item.unitPrice * item.quantity * 100) / 100;
+              const lineNetAfterItemDisc = Math.max(
+                0,
+                Math.round((lineGross - lineManualDisc) * 100) / 100,
+              );
+              const isEditingThisLine =
+                discountsEnabled && !blockedFromManual && editingDiscountProductId === item.productId;
+              const lineDiscType = item.lineDiscountType || 'PERCENT';
+              const lineDiscVal = item.lineDiscountValue || 0;
+
+              let blockedReason = 'No admite descuento manual';
+              if (item.allowDiscount === false) {
+                blockedReason = 'Este producto tiene desactivados los descuentos';
+              } else if (item.isWholesale || priceTier === 'WHOLESALE') {
+                blockedReason = 'Ya tiene precio por mayor aplicado';
+              } else if (isPromo) {
+                blockedReason = 'Ya tiene oferta de catálogo aplicada';
+              } else if (
+                businessContext.useListPrice &&
+                item.listPrice &&
+                item.listPrice > item.unitPrice
+              ) {
+                blockedReason = 'Ya tiene descuento de precio etiqueta aplicado';
+              }
+
+              return (
+                <div key={item.productId} className="pt-3 first:pt-0 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs sm:text-sm font-semibold text-gray-900 leading-snug break-words">
+                          {item.productName}
+                        </span>
+                        {item.taxable !== undefined && (
+                          <span
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold ${
+                              item.taxable
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {item.taxable ? '15% IVA' : 'Exento'}
+                          </span>
+                        )}
+                        {item.isWholesale && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                            Precio por mayor
+                          </span>
+                        )}
+                        {isPromo && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Oferta {item.promoDiscountPct ? `-${item.promoDiscountPct}%` : ''}
+                          </span>
+                        )}
+                        {item.allowDiscount === false && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                            Sin desc.
+                          </span>
+                        )}
+                        {lineManualDisc > 0 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                            -{formatCurrency(lineManualDisc)}
+                            {lineDiscType === 'PERCENT' && lineDiscVal > 0 ? ` (${lineDiscVal}%)` : ''}
+                          </span>
+                        )}
+                        {item.isCustomLine && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            Línea libre
+                          </span>
+                        )}
+                        {item.isPriceProtected && !item.isCustomLine && sourceQuote?.priceProtectionApplied && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            Precio proforma
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span
+                          className={
+                            item.isWholesale
+                              ? 'font-bold text-purple-700'
+                              : isPromo
+                                ? 'font-bold text-emerald-700'
+                                : ''
+                          }
+                        >
+                          {formatCurrency(item.unitPrice)} c/u
+                        </span>
+                        {businessContext.useListPrice && item.listPrice && item.listPrice > item.unitPrice && (
+                          <span className="line-through text-gray-400 text-xs">
+                            Etiqueta: {formatCurrency(item.listPrice)}
+                          </span>
+                        )}
+                        {(item.isWholesale || isPromo) && item.regularPrice > item.unitPrice && (
+                          <span className="line-through text-gray-400 text-xs">
+                            {formatCurrency(item.regularPrice)}
+                          </span>
+                        )}
+                        {!item.isWholesale && item.wholesaleMinQty && item.wholesalePrice && (
+                          <span className="text-xs text-gray-400">
+                            (Mayor: {formatCurrency(item.wholesalePrice)} desde {item.wholesaleMinQty})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Controles de cantidad y descuento por línea */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                      <div className="flex items-center border border-gray-200 rounded-xl bg-gray-50 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.productId)}
+                          className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
+                        >
+                          <Minus size={14} weight="bold" />
+                        </button>
+                        <span className="px-2 text-xs font-bold text-gray-900 min-w-[24px] text-center">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                          className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
+                        >
+                          <Plus size={14} weight="bold" />
+                        </button>
+                      </div>
+
+                      {discountsEnabled && (
+                        <button
+                          type="button"
+                          disabled={blockedFromManual}
+                          title={
+                            blockedFromManual
+                              ? blockedReason
+                              : lineManualDisc > 0
+                                ? 'Editar descuento de este producto'
+                                : 'Aplicar descuento a este producto'
+                          }
+                          onClick={() =>
+                            setEditingDiscountProductId((prev) =>
+                              prev === item.productId ? null : item.productId,
+                            )
+                          }
+                          className={`p-1.5 rounded-lg border text-xs font-bold transition-colors ${
+                            blockedFromManual
+                              ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                              : lineManualDisc > 0 || isEditingThisLine
+                                ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 cursor-pointer'
+                                : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100 cursor-pointer'
+                          }`}
+                        >
+                          <Percent size={14} weight="bold" />
+                        </button>
+                      )}
+
+                      <div className="text-right min-w-[65px]">
+                        <div className="text-xs sm:text-sm font-bold text-gray-900 tabular-nums">
+                          {formatCurrency(lineNetAfterItemDisc)}
+                        </div>
+                        {lineManualDisc > 0 && (
+                          <div className="text-[11px] text-gray-400 line-through tabular-nums">
+                            {formatCurrency(lineGross)}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteItem(item.productId)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                       >
-                        {item.taxable ? '15% IVA' : 'Exento'}
-                      </span>
-                    )}
-                    {item.isWholesale && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                        Precio por mayor
-                      </span>
-                    )}
-                    {item.isCustomLine && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                        Línea libre
-                      </span>
-                    )}
-                    {item.isPriceProtected && !item.isCustomLine && sourceQuote?.priceProtectionApplied && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        Precio proforma
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className={item.isWholesale ? 'font-bold text-purple-700' : ''}>
-                      {formatCurrency(item.unitPrice)} c/u
-                    </span>
-                    {businessContext.useListPrice && item.listPrice && item.listPrice > item.unitPrice && (
-                      <span className="line-through text-gray-400 text-xs">
-                        Etiqueta: {formatCurrency(item.listPrice)}
-                      </span>
-                    )}
-                    {item.isWholesale && item.regularPrice > item.unitPrice && (
-                      <span className="line-through text-gray-400 text-xs">
-                        {formatCurrency(item.regularPrice)}
-                      </span>
-                    )}
-                    {!item.isWholesale && item.wholesaleMinQty && item.wholesalePrice && (
-                      <span className="text-xs text-gray-400">
-                        (Mayor: {formatCurrency(item.wholesalePrice)} desde {item.wholesaleMinQty})
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Controles de cantidad */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex items-center border border-gray-200 rounded-xl bg-gray-50 overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => removeItem(item.productId)}
-                      className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors"
-                    >
-                      <Minus size={14} weight="bold" />
-                    </button>
-                    <span className="px-2 text-xs font-bold text-gray-900 min-w-[24px] text-center">
-                      {item.quantity}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                      className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors"
-                    >
-                      <Plus size={14} weight="bold" />
-                    </button>
-                  </div>
-
-                  <div className="text-right min-w-[65px]">
-                    <div className="text-xs sm:text-sm font-bold text-gray-900">
-                      {formatCurrency(item.unitPrice * item.quantity)}
+                        <Trash size={16} />
+                      </button>
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => deleteItem(item.productId)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash size={16} />
-                  </button>
+                  {/* Editor inline de descuento por producto */}
+                  {isEditingThisLine && (
+                    <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-amber-950">Desc. producto:</span>
+                        <div className="inline-flex rounded-lg border border-amber-300 bg-white p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setItemDiscount(item.productId, 'PERCENT', 0)}
+                            className={`px-2 py-0.5 rounded text-xs font-bold transition-colors cursor-pointer ${
+                              lineDiscType === 'PERCENT'
+                                ? 'bg-gray-900 text-white'
+                                : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                          >
+                            %
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setItemDiscount(item.productId, 'FIXED', 0)}
+                            className={`px-2 py-0.5 rounded text-xs font-bold transition-colors cursor-pointer ${
+                              lineDiscType === 'FIXED'
+                                ? 'bg-gray-900 text-white'
+                                : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                          >
+                            C$
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        {[5, 10, 15].map((pct) => (
+                          <button
+                            key={pct}
+                            type="button"
+                            onClick={() => setItemDiscount(item.productId, 'PERCENT', pct)}
+                            className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                              lineDiscType === 'PERCENT' && lineDiscVal === pct
+                                ? 'bg-gray-900 text-white border-gray-900'
+                                : 'bg-white text-gray-700 border-amber-200 hover:bg-amber-100/60'
+                            }`}
+                          >
+                            {pct}%
+                          </button>
+                        ))}
+                        <div className="relative w-24">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max={lineDiscType === 'PERCENT' ? 100 : lineGross}
+                            value={lineDiscVal === 0 ? '' : lineDiscVal}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value);
+                              setItemDiscount(
+                                item.productId,
+                                lineDiscType,
+                                isNaN(v) ? 0 : v,
+                              );
+                            }}
+                            placeholder="0"
+                            className="w-full text-right pr-6 pl-2 py-1 bg-white border border-amber-300 rounded-lg text-xs font-bold text-gray-900 focus:outline-hidden focus:border-gray-900"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
+                            {lineDiscType === 'PERCENT' ? '%' : 'C$'}
+                          </span>
+                        </div>
+                        {lineDiscVal > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setItemDiscount(item.productId, 'PERCENT', 0);
+                              setEditingDiscountProductId(null);
+                            }}
+                            className="px-2 py-1 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                          >
+                            Quitar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
         {/* Sección de descuento y totales */}
         {items.length > 0 && (
           <div className="p-4 bg-gray-50/80 border-t border-gray-200/80 space-y-3 shrink-0">
-            {/* Control de descuento */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold text-gray-700">
-                <span>Descuento de la venta</span>
-                <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => handleDiscountTypeChange('PERCENT')}
-                    className={`px-2 py-0.5 rounded text-xs font-bold transition-colors ${
-                      discountType === 'PERCENT'
-                        ? 'bg-gray-900 text-white shadow-2xs'
-                        : 'text-gray-500 hover:text-gray-900'
-                    }`}
-                  >
-                    %
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDiscountTypeChange('FIXED')}
-                    className={`px-2 py-0.5 rounded text-xs font-bold transition-colors ${
-                      discountType === 'FIXED'
-                        ? 'bg-gray-900 text-white shadow-2xs'
-                        : 'text-gray-500 hover:text-gray-900'
-                    }`}
-                  >
-                    C$
-                  </button>
+            {/* Control de descuento general */}
+            {discountsEnabled && (() => {
+              const eligibleBase = calcSummary.eligibleForGlobalDiscountSubtotal;
+              const eligibleLinesCount = items.filter((it) => {
+                const tier = it.priceTier || (it.isWholesale ? 'WHOLESALE' : 'RETAIL');
+                const blocked = isLineBlockedFromManualDiscount(
+                  {
+                    unitPrice: it.unitPrice,
+                    priceTier: tier,
+                    allowDiscount: it.allowDiscount !== false,
+                    listPrice: it.listPrice,
+                  },
+                  businessContext.useListPrice,
+                );
+                const lineCalc = calcSummary.lines.find((l) => l.productId === it.productId);
+                return !blocked && (lineCalc?.discount || 0) <= 0;
+              }).length;
+              const excludedLinesCount = items.length - eligibleLinesCount;
+              const noEligibleBase = eligibleBase <= 0;
+
+              return (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-gray-700">
+                    <div>
+                      <span>Descuento general de la venta</span>
+                      {excludedLinesCount > 0 && (
+                        <p className="text-[11px] font-normal text-amber-800 mt-0.5">
+                          {noEligibleBase
+                            ? 'Ningún producto del carrito admite descuento general (ya tienen oferta, precio por mayor o descuento propio).'
+                            : `Aplica sobre ${formatCurrency(eligibleBase)} (${eligibleLinesCount} de ${items.length} productos).`}
+                        </p>
+                      )}
+                    </div>
+                    <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={noEligibleBase}
+                        onClick={() => handleDiscountTypeChange('PERCENT')}
+                        className={`px-2 py-0.5 rounded text-xs font-bold transition-colors ${
+                          discountType === 'PERCENT'
+                            ? 'bg-gray-900 text-white shadow-2xs'
+                            : 'text-gray-500 hover:text-gray-900'
+                        } disabled:opacity-40`}
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        disabled={noEligibleBase}
+                        onClick={() => handleDiscountTypeChange('FIXED')}
+                        className={`px-2 py-0.5 rounded text-xs font-bold transition-colors ${
+                          discountType === 'FIXED'
+                            ? 'bg-gray-900 text-white shadow-2xs'
+                            : 'text-gray-500 hover:text-gray-900'
+                        } disabled:opacity-40`}
+                      >
+                        C$
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Atajos de descuento */}
+                  <div className="flex items-center gap-1.5">
+                    {[5, 10, 15].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        disabled={noEligibleBase}
+                        onClick={() => handleQuickDiscount(pct)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                          discountType === 'PERCENT' && discountValue === pct
+                            ? 'bg-gray-900 text-white border-gray-900'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                        } disabled:opacity-40 disabled:cursor-not-allowed`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+
+                    {discountValue > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setDiscount('PERCENT', 0)}
+                        className="px-2 py-1 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors ml-auto"
+                      >
+                        Quitar
+                      </button>
+                    )}
+
+                    <div className="relative w-24 ml-auto">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        disabled={noEligibleBase}
+                        max={discountType === 'PERCENT' ? 100 : eligibleBase}
+                        value={discountValue === 0 ? '' : discountValue}
+                        onChange={handleDiscountValueChange}
+                        placeholder="0"
+                        className="w-full text-right pr-6 pl-2 py-1 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-900 focus:outline-hidden focus:border-gray-900 disabled:bg-gray-100 disabled:text-gray-400"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
+                        {discountType === 'PERCENT' ? '%' : 'C$'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-
-              {/* Atajos de descuento */}
-              <div className="flex items-center gap-1.5">
-                {[5, 10, 15].map((pct) => (
-                  <button
-                    key={pct}
-                    type="button"
-                    onClick={() => handleQuickDiscount(pct)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
-                      discountType === 'PERCENT' && discountValue === pct
-                        ? 'bg-gray-900 text-white border-gray-900'
-                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
-                    }`}
-                  >
-                    {pct}%
-                  </button>
-                ))}
-
-                {discountValue > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setDiscount('PERCENT', 0)}
-                    className="px-2 py-1 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors ml-auto"
-                  >
-                    Quitar
-                  </button>
-                )}
-
-                <div className="relative w-24 ml-auto">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max={discountType === 'PERCENT' ? 100 : subtotal}
-                    value={discountValue === 0 ? '' : discountValue}
-                    onChange={handleDiscountValueChange}
-                    placeholder="0"
-                    className="w-full text-right pr-6 pl-2 py-1 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-900 focus:outline-hidden focus:border-gray-900"
-                  />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
-                    {discountType === 'PERCENT' ? '%' : 'C$'}
-                  </span>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Resumen financiero */}
             <div className="space-y-1.5 text-xs pt-1 border-t border-gray-200/60">
@@ -366,6 +589,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <span>Descuento ({listDiscountPct}%)</span>
                     <span>-{formatCurrency(calcSummary.listDiscountTotal)}</span>
                   </div>
+                  {calcSummary.lineDiscountTotal > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-medium">
+                      <span>Descuento por producto</span>
+                      <span>-{formatCurrency(calcSummary.lineDiscountTotal)}</span>
+                    </div>
+                  )}
                   {calcSummary.discountAmount > 0 && (
                     <div className="flex justify-between text-emerald-700 font-medium">
                       <span>Descuento adicional</span>
@@ -399,10 +628,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <span>Subtotal</span>
                     <span className="font-semibold text-gray-800">{formatCurrency(calcSummary.subtotal)}</span>
                   </div>
+                  {calcSummary.lineDiscountTotal > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-medium">
+                      <span>Descuento por producto</span>
+                      <span>-{formatCurrency(calcSummary.lineDiscountTotal)}</span>
+                    </div>
+                  )}
                   {calcSummary.discountAmount > 0 && (
                     <div className="flex justify-between text-emerald-700 font-medium">
                       <span>
-                        Descuento {discountType === 'PERCENT' ? `(${discountValue}%)` : ''}
+                        Descuento general {discountType === 'PERCENT' ? `(${discountValue}%)` : ''}
                       </span>
                       <span>-{formatCurrency(calcSummary.discountAmount)}</span>
                     </div>

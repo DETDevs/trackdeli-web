@@ -37,6 +37,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       wholesaleMinQty >= 2 &&
       wholesalePrice < product.price,
   );
+  const hasListDisc = Boolean(
+    product.listPrice && Number(product.listPrice) > Number(product.price),
+  );
+  const rawPromo = product.promoDiscountPct ?? product.promo_discount_pct;
+  const promoPct =
+    !hasListDisc &&
+    rawPromo != null &&
+    Number(rawPromo) > 0 &&
+    Number(rawPromo) < 100
+      ? Number(rawPromo)
+      : null;
+  const promoPrice = promoPct
+    ? Math.round(Number(product.price) * (1 - promoPct / 100) * 100) / 100
+    : null;
+  const displayPrice = promoPrice !== null ? promoPrice : Number(product.price);
 
   const vibrateLight = () => {
     try {
@@ -142,6 +157,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               Mayor ≥ {wholesaleMinQty}
             </span>
           )}
+
+          {promoPct && (
+            <span
+              title={`Oferta de catálogo (-${promoPct}%)`}
+              className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"
+            >
+              -{promoPct}%
+            </span>
+          )}
         </div>
 
         {/* Nombre completo (hasta 3 líneas, sin recortes por altura fija) */}
@@ -152,15 +176,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* En pantallas muy angostas (<360px), precio debajo del nombre dentro de la columna izquierda */}
         <div className="min-[360px]:hidden pt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="font-bold text-sm text-emerald-800 tabular-nums">
-            {formatCurrency(product.price)}
+            {formatCurrency(displayPrice)}
           </span>
-          {product.listPrice && Number(product.listPrice) > Number(product.price) && (
+          {promoPrice !== null ? (
             <span
               className="text-xs font-medium text-gray-500 line-through tabular-nums"
-              title={`Precio de etiqueta: ${formatCurrency(Number(product.listPrice))}`}
+              title={`Precio normal: ${formatCurrency(Number(product.price))}`}
             >
-              {formatCurrency(Number(product.listPrice))}
+              {formatCurrency(Number(product.price))}
             </span>
+          ) : (
+            hasListDisc && (
+              <span
+                className="text-xs font-medium text-gray-500 line-through tabular-nums"
+                title={`Precio de etiqueta: ${formatCurrency(Number(product.listPrice))}`}
+              >
+                {formatCurrency(Number(product.listPrice))}
+              </span>
+            )
           )}
           {hasWholesale && (
             <span
@@ -180,18 +213,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             {/* Precios completos (>=360px) */}
             <div className="hidden min-[360px]:flex flex-col gap-0.5">
               <span className="font-bold text-sm sm:text-base text-emerald-800 tracking-tight tabular-nums leading-tight">
-                {formatCurrency(product.price)}
+                {formatCurrency(displayPrice)}
               </span>
-              {(hasWholesale ||
-                (product.listPrice && Number(product.listPrice) > Number(product.price))) && (
+              {(hasWholesale || promoPrice !== null || hasListDisc) && (
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  {product.listPrice && Number(product.listPrice) > Number(product.price) && (
+                  {promoPrice !== null ? (
                     <span
                       className="text-xs font-medium text-gray-500 line-through tabular-nums"
-                      title={`Precio de etiqueta: ${formatCurrency(Number(product.listPrice))}`}
+                      title={`Precio normal: ${formatCurrency(Number(product.price))}`}
                     >
-                      {formatCurrency(Number(product.listPrice))}
+                      {formatCurrency(Number(product.price))}
                     </span>
+                  ) : (
+                    hasListDisc && (
+                      <span
+                        className="text-xs font-medium text-gray-500 line-through tabular-nums"
+                        title={`Precio de etiqueta: ${formatCurrency(Number(product.listPrice))}`}
+                      >
+                        {formatCurrency(Number(product.listPrice))}
+                      </span>
+                    )
                   )}
                   {hasWholesale && (
                     <span
@@ -238,18 +279,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             {/* Bloque de precios (>=360px): jamás truncado */}
             <div className="hidden min-[360px]:flex flex-col gap-0.5 min-w-0">
               <span className="font-bold text-sm sm:text-base text-emerald-800 tracking-tight tabular-nums leading-tight">
-                {formatCurrency(product.price)}
+                {formatCurrency(displayPrice)}
               </span>
-              {(hasWholesale ||
-                (product.listPrice && Number(product.listPrice) > Number(product.price))) && (
+              {(hasWholesale || promoPrice !== null || hasListDisc) && (
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  {product.listPrice && Number(product.listPrice) > Number(product.price) && (
+                  {promoPrice !== null ? (
                     <span
                       className="text-xs font-medium text-gray-500 line-through tabular-nums"
-                      title={`Precio de etiqueta: ${formatCurrency(Number(product.listPrice))}`}
+                      title={`Precio normal: ${formatCurrency(Number(product.price))}`}
                     >
-                      {formatCurrency(Number(product.listPrice))}
+                      {formatCurrency(Number(product.price))}
                     </span>
+                  ) : (
+                    hasListDisc && (
+                      <span
+                        className="text-xs font-medium text-gray-500 line-through tabular-nums"
+                        title={`Precio de etiqueta: ${formatCurrency(Number(product.listPrice))}`}
+                      >
+                        {formatCurrency(Number(product.listPrice))}
+                      </span>
+                    )
                   )}
                   {hasWholesale && (
                     <span
