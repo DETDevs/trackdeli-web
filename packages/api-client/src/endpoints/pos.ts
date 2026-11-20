@@ -828,18 +828,83 @@ export const createPosProductFieldOption = async (
   return res.data;
 };
 
-export const getPosSuppliers = async (businessId?: string): Promise<any[]> => {
-  const res = await apiClient.get<any[]>('/pos/suppliers', {
+export interface PosSupplier {
+  id: string;
+  businessId: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  taxId?: string | null;
+  notes?: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  _count?: {
+    products: number;
+    purchases: number;
+  };
+}
+
+export interface CreatePosSupplierDto {
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  taxId?: string;
+  notes?: string;
+}
+
+export interface UpdatePosSupplierDto {
+  name?: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  taxId?: string | null;
+  notes?: string | null;
+  isActive?: boolean;
+}
+
+export const getPosSuppliers = async (businessId?: string): Promise<PosSupplier[]> => {
+  const res = await apiClient.get<PosSupplier[]>('/pos/suppliers', {
     params: businessId ? { businessId } : undefined,
   });
   return Array.isArray(res.data) ? res.data : [];
 };
 
+export const getPosSupplierById = async (id: string, businessId?: string): Promise<PosSupplier> => {
+  const res = await apiClient.get<PosSupplier>(`/pos/suppliers/${id}`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
 export const createPosSupplier = async (
-  dto: { name: string },
+  dto: CreatePosSupplierDto,
   businessId?: string,
-): Promise<any> => {
-  const res = await apiClient.post<any>('/pos/suppliers', dto, {
+): Promise<PosSupplier> => {
+  const res = await apiClient.post<PosSupplier>('/pos/suppliers', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosSupplier = async (
+  id: string,
+  dto: UpdatePosSupplierDto,
+  businessId?: string,
+): Promise<PosSupplier> => {
+  const res = await apiClient.patch<PosSupplier>(`/pos/suppliers/${id}`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const deletePosSupplier = async (
+  id: string,
+  businessId?: string,
+): Promise<PosSupplier> => {
+  const res = await apiClient.delete<PosSupplier>(`/pos/suppliers/${id}`, {
     params: businessId ? { businessId } : undefined,
   });
   return res.data;

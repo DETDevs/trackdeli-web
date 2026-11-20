@@ -25,6 +25,7 @@ import {
   type PosProductBatchItem,
   type PosSettingsData,
   type PosInventoryAdjustmentType,
+  type PosSupplier,
   createPosProduct,
   updatePosProduct,
   getPosSuppliers,
@@ -49,6 +50,7 @@ import { formatCurrency, formatQuantity } from '../../../utils/formatters';
 import { formatManaguaDate } from '../../../utils/dateManagua';
 import { ListFieldSelect, type ProductField } from './ListFieldSelect';
 import { EditBatchModal, type BatchToEdit } from './EditBatchModal';
+import { SupplierModal } from './SupplierModal';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -202,7 +204,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [attributes, setAttributes] = useState<Record<string, any>>({});
 
   // Auxiliary data
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<PosSupplier[]>([]);
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [productFields, setProductFields] = useState<ProductField[]>([]);
 
   // Accordion & UI states
@@ -1189,9 +1192,21 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-gray-800 mb-1">
-                        Proveedor {isPharmacy && !isService && <span className="text-red-600">*</span>}
-                      </label>
+                      <div className="flex items-center justify-between mb-1 gap-2">
+                        <label className="block text-xs font-semibold text-gray-800">
+                          Proveedor {isPharmacy && !isService && <span className="text-red-600">*</span>}
+                        </label>
+                        {!isReadOnly && (
+                          <button
+                            type="button"
+                            onClick={() => setIsSupplierModalOpen(true)}
+                            className="text-xs font-semibold text-purple-700 hover:underline flex items-center gap-0.5 cursor-pointer shrink-0"
+                          >
+                            <Plus size={12} weight="bold" />
+                            <span>Nuevo proveedor</span>
+                          </button>
+                        )}
+                      </div>
                       <select
                         disabled={isReadOnly}
                         value={supplierId}
@@ -2521,6 +2536,34 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         onSuccess={() => {
           if (product?.id) loadBatches(product.id);
           onSaved();
+        }}
+      />
+
+      <SupplierModal
+        isOpen={isOpen && isSupplierModalOpen}
+        existingSuppliers={suppliers}
+        onClose={() => setIsSupplierModalOpen(false)}
+        onSaved={(created) => {
+          setSuppliers((prev) =>
+            [created, ...prev.filter((s) => s.id !== created.id)].sort((a, b) =>
+              a.name.localeCompare(b.name),
+            ),
+          );
+          setSupplierId(created.id);
+          if (fieldErrors.supplierId) {
+            setFieldErrors((p) => ({ ...p, supplierId: '' }));
+          }
+          setIsSupplierModalOpen(false);
+          getPosSuppliers()
+            .then((d) => setSuppliers(Array.isArray(d) ? d : []))
+            .catch(() => {});
+        }}
+        onSelectExisting={(existing) => {
+          setSupplierId(existing.id);
+          if (fieldErrors.supplierId) {
+            setFieldErrors((p) => ({ ...p, supplierId: '' }));
+          }
+          setIsSupplierModalOpen(false);
         }}
       />
     </>

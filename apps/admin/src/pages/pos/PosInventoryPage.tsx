@@ -15,6 +15,7 @@ import {
   SlidersHorizontal,
   Info,
   UploadSimple,
+  Truck,
 } from '@phosphor-icons/react';
 import {
   PosProductItem,
@@ -37,6 +38,7 @@ import { getManaguaTodayYMD } from '../../utils/dateManagua';
 import { ProductModal } from '../../components/pos/inventory/ProductModal';
 import { ProductBatchesModal } from '../../components/pos/inventory/ProductBatchesModal';
 import { CategoriesModal } from '../../components/pos/inventory/CategoriesModal';
+import { SuppliersListModal } from '../../components/pos/inventory/SuppliersListModal';
 import { StockAdjustmentModal } from '../../components/pos/inventory/StockAdjustmentModal';
 import { DeleteProductConfirmModal } from '../../components/pos/inventory/DeleteProductConfirmModal';
 import { ImportCatalogModal } from '../../components/pos/inventory/ImportCatalogModal';
@@ -114,6 +116,7 @@ export const PosInventoryPage: React.FC = () => {
   const [productToEdit, setProductToEdit] = useState<PosProductItem | null>(null);
 
   const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
+  const [isSuppliersModalOpen, setIsSuppliersModalOpen] = useState(false);
 
   const [isAdjustStockModalOpen, setIsAdjustStockModalOpen] = useState(false);
   const [productToAdjust, setProductToAdjust] = useState<PosProductItem | null>(null);
@@ -445,6 +448,15 @@ export const PosInventoryPage: React.FC = () => {
               >
                 <Tag size={16} weight="bold" />
                 <span>Categorías</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsSuppliersModalOpen(true)}
+                className="min-h-[44px] px-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Truck size={16} weight="bold" />
+                <span>Proveedores</span>
               </button>
 
               <button
@@ -1116,6 +1128,16 @@ export const PosInventoryPage: React.FC = () => {
           isOpen={isCategoriesModalOpen}
           onClose={() => setIsCategoriesModalOpen(false)}
           onCategoriesChanged={() => {
+            loadData();
+          }}
+        />
+      )}
+
+      {isSuppliersModalOpen && (
+        <SuppliersListModal
+          isOpen={isSuppliersModalOpen}
+          onClose={() => setIsSuppliersModalOpen(false)}
+          onSuppliersChanged={() => {
             loadData();
           }}
         />
