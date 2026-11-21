@@ -115,6 +115,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
     multiCurrencyEnabled,
     discountsEnabled,
     cashierMaxDiscountPercent,
+    priceOverrideEnabled,
     isLoading: isLoadingPolicies,
   } = usePosPolicies(Boolean(webBillingEnabled && canCobrar));
 
@@ -1459,6 +1460,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         defaultDeliveryFee={defaultDeliveryFee}
         lockChannel={lockChannel}
         discountsEnabled={discountsEnabled}
+        priceOverrideEnabled={priceOverrideEnabled}
         onProceedToPayment={() => {
           setSaleErrorMessage(null);
           setIsCartDrawerOpen(false);

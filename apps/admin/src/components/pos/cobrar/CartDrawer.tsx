@@ -11,6 +11,7 @@ import {
   Storefront,
   Motorcycle,
   Percent,
+  PencilSimple,
 } from '@phosphor-icons/react';
 import { usePosCartStore, type DiscountType } from '../../../store/posCart.store';
 import { isLineBlockedFromManualDiscount } from '../../../utils/saleCalculation';
@@ -26,6 +27,7 @@ interface CartDrawerProps {
   defaultDeliveryFee?: number;
   lockChannel?: boolean;
   discountsEnabled?: boolean;
+  priceOverrideEnabled?: boolean;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -38,6 +40,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   defaultDeliveryFee = 0,
   lockChannel = false,
   discountsEnabled = true,
+  priceOverrideEnabled = false,
 }) => {
   const items = usePosCartStore((s) => s.items);
   const discountType = usePosCartStore((s) => s.discountType);
@@ -47,6 +50,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const removeItem = usePosCartStore((s) => s.removeItem);
   const deleteItem = usePosCartStore((s) => s.deleteItem);
   const updateQuantity = usePosCartStore((s) => s.updateQuantity);
+  const updateUnitPrice = usePosCartStore((s) => s.updateUnitPrice);
   const setItemDiscount = usePosCartStore((s) => s.setItemDiscount);
   const setDiscount = usePosCartStore((s) => s.setDiscount);
   const clearCart = usePosCartStore((s) => s.clearCart);
@@ -56,6 +60,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const getEffectiveDeliveryFee = usePosCartStore((s) => s.getEffectiveDeliveryFee);
   const businessContext = usePosCartStore((s) => s.businessContext);
   const [editingDiscountProductId, setEditingDiscountProductId] = useState<string | null>(null);
+  const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
+  const [priceInputStr, setPriceInputStr] = useState<string>('');
 
   if (!isOpen) return null;
 
@@ -185,15 +191,20 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             items.map((item) => {
               const priceTier = item.priceTier || (item.isWholesale ? 'WHOLESALE' : 'RETAIL');
               const isPromo = priceTier === 'PROMO';
-              const blockedFromManual = isLineBlockedFromManualDiscount(
-                {
-                  unitPrice: item.unitPrice,
-                  priceTier,
-                  allowDiscount: item.allowDiscount !== false,
-                  listPrice: item.listPrice,
-                },
-                businessContext.useListPrice,
+              const isLoweredManually = Boolean(
+                item.priceOverridden && item.unitPrice < item.regularPrice - 0.005,
               );
+              const blockedFromManual =
+                isLoweredManually ||
+                isLineBlockedFromManualDiscount(
+                  {
+                    unitPrice: item.unitPrice,
+                    priceTier,
+                    allowDiscount: item.allowDiscount !== false,
+                    listPrice: item.listPrice,
+                  },
+                  businessContext.useListPrice,
+                );
               const lineCalc = calcSummary.lines.find((l) => l.productId === item.productId);
               const lineManualDisc = lineCalc?.discount || 0;
               const lineGross = Math.round(item.unitPrice * item.quantity * 100) / 100;
@@ -207,7 +218,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               const lineDiscVal = item.lineDiscountValue || 0;
 
               let blockedReason = 'No admite descuento manual';
-              if (item.allowDiscount === false) {
+              if (isLoweredManually) {
+                blockedReason = 'Ya tiene una rebaja manual de precio aplicada';
+              } else if (item.allowDiscount === false) {
                 blockedReason = 'Este producto tiene desactivados los descuentos';
               } else if (item.isWholesale || priceTier === 'WHOLESALE') {
                 blockedReason = 'Ya tiene precio por mayor aplicado';
@@ -271,25 +284,90 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             Precio proforma
                           </span>
                         )}
+                        {item.priceOverridden && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            <span>Precio editado</span>
+                            {priceOverrideEnabled && (
+                              <button
+                                type="button"
+                                onClick={() => updateUnitPrice(item.productId, null)}
+                                className="underline text-amber-900 hover:text-black cursor-pointer"
+                              >
+                                Restaurar
+                              </button>
+                            )}
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span
-                          className={
-                            item.isWholesale
-                              ? 'font-bold text-purple-700'
-                              : isPromo
-                                ? 'font-bold text-emerald-700'
-                                : ''
-                          }
-                        >
-                          {formatCurrency(item.unitPrice)} c/u
-                        </span>
+                        {priceOverrideEnabled ? (
+                          editingPriceProductId === item.productId ? (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="text-xs font-bold text-gray-500">C$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                autoFocus
+                                value={priceInputStr}
+                                onChange={(e) => setPriceInputStr(e.target.value)}
+                                onBlur={() => {
+                                  const parsed = parseFloat(priceInputStr.replace(',', '.'));
+                                  if (!isNaN(parsed) && parsed >= 0) {
+                                    updateUnitPrice(item.productId, Math.round(parsed * 100) / 100);
+                                  }
+                                  setEditingPriceProductId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const parsed = parseFloat(priceInputStr.replace(',', '.'));
+                                    if (!isNaN(parsed) && parsed >= 0) {
+                                      updateUnitPrice(item.productId, Math.round(parsed * 100) / 100);
+                                    }
+                                    setEditingPriceProductId(null);
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    setEditingPriceProductId(null);
+                                  }
+                                }}
+                                className="w-24 px-2 py-0.5 text-xs font-bold text-gray-900 bg-white border border-amber-400 rounded-lg focus:outline-hidden focus:border-amber-600"
+                              />
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPriceInputStr(String(item.unitPrice ?? 0));
+                                setEditingPriceProductId(item.productId);
+                              }}
+                              title="Clic para modificar el precio unitario manualmente"
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-gray-300 hover:border-amber-400 bg-gray-50 hover:bg-amber-50 text-gray-800 hover:text-amber-900 font-semibold transition-colors cursor-pointer"
+                            >
+                              <span>{formatCurrency(item.unitPrice)} c/u</span>
+                              <PencilSimple size={12} weight="bold" className="text-amber-600" />
+                            </button>
+                          )
+                        ) : (
+                          <span
+                            className={
+                              item.isWholesale
+                                ? 'font-bold text-purple-700'
+                                : isPromo
+                                  ? 'font-bold text-emerald-700'
+                                  : ''
+                            }
+                          >
+                            {formatCurrency(item.unitPrice)} c/u
+                          </span>
+                        )}
                         {businessContext.useListPrice && item.listPrice && item.listPrice > item.unitPrice && (
                           <span className="line-through text-gray-400 text-xs">
                             Etiqueta: {formatCurrency(item.listPrice)}
                           </span>
                         )}
-                        {(item.isWholesale || isPromo) && item.regularPrice > item.unitPrice && (
+                        {(item.isWholesale || isPromo || item.priceOverridden) &&
+                          Math.abs(item.regularPrice - item.unitPrice) > 0.005 && (
                           <span className="line-through text-gray-400 text-xs">
                             {formatCurrency(item.regularPrice)}
                           </span>

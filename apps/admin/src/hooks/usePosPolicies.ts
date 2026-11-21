@@ -56,6 +56,7 @@ export function usePosPolicies(enabled: boolean = true) {
     typeof policies?.cashierMaxDiscountPercent === 'number'
       ? policies.cashierMaxDiscountPercent
       : 10;
+  const priceOverrideEnabled = Boolean(policies?.priceOverrideEnabled);
 
   // Métodos habilitados
   const paymentMethodsString = policies?.paymentMethodsEnabled || 'EFECTIVO,TARJETA,TRANSFERENCIA,CREDITO';
@@ -96,6 +97,7 @@ export function usePosPolicies(enabled: boolean = true) {
     multiCurrencyEnabled,
     discountsEnabled,
     cashierMaxDiscountPercent,
+    priceOverrideEnabled,
     enabledPaymentMethods,
     requireReferenceCard,
     requireReferenceTransfer,
