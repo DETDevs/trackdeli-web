@@ -30,22 +30,30 @@ interface SplitTableOrderModalProps {
   isOpen: boolean;
   order: PosTableOrder | null;
   currency?: string;
+  canRequestBill?: boolean;
+  activeBillSubAccountIds?: Set<string>;
+  hasGeneralActiveBill?: boolean;
+  isRequestingBill?: boolean;
   onClose: () => void;
   onOrderUpdated: (updated: PosTableOrder) => void;
   onRefreshOrder: () => Promise<PosTableOrder | null>;
   onCheckoutSubAccount: (subAccount: PosTableSubAccount) => void;
-  onOpenPreBill: (subAccount: PosTableSubAccount) => void;
+  onRequestBill: (subAccount: PosTableSubAccount | null, isReprint: boolean) => void;
 }
 
 export const SplitTableOrderModal: React.FC<SplitTableOrderModalProps> = ({
   isOpen,
   order,
   currency = 'NIO',
+  canRequestBill = true,
+  activeBillSubAccountIds,
+  hasGeneralActiveBill = false,
+  isRequestingBill = false,
   onClose,
   onOrderUpdated,
   onRefreshOrder,
   onCheckoutSubAccount,
-  onOpenPreBill,
+  onRequestBill,
 }) => {
   const [selectedMode, setSelectedMode] = useState<'ITEMS' | 'EQUAL'>('ITEMS');
   const [equalParts, setEqualParts] = useState<number>(2);
@@ -400,6 +408,26 @@ export const SplitTableOrderModal: React.FC<SplitTableOrderModalProps> = ({
                       <span>Juntar</span>
                     </button>
                   )}
+
+                  {canRequestBill && (
+                    <button
+                      type="button"
+                      onClick={() => onRequestBill(null, Boolean(hasGeneralActiveBill))}
+                      disabled={isWorking || isRequestingBill || (order.items || []).length === 0}
+                      className={`min-h-[44px] px-3.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-40 ${
+                        hasGeneralActiveBill
+                          ? 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900'
+                          : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-800'
+                      }`}
+                    >
+                      <Receipt size={15} weight="bold" />
+                      <span>
+                        {hasGeneralActiveBill
+                          ? 'Reimprimir cuenta general'
+                          : 'Pedir cuenta general'}
+                      </span>
+                    </button>
+                  )}
                 </div>
 
                 <button
@@ -632,31 +660,52 @@ export const SplitTableOrderModal: React.FC<SplitTableOrderModalProps> = ({
 
                       {/* Acciones de subcuenta */}
                       <div className="pt-2 border-t border-gray-100 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onOpenPreBill(sa)}
-                          disabled={order.splitMode === 'ITEMS' && (sa.items || []).length === 0}
-                          className="min-h-[44px] flex-1 px-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-800 inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-                        >
-                          <Receipt size={15} />
-                          <span>Pre-cuenta</span>
-                        </button>
-
                         {isPaid ? (
                           <span className="min-h-[44px] flex-1 px-3 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-bold inline-flex items-center justify-center gap-1.5">
                             <CheckCircle size={16} weight="fill" />
                             <span>Cobrada</span>
                           </span>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => onCheckoutSubAccount(sa)}
-                            disabled={!canPay || isWorking}
-                            className="min-h-[44px] flex-1 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-                          >
-                            <CreditCard size={15} weight="bold" />
-                            <span>Cobrar</span>
-                          </button>
+                          <>
+                            {canRequestBill && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onRequestBill(
+                                    sa,
+                                    Boolean(activeBillSubAccountIds?.has(sa.id)),
+                                  )
+                                }
+                                disabled={
+                                  isWorking ||
+                                  isRequestingBill ||
+                                  (order.splitMode === 'ITEMS' && (sa.items || []).length === 0)
+                                }
+                                className={`min-h-[44px] flex-1 px-3 rounded-xl border text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 ${
+                                  activeBillSubAccountIds?.has(sa.id)
+                                    ? 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900'
+                                    : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-800'
+                                }`}
+                              >
+                                <Receipt size={15} weight="bold" />
+                                <span>
+                                  {activeBillSubAccountIds?.has(sa.id)
+                                    ? 'Reimprimir cuenta'
+                                    : 'Pedir la cuenta'}
+                                </span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => onCheckoutSubAccount(sa)}
+                              disabled={!canPay || isWorking}
+                              className="min-h-[44px] flex-1 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                            >
+                              <CreditCard size={15} weight="bold" />
+                              <span>Cobrar</span>
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>

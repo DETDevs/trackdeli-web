@@ -37,24 +37,45 @@ const formatElapsed = (openedAtIso: string, nowMs: number): string => {
 
 export const SalonTableCard: React.FC<SalonTableCardProps> = React.memo(
   ({ table, currency = 'NIO', nowMs, isOpening, disabled, onSelect }) => {
-    const isOccupied = table.status === 'OCCUPIED' && Boolean(table.currentOrder);
     const order = table.currentOrder;
+    const isOccupied = table.status === 'OCCUPIED' && Boolean(order);
+    const isBillRequested =
+      isOccupied &&
+      (table.displayStatus === 'BILL_REQUESTED' ||
+        table.billStatus === 'REQUESTED' ||
+        order?.billStatus === 'REQUESTED');
     const isRound = String(table.shape || '').toUpperCase() === 'ROUND';
     const shapeLabel = isRound ? 'Redonda' : 'Cuadrada';
     const waiterName =
       table.assignedWaiter?.name || order?.assignedWaiter?.name || null;
     const customerName = table.customerName || order?.customerName || null;
+    const billRequestedAt = table.billRequestedAt || order?.billRequestedAt || null;
+
+    const cardSurfaceClass = isBillRequested
+      ? 'border-indigo-300 bg-indigo-50/75 hover:border-indigo-400 hover:bg-indigo-50'
+      : isOccupied
+      ? 'border-amber-300 bg-amber-50/50 hover:border-amber-400 hover:bg-amber-50/80'
+      : 'border-gray-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/30';
+
+    const iconSurfaceClass = isBillRequested
+      ? 'bg-indigo-100 border-indigo-300 text-indigo-900'
+      : isOccupied
+      ? 'bg-amber-100 border-amber-300 text-amber-900'
+      : 'bg-gray-100 border-gray-200 text-gray-800';
+
+    const statusBadgeClass = isBillRequested
+      ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
+      : isOccupied
+      ? 'bg-amber-100 text-amber-900 border-amber-300'
+      : 'bg-emerald-50 text-emerald-700 border-emerald-200';
 
     return (
       <button
         type="button"
         onClick={() => onSelect(table)}
         disabled={disabled}
-        className={`w-full text-left min-h-[144px] p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99] shadow-xs ${
-          isOccupied
-            ? 'border-amber-300 bg-amber-50/50 hover:border-amber-400 hover:bg-amber-50/80'
-            : 'border-gray-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/30'
-        }`}
+        data-table-status={isBillRequested ? 'BILL_REQUESTED' : isOccupied ? 'OCCUPIED' : 'FREE'}
+        className={`w-full text-left min-h-[144px] p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99] shadow-xs ${cardSurfaceClass}`}
       >
         {/* Fila superior: forma visual, número, capacidad y estado */}
         <div className="flex items-start justify-between gap-2.5 w-full">
@@ -63,11 +84,7 @@ export const SalonTableCard: React.FC<SalonTableCardProps> = React.memo(
               aria-hidden="true"
               className={`w-10 h-10 shrink-0 flex items-center justify-center text-sm font-bold border ${
                 isRound ? 'rounded-full' : 'rounded-xl'
-              } ${
-                isOccupied
-                  ? 'bg-amber-100 border-amber-300 text-amber-900'
-                  : 'bg-gray-100 border-gray-200 text-gray-800'
-              }`}
+              } ${iconSurfaceClass}`}
             >
               {String(table.number || '').replace(/^mesa\s+/i, '').slice(0, 4) || 'M'}
             </span>
@@ -90,30 +107,51 @@ export const SalonTableCard: React.FC<SalonTableCardProps> = React.memo(
           </div>
 
           <span
-            className={`px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 whitespace-nowrap border ${
-              isOccupied
-                ? 'bg-amber-100 text-amber-900 border-amber-300'
-                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-            }`}
+            className={`px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 whitespace-nowrap border inline-flex items-center gap-1 ${statusBadgeClass}`}
           >
-            {isOccupied ? 'Ocupada' : 'Libre'}
+            {isBillRequested && <Receipt size={13} weight="bold" />}
+            <span>{isBillRequested ? 'Cuenta pedida' : isOccupied ? 'Ocupada' : 'Libre'}</span>
           </span>
         </div>
 
         {/* Fila inferior: resumen de orden abierta o acción de abrir */}
         <div
           className={`pt-3 border-t w-full ${
-            isOccupied ? 'border-amber-200/80' : 'border-gray-100'
+            isBillRequested
+              ? 'border-indigo-200/80'
+              : isOccupied
+              ? 'border-amber-200/80'
+              : 'border-gray-100'
           }`}
         >
           {isOccupied && order ? (
             <div className="space-y-1.5">
+              {isBillRequested && (
+                <div className="text-xs font-semibold text-indigo-800 flex items-center gap-1.5">
+                  <Receipt size={14} weight="bold" className="shrink-0" />
+                  <span className="truncate">
+                    Cuenta pedida{billRequestedAt ? ` · ${formatElapsed(billRequestedAt, nowMs)}` : ''}
+                  </span>
+                </div>
+              )}
+
               <div className="flex items-center justify-between gap-2 text-xs text-gray-700">
-                <span className="inline-flex items-center gap-1.5 font-medium text-amber-900 whitespace-nowrap">
-                  <Receipt size={15} className="shrink-0 text-amber-700" />
+                <span
+                  className={`inline-flex items-center gap-1.5 font-medium whitespace-nowrap ${
+                    isBillRequested ? 'text-indigo-900' : 'text-amber-900'
+                  }`}
+                >
+                  <Receipt
+                    size={15}
+                    className={`shrink-0 ${isBillRequested ? 'text-indigo-700' : 'text-amber-700'}`}
+                  />
                   {order.itemsCount} {order.itemsCount === 1 ? 'ítem' : 'ítems'}
                 </span>
-                <span className="inline-flex items-center gap-1 text-amber-800 whitespace-nowrap tabular-nums">
+                <span
+                  className={`inline-flex items-center gap-1 whitespace-nowrap tabular-nums ${
+                    isBillRequested ? 'text-indigo-800' : 'text-amber-800'
+                  }`}
+                >
                   <Clock size={14} className="shrink-0" />
                   {formatElapsed(order.openedAt || order.createdAt, nowMs)}
                 </span>
@@ -131,7 +169,13 @@ export const SalonTableCard: React.FC<SalonTableCardProps> = React.memo(
                     <p className="text-xs text-gray-500 truncate">{customerName}</p>
                   )}
                   {!waiterName && !customerName && (
-                    <p className="text-xs text-amber-800 font-medium">Ver mesa</p>
+                    <p
+                      className={`text-xs font-medium ${
+                        isBillRequested ? 'text-indigo-800' : 'text-amber-800'
+                      }`}
+                    >
+                      {isBillRequested ? 'Lista para cobrar' : 'Ver mesa'}
+                    </p>
                   )}
                 </div>
 

@@ -25,7 +25,14 @@ import { isRestaurantSalonBusiness } from '../../utils/salonVertical';
 import { SalonTableCard } from '../../components/pos/tables/SalonTableCard';
 import { SalonConfigModal } from '../../components/pos/tables/SalonConfigModal';
 
-type StatusFilter = 'ALL' | 'OCCUPIED' | 'FREE';
+type StatusFilter = 'ALL' | 'OCCUPIED' | 'BILL_REQUESTED' | 'FREE';
+
+const isBillRequestedTable = (t: PosTableStatusItem): boolean =>
+  t.status === 'OCCUPIED' &&
+  Boolean(t.currentOrder) &&
+  (t.displayStatus === 'BILL_REQUESTED' ||
+    t.billStatus === 'REQUESTED' ||
+    t.currentOrder?.billStatus === 'REQUESTED');
 
 interface NormalizedZone {
   id: string;
@@ -223,6 +230,11 @@ export const PosTablesPage: React.FC = () => {
     () => zoneScopedTables.filter((t) => t.status === 'OCCUPIED').length,
     [zoneScopedTables],
   );
+  const billRequestedCount = useMemo(
+    () => zoneScopedTables.filter((t) => isBillRequestedTable(t)).length,
+    [zoneScopedTables],
+  );
+  const occupiedOnlyCount = occupiedCount - billRequestedCount;
   const freeCount = zoneScopedTables.length - occupiedCount;
 
   // Total por cobrar: suma únicamente los totales por mesa entregados por el API
@@ -235,10 +247,18 @@ export const PosTablesPage: React.FC = () => {
     [zoneScopedTables],
   );
 
-  // Filtro por estado (Todas / Ocupadas / Libres)
+  // Filtro por estado (Todas / Cuenta pedida / Ocupadas / Libres)
   const filteredTables = useMemo(() => {
     if (statusFilter === 'ALL') return zoneScopedTables;
-    return zoneScopedTables.filter((t) => t.status === statusFilter);
+    if (statusFilter === 'BILL_REQUESTED') {
+      return zoneScopedTables.filter((t) => isBillRequestedTable(t));
+    }
+    if (statusFilter === 'OCCUPIED') {
+      return zoneScopedTables.filter(
+        (t) => t.status === 'OCCUPIED' && !isBillRequestedTable(t),
+      );
+    }
+    return zoneScopedTables.filter((t) => t.status === 'FREE');
   }, [zoneScopedTables, statusFilter]);
 
   // Agrupación visual por zonas cuando se muestran todas las zonas
@@ -430,29 +450,33 @@ export const PosTablesPage: React.FC = () => {
       )}
 
       {/* Resumen superior */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-2xs flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-gray-500">Mesas ocupadas</p>
-            <p className="text-xl font-bold text-[#0F0F0F] tabular-nums mt-0.5">
-              {occupiedCount} de {zoneScopedTables.length}
-            </p>
-          </div>
-          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shrink-0">
-            {freeCount} {freeCount === 1 ? 'libre' : 'libres'}
-          </span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200/80 shadow-2xs min-w-0">
+          <p className="text-xs font-medium text-gray-500 truncate">Mesas libres</p>
+          <p className="text-lg sm:text-xl font-bold text-emerald-700 tabular-nums mt-0.5 truncate">
+            {freeCount}
+          </p>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-2xs flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-gray-500">Total por cobrar</p>
-            <p className="text-xl font-bold text-[#0F0F0F] tabular-nums mt-0.5 truncate">
-              {formatCurrency(totalToCollect, currency)}
-            </p>
-          </div>
-          <span className="text-xs text-gray-500 text-right shrink-0">
-            Suma de mesas ocupadas
-          </span>
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200/80 shadow-2xs min-w-0">
+          <p className="text-xs font-medium text-gray-500 truncate">Mesas ocupadas</p>
+          <p className="text-lg sm:text-xl font-bold text-amber-800 tabular-nums mt-0.5 truncate">
+            {occupiedOnlyCount}
+          </p>
+        </div>
+
+        <div className="bg-indigo-50/70 p-3.5 sm:p-4 rounded-2xl border border-indigo-200 shadow-2xs min-w-0">
+          <p className="text-xs font-medium text-indigo-800 truncate">Cuenta pedida</p>
+          <p className="text-lg sm:text-xl font-bold text-indigo-950 tabular-nums mt-0.5 truncate">
+            {billRequestedCount}
+          </p>
+        </div>
+
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200/80 shadow-2xs min-w-0">
+          <p className="text-xs font-medium text-gray-500 truncate">Total abierto</p>
+          <p className="text-lg sm:text-xl font-bold text-[#0F0F0F] tabular-nums mt-0.5 truncate">
+            {formatCurrency(totalToCollect, currency)}
+          </p>
         </div>
       </div>
 
@@ -502,25 +526,43 @@ export const PosTablesPage: React.FC = () => {
                 {
                   id: 'ALL',
                   label: `Todas (${zoneScopedTables.length})`,
+                  activeClass: 'bg-gray-900 text-white border-gray-900',
+                  idleClass: 'bg-white text-gray-700 hover:bg-gray-50 border-gray-200',
+                },
+                {
+                  id: 'BILL_REQUESTED',
+                  label: `Cuenta pedida (${billRequestedCount})`,
+                  activeClass: 'bg-indigo-700 text-white border-indigo-700',
+                  idleClass:
+                    billRequestedCount > 0
+                      ? 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100 border-indigo-200'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-200',
                 },
                 {
                   id: 'OCCUPIED',
-                  label: `Ocupadas (${occupiedCount})`,
+                  label: `Ocupadas (${occupiedOnlyCount})`,
+                  activeClass: 'bg-amber-700 text-white border-amber-700',
+                  idleClass: 'bg-white text-gray-700 hover:bg-gray-50 border-gray-200',
                 },
                 {
                   id: 'FREE',
                   label: `Libres (${freeCount})`,
+                  activeClass: 'bg-emerald-700 text-white border-emerald-700',
+                  idleClass: 'bg-white text-gray-700 hover:bg-gray-50 border-gray-200',
                 },
-              ] as { id: StatusFilter; label: string }[]
+              ] as {
+                id: StatusFilter;
+                label: string;
+                activeClass: string;
+                idleClass: string;
+              }[]
             ).map((opt) => (
               <button
                 key={opt.id}
                 type="button"
                 onClick={() => setStatusFilter(opt.id)}
-                className={`min-h-[44px] px-3.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-                  statusFilter === opt.id
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                className={`min-h-[44px] px-3.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
+                  statusFilter === opt.id ? opt.activeClass : opt.idleClass
                 }`}
               >
                 {opt.label}

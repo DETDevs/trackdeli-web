@@ -39,12 +39,18 @@ import {
   setPosTableOrderDiscount,
   cancelPosTableOrder,
   checkoutPosTableOrder,
+  requestPosTableBill,
+  getPosTableOrderBills,
+  cancelPosTableBillRequest,
   type PosCategory,
   type PosProductItem,
   type PosTableOrder,
   type PosTableOrderItem,
   type PosKitchenRound,
   type PosTableSubAccount,
+  type PosTableBill,
+  type PosReceiptSettingsData,
+  type RequestTableBillTipDto,
   type SaleResponse,
 } from 'api-client';
 import toast from 'react-hot-toast';
@@ -71,6 +77,7 @@ import { OrderDiscountModal } from '../../components/pos/tables/OrderDiscountMod
 import { CancelTableOrderModal } from '../../components/pos/tables/CancelTableOrderModal';
 import { PreBillPrintModal } from '../../components/pos/tables/PreBillPrintModal';
 import { SplitTableOrderModal } from '../../components/pos/tables/SplitTableOrderModal';
+import { RequestBillModal } from '../../components/pos/tables/RequestBillModal';
 
 const ORDER_POLLING_MS = 6000;
 
@@ -181,6 +188,8 @@ export const PosTableOrderPage: React.FC = () => {
     requireOpenShiftToSell,
     discountsEnabled,
     cashierMaxDiscountPercent,
+    tipEnabled,
+    tipDefaultPercent,
   } = usePosPolicies(Boolean(canQuerySalon));
 
   // Estado local de UI
@@ -205,10 +214,19 @@ export const PosTableOrderPage: React.FC = () => {
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [isCancelSubmitting, setIsCancelSubmitting] = useState(false);
 
-  // Modales 269d
+  // Modales 269d / 267d
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
-  const [preBillSubAccount, setPreBillSubAccount] = useState<PosTableSubAccount | null>(null);
-  const [isPreBillOpen, setIsPreBillOpen] = useState(false);
+  const [billModalTarget, setBillModalTarget] = useState<{
+    subAccount: PosTableSubAccount | null;
+    unsentCount: number;
+  } | null>(null);
+  const [activeBillPreview, setActiveBillPreview] = useState<{
+    bill: PosTableBill;
+    receiptSettings: PosReceiptSettingsData | null;
+  } | null>(null);
+  const [isRequestingBill, setIsRequestingBill] = useState(false);
+  const [isCancellingBill, setIsCancellingBill] = useState(false);
+  const [billRequestError, setBillRequestError] = useState<string | null>(null);
 
   const [isOpenShiftModalOpen, setIsOpenShiftModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -257,6 +275,28 @@ export const PosTableOrderPage: React.FC = () => {
     retry: false,
   });
 
+  const billsQuery = useQuery<PosTableBill[]>({
+    queryKey: ['pos', 'table-order-bills', tableId, orderQuery.data?.id],
+    queryFn: () =>
+      getPosTableOrderBills(tableId!, { orderId: orderQuery.data?.id }),
+    enabled:
+      canQuerySalon &&
+      isOnline &&
+      Boolean(orderQuery.data?.id) &&
+      !completedCheckout,
+    refetchInterval:
+      canQuerySalon &&
+      isOnline &&
+      isTabVisible &&
+      Boolean(orderQuery.data?.id) &&
+      !completedCheckout
+        ? ORDER_POLLING_MS
+        : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
+
   const categoriesQuery = useQuery<PosCategory[]>({
     queryKey: ['pos', 'categories'],
     queryFn: () => getPosCategories(),
@@ -273,6 +313,7 @@ export const PosTableOrderPage: React.FC = () => {
 
   const refetchOrder = orderQuery.refetch;
   const refetchRounds = roundsQuery.refetch;
+  const refetchBills = billsQuery.refetch;
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -282,6 +323,7 @@ export const PosTableOrderPage: React.FC = () => {
         setNowMs(Date.now());
         refetchOrder();
         refetchRounds();
+        refetchBills();
       }
     };
 
@@ -291,6 +333,7 @@ export const PosTableOrderPage: React.FC = () => {
       if (canQuerySalon && !completedCheckout) {
         refetchOrder();
         refetchRounds();
+        refetchBills();
       }
     };
 
@@ -307,7 +350,7 @@ export const PosTableOrderPage: React.FC = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [canQuerySalon, completedCheckout, refetchOrder, refetchRounds]);
+  }, [canQuerySalon, completedCheckout, refetchOrder, refetchRounds, refetchBills]);
 
   useEffect(() => {
     if (!isTabVisible) return;
@@ -318,9 +361,25 @@ export const PosTableOrderPage: React.FC = () => {
 
   const order = orderQuery.data || null;
   const rounds = roundsQuery.data || [];
+  const orderBills = billsQuery.data || [];
   const categories = categoriesQuery.data || [];
   const products = productsQuery.data || [];
   const currency = (business as any)?.currency || 'NIO';
+
+  const activeBillSubAccountIds = useMemo(() => {
+    const ids = new Set<string>();
+    orderBills.forEach((b) => {
+      if (b.status === 'ACTIVE' && b.subAccountId) {
+        ids.add(b.subAccountId);
+      }
+    });
+    return ids;
+  }, [orderBills]);
+
+  const hasGeneralActiveBill = useMemo(
+    () => orderBills.some((b) => b.status === 'ACTIVE' && !b.subAccountId),
+    [orderBills],
+  );
 
   // Filtrado de productos por categoría, nombre, SKU y código de barras
   const filteredProducts = useMemo(() => {
@@ -503,10 +562,15 @@ export const PosTableOrderPage: React.FC = () => {
     queryClient.setQueryData(['pos', 'table-order', tableId], updatedOrder);
     queryClient.invalidateQueries({ queryKey: ['pos', 'tables', 'status'] });
     queryClient.invalidateQueries({ queryKey: ['pos', 'salon', 'zones'] });
+    queryClient.invalidateQueries({ queryKey: ['pos', 'table-order-bills', tableId] });
   };
 
   const refreshOrderAndRounds = async (): Promise<PosTableOrder | null> => {
-    const [orderRes] = await Promise.all([orderQuery.refetch(), roundsQuery.refetch()]);
+    const [orderRes] = await Promise.all([
+      orderQuery.refetch(),
+      roundsQuery.refetch(),
+      billsQuery.refetch(),
+    ]);
     return orderRes.data || null;
   };
 
@@ -863,23 +927,150 @@ export const PosTableOrderPage: React.FC = () => {
     setIsPaymentModalOpen(true);
   };
 
-  const handleOpenPreBill = async (subAccount: PosTableSubAccount | null = null) => {
+  const createBillRequestId = (): string =>
+    window.crypto?.randomUUID
+      ? window.crypto.randomUUID()
+      : `bill-req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+  const countUnsentForTarget = (
+    targetOrder: PosTableOrder,
+    subAccount: PosTableSubAccount | null,
+  ): number =>
+    (targetOrder.items || []).filter((it) => {
+      if (it.kitchenRoundId) return false;
+      const sendToKitchen = it.product ? it.product.sendToKitchen !== false : true;
+      if (!sendToKitchen) return false;
+      if (subAccount && targetOrder.splitMode === 'ITEMS') {
+        return it.subAccountId === subAccount.id;
+      }
+      return true;
+    }).length;
+
+  const executeRequestBill = async (
+    subAccount: PosTableSubAccount | null,
+    tip?: RequestTableBillTipDto,
+  ) => {
+    if (!isRestaurant || !tableId || isRequestingBill) return;
+    setIsRequestingBill(true);
+    setBillRequestError(null);
+    try {
+      const res = await requestPosTableBill(tableId, {
+        ...(subAccount ? { subAccountId: subAccount.id } : {}),
+        ...(tip ? { tip } : {}),
+        clientRequestId: createBillRequestId(),
+      });
+      if (res.tableOrder) {
+        syncOrderState(res.tableOrder);
+      } else {
+        await refreshOrderAndRounds();
+      }
+      await billsQuery.refetch();
+      setBillModalTarget(null);
+      setActiveBillPreview({
+        bill: res.bill,
+        receiptSettings: res.receiptSettings || null,
+      });
+      toast.success(
+        res.isReprint
+          ? `Cuenta reimpresa (#${res.bill.sequence})`
+          : 'Cuenta pedida',
+      );
+    } catch (err: any) {
+      const msg = extractApiErrorMessage(err, 'No se pudo generar la cuenta.');
+      setBillRequestError(msg);
+      toast.error(msg);
+      await refreshOrderAndRounds();
+    } finally {
+      setIsRequestingBill(false);
+    }
+  };
+
+  const handleStartBillRequest = async (
+    subAccount: PosTableSubAccount | null = null,
+    isReprintAction: boolean = false,
+  ) => {
+    if (!isRestaurant) return;
     if (!isOnline) {
-      toast.error('Sin conexión. Reconectá para imprimir la pre-cuenta.');
+      toast.error('Sin conexión. Reconectá para pedir la cuenta.');
       return;
     }
+    if (isRequestingBill) return;
+
+    if (isReprintAction) {
+      await executeRequestBill(subAccount, undefined);
+      return;
+    }
+
     const freshOrder = await refreshOrderAndRounds();
     if (!freshOrder) return;
 
-    if (subAccount) {
-      const freshSub =
-        (freshOrder.subAccounts || []).find((sa) => sa.id === subAccount.id) ||
-        subAccount;
-      setPreBillSubAccount(freshSub);
-    } else {
-      setPreBillSubAccount(null);
+    if ((freshOrder.items || []).length === 0) {
+      toast.error('Agregá productos antes de pedir la cuenta.');
+      return;
     }
-    setIsPreBillOpen(true);
+
+    let freshSub: PosTableSubAccount | null = null;
+    if (subAccount) {
+      freshSub =
+        (freshOrder.subAccounts || []).find((sa) => sa.id === subAccount.id) || null;
+      if (!freshSub) {
+        toast('La división de cuentas cambió. Revisá las subcuentas actualizadas.');
+        return;
+      }
+      if (freshSub.status === 'PAID') {
+        toast.error(`"${freshSub.label}" ya fue cobrada.`);
+        return;
+      }
+      if (
+        freshOrder.splitMode === 'ITEMS' &&
+        (freshSub.items || []).length === 0
+      ) {
+        toast.error(`"${freshSub.label}" no tiene productos para pedir la cuenta.`);
+        return;
+      }
+    }
+
+    const unsentCount = countUnsentForTarget(freshOrder, freshSub);
+    const freshTipEnabled = freshOrder.tipPolicy
+      ? Boolean(freshOrder.tipPolicy.tipEnabled)
+      : tipEnabled;
+
+    if (unsentCount > 0 || freshTipEnabled) {
+      setBillRequestError(null);
+      setBillModalTarget({
+        subAccount: freshSub,
+        unsentCount,
+      });
+      return;
+    }
+
+    await executeRequestBill(freshSub, undefined);
+  };
+
+  const handleCancelBillRequest = async () => {
+    if (!isRestaurant || !tableId || isCancellingBill) return;
+    if (!isOnline) {
+      toast.error('Sin conexión. Reconectá para cancelar el pedido de cuenta.');
+      return;
+    }
+    setIsCancellingBill(true);
+    try {
+      const res = await cancelPosTableBillRequest(tableId);
+      if (res.tableOrder) {
+        syncOrderState(res.tableOrder);
+      } else {
+        await refreshOrderAndRounds();
+      }
+      await billsQuery.refetch();
+      toast.success('Pedido de cuenta cancelado');
+    } catch (err: any) {
+      toast.error(
+        extractApiErrorMessage(err, 'No se pudo cancelar el pedido de cuenta.'),
+      );
+      await refreshOrderAndRounds();
+    } finally {
+      setIsCancellingBill(false);
+    }
   };
 
   // Envío final de cobro al API (/pos/tables/:id/order/checkout)
@@ -1072,6 +1263,17 @@ export const PosTableOrderPage: React.FC = () => {
   const hasSentItems = groupedSentRounds.some((g) => g.items.length > 0);
   const canOpenCheckout = (order.items || []).length > 0 && isOnline;
   const checkoutTargetData = checkoutTargetSubAccount || order;
+  const isBillRequested = isRestaurant && order.billStatus === 'REQUESTED';
+  const isGeneralBillReprint =
+    isBillRequested &&
+    (hasGeneralActiveBill ||
+      !order.splitMode ||
+      activeBillSubAccountIds.size === 0);
+  const effectiveTipEnabled = order.tipPolicy
+    ? Boolean(order.tipPolicy.tipEnabled)
+    : tipEnabled;
+  const effectiveTipDefaultPercent =
+    order.tipPolicy?.tipDefaultPercent || tipDefaultPercent || 10;
 
   return (
     <div className="space-y-4 pb-10 max-w-7xl mx-auto">
@@ -1089,9 +1291,17 @@ export const PosTableOrderPage: React.FC = () => {
             </button>
 
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-[#0F0F0F] truncate">
-                {formatTableTitle(order.table?.number)}
-              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold text-[#0F0F0F] truncate">
+                  {formatTableTitle(order.table?.number)}
+                </h1>
+                {isBillRequested && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-900 border border-indigo-300 inline-flex items-center gap-1 whitespace-nowrap">
+                    <Receipt size={13} weight="bold" />
+                    <span>Cuenta pedida</span>
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-600 mt-0.5">
                 {order.table?.zoneName && (
                   <span className="font-medium text-gray-800">{order.table.zoneName}</span>
@@ -1117,6 +1327,31 @@ export const PosTableOrderPage: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {isBillRequested && (
+          <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="min-w-0 text-xs text-indigo-950 space-y-0.5">
+              <p className="font-bold">Cuenta pedida</p>
+              <p className="text-indigo-800">
+                {order.billRequestedAt
+                  ? (() => {
+                      const elapsed = formatElapsed(order.billRequestedAt, nowMs);
+                      return elapsed === 'Recién' ? 'Pedida recién' : `Hace ${elapsed}`;
+                    })()
+                  : 'Pendiente de cobro'}
+                {order.billRequestedByName ? ` · Solicitada por ${order.billRequestedByName}` : ''}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCancelBillRequest}
+              disabled={!isOnline || isCancellingBill}
+              className="min-h-[44px] px-3.5 rounded-xl border border-indigo-300 bg-white hover:bg-indigo-100 text-xs font-semibold text-indigo-900 cursor-pointer disabled:opacity-50"
+            >
+              {isCancellingBill ? 'Cancelando...' : 'Cancelar pedido de cuenta'}
+            </button>
+          </div>
+        )}
 
         {/* Estado de turno y dispositivo web */}
         {webBillingEnabled && canCobrar && (
@@ -1534,7 +1769,7 @@ export const PosTableOrderPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className={`grid grid-cols-1 ${isRestaurant ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-2`}>
               <button
                 type="button"
                 onClick={() => setIsSplitModalOpen(true)}
@@ -1549,15 +1784,23 @@ export const PosTableOrderPage: React.FC = () => {
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => handleOpenPreBill(null)}
-                disabled={!isOnline || (order.items || []).length === 0}
-                className="min-h-[46px] px-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-800 inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-              >
-                <Receipt size={15} weight="bold" />
-                <span>Pre-cuenta</span>
-              </button>
+              {isRestaurant && (
+                <button
+                  type="button"
+                  onClick={() => handleStartBillRequest(null, isGeneralBillReprint)}
+                  disabled={!isOnline || (order.items || []).length === 0 || isRequestingBill}
+                  className={`min-h-[46px] px-3 rounded-xl border text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 ${
+                    isGeneralBillReprint
+                      ? 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900'
+                      : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-800'
+                  }`}
+                >
+                  <Receipt size={15} weight="bold" />
+                  <span>
+                    {isGeneralBillReprint ? 'Reimprimir cuenta' : 'Pedir la cuenta'}
+                  </span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1617,28 +1860,59 @@ export const PosTableOrderPage: React.FC = () => {
         onConfirm={handleConfirmCancelOrder}
       />
 
-      {/* Modales de #269d */}
+      {/* Modales de #269d / #267d */}
       <SplitTableOrderModal
         isOpen={isSplitModalOpen}
         order={order}
         currency={currency}
+        canRequestBill={isRestaurant}
+        activeBillSubAccountIds={activeBillSubAccountIds}
+        hasGeneralActiveBill={hasGeneralActiveBill}
+        isRequestingBill={isRequestingBill}
         onClose={() => setIsSplitModalOpen(false)}
         onOrderUpdated={syncOrderState}
         onRefreshOrder={refreshOrderAndRounds}
         onCheckoutSubAccount={handleOpenCheckoutForSubAccount}
-        onOpenPreBill={(sa) => handleOpenPreBill(sa)}
+        onRequestBill={(sa, isReprint) => handleStartBillRequest(sa, isReprint)}
+      />
+
+      <RequestBillModal
+        isOpen={Boolean(billModalTarget)}
+        targetLabel={
+          billModalTarget?.subAccount
+            ? `${formatTableTitle(order.table?.number)} · ${
+                order.splitMode === 'EQUAL' &&
+                !billModalTarget.subAccount.label.includes(' de ') &&
+                order.subAccounts.length > 1
+                  ? `${billModalTarget.subAccount.label} de ${order.subAccounts.length}`
+                  : billModalTarget.subAccount.label
+              }`
+            : formatTableTitle(order.table?.number)
+        }
+        currency={currency}
+        unsentCount={billModalTarget?.unsentCount || 0}
+        tipEnabled={effectiveTipEnabled}
+        tipDefaultPercent={effectiveTipDefaultPercent}
+        initialTipMode={billModalTarget?.subAccount?.tipMode || order.tipMode}
+        initialTipPercent={billModalTarget?.subAccount?.tipPercent ?? order.tipPercent}
+        initialTipAmount={billModalTarget?.subAccount?.tipAmount ?? order.tipAmount}
+        isSubmitting={isRequestingBill}
+        errorMessage={billRequestError}
+        onClose={() => {
+          setBillModalTarget(null);
+          setBillRequestError(null);
+        }}
+        onConfirm={(tip) =>
+          executeRequestBill(billModalTarget?.subAccount || null, tip)
+        }
       />
 
       <PreBillPrintModal
-        isOpen={isPreBillOpen}
-        order={order}
-        subAccount={preBillSubAccount}
-        business={businessInfo}
-        currency={currency}
-        onClose={() => {
-          setIsPreBillOpen(false);
-          setPreBillSubAccount(null);
-        }}
+        isOpen={Boolean(activeBillPreview)}
+        bill={activeBillPreview?.bill || null}
+        receiptSettings={activeBillPreview?.receiptSettings || null}
+        totalSubAccounts={order.subAccounts?.length}
+        onClose={() => setActiveBillPreview(null)}
       />
 
       <OpenShiftModal

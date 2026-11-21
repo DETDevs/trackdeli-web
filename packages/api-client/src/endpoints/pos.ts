@@ -2010,6 +2010,9 @@ export const importPosProducts = async (params: {
 
 export type PosTableShape = 'ROUND' | 'SQUARE';
 export type PosTableStatus = 'FREE' | 'OCCUPIED';
+export type PosTableDisplayStatus = 'FREE' | 'OCCUPIED' | 'BILL_REQUESTED';
+export type PosTableBillStatus = 'NONE' | 'REQUESTED';
+export type PosTableBillRecordStatus = 'ACTIVE' | 'SUPERSEDED' | 'PAID' | 'CANCELLED';
 
 export interface PosSalonZoneTablesCount {
   total: number;
@@ -2048,6 +2051,10 @@ export interface PosTableCurrentOrder {
   assignedWaiter: PosTableWaiterSummary | null;
   itemsCount: number;
   total: number;
+  billStatus?: PosTableBillStatus;
+  billRequestedAt?: string | null;
+  billRequestedByName?: string | null;
+  billVersion?: number;
 }
 
 export interface PosTableStatusItem {
@@ -2065,6 +2072,10 @@ export interface PosTableStatusItem {
   assignedWaiterId: string | null;
   assignedWaiter: PosTableWaiterSummary | null;
   status: PosTableStatus;
+  displayStatus?: PosTableDisplayStatus;
+  billStatus?: PosTableBillStatus;
+  billRequestedAt?: string | null;
+  billRequestedByName?: string | null;
   currentOrder: PosTableCurrentOrder | null;
 }
 
@@ -2242,6 +2253,10 @@ export interface PosTableOrder {
   total: number;
   splitVersion: number;
   splitMode: 'ITEMS' | 'EQUAL' | null;
+  billStatus?: PosTableBillStatus;
+  billRequestedAt?: string | null;
+  billRequestedByName?: string | null;
+  billVersion?: number;
   tipMode: 'NONE' | 'PERCENT' | 'CUSTOM' | string | null;
   tipPercent: number | null;
   tipAmount: number | null;
@@ -2770,6 +2785,162 @@ export const deletePosTable = async (
 ): Promise<{ success: boolean; message: string }> => {
   const res = await apiClient.delete<{ success: boolean; message: string }>(
     `/pos/tables/${tableId}`,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+// ============================================================
+// Salón y mesas — Pedir la cuenta / Cuenta pedida (Ticket 267d)
+// ============================================================
+
+export interface RequestTableBillTipDto {
+  mode: 'NONE' | 'PERCENT' | 'CUSTOM';
+  percent?: number;
+  amount?: number;
+  currency?: 'NIO' | 'USD';
+}
+
+export interface RequestTableBillDto {
+  subAccountId?: string;
+  tip?: RequestTableBillTipDto;
+  clientRequestId?: string;
+}
+
+export interface PosTableBillSnapshotLine {
+  id?: string | null;
+  itemId?: string | null;
+  productId: string | null;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  discount?: number;
+  manualDiscountShare?: number;
+  taxable?: boolean;
+  taxRate?: number;
+  taxAmount?: number;
+  notes?: string | null;
+}
+
+export interface PosTableBillSnapshotTip {
+  mode: 'NONE' | 'PERCENT' | 'CUSTOM' | string;
+  percent: number | null;
+  amount: number;
+  currency: string;
+}
+
+export interface PosTableBillSnapshot {
+  businessName: string;
+  businessAddress: string | null;
+  businessPhone: string | null;
+  businessTaxId: string | null;
+  currency: string;
+  tableId: string;
+  tableNumber: string;
+  tableLabel: string;
+  zoneName: string;
+  subAccountId: string | null;
+  subAccountLabel: string | null;
+  splitMode: 'ITEMS' | 'EQUAL' | null;
+  waiterId: string | null;
+  waiterName: string | null;
+  customerName: string | null;
+  requestedById: string | null;
+  requestedByRole: string | null;
+  requestedByName: string | null;
+  requestedAt: string;
+  lines: PosTableBillSnapshotLine[];
+  items?: PosTableBillSnapshotLine[];
+  subtotal: number;
+  discountPercent: number;
+  discountAmount: number;
+  discountTotal: number;
+  subtotalBeforeTax: number;
+  taxEnabled: boolean;
+  taxIncluded: boolean;
+  taxRate: number;
+  taxAmount: number;
+  taxTotal: number;
+  total: number;
+  tipMode: string | null;
+  tipPercent: number | null;
+  tipAmount: number;
+  tipCurrency: string | null;
+  tip: PosTableBillSnapshotTip | null;
+  totalWithTip: number;
+  legend: string;
+  disclaimer?: string;
+  sequence: number;
+  isReprint: boolean;
+}
+
+export interface PosTableBill {
+  id: string;
+  businessId: string;
+  tableOrderId: string;
+  tableId: string;
+  subAccountId: string | null;
+  sequence: number;
+  status: PosTableBillRecordStatus;
+  supersededReason: string | null;
+  supersededAt: string | null;
+  requestedById: string | null;
+  requestedByRole: string | null;
+  requestedByName: string | null;
+  snapshot: PosTableBillSnapshot;
+  clientRequestId: string | null;
+  createdAt: string;
+  isReprint: boolean;
+}
+
+export interface RequestTableBillResponse {
+  bill: PosTableBill;
+  isReprint: boolean;
+  tableOrder: PosTableOrder;
+  receiptSettings: PosReceiptSettingsData;
+}
+
+export interface CancelTableBillRequestDto {
+  subAccountId?: string;
+}
+
+export interface CancelTableBillRequestResponse {
+  success: boolean;
+  tableOrder: PosTableOrder;
+}
+
+export const requestPosTableBill = async (
+  tableId: string,
+  dto: RequestTableBillDto = {},
+  businessId?: string,
+): Promise<RequestTableBillResponse> => {
+  const res = await apiClient.post<RequestTableBillResponse>(
+    `/pos/tables/${tableId}/order/request-bill`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const getPosTableOrderBills = async (
+  tableId: string,
+  params?: { orderId?: string; businessId?: string },
+): Promise<PosTableBill[]> => {
+  const res = await apiClient.get<PosTableBill[]>(`/pos/tables/${tableId}/order/bills`, {
+    params,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const cancelPosTableBillRequest = async (
+  tableId: string,
+  dto: CancelTableBillRequestDto = {},
+  businessId?: string,
+): Promise<CancelTableBillRequestResponse> => {
+  const res = await apiClient.post<CancelTableBillRequestResponse>(
+    `/pos/tables/${tableId}/order/cancel-bill-request`,
+    dto,
     { params: businessId ? { businessId } : undefined },
   );
   return res.data;

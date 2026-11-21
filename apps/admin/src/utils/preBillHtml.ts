@@ -1,20 +1,15 @@
-import type { PosTableOrder, PosTableSubAccount } from 'api-client';
+import type {
+  PosReceiptSettingsData,
+  PosTableBill,
+  PosTableBillSnapshot,
+} from 'api-client';
 import { formatCurrency } from './formatters';
 import { formatManaguaDateTime } from './dateManagua';
-import { calculateTipFromTotal } from './saleCalculation';
-
-export interface PreBillBusinessInfo {
-  name?: string | null;
-  address?: string | null;
-  phone?: string | null;
-  taxId?: string | null;
-}
 
 export interface GeneratePreBillHtmlInput {
-  order: PosTableOrder;
-  subAccount?: PosTableSubAccount | null;
-  business?: PreBillBusinessInfo | null;
-  currency?: string;
+  bill: PosTableBill;
+  receiptSettings?: PosReceiptSettingsData | null;
+  totalSubAccounts?: number;
 }
 
 const escapeHtml = (val: unknown): string =>
@@ -25,148 +20,237 @@ const escapeHtml = (val: unknown): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const formatTableLabel = (raw?: string | null): string => {
-  const clean = String(raw || '').trim();
-  if (!clean) return 'Mesa';
-  return /^mesa\s+/i.test(clean) ? clean : `Mesa ${clean}`;
+const sanitizeLogoSrc = (raw?: string | null): string | null => {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return null;
+  if (
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('http://')
+  ) {
+    return trimmed;
+  }
+  return null;
+};
+
+export const formatBillSubAccountLabel = (
+  snapshot?: Pick<PosTableBillSnapshot, 'subAccountLabel' | 'splitMode'> | null,
+  totalSubAccounts?: number,
+): string | null => {
+  const raw = String(snapshot?.subAccountLabel || '').trim();
+  if (!raw) return null;
+  if (
+    snapshot?.splitMode === 'EQUAL' &&
+    totalSubAccounts &&
+    totalSubAccounts > 1 &&
+    !raw.toLowerCase().includes(' de ')
+  ) {
+    return `${raw} de ${totalSubAccounts}`;
+  }
+  return raw;
 };
 
 export function generatePreBillHtml({
-  order,
-  subAccount,
-  business,
-  currency = 'NIO',
+  bill,
+  receiptSettings,
+  totalSubAccounts,
 }: GeneratePreBillHtmlInput): string {
-  const bizName = escapeHtml(business?.name || 'NEXOL POS');
-  const tableLabel = escapeHtml(formatTableLabel(order.table?.number));
-  const zoneLabel = order.table?.zoneName ? escapeHtml(order.table.zoneName) : null;
-  const waiterLabel =
-    order.assignedWaiter?.name || order.openedByWaiterName || null;
-  const nowStr = escapeHtml(formatManaguaDateTime(new Date().toISOString()));
+  const snapshot = bill.snapshot;
+  const currency = snapshot.currency || 'NIO';
+  const paperWidthMm = receiptSettings?.paperWidthMm === 58 ? 58 : 80;
+  const contentWidthMm = paperWidthMm === 58 ? 54 : 76;
+  const logoMaxHeightPx = paperWidthMm === 58 ? 44 : 56;
 
-  const subtotal = subAccount ? Number(subAccount.subtotal || 0) : Number(order.subtotal || 0);
-  const discount = subAccount ? Number(subAccount.discount || 0) : Number(order.discountTotal || 0);
-  const tax = subAccount ? Number(subAccount.tax || 0) : Number(order.taxTotal || 0);
-  const total = subAccount ? Number(subAccount.total || 0) : Number(order.total || 0);
+  const isReprint = Boolean(bill.isReprint || snapshot.isReprint);
+  const sequenceNumber = Number(bill.sequence || snapshot.sequence || 1);
+  const legendText =
+    String(snapshot.legend || '').trim() || 'Cuenta. No es un comprobante de pago.';
 
-  const lines = subAccount ? subAccount.items || [] : order.items || [];
+  const showLogo = Boolean(receiptSettings?.showLogo && receiptSettings?.logoImage);
+  const safeLogoSrc = showLogo ? sanitizeLogoSrc(receiptSettings?.logoImage) : null;
+  const showBusinessName = receiptSettings?.showBusinessName !== false;
+  const showAddress = receiptSettings?.showAddress !== false;
+  const showPhone = receiptSettings?.showPhone !== false;
+  const showTaxId = receiptSettings?.showTaxId === true;
+  const showCashier = receiptSettings?.showCashier !== false;
+  const showCustomer = receiptSettings?.showCustomer !== false;
+  const showTaxBreakdown = receiptSettings?.showTaxBreakdown !== false;
 
-  const tipSource =
-    subAccount?.tipMode && subAccount.tipMode !== 'NONE' ? subAccount : order;
-  const tipMode = String(tipSource.tipMode || 'NONE').toUpperCase();
-  let suggestedTipLabel: string | null = null;
-  let suggestedTipValue: string | null = null;
+  const headerLines = Array.isArray(receiptSettings?.headerLines)
+    ? receiptSettings.headerLines.map((l) => String(l || '').trim()).filter(Boolean)
+    : [];
+  const footerLines = Array.isArray(receiptSettings?.footerLines)
+    ? receiptSettings.footerLines.map((l) => String(l || '').trim()).filter(Boolean)
+    : [];
 
-  if (tipMode === 'PERCENT') {
-    const pct = Number(tipSource.tipPercent || order.tipPolicy?.tipDefaultPercent || 10);
-    const tipNio = calculateTipFromTotal(total, pct);
-    if (tipNio > 0) {
-      suggestedTipLabel = `Propina sugerida (${pct} %)`;
-      suggestedTipValue = formatCurrency(tipNio, currency);
-    }
-  } else if (tipMode === 'CUSTOM' && Number(tipSource.tipAmount || 0) > 0) {
-    const tipCur = String(tipSource.tipCurrency || 'NIO').toUpperCase() === 'USD' ? 'USD' : currency;
-    suggestedTipLabel = 'Propina indicada';
-    suggestedTipValue = formatCurrency(Number(tipSource.tipAmount), tipCur);
-  } else if (order.tipPolicy?.tipEnabled && Number(order.tipPolicy.tipDefaultPercent || 0) > 0 && total > 0) {
-    const pct = Number(order.tipPolicy.tipDefaultPercent);
-    const tipNio = calculateTipFromTotal(total, pct);
-    if (tipNio > 0) {
-      suggestedTipLabel = `Propina sugerida (${pct} %)`;
-      suggestedTipValue = formatCurrency(tipNio, currency);
-    }
-  }
+  const tableLabel = snapshot.tableLabel || `Mesa ${snapshot.tableNumber || ''}`.trim();
+  const subAccountDisplay = formatBillSubAccountLabel(snapshot, totalSubAccounts);
+  const requestedAtFormatted = formatManaguaDateTime(
+    snapshot.requestedAt || bill.createdAt,
+  );
 
-  const rowsHtml =
-    lines.length > 0
-      ? lines
-          .map((item) => {
-            const qty = Number(item.quantity || 0);
-            const qtyStr = Number.isInteger(qty) ? String(qty) : qty.toFixed(2);
-            const unitPrice = Number(item.unitPrice || 0);
-            const lineSubtotal =
-              item.subtotal !== undefined
-                ? Number(item.subtotal)
-                : Math.round(qty * unitPrice * 100) / 100;
-            return `
-              <tr>
-                <td class="col-qty">${escapeHtml(qtyStr)}</td>
-                <td class="col-desc">${escapeHtml(item.productName)}</td>
-                <td class="col-amt">${escapeHtml(formatCurrency(lineSubtotal, currency))}</td>
-              </tr>
-            `;
-          })
-          .join('')
-      : `
+  const lines =
+    Array.isArray(snapshot.lines) && snapshot.lines.length > 0
+      ? snapshot.lines
+      : Array.isArray(snapshot.items)
+      ? snapshot.items
+      : [];
+
+  const rowsHtml = lines
+    .map((line) => {
+      const qty = Number(line.quantity || 0);
+      const qtyStr = Number.isInteger(qty) ? String(qty) : qty.toFixed(2);
+      const noteHtml = line.notes
+        ? `<div class="line-note">${escapeHtml(line.notes)}</div>`
+        : '';
+      return `
         <tr>
-          <td class="col-qty">1</td>
-          <td class="col-desc">${escapeHtml(subAccount ? subAccount.label : 'Consumo de mesa')}</td>
-          <td class="col-amt">${escapeHtml(formatCurrency(subtotal, currency))}</td>
+          <td class="col-qty">${escapeHtml(qtyStr)}</td>
+          <td class="col-desc">${escapeHtml(line.productName)}${noteHtml}</td>
+          <td class="col-amt">${escapeHtml(formatCurrency(Number(line.subtotal || 0), currency))}</td>
         </tr>
       `;
+    })
+    .join('');
+
+  const discountTotal = Number(snapshot.discountTotal ?? snapshot.discountAmount ?? 0);
+  const discountPercent = Number(snapshot.discountPercent || 0);
+  const taxTotal = Number(snapshot.taxTotal ?? snapshot.taxAmount ?? 0);
+  const taxRate = Number(snapshot.taxRate || 0);
+  const taxLabel = snapshot.taxIncluded
+    ? `IVA incluido (${taxRate} %)`
+    : `IVA (${taxRate} %)`;
+
+  const tipInfo =
+    snapshot.tip &&
+    String(snapshot.tip.mode || '').toUpperCase() !== 'NONE' &&
+    Number(snapshot.tip.amount || 0) > 0
+      ? snapshot.tip
+      : null;
+
+  const tipCurrency = String(tipInfo?.currency || currency).toUpperCase();
+  const tipLabel =
+    tipInfo?.mode === 'PERCENT' && tipInfo.percent
+      ? `Propina sugerida (${tipInfo.percent} %)`
+      : 'Propina sugerida';
 
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Pre-cuenta ${tableLabel}</title>
+  <title>Cuenta ${escapeHtml(tableLabel)}</title>
   <style>
-    @page { size: 80mm auto; margin: 2mm; }
+    @page { size: ${paperWidthMm}mm auto; margin: 2mm; }
     * { box-sizing: border-box; }
     body {
       font-family: 'Courier New', Courier, monospace;
-      width: 76mm;
-      max-width: 80mm;
+      width: ${contentWidthMm}mm;
+      max-width: ${paperWidthMm}mm;
       margin: 0 auto;
       padding: 6px 4px;
       color: #0f0f0f;
       font-size: 12px;
       line-height: 1.35;
       background: #ffffff;
+      word-break: break-word;
     }
     .center { text-align: center; }
     .bold { font-weight: 700; }
+    .logo {
+      display: block;
+      margin: 0 auto 6px auto;
+      max-width: 100%;
+      max-height: ${logoMaxHeightPx}px;
+      object-fit: contain;
+    }
+    .biz-name { font-size: 14px; font-weight: 700; text-align: center; }
     .divider { border-top: 1px dashed #333333; margin: 6px 0; }
-    .badge {
-      border: 1px solid #0f0f0f;
-      padding: 3px 6px;
-      margin: 6px 0;
-      font-size: 13px;
+    .title-box {
+      border: 1.5px solid #0f0f0f;
+      padding: 4px 6px;
+      margin: 6px 0 4px 0;
+      font-size: 14px;
       font-weight: 700;
       text-align: center;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
     }
-    .warning {
+    .reprint-tag {
+      border: 1px dashed #0f0f0f;
+      padding: 2px 6px;
+      margin: 4px 0;
       font-size: 12px;
       font-weight: 700;
       text-align: center;
-      margin-bottom: 4px;
+    }
+    .legend-box {
+      border: 1px solid #0f0f0f;
+      padding: 4px 6px;
+      margin: 6px 0;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+    .subaccount-tag {
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      margin: 4px 0;
     }
     .meta { font-size: 12px; margin: 2px 0; }
+    .extra-line { font-size: 12px; text-align: center; margin: 2px 0; }
     table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    th { text-align: left; border-bottom: 1px solid #333333; padding: 3px 0; font-size: 12px; }
+    th {
+      text-align: left;
+      border-bottom: 1px solid #333333;
+      padding: 3px 0;
+      font-size: 12px;
+    }
     td { padding: 3px 0; vertical-align: top; font-size: 12px; }
-    .col-qty { width: 14%; white-space: nowrap; }
-    .col-desc { width: 52%; padding-right: 4px; }
-    .col-amt { width: 34%; text-align: right; white-space: nowrap; }
-    .summary-row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 12px; }
-    .summary-total { display: flex; justify-content: space-between; margin-top: 4px; font-size: 15px; font-weight: 700; }
+    .col-qty { width: 16%; white-space: nowrap; padding-right: 4px; }
+    .col-desc { width: 48%; padding-right: 4px; }
+    .col-amt { width: 36%; text-align: right; white-space: nowrap; }
+    .line-note { font-size: 12px; color: #333333; margin-top: 1px; }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      margin: 2px 0;
+      font-size: 12px;
+    }
+    .summary-total {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      margin-top: 4px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .tip-note {
+      font-size: 12px;
+      text-align: center;
+      margin-top: 3px;
+    }
   </style>
 </head>
 <body>
-  <div class="center bold" style="font-size: 14px;">${bizName}</div>
-  ${business?.address ? `<div class="center">${escapeHtml(business.address)}</div>` : ''}
-  ${business?.phone ? `<div class="center">Tel: ${escapeHtml(business.phone)}</div>` : ''}
-  ${business?.taxId ? `<div class="center">RUC: ${escapeHtml(business.taxId)}</div>` : ''}
+  ${safeLogoSrc ? `<img src="${escapeHtml(safeLogoSrc)}" class="logo" alt="Logo del negocio" />` : ''}
+  ${showBusinessName ? `<div class="biz-name">${escapeHtml(snapshot.businessName || 'Negocio')}</div>` : ''}
+  ${showAddress && snapshot.businessAddress ? `<div class="center">${escapeHtml(snapshot.businessAddress)}</div>` : ''}
+  ${showPhone && snapshot.businessPhone ? `<div class="center">Tel: ${escapeHtml(snapshot.businessPhone)}</div>` : ''}
+  ${showTaxId && snapshot.businessTaxId ? `<div class="center">RUC: ${escapeHtml(snapshot.businessTaxId)}</div>` : ''}
+  ${headerLines.map((line) => `<div class="extra-line">${escapeHtml(line)}</div>`).join('')}
 
-  <div class="badge">PRE-CUENTA</div>
-  <div class="warning">No es un comprobante de venta</div>
+  <div class="title-box">Cuenta</div>
+  ${isReprint ? `<div class="reprint-tag">Reimpresión #${escapeHtml(sequenceNumber)}</div>` : ''}
+  ${subAccountDisplay ? `<div class="subaccount-tag">${escapeHtml(subAccountDisplay)}</div>` : ''}
+  <div class="center bold">${escapeHtml(legendText)}</div>
 
   <div class="divider"></div>
-  <div class="meta"><span class="bold">Mesa:</span> ${tableLabel}${zoneLabel ? ` · ${zoneLabel}` : ''}</div>
-  ${subAccount ? `<div class="meta"><span class="bold">Cuenta:</span> ${escapeHtml(subAccount.label)}</div>` : ''}
-  ${waiterLabel ? `<div class="meta"><span class="bold">Atendió:</span> ${escapeHtml(waiterLabel)}</div>` : ''}
-  <div class="meta"><span class="bold">Fecha:</span> ${nowStr}</div>
+  <div class="meta"><span class="bold">Mesa:</span> ${escapeHtml(tableLabel)}${snapshot.zoneName ? ` · ${escapeHtml(snapshot.zoneName)}` : ''}</div>
+  ${snapshot.waiterName ? `<div class="meta"><span class="bold">Mesero:</span> ${escapeHtml(snapshot.waiterName)}</div>` : ''}
+  ${showCashier && snapshot.requestedByName ? `<div class="meta"><span class="bold">Emitida por:</span> ${escapeHtml(snapshot.requestedByName)}</div>` : ''}
+  ${showCustomer && snapshot.customerName ? `<div class="meta"><span class="bold">Cliente:</span> ${escapeHtml(snapshot.customerName)}</div>` : ''}
+  <div class="meta"><span class="bold">Fecha:</span> ${escapeHtml(requestedAtFormatted)}</div>
   <div class="divider"></div>
 
   <table>
@@ -185,40 +269,50 @@ export function generatePreBillHtml({
   <div class="divider"></div>
   <div class="summary-row">
     <span>Subtotal</span>
-    <span>${escapeHtml(formatCurrency(subtotal, currency))}</span>
+    <span>${escapeHtml(formatCurrency(Number(snapshot.subtotal || 0), currency))}</span>
   </div>
   ${
-    discount > 0
-      ? `<div class="summary-row"><span>Descuento</span><span>-${escapeHtml(formatCurrency(discount, currency))}</span></div>`
+    discountTotal > 0
+      ? `<div class="summary-row"><span>Descuento${discountPercent > 0 ? ` (${escapeHtml(discountPercent)} %)` : ''}</span><span>-${escapeHtml(formatCurrency(discountTotal, currency))}</span></div>`
       : ''
   }
   ${
-    tax > 0
-      ? `<div class="summary-row"><span>Impuesto${order.taxRate ? ` (${order.taxRate}%)` : ''}</span><span>${escapeHtml(formatCurrency(tax, currency))}</span></div>`
+    showTaxBreakdown && snapshot.taxEnabled && taxTotal > 0
+      ? `<div class="summary-row"><span>${escapeHtml(taxLabel)}</span><span>${escapeHtml(formatCurrency(taxTotal, currency))}</span></div>`
       : ''
   }
   <div class="divider"></div>
   <div class="summary-total">
-    <span>TOTAL</span>
-    <span>${escapeHtml(formatCurrency(total, currency))}</span>
+    <span>Total</span>
+    <span>${escapeHtml(formatCurrency(Number(snapshot.total || 0), currency))}</span>
   </div>
 
   ${
-    suggestedTipLabel && suggestedTipValue
+    tipInfo
       ? `
         <div class="divider"></div>
         <div class="summary-row">
-          <span>${escapeHtml(suggestedTipLabel)}</span>
-          <span>${escapeHtml(suggestedTipValue)}</span>
+          <span>${escapeHtml(tipLabel)}</span>
+          <span>${escapeHtml(formatCurrency(Number(tipInfo.amount || 0), tipCurrency))}</span>
         </div>
-        <div class="center" style="font-size: 12px;">(Voluntaria · no incluida en el total)</div>
+        ${
+          tipCurrency === currency
+            ? `
+              <div class="summary-row bold" style="font-size: 13px;">
+                <span>Total con propina sugerida</span>
+                <span>${escapeHtml(formatCurrency(Number(snapshot.totalWithTip || 0), currency))}</span>
+              </div>
+            `
+            : ''
+        }
+        <div class="tip-note">La propina es voluntaria y no está incluida en el total.</div>
       `
       : ''
   }
 
   <div class="divider"></div>
-  <div class="warning">No es un comprobante de venta</div>
-  <div class="center">Revisá tu consumo antes de pagar.</div>
+  <div class="legend-box">${escapeHtml(legendText)}</div>
+  ${footerLines.map((line) => `<div class="extra-line">${escapeHtml(line)}</div>`).join('')}
 </body>
 </html>`;
 }
