@@ -43,7 +43,7 @@ export const FloatingCartBar: React.FC<FloatingCartBarProps> = ({
             <div className="relative w-10 h-10 rounded-2xl bg-brand-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
               <ShoppingCart size={20} weight="bold" />
               {newItemsCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-xs animate-pulseTap">
+                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-xs font-black w-5 h-5 rounded-full flex items-center justify-center shadow-xs animate-pulseTap">
                   +{newItemsCount}
                 </span>
               )}
@@ -55,7 +55,7 @@ export const FloatingCartBar: React.FC<FloatingCartBarProps> = ({
                   {displayTitle}
                 </span>
                 {newItemsCount > 0 && (
-                  <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded shrink-0">
+                  <span className="text-xs bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded shrink-0">
                     {newItemsCount} sin enviar
                   </span>
                 )}

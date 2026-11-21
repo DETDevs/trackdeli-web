@@ -12,6 +12,7 @@ import {
   CheckCircle,
   ShieldWarning,
   ArrowsLeftRight,
+  Receipt,
 } from '@phosphor-icons/react';
 import type { CartItem, ActiveTableOrder, TableOrderItem, KitchenRound } from '../types/mesero';
 
@@ -36,6 +37,9 @@ interface ComandaBottomSheetProps {
   unprintedAlert: string | null;
   lastSentRoundConfirmation?: string | null;
   onOpenSplitModal?: () => void;
+  onRequestBill?: () => void;
+  isBillRequested?: boolean;
+  isRequestingBill?: boolean;
 }
 
 const NOTE_PRESETS = [
@@ -70,6 +74,9 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
   unprintedAlert,
   lastSentRoundConfirmation,
   onOpenSplitModal,
+  onRequestBill,
+  isBillRequested = false,
+  isRequestingBill = false,
 }) => {
   const [editingNotesProductId, setEditingNotesProductId] = useState<string | null>(null);
 
@@ -101,6 +108,8 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
   const unsentCount =
     newItems.reduce((acc, i) => acc + i.quantity, 0) +
     savedUnsentItems.reduce((acc, i) => acc + i.quantity, 0);
+
+  const totalItemsCount = savedItems.length + newItems.length;
 
   const isNoPrint = Boolean(
     isNoPrintMode ||
@@ -229,7 +238,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
           {/* SECCIÓN A: Ítems SIN ENVIAR (Diferenciados visualmente con punto de color) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-xs ring-2 ring-amber-200 animate-pulse" />
                 <span>Sin enviar a cocina ({unsentCount})</span>
               </span>
@@ -264,7 +273,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
                             <span className="text-xs font-semibold text-amber-800 font-mono">
                               C$ {item.unitPrice.toFixed(2)} c/u
                             </span>
-                            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
+                            <span className="text-xs bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
                               Sin enviar
                             </span>
                           </div>
@@ -314,7 +323,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
                                 isEditingNote ? null : item.productId
                               )
                             }
-                            className="text-[11px] font-semibold text-amber-800 hover:text-amber-900 flex items-center gap-1 cursor-pointer"
+                            className="text-xs font-semibold text-amber-800 hover:text-amber-900 flex items-center gap-1 cursor-pointer"
                           >
                             <NotePencil size={13} weight="bold" />
                             <span>
@@ -334,7 +343,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
                                     const current = item.notes ? `${item.notes}, ${preset}` : preset;
                                     onUpdateNotes(item.productId, current);
                                   }}
-                                  className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-[10px] font-semibold text-gray-700 active:bg-amber-100 cursor-pointer touch-manipulation"
+                                  className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-xs font-semibold text-gray-700 active:bg-amber-100 cursor-pointer touch-manipulation"
                                 >
                                   +{preset}
                                 </button>
@@ -374,12 +383,12 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
                           <span className="text-xs font-semibold text-amber-800 font-mono">
                             {item.quantity}x • C$ {item.unitPrice.toFixed(2)} c/u
                           </span>
-                          <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
+                          <span className="text-xs bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
                             Sin enviar
                           </span>
                         </div>
                         {item.notes && (
-                          <p className="text-[11px] text-amber-800 italic pl-4">
+                          <p className="text-xs text-amber-800 italic pl-4">
                             "{item.notes}"
                           </p>
                         )}
@@ -405,7 +414,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
           {sentItems.length > 0 && (
             <div className="space-y-4 pt-4 border-t border-gray-200">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
                   <CookingPot size={14} weight="duotone" className="text-indigo-600" />
                   Enviados a cocina ({sentItems.length})
                 </span>
@@ -432,7 +441,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
 
                       {/* Alerta única por ronda: solo si está pendiente o fallida */}
                       {group.hasUnprintedAlert && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shrink-0 animate-fadeIn">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 shrink-0 animate-fadeIn">
                           <WarningCircle size={12} weight="fill" className="text-amber-600 shrink-0" />
                           <span>{group.unprintedMessage || 'Pendiente de imprimir'}</span>
                         </span>
@@ -452,7 +461,7 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
                               <h4 className="font-bold text-xs text-gray-900 truncate">
                                 {item.productName}
                               </h4>
-                              <div className="text-[11px] text-gray-500 font-mono flex items-center gap-1.5 mt-0.5">
+                              <div className="text-xs text-gray-500 font-mono flex items-center gap-1.5 mt-0.5">
                                 <span>{item.quantity}x a C$ {item.unitPrice.toFixed(2)}</span>
                                 <span className="text-gray-300">·</span>
                                 <span className="font-bold text-gray-800">
@@ -489,24 +498,24 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
 
                           {/* Notas si existen */}
                           {item.notes && (
-                            <p className="text-[11px] text-amber-800 italic bg-amber-50/60 px-2 py-0.5 rounded-md border border-amber-100/80">
+                            <p className="text-xs text-amber-800 italic bg-amber-50/60 px-2 py-0.5 rounded-md border border-amber-100/80">
                               "{item.notes}"
                             </p>
                           )}
 
                           {/* Fila inferior compacta: Tomado por (izq) y Solicitar anulación (der) en una sola fila */}
                           <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100/80">
-                            <span className="text-[10px] text-gray-400 truncate flex items-center gap-1">
-                              <User size={10} className="shrink-0 text-gray-400" />
+                            <span className="text-xs text-gray-400 truncate flex items-center gap-1">
+                              <User size={12} className="shrink-0 text-gray-400" />
                               <span>{item.waiterName ? `Por ${item.waiterName}` : 'Enviado'}</span>
                             </span>
 
                             <button
                               type="button"
                               onClick={() => onRequestVoid(item)}
-                              className="px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 text-[10px] font-bold transition-colors cursor-pointer touch-manipulation border border-rose-200/60 whitespace-nowrap flex items-center gap-1"
+                              className="px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 text-xs font-bold transition-colors cursor-pointer touch-manipulation border border-rose-200/60 whitespace-nowrap flex items-center gap-1"
                             >
-                              <ShieldWarning size={11} weight="bold" />
+                              <ShieldWarning size={12} weight="bold" />
                               <span>Solicitar anulación</span>
                             </button>
                           </div>
@@ -584,6 +593,29 @@ export const ComandaBottomSheet: React.FC<ComandaBottomSheetProps> = ({
               ) : (
                 <span>Guardar comanda ({unsentCount})</span>
               )}
+            </button>
+          )}
+
+          {/* Botón "Pedir la cuenta" / "Ver / reimprimir cuenta" (Solo restaurante) */}
+          {isRestaurante && onRequestBill && (
+            <button
+              type="button"
+              disabled={isRequestingBill || totalItemsCount === 0}
+              onClick={onRequestBill}
+              className={`w-full py-3 px-4 rounded-2xl font-extrabold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed ${
+                isBillRequested
+                  ? 'bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-900 border border-indigo-300'
+                  : 'bg-white hover:bg-indigo-50 active:bg-indigo-100 text-indigo-700 border-2 border-indigo-600'
+              }`}
+            >
+              <Receipt size={17} weight="bold" />
+              <span>
+                {isRequestingBill
+                  ? 'Solicitando cuenta...'
+                  : isBillRequested
+                  ? 'Ver / reimprimir cuenta'
+                  : 'Pedir la cuenta'}
+              </span>
             </button>
           )}
         </div>

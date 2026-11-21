@@ -169,6 +169,9 @@ import type {
   AddSubAccountPayload,
   MergeSubAccountsPayload,
   UndoSplitPayload,
+  RequestTableBillPayload,
+  CancelTableBillRequestPayload,
+  SetOrderTipPayload,
 } from '../types/mesero';
 
 export const useDeleteOrderItem = (tableId: string) => {
@@ -306,4 +309,113 @@ export const useUndoSplitOrder = (tableId: string) => {
     },
   });
 };
+
+export const useReceiptSettings = () => {
+  return useQuery({
+    queryKey: ['mesero', 'receipt-settings'],
+    queryFn: () => meseroApi.getReceiptSettings(),
+    staleTime: 600000,
+  });
+};
+
+export const useTableBills = (tableId: string, orderId?: string, enabled = true) => {
+  return useQuery({
+    queryKey: ['mesero', 'bills', tableId, orderId],
+    queryFn: () => meseroApi.getTableBills(tableId, orderId),
+    enabled: Boolean(tableId) && enabled,
+    staleTime: 10000,
+  });
+};
+
+export const useRequestTableBill = (tableId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload?: RequestTableBillPayload) =>
+      meseroApi.requestTableBill(tableId, payload),
+    retry: false,
+    onSuccess: (data) => {
+      if (data?.tableOrder) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data.tableOrder);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'bills', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'tables'] });
+    },
+    onError: (err: any) => {
+      const isNetworkError =
+        !err?.response || err?.code === 'ERR_NETWORK' || err?.message?.includes('Network');
+      if (isNetworkError) {
+        toast.error('No se pudo pedir la cuenta. Revisá tu conexión e intentá de nuevo.', {
+          duration: 5000,
+        });
+        return;
+      }
+
+      const status = err?.response?.status;
+      const code = err?.response?.data?.code || err?.response?.data?.message;
+
+      if (status === 400 && (code === 'EMPTY_ORDER' || String(code).includes('EMPTY'))) {
+        toast.error('La comanda no tiene productos para pedir la cuenta.', { duration: 4000 });
+        return;
+      }
+
+      if (status === 409) {
+        queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+        queryClient.invalidateQueries({ queryKey: ['mesero', 'tables'] });
+        toast.error('La comanda cambió. Revisá los productos antes de pedir la cuenta.', {
+          duration: 4000,
+        });
+        return;
+      }
+
+      const msg = err?.response?.data?.message || 'Error al pedir la cuenta.';
+      toast.error(msg, { duration: 4000 });
+    },
+  });
+};
+
+export const useCancelTableBillRequest = (tableId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload?: CancelTableBillRequestPayload) =>
+      meseroApi.cancelTableBillRequest(tableId, payload),
+    retry: false,
+    onSuccess: (data) => {
+      if (data?.tableOrder) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data.tableOrder);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'bills', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'tables'] });
+      toast.success('Solicitud de cuenta cancelada', { duration: 3000 });
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Error al cancelar la cuenta pedida.';
+      toast.error(msg, { duration: 4000 });
+    },
+  });
+};
+
+export const useSetOrderTip = (tableId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: SetOrderTipPayload) => meseroApi.setOrderTip(tableId, payload),
+    retry: false,
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData(['mesero', 'order', tableId], data);
+      }
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'order', tableId] });
+      queryClient.invalidateQueries({ queryKey: ['mesero', 'tables'] });
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Error al guardar propina.';
+      toast.error(msg, { duration: 4000 });
+    },
+  });
+};
+
 

@@ -17,6 +17,13 @@ import type {
   AddSubAccountPayload,
   MergeSubAccountsPayload,
   UndoSplitPayload,
+  RequestTableBillPayload,
+  RequestTableBillResponse,
+  PosTableBill,
+  CancelTableBillRequestPayload,
+  CancelTableBillRequestResponse,
+  SetOrderTipPayload,
+  ReceiptSettings,
 } from '../types/mesero';
 
 export const meseroApi = {
@@ -63,6 +70,11 @@ export const meseroApi = {
       const zoneId = t.zoneId || t.zone?.id || null;
       const zoneName = t.zoneName || t.zone?.name || null;
 
+      const billStatus = t.billStatus || order?.billStatus || 'NONE';
+      const displayStatus =
+        t.displayStatus ||
+        (billStatus === 'REQUESTED' ? 'BILL_REQUESTED' : isOccupied ? 'OCCUPIED' : 'FREE');
+
       return {
         id: t.id,
         number: t.number,
@@ -70,6 +82,10 @@ export const meseroApi = {
         capacity: t.capacity,
         shape: t.shape,
         status: isOccupied ? 'OCCUPIED' : 'FREE',
+        displayStatus,
+        billStatus,
+        billRequestedAt: t.billRequestedAt || order?.billRequestedAt || null,
+        billRequestedByName: t.billRequestedByName || order?.billRequestedByName || null,
         isOccupied,
         zoneId: zoneId || undefined,
         zoneName: zoneName || undefined,
@@ -80,6 +96,7 @@ export const meseroApi = {
               customerName: order.customerName || null,
               itemCount: order.itemCount || order.itemsCount || 0,
               total: Number(order.total) || 0,
+              billStatus: order.billStatus || billStatus,
             }
           : null,
       };
@@ -148,6 +165,21 @@ export const meseroApi = {
         workshopVehicleId: data.workshopVehicleId || null,
         splitMode: data.splitMode || null,
         splitVersion: data.splitVersion !== undefined ? Number(data.splitVersion) : 0,
+        billStatus: data.billStatus || 'NONE',
+        billRequestedAt: data.billRequestedAt || null,
+        billRequestedByName: data.billRequestedByName || null,
+        billVersion: data.billVersion !== undefined ? Number(data.billVersion) : 0,
+        tipMode: data.tipMode || null,
+        tipPercent: data.tipPercent != null ? Number(data.tipPercent) : null,
+        tipAmount: data.tipAmount != null ? Number(data.tipAmount) : null,
+        tipCurrency: data.tipCurrency || null,
+        tipPolicy: data.tipPolicy
+          ? {
+              tipEnabled: Boolean(data.tipPolicy.tipEnabled),
+              tipDefaultPercent: Number(data.tipPolicy.tipDefaultPercent ?? 10),
+              tipPresets: Array.isArray(data.tipPolicy.tipPresets) ? data.tipPolicy.tipPresets : undefined,
+            }
+          : undefined,
         discountPercent: Number(data.discountPercent) || 0,
         discountAmount: Number(data.discountAmount) || 0,
         discountTotal: Number(data.discountTotal) || 0,
@@ -160,6 +192,12 @@ export const meseroApi = {
               status: sa.status,
               saleId: sa.saleId || null,
               fixedAmount: sa.fixedAmount != null ? Number(sa.fixedAmount) : null,
+              billStatus: sa.billStatus || 'NONE',
+              billRequestedAt: sa.billRequestedAt || null,
+              tipMode: sa.tipMode || null,
+              tipPercent: sa.tipPercent != null ? Number(sa.tipPercent) : null,
+              tipAmount: sa.tipAmount != null ? Number(sa.tipAmount) : null,
+              tipCurrency: sa.tipCurrency || null,
               itemsCount: Number(sa.itemsCount) || 0,
               subtotal: Number(sa.subtotal) || 0,
               discount: Number(sa.discount) || 0,
@@ -325,6 +363,77 @@ export const meseroApi = {
       payload || {}
     );
     return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  /**
+   * 267c - Pide la cuenta (precuenta) de una mesa o subcuenta.
+   */
+  async requestTableBill(
+    tableId: string,
+    payload?: RequestTableBillPayload
+  ): Promise<RequestTableBillResponse> {
+    const res = await apiClient.post<any>(
+      `/pos/tables/${tableId}/order/request-bill`,
+      payload || {}
+    );
+    const data = res.data?.data !== undefined ? res.data.data : res.data;
+    return {
+      bill: data.bill,
+      isReprint: Boolean(data.isReprint),
+      tableOrder: data.tableOrder,
+      receiptSettings: data.receiptSettings || {},
+    };
+  },
+
+  /**
+   * 267c - Obtiene el historial de cuentas emitidas para la orden de la mesa.
+   */
+  async getTableBills(tableId: string, orderId?: string): Promise<PosTableBill[]> {
+    const res = await apiClient.get<any>(`/pos/tables/${tableId}/order/bills`, {
+      params: orderId ? { orderId } : undefined,
+    });
+    const raw = res.data?.data !== undefined ? res.data.data : res.data;
+    return Array.isArray(raw) ? raw : [];
+  },
+
+  /**
+   * 267c - Cancela la solicitud de cuenta activa en la mesa o subcuenta.
+   */
+  async cancelTableBillRequest(
+    tableId: string,
+    payload?: CancelTableBillRequestPayload
+  ): Promise<CancelTableBillRequestResponse> {
+    const res = await apiClient.post<any>(
+      `/pos/tables/${tableId}/order/cancel-bill-request`,
+      payload || {}
+    );
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  /**
+   * 267c / 263a - Guarda la intención de propina en la orden o subcuenta.
+   */
+  async setOrderTip(
+    tableId: string,
+    payload: SetOrderTipPayload
+  ): Promise<ActiveTableOrder> {
+    const res = await apiClient.patch<any>(
+      `/pos/tables/${tableId}/order/tip`,
+      payload
+    );
+    return res.data?.data !== undefined ? res.data.data : res.data;
+  },
+
+  /**
+   * 267c - Obtiene la configuración de comprobantes del negocio para encabezados.
+   */
+  async getReceiptSettings(): Promise<ReceiptSettings> {
+    try {
+      const res = await apiClient.get<any>('/pos/receipt-settings');
+      return res.data?.data !== undefined ? res.data.data : res.data;
+    } catch {
+      return {};
+    }
   },
 };
 

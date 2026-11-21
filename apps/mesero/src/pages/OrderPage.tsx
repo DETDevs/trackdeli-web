@@ -7,6 +7,7 @@ import {
   WarningCircle,
   CheckCircle,
   ArrowsLeftRight,
+  Receipt,
 } from '@phosphor-icons/react';
 import {
   useTablesStatus,
@@ -18,6 +19,9 @@ import {
   useSendToKitchen,
   useVoidOrderItem,
   useDeleteOrderItem,
+  useRequestTableBill,
+  useTableBills,
+  useReceiptSettings,
 } from '../hooks/useMesero';
 import { useWaiterAuth } from '../store/authStore';
 import { Header } from '../components/Header';
@@ -27,7 +31,17 @@ import { FloatingCartBar } from '../components/FloatingCartBar';
 import { ComandaBottomSheet } from '../components/ComandaBottomSheet';
 import { VoidItemModal } from '../components/VoidItemModal';
 import { SplitAccountModal } from '../components/SplitAccountModal';
-import type { CartItem, Product, TableOrderItem } from '../types/mesero';
+import { TipModal } from '../components/TipModal';
+import { UnsentItemsConfirmModal } from '../components/UnsentItemsConfirmModal';
+import { PrebillBottomSheet } from '../components/PrebillBottomSheet';
+import type {
+  CartItem,
+  Product,
+  TableOrderItem,
+  PosTableBill,
+  RequestTableBillTipDto,
+  OrderSubAccount,
+} from '../types/mesero';
 import toast from 'react-hot-toast';
 
 export const OrderPage: React.FC = () => {
@@ -114,11 +128,27 @@ export const OrderPage: React.FC = () => {
   // Modal para dividir cuenta de la mesa (171c)
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
 
+  // Estados para pedir la cuenta (267c)
+  const [isPrebillOpen, setIsPrebillOpen] = useState(false);
+  const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+  const [isUnsentModalOpen, setIsUnsentModalOpen] = useState(false);
+  const [currentBill, setCurrentBill] = useState<PosTableBill | null>(null);
+  const [pendingSubAccountId, setPendingSubAccountId] = useState<string | undefined>(undefined);
+
   // Mutaciones
   const addItemsMutation = useAddOrderItems(tableId || '');
   const sendToKitchenMutation = useSendToKitchen(tableId || '');
   const voidMutation = useVoidOrderItem(tableId || '');
   const deleteItemMutation = useDeleteOrderItem(tableId || '');
+  const requestBillMutation = useRequestTableBill(tableId || '');
+
+  // Consultas de cuentas emitidas y configuración de comprobantes
+  const { data: bills = [] } = useTableBills(
+    tableId || '',
+    activeOrder?.id,
+    Boolean(tableId && activeOrder?.billStatus === 'REQUESTED')
+  );
+  const { data: receiptSettings } = useReceiptSettings();
 
   // Conteo de ítems sin enviar
   const newItemsCount = newCartItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -331,6 +361,103 @@ export const OrderPage: React.FC = () => {
     }
   };
 
+  // Iniciar flujo para pedir la cuenta (267c)
+  const isBillRequested = Boolean(activeOrder?.billStatus === 'REQUESTED');
+
+  const executeRequestBill = async (options?: {
+    subAccountId?: string;
+    tip?: RequestTableBillTipDto;
+  }) => {
+    try {
+      const res = await requestBillMutation.mutateAsync({
+        subAccountId: options?.subAccountId ?? pendingSubAccountId,
+        tip: options?.tip,
+        clientRequestId: crypto.randomUUID(),
+      });
+      setCurrentBill(res.bill);
+      setIsPrebillOpen(true);
+      setIsBottomSheetOpen(false);
+      setIsSplitModalOpen(false);
+    } catch {
+      // Notificado en el hook useRequestTableBill
+    }
+  };
+
+  const proceedToTipOrRequest = (subAccountId?: string) => {
+    const tipEnabled = Boolean(activeOrder?.tipPolicy?.tipEnabled);
+    if (tipEnabled) {
+      setIsTipModalOpen(true);
+    } else {
+      executeRequestBill({ subAccountId });
+    }
+  };
+
+  const handleStartRequestBill = (subAccountId?: string) => {
+    setPendingSubAccountId(subAccountId);
+
+    const isAlreadyRequested = subAccountId
+      ? activeOrder?.subAccounts?.find((s) => s.id === subAccountId)?.billStatus === 'REQUESTED'
+      : isBillRequested;
+
+    // Si ya está pedida y no hay ítems pendientes, abrir pre-cuenta
+    if (isAlreadyRequested && totalUnsentCount === 0) {
+      const match =
+        bills.find((b) => (subAccountId ? b.subAccountId === subAccountId : !b.subAccountId)) ||
+        bills[0];
+      if (match) {
+        setCurrentBill(match);
+        setIsPrebillOpen(true);
+        return;
+      }
+    }
+
+    // Si hay renglones sin enviar o sin guardar: advertencia
+    if (totalUnsentCount > 0) {
+      setIsUnsentModalOpen(true);
+      return;
+    }
+
+    proceedToTipOrRequest(subAccountId);
+  };
+
+  // Enviar y pedir
+  const handleSendAndRequestBill = async () => {
+    setIsUnsentModalOpen(false);
+    await handleConfirmSend();
+    proceedToTipOrRequest(pendingSubAccountId);
+  };
+
+  // Continuar igual sin enviar
+  const handleContinueWithoutSending = async () => {
+    setIsUnsentModalOpen(false);
+    if (newCartItems.length > 0) {
+      try {
+        await addItemsMutation.mutateAsync({
+          items: newCartItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            notes: item.notes.trim() || undefined,
+          })),
+        });
+        setNewCartItems([]);
+      } catch {
+        return;
+      }
+    }
+    proceedToTipOrRequest(pendingSubAccountId);
+  };
+
+  // Confirmar propina
+  const handleConfirmTip = (tipDto: RequestTableBillTipDto) => {
+    setIsTipModalOpen(false);
+    executeRequestBill({ subAccountId: pendingSubAccountId, tip: tipDto });
+  };
+
+  // Pedir cuenta de subcuenta desde el modal de división
+  const handleRequestSubAccountBill = (subAccount: OrderSubAccount) => {
+    handleStartRequestBill(subAccount.id);
+  };
+
   // Verificación de comanda sin imprimir tras 60 segundos (Requerimiento 3)
   const unprintedRound = useMemo(() => {
     if (!isRestaurante || isNoPrintMode) return null;
@@ -411,6 +538,33 @@ export const OrderPage: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-md w-full mx-auto p-4 space-y-4">
+        {/* Banner de cuenta pedida (267c) */}
+        {isBillRequested && (
+          <div
+            onClick={() => handleStartRequestBill()}
+            className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-950 flex items-center justify-between gap-2.5 text-xs font-semibold shadow-2xs cursor-pointer hover:bg-indigo-100/70 transition-colors animate-fadeIn"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-indigo-200/80 text-indigo-800 flex items-center justify-center shrink-0">
+                <Receipt size={17} weight="bold" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-extrabold text-indigo-900 truncate">
+                  Cuenta pedida · Por cobrar en caja
+                </p>
+                <p className="text-xs text-indigo-700 truncate">
+                  {activeOrder?.billRequestedAt
+                    ? `Pedida a las ${new Date(activeOrder.billRequestedAt).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+                    : 'Lista para cobrar'}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-extrabold text-indigo-700 underline shrink-0">
+              Ver cuenta
+            </span>
+          </div>
+        )}
+
         {/* Banner de cuenta dividida (171c) */}
         {activeOrder?.splitMode && (
           <div
@@ -425,7 +579,7 @@ export const OrderPage: React.FC = () => {
                 <p className="font-extrabold text-purple-900 truncate">
                   Cuenta dividida ({activeOrder.subAccounts?.length || 0} cuentas)
                 </p>
-                <p className="text-[11px] text-purple-700 truncate">
+                <p className="text-xs text-purple-700 truncate">
                   {activeOrder.splitMode === 'ITEMS'
                     ? 'Dividida por productos'
                     : 'Dividida en partes iguales'}
@@ -433,7 +587,7 @@ export const OrderPage: React.FC = () => {
                 </p>
               </div>
             </div>
-            <span className="text-[11px] font-extrabold text-purple-700 underline shrink-0">
+            <span className="text-xs font-extrabold text-purple-700 underline shrink-0">
               Ver cuentas
             </span>
           </div>
@@ -584,6 +738,9 @@ export const OrderPage: React.FC = () => {
           setIsBottomSheetOpen(false);
           setIsSplitModalOpen(true);
         }}
+        onRequestBill={() => handleStartRequestBill()}
+        isBillRequested={isBillRequested}
+        isRequestingBill={requestBillMutation.isPending}
       />
 
       {/* Modal de Anulación Autorizada con PIN (Requerimiento 4 y 5) */}
@@ -596,7 +753,7 @@ export const OrderPage: React.FC = () => {
         isLoading={voidMutation.isPending}
       />
 
-      {/* Modal para Dividir Cuenta y Deshacer División (171c) */}
+      {/* Modal para Dividir Cuenta y Deshacer División (171c y 267c) */}
       <SplitAccountModal
         isOpen={isSplitModalOpen}
         onClose={() => setIsSplitModalOpen(false)}
@@ -604,6 +761,47 @@ export const OrderPage: React.FC = () => {
         tableNumber={tableNumber}
         tableDisplayName={tableDisplayName}
         activeOrder={activeOrder || null}
+        onRequestSubAccountBill={handleRequestSubAccountBill}
+      />
+
+      {/* Modal de selección de propina (267c) */}
+      <TipModal
+        isOpen={isTipModalOpen}
+        onClose={() => setIsTipModalOpen(false)}
+        orderTotal={
+          pendingSubAccountId
+            ? Number(
+                activeOrder?.subAccounts?.find((s) => s.id === pendingSubAccountId)?.total ??
+                  activeOrder?.total ??
+                  0
+              )
+            : Number(activeOrder?.total || 0)
+        }
+        defaultPercent={activeOrder?.tipPolicy?.tipDefaultPercent ?? 10}
+        currency={activeOrder?.tipCurrency || 'NIO'}
+        onConfirm={handleConfirmTip}
+        isSubmitting={requestBillMutation.isPending}
+      />
+
+      {/* Modal de aviso para productos sin enviar a cocina (267c) */}
+      <UnsentItemsConfirmModal
+        isOpen={isUnsentModalOpen}
+        onClose={() => setIsUnsentModalOpen(false)}
+        unsentCount={totalUnsentCount}
+        onSendAndRequest={handleSendAndRequestBill}
+        onContinueWithoutSending={handleContinueWithoutSending}
+        isSubmitting={
+          isSendingToKitchen || addItemsMutation.isPending || requestBillMutation.isPending
+        }
+      />
+
+      {/* Bottom Sheet de pre-cuenta para vista en pantalla e impresión (267c) */}
+      <PrebillBottomSheet
+        isOpen={isPrebillOpen}
+        onClose={() => setIsPrebillOpen(false)}
+        bill={currentBill}
+        receiptSettings={receiptSettings}
+        tableDisplayName={tableDisplayName}
       />
     </div>
   );

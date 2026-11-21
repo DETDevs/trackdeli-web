@@ -25,6 +25,9 @@ export interface WaiterAuthData {
 }
 
 export type TableShape = 'SQUARE' | 'ROUND' | 'RECTANGLE';
+export type PosTableDisplayStatus = 'FREE' | 'OCCUPIED' | 'BILL_REQUESTED';
+export type PosTableBillStatus = 'NONE' | 'REQUESTED';
+export type PosTableBillRecordStatus = 'ACTIVE' | 'SUPERSEDED' | 'PAID' | 'CANCELLED';
 
 export interface TableZone {
   id: string;
@@ -44,6 +47,10 @@ export interface TableStatusSummary {
   zoneName?: string | null;
   isOccupied: boolean;
   status: 'FREE' | 'OCCUPIED';
+  displayStatus?: PosTableDisplayStatus;
+  billStatus?: PosTableBillStatus;
+  billRequestedAt?: string | null;
+  billRequestedByName?: string | null;
   vehicleInfo?: string | null;
   workshopVehicleId?: string | null;
   activeOrder: {
@@ -52,6 +59,7 @@ export interface TableStatusSummary {
     customerName?: string | null;
     itemCount: number;
     total: number;
+    billStatus?: PosTableBillStatus;
   } | null;
 }
 
@@ -104,6 +112,12 @@ export interface OrderSubAccount {
   status: 'OPEN' | 'PAID' | string;
   saleId?: string | null;
   fixedAmount?: number | null;
+  billStatus?: PosTableBillStatus;
+  billRequestedAt?: string | null;
+  tipMode?: string | null;
+  tipPercent?: number | null;
+  tipAmount?: number | null;
+  tipCurrency?: string | null;
   itemsCount?: number;
   subtotal?: number;
   discount?: number;
@@ -129,6 +143,19 @@ export interface ActiveTableOrder {
   items: TableOrderItem[];
   splitMode?: 'ITEMS' | 'EQUAL' | null;
   splitVersion?: number;
+  billStatus?: PosTableBillStatus;
+  billRequestedAt?: string | null;
+  billRequestedByName?: string | null;
+  billVersion?: number;
+  tipMode?: 'NONE' | 'PERCENT' | 'CUSTOM' | string | null;
+  tipPercent?: number | null;
+  tipAmount?: number | null;
+  tipCurrency?: string | null;
+  tipPolicy?: {
+    tipEnabled: boolean;
+    tipDefaultPercent: number;
+    tipPresets?: number[];
+  };
   subAccounts?: OrderSubAccount[];
   discountPercent?: number;
   discountAmount?: number;
@@ -226,4 +253,142 @@ export interface MergeSubAccountsPayload {
 export interface UndoSplitPayload {
   splitVersion?: number;
 }
+
+// ============================================================
+// Tipos de cuenta / pre-cuenta y propina (Ticket 267c)
+// ============================================================
+
+export interface RequestTableBillTipDto {
+  mode: 'NONE' | 'PERCENT' | 'CUSTOM';
+  percent?: number;
+  amount?: number;
+  currency?: 'NIO' | 'USD';
+}
+
+export interface RequestTableBillPayload {
+  subAccountId?: string;
+  tip?: RequestTableBillTipDto;
+  clientRequestId?: string;
+}
+
+export interface PosTableBillSnapshotLine {
+  id?: string | null;
+  itemId?: string | null;
+  productId: string | null;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  discount?: number;
+  manualDiscountShare?: number;
+  taxable?: boolean;
+  taxRate?: number;
+  taxAmount?: number;
+  notes?: string | null;
+}
+
+export interface PosTableBillSnapshotTip {
+  mode: 'NONE' | 'PERCENT' | 'CUSTOM' | string;
+  percent: number | null;
+  amount: number;
+  currency: string;
+}
+
+export interface PosTableBillSnapshot {
+  businessName: string;
+  businessAddress: string | null;
+  businessPhone: string | null;
+  businessTaxId: string | null;
+  currency: string;
+  tableId: string;
+  tableNumber: string;
+  tableLabel: string;
+  zoneName: string;
+  subAccountId: string | null;
+  subAccountLabel: string | null;
+  splitMode: 'ITEMS' | 'EQUAL' | null;
+  waiterId: string | null;
+  waiterName: string | null;
+  customerName: string | null;
+  requestedById: string | null;
+  requestedByRole: string | null;
+  requestedByName: string | null;
+  requestedAt: string;
+  lines: PosTableBillSnapshotLine[];
+  items?: PosTableBillSnapshotLine[];
+  subtotal: number;
+  discountPercent: number;
+  discountAmount: number;
+  discountTotal: number;
+  subtotalBeforeTax: number;
+  taxEnabled: boolean;
+  taxIncluded: boolean;
+  taxRate: number;
+  taxAmount: number;
+  taxTotal: number;
+  total: number;
+  tipMode: string | null;
+  tipPercent: number | null;
+  tipAmount: number;
+  tipCurrency: string | null;
+  tip: PosTableBillSnapshotTip | null;
+  totalWithTip: number;
+  legend: string;
+  disclaimer?: string;
+  sequence: number;
+  isReprint: boolean;
+}
+
+export interface PosTableBill {
+  id: string;
+  businessId: string;
+  tableOrderId: string;
+  tableId: string;
+  subAccountId: string | null;
+  sequence: number;
+  status: PosTableBillRecordStatus;
+  supersededReason: string | null;
+  supersededAt: string | null;
+  requestedById: string | null;
+  requestedByRole: string | null;
+  requestedByName: string | null;
+  snapshot: PosTableBillSnapshot;
+  clientRequestId: string | null;
+  createdAt: string;
+  isReprint: boolean;
+}
+
+export interface ReceiptSettings {
+  businessName?: string;
+  taxId?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  receiptFooter?: string | null;
+  paperWidth?: '58mm' | '80mm';
+}
+
+export interface RequestTableBillResponse {
+  bill: PosTableBill;
+  isReprint: boolean;
+  tableOrder: ActiveTableOrder;
+  receiptSettings: ReceiptSettings;
+}
+
+export interface CancelTableBillRequestPayload {
+  subAccountId?: string;
+}
+
+export interface CancelTableBillRequestResponse {
+  success: boolean;
+  tableOrder: ActiveTableOrder;
+}
+
+export interface SetOrderTipPayload {
+  subAccountId?: string;
+  mode: 'NONE' | 'PERCENT' | 'CUSTOM';
+  percent?: number;
+  amount?: number;
+  currency?: 'NIO' | 'USD';
+}
+
 

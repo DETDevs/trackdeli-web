@@ -30,6 +30,7 @@ interface SplitAccountModalProps {
   tableNumber: string | number;
   tableDisplayName?: string;
   activeOrder: ActiveTableOrder | null;
+  onRequestSubAccountBill?: (subAccount: OrderSubAccount) => void;
 }
 
 export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
@@ -39,6 +40,7 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
   tableNumber,
   tableDisplayName,
   activeOrder,
+  onRequestSubAccountBill,
 }) => {
   // Estado local para configuración inicial cuando no está dividida
   const [selectedInitialMode, setSelectedInitialMode] = useState<'ITEMS' | 'EQUAL'>('ITEMS');
@@ -271,12 +273,12 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
                   {isDivided ? 'Cuentas divididas' : 'Dividir cuenta'}
                 </h2>
                 {isDivided && (
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 uppercase tracking-wider shrink-0">
+                  <span className="text-xs font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 uppercase tracking-wider shrink-0">
                     {activeOrder.splitMode === 'ITEMS' ? 'Por productos' : 'Partes iguales'}
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
+              <p className="text-xs text-gray-500 font-medium truncate mt-0.5">
                 {tableDisplayName || `Mesa ${tableNumber}`} • Total mesa: C$ {tableTotal.toFixed(2)}
               </p>
             </div>
@@ -300,7 +302,7 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
               <span className="text-2xl font-black text-indigo-950 font-mono mt-1 block">
                 C$ {tableTotal.toFixed(2)}
               </span>
-              <span className="text-[11px] text-indigo-700 font-medium mt-1 block">
+              <span className="text-xs text-indigo-700 font-medium mt-1 block">
                 {activeOrder.items.length} producto(s) en la comanda
               </span>
             </div>
@@ -421,7 +423,7 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
 
                 {/* Vista previa de cada parte calculada */}
                 <div className="space-y-1.5 pt-2 border-t border-gray-200">
-                  <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
                     Distribución calculada:
                   </span>
                   <div className="grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto pr-1">
@@ -473,8 +475,8 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
                     {subAccounts.length} {activeOrder.splitMode === 'ITEMS' ? 'cuentas' : 'partes'}:
                   </span>
                   {hasPaidAccounts && (
-                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                      <CheckCircle size={10} weight="fill" />
+                    <span className="text-xs font-black px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                      <CheckCircle size={12} weight="fill" />
                       {paidAccounts.length} pagada(s)
                     </span>
                   )}
@@ -509,25 +511,43 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
                 </div>
               </div>
 
-              {/* Carrusel horizontal de resumen de cada subcuenta con su total */}
+              {/* Carrusel horizontal de resumen de cada subcuenta con su total y botón pedir cuenta */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                 {subAccounts.map((sa) => {
                   const isPaid = sa.status === 'PAID';
                   const saTotal = Number(sa.fixedAmount ?? sa.total ?? 0);
+                  const isReq = sa.billStatus === 'REQUESTED';
                   return (
                     <div
                       key={sa.id}
                       className={`px-3 py-1.5 rounded-xl border shrink-0 text-xs flex items-center gap-2 transition-all ${
                         isPaid
                           ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold'
+                          : isReq
+                          ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold'
                           : 'bg-white border-gray-200 text-gray-800 font-semibold shadow-2xs'
                       }`}
                     >
                       <span className="font-extrabold">{sa.label}</span>
                       <span className="font-mono font-bold">C$ {saTotal.toFixed(2)}</span>
-                      {isPaid && (
+                      {isPaid ? (
                         <CheckCircle size={14} weight="fill" className="text-emerald-600" />
-                      )}
+                      ) : onRequestSubAccountBill ? (
+                        <button
+                          type="button"
+                          disabled={saTotal <= 0}
+                          onClick={() => onRequestSubAccountBill(sa)}
+                          className={`px-2 py-0.5 rounded-lg text-xs font-bold transition-colors cursor-pointer touch-manipulation flex items-center gap-1 shrink-0 ${
+                            isReq
+                              ? 'bg-indigo-200 text-indigo-950 border border-indigo-400'
+                              : 'bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300'
+                          }`}
+                          title={isReq ? 'Ver cuenta pedida' : 'Pedir cuenta de esta subcuenta'}
+                        >
+                          <Receipt size={13} weight="bold" />
+                          <span>{isReq ? 'Ver cuenta' : 'Pedir cuenta'}</span>
+                        </button>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -545,7 +565,7 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
                         ? 'No se puede deshacer la división completa'
                         : '¿Deshacer la división de la mesa?'}
                     </p>
-                    <p className="text-[11px] text-amber-900 leading-normal">
+                    <p className="text-xs text-amber-900 leading-normal">
                       {paidBlockedError || 'Se juntan todas las cuentas en una sola cuenta única.'}
                     </p>
                   </div>
@@ -603,7 +623,7 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
               {activeOrder.splitMode === 'ITEMS' ? (
                 /* MODO POR PRODUCTOS: LISTA DE RENGLONES CON CHIPS A, B, C... */
                 <div className="space-y-2.5">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
                     Tocá el chip de la cuenta (A, B, C...) para asignar cada renglón:
                   </p>
 
@@ -627,22 +647,22 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
                                 {item.productName}
                               </span>
                               {item.kitchenRoundId && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                                <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
                                   Enviado
                                 </span>
                               )}
                               {isItemInPaidAccount && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 flex items-center gap-0.5 shrink-0">
-                                  <CheckCircle size={10} weight="fill" />
+                                <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 flex items-center gap-0.5 shrink-0">
+                                  <CheckCircle size={12} weight="fill" />
                                   Cobrado
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-gray-500 font-mono mt-0.5">
+                            <p className="text-xs text-gray-500 font-mono mt-0.5">
                               {item.quantity} × C$ {item.unitPrice.toFixed(2)} = C$ {(item.subtotal ?? (item.quantity * item.unitPrice)).toFixed(2)}
                             </p>
                             {item.notes && (
-                              <p className="text-[10px] text-gray-400 italic truncate mt-0.5">
+                              <p className="text-xs text-gray-400 italic truncate mt-0.5">
                                 Nota: {item.notes}
                               </p>
                             )}
@@ -657,7 +677,7 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
 
                         {/* Fila de chips de cuentas para asignar este producto */}
                         <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1">
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mr-1">
                             Cuenta:
                           </span>
                           {subAccounts.map((sa) => {
@@ -695,7 +715,7 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
               ) : (
                 /* MODO EN PARTES IGUALES: LISTA DE PARTES */
                 <div className="space-y-2.5">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
                     Montos calculados en partes iguales para cobro individual:
                   </p>
 
@@ -703,6 +723,7 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
                     {subAccounts.map((sa, idx) => {
                       const isPaid = sa.status === 'PAID';
                       const saAmount = Number(sa.fixedAmount ?? sa.total ?? 0);
+                      const isReq = sa.billStatus === 'REQUESTED';
 
                       return (
                         <div
@@ -710,6 +731,8 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
                           className={`p-3.5 rounded-2xl border transition-all ${
                             isPaid
                               ? 'bg-emerald-50/70 border-emerald-300'
+                              : isReq
+                              ? 'bg-indigo-50/70 border-indigo-300'
                               : 'bg-white border-gray-200 shadow-2xs'
                           }`}
                         >
@@ -718,12 +741,16 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
                               {sa.label || `Parte ${idx + 1}`}
                             </span>
                             {isPaid ? (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 flex items-center gap-1">
+                              <span className="text-xs font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 flex items-center gap-1">
                                 <CheckCircle size={12} weight="fill" />
                                 Pagada ✓
                               </span>
+                            ) : isReq ? (
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-200">
+                                Cuenta pedida
+                              </span>
                             ) : (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
                                 Abierta
                               </span>
                             )}
@@ -731,11 +758,30 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
                           <p className="text-lg font-black font-mono text-gray-950 mt-1">
                             C$ {saAmount.toFixed(2)}
                           </p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">
+                          <p className="text-xs text-gray-400 mt-0.5">
                             {isPaid
                               ? 'Cobrada por el cajero'
                               : 'Pendiente de cobro en caja'}
                           </p>
+
+                          {/* Botón pedir cuenta de esta parte */}
+                          {!isPaid && onRequestSubAccountBill && (
+                            <div className="mt-2.5 pt-2 border-t border-gray-100">
+                              <button
+                                type="button"
+                                disabled={saAmount <= 0}
+                                onClick={() => onRequestSubAccountBill(sa)}
+                                className={`w-full py-2 px-3 rounded-xl text-xs font-extrabold border transition-colors flex items-center justify-center gap-1.5 cursor-pointer touch-manipulation disabled:opacity-40 ${
+                                  isReq
+                                    ? 'bg-indigo-100 text-indigo-950 border-indigo-300'
+                                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border-indigo-200'
+                                }`}
+                              >
+                                <Receipt size={14} weight="bold" />
+                                <span>{isReq ? 'Ver cuenta pedida' : 'Pedir cuenta'}</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -756,7 +802,7 @@ export const SplitAccountModal: React.FC<SplitAccountModalProps> = ({
               </div>
 
               <div className="mt-2 pt-2 border-t border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-1 text-[11px] font-bold">
+                <div className="flex items-center gap-1 text-xs font-bold">
                   {isSumMatching ? (
                     <span className="text-emerald-700 flex items-center gap-1">
                       <CheckCircle size={14} weight="fill" />

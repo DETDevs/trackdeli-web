@@ -58,8 +58,8 @@ export const TablesPage: React.FC = () => {
     }
   });
 
-  // Filtro de estado: Todas / Ocupadas / Libres
-  const [statusFilter, setStatusFilter] = useState<'all' | 'free' | 'occupied'>('all');
+  // Filtro de estado: Todas / Cuenta pedida / Ocupadas / Libres
+  const [statusFilter, setStatusFilter] = useState<'all' | 'bill_requested' | 'occupied' | 'free'>('all');
 
   // Guardar la zona seleccionada en sessionStorage al cambiar
   useEffect(() => {
@@ -186,22 +186,41 @@ export const TablesPage: React.FC = () => {
     );
   }, [tables, selectedZoneId]);
 
-  // 2. Conteos de estado (Ocupadas / Libres) dentro de la zona elegida (A.2)
+  // Helper para identificar mesas con cuenta pedida
+  const isBillRequestedTable = useCallback((t: TableStatusSummary): boolean => {
+    return Boolean(
+      t.displayStatus === 'BILL_REQUESTED' ||
+      t.billStatus === 'REQUESTED' ||
+      t.activeOrder?.billStatus === 'REQUESTED'
+    );
+  }, []);
+
+  // 2. Conteos de estado (Cuenta pedida / Ocupadas / Libres) dentro de la zona elegida
+  const billRequestedCountInZone = useMemo(() => {
+    return tablesInSelectedZone.filter(isBillRequestedTable).length;
+  }, [tablesInSelectedZone, isBillRequestedTable]);
+
   const occupiedCountInZone = useMemo(() => {
-    return tablesInSelectedZone.filter((t) => t.isOccupied && Boolean(t.activeOrder)).length;
+    return tablesInSelectedZone.filter(
+      (t) => t.isOccupied && Boolean(t.activeOrder) && !isBillRequestedTable(t)
+    ).length;
+  }, [tablesInSelectedZone, isBillRequestedTable]);
+
+  const freeCountInZone = useMemo(() => {
+    return tablesInSelectedZone.filter((t) => !t.isOccupied || !t.activeOrder).length;
   }, [tablesInSelectedZone]);
 
-  const freeCountInZone = tablesInSelectedZone.length - occupiedCountInZone;
-
-  // 3. Filtrar por estado (Todas / Ocupadas / Libres)
+  // 3. Filtrar por estado (Todas / Cuenta pedida / Ocupadas / Libres)
   const displayedTables = useMemo(() => {
     return tablesInSelectedZone.filter((t) => {
-      const isOccupied = t.isOccupied && Boolean(t.activeOrder);
-      if (statusFilter === 'free') return !isOccupied;
-      if (statusFilter === 'occupied') return isOccupied;
+      const isReq = isBillRequestedTable(t);
+      const isOcc = t.isOccupied && Boolean(t.activeOrder) && !isReq;
+      if (statusFilter === 'free') return !t.isOccupied || !t.activeOrder;
+      if (statusFilter === 'bill_requested') return isReq;
+      if (statusFilter === 'occupied') return isOcc;
       return true;
     });
-  }, [tablesInSelectedZone, statusFilter]);
+  }, [tablesInSelectedZone, statusFilter, isBillRequestedTable]);
 
   // 4. En vista "Todas" (selectedZoneId === 'ALL'), agrupar mesas por zona con encabezado (A.3)
   const groupedSections = useMemo(() => {
@@ -365,7 +384,7 @@ export const TablesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer touch-manipulation ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer touch-manipulation shrink-0 ${
                 statusFilter === 'all'
                   ? 'bg-gray-900 text-white shadow-xs'
                   : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
@@ -376,8 +395,22 @@ export const TablesPage: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => setStatusFilter('bill_requested')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer touch-manipulation flex items-center gap-1 shrink-0 ${
+                statusFilter === 'bill_requested'
+                  ? 'bg-indigo-700 text-white shadow-xs'
+                  : billRequestedCountInZone > 0
+                  ? 'bg-indigo-50 text-indigo-900 border border-indigo-200 hover:border-indigo-300'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              Cuenta pedida ({billRequestedCountInZone})
+            </button>
+
+            <button
+              type="button"
               onClick={() => setStatusFilter('occupied')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer touch-manipulation flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer touch-manipulation flex items-center gap-1 shrink-0 ${
                 statusFilter === 'occupied'
                   ? 'bg-amber-500 text-white shadow-xs'
                   : 'bg-white text-amber-800 border border-amber-200 hover:border-amber-300'
@@ -389,7 +422,7 @@ export const TablesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setStatusFilter('free')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer touch-manipulation flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer touch-manipulation flex items-center gap-1 shrink-0 ${
                 statusFilter === 'free'
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'bg-white text-emerald-800 border border-emerald-200 hover:border-emerald-300'
@@ -411,7 +444,7 @@ export const TablesPage: React.FC = () => {
               }`}
             />
             <span
-              className={`text-[11px] font-semibold transition-colors ${
+              className={`text-xs font-semibold transition-colors ${
                 isLive
                   ? 'text-emerald-700'
                   : isErrorOrOffline
@@ -487,12 +520,12 @@ export const TablesPage: React.FC = () => {
                     <h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-900">
                       {sec.zone.name}
                     </h2>
-                    <span className="text-[11px] font-semibold text-gray-400">
+                    <span className="text-xs font-semibold text-gray-400">
                       ({sec.tables.length})
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-500">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
                     <span className="text-emerald-700 font-semibold">
                       {sec.freeCount} {sec.freeCount === 1 ? 'libre' : 'libres'}
                     </span>
