@@ -145,10 +145,27 @@ export interface PosProductItem {
   initialLotNumber?: string;
   initialExpiryDate?: string;
   components?: Array<{
+    id?: string;
     productId: string;
     quantity: number;
     productName?: string;
+    name?: string;
+    unit?: string;
+    currentStock?: number;
+    price?: number;
+    cost?: number | null;
   }>;
+}
+
+export interface PosRecipeComponentItem {
+  id?: string;
+  productId: string;
+  name: string;
+  unit: string;
+  currentStock: number;
+  quantity: number;
+  price?: number;
+  cost?: number | null;
 }
 
 export interface CreateSaleItemPayload {
@@ -767,6 +784,34 @@ export const updatePosProduct = async (
 export const deletePosProduct = async (id: string): Promise<any> => {
   const res = await apiClient.delete<any>(`/pos/products/${id}`);
   return res.data;
+};
+
+export const getPosProductComponents = async (
+  productId: string,
+  businessId?: string,
+): Promise<PosRecipeComponentItem[]> => {
+  const res = await apiClient.get<PosRecipeComponentItem[]>(
+    `/pos/products/${productId}/components`,
+    {
+      params: businessId ? { businessId } : undefined,
+    },
+  );
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const setPosProductComponents = async (
+  productId: string,
+  components: Array<{ productId: string; quantity: number }>,
+  businessId?: string,
+): Promise<PosRecipeComponentItem[]> => {
+  const res = await apiClient.put<PosRecipeComponentItem[]>(
+    `/pos/products/${productId}/components`,
+    { components },
+    {
+      params: businessId ? { businessId } : undefined,
+    },
+  );
+  return Array.isArray(res.data) ? res.data : [];
 };
 
 export const adjustPosProductStock = async (

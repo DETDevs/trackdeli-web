@@ -26,8 +26,12 @@ import {
   type PosSettingsData,
   type PosInventoryAdjustmentType,
   type PosSupplier,
+  type PosRecipeComponentItem,
   createPosProduct,
   updatePosProduct,
+  getPosProducts,
+  getPosProductComponents,
+  setPosProductComponents,
   getPosSuppliers,
   getPosProductFields,
   getPosProductBatches,
@@ -215,6 +219,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [suppliers, setSuppliers] = useState<PosSupplier[]>([]);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [productFields, setProductFields] = useState<ProductField[]>([]);
+  const [catalogCandidates, setCatalogCandidates] = useState<PosProductItem[]>([]);
+  const [recipeComponents, setRecipeComponents] = useState<PosRecipeComponentItem[]>([]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [candidateQty, setCandidateQty] = useState('1');
+  const [componentError, setComponentError] = useState<string | null>(null);
+  const [includeLaborInService, setIncludeLaborInService] = useState(false);
+  const [serviceLaborAmount, setServiceLaborAmount] = useState('');
 
   // Accordion & UI states
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
@@ -265,6 +276,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     getPosProductFields()
       .then((data) => setProductFields(Array.isArray(data) ? data : []))
       .catch(() => setProductFields([]));
+
+    getPosProducts()
+      .then((data) => setCatalogCandidates(Array.isArray(data) ? data : []))
+      .catch(() => setCatalogCandidates([]));
   }, [isOpen]);
 
   const loadBatches = useCallback(async (productId: string) => {
@@ -474,6 +489,46 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         setSingleBatchExpiry('');
         setOriginalSingleBatch(null);
       }
+
+      setIncludeLaborInService(false);
+      setServiceLaborAmount('');
+      setSelectedCandidateId('');
+      setCandidateQty('1');
+      setComponentError(null);
+
+      if (product.components && Array.isArray(product.components)) {
+        setRecipeComponents(
+          product.components.map((c: any) => ({
+            productId: c.productId,
+            name: c.name || c.productName || 'Insumo',
+            unit: c.unit || 'UND',
+            currentStock: Number(c.currentStock ?? 0),
+            quantity: Number(c.quantity),
+            price: c.price != null ? Number(c.price) : undefined,
+            cost: c.cost !== undefined ? (c.cost != null ? Number(c.cost) : null) : undefined,
+          })),
+        );
+      } else {
+        setRecipeComponents([]);
+      }
+
+      if (product.id && nextType === 'SERVICE') {
+        getPosProductComponents(product.id)
+          .then((list) => {
+            setRecipeComponents(
+              list.map((c) => ({
+                productId: c.productId,
+                name: c.name || 'Insumo',
+                unit: c.unit || 'UND',
+                currentStock: Number(c.currentStock ?? 0),
+                quantity: Number(c.quantity),
+                price: c.price != null ? Number(c.price) : undefined,
+                cost: c.cost !== undefined ? (c.cost != null ? Number(c.cost) : null) : undefined,
+              })),
+            );
+          })
+          .catch(() => {});
+      }
     } else {
       const defaultCatId = categories[0]?.id || '';
       const defaultTrackStock = !isRestaurant;
@@ -513,6 +568,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setSingleBatchNumber('');
       setSingleBatchExpiry('');
       setOriginalSingleBatch(null);
+      setRecipeComponents([]);
+      setIncludeLaborInService(false);
+      setServiceLaborAmount('');
+      setSelectedCandidateId('');
+      setCandidateQty('1');
+      setComponentError(null);
       setOpenSections({
         basic: true,
         pricing: true,
@@ -601,6 +662,146 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     () => computeProfitSummary(numericPrice, numericCost, unit, currency),
     [numericPrice, numericCost, unit, currency],
   );
+
+  // Candidatos elegibles para componentes de Servicio / Combo
+  const stockedCandidates = useMemo(() => {
+    if (!isService) return [];
+    return catalogCandidates.filter((p) => {
+      if (!p) return false;
+      if (p.trackStock === false || p.type === 'SERVICE' || p.isService) return false;
+      if (p.isActive === false) return false;
+      if (product?.id && p.id === product.id) return false;
+      if (p.isRecipe) return false;
+      if (recipeComponents.some((c) => c.productId === p.id)) return false;
+      return true;
+    });
+  }, [catalogCandidates, isService, product?.id, recipeComponents]);
+
+  const selectedCandidate = useMemo(
+    () => catalogCandidates.find((p) => p.id === selectedCandidateId),
+    [catalogCandidates, selectedCandidateId],
+  );
+
+  const handleAddComponent = () => {
+    setComponentError(null);
+    if (!selectedCandidateId) {
+      setComponentError('Seleccioná un insumo o producto de la lista.');
+      return;
+    }
+    const candidate = catalogCandidates.find((p) => p.id === selectedCandidateId);
+    if (!candidate) return;
+
+    const isCandUnd = (candidate.unit || 'UND') === 'UND';
+    const numQty = parseFloat(candidateQty);
+    if (isNaN(numQty) || numQty <= 0) {
+      setComponentError('Ingresá una cantidad mayor a 0.');
+      return;
+    }
+    if (isCandUnd && !Number.isInteger(numQty)) {
+      setComponentError(`"${candidate.name}" se maneja en unidades (UND); la cantidad debe ser entera.`);
+      return;
+    }
+
+    const cleanQty = isCandUnd ? parseInt(candidateQty, 10) : Number(numQty.toFixed(3));
+    setRecipeComponents((prev) => [
+      ...prev,
+      {
+        productId: candidate.id,
+        name: candidate.name,
+        unit: candidate.unit || 'UND',
+        currentStock: Number(candidate.stock ?? 0),
+        quantity: cleanQty,
+        price: Number(candidate.price || 0),
+        cost: candidate.cost != null ? Number(candidate.cost) : null,
+      },
+    ]);
+    setSelectedCandidateId('');
+    setCandidateQty('1');
+  };
+
+  const handleRemoveComponent = (prodId: string) => {
+    setRecipeComponents((prev) => prev.filter((c) => c.productId !== prodId));
+  };
+
+  const handleUpdateComponentQty = (prodId: string, val: string) => {
+    setRecipeComponents((prev) =>
+      prev.map((c) => {
+        if (c.productId !== prodId) return c;
+        const isCandUnd = (c.unit || 'UND') === 'UND';
+        const num = parseFloat(val);
+        if (isNaN(num)) return { ...c, quantity: 0 };
+        const clean = isCandUnd
+          ? Math.max(0, parseInt(val, 10) || 0)
+          : Math.max(0, Number(num.toFixed(3)));
+        return { ...c, quantity: clean };
+      }),
+    );
+  };
+
+  const recipeTotals = useMemo(() => {
+    if (!isService || recipeComponents.length === 0) {
+      return {
+        hasComponents: false,
+        totalCost: 0,
+        hasAnyCost: false,
+        totalRetailPrice: 0,
+      };
+    }
+
+    let totalCost = 0;
+    let hasAnyCost = false;
+    let totalRetailPrice = 0;
+
+    for (const comp of recipeComponents) {
+      const catMatch = catalogCandidates.find((p) => p.id === comp.productId);
+      const unitCost =
+        comp.cost !== undefined
+          ? comp.cost
+          : catMatch?.cost != null
+            ? Number(catMatch.cost)
+            : null;
+      const unitPrice =
+        comp.price !== undefined
+          ? Number(comp.price)
+          : catMatch
+            ? Number(catMatch.price || 0)
+            : 0;
+      const qty = Number(comp.quantity || 0);
+      totalRetailPrice += qty * unitPrice;
+      if (unitCost !== null && unitCost !== undefined && !isNaN(Number(unitCost))) {
+        hasAnyCost = true;
+        totalCost += qty * Number(unitCost);
+      }
+    }
+
+    return {
+      hasComponents: true,
+      totalCost: Math.round(totalCost * 100) / 100,
+      hasAnyCost,
+      totalRetailPrice: Math.round(totalRetailPrice * 100) / 100,
+    };
+  }, [isService, recipeComponents, catalogCandidates]);
+
+  useEffect(() => {
+    if (!isService || !recipeTotals.hasComponents) return;
+    if (recipeTotals.hasAnyCost) {
+      setCost(String(recipeTotals.totalCost));
+    }
+    if (includeLaborInService) {
+      const laborNum = parseFloat(serviceLaborAmount.replace(',', '.')) || 0;
+      const nextTotal =
+        Math.round((recipeTotals.totalRetailPrice + Math.max(0, laborNum)) * 100) / 100;
+      setPrice(String(nextTotal));
+    }
+  }, [
+    isService,
+    recipeTotals.hasComponents,
+    recipeTotals.hasAnyCost,
+    recipeTotals.totalCost,
+    recipeTotals.totalRetailPrice,
+    includeLaborInService,
+    serviceLaborAmount,
+  ]);
 
   const currentSnapshot = buildFormSnapshot({
     itemType,
@@ -797,6 +998,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       nextFieldErrors.singleBatchNumber = 'El número de lote no puede estar vacío.';
     }
 
+    if (isService && recipeComponents.length > 0) {
+      const invalidComp = recipeComponents.find((c) => !c.quantity || Number(c.quantity) <= 0);
+      if (invalidComp) {
+        nextFieldErrors.recipeComponents = `El insumo "${invalidComp.name}" debe tener una cantidad mayor a 0.`;
+      }
+    }
+
     if (Object.keys(nextFieldErrors).length > 0) {
       setFieldErrors(nextFieldErrors);
       setOpenSections({
@@ -917,8 +1125,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
     setIsSubmitting(true);
     try {
+      let savedProduct: PosProductItem;
       if (product) {
-        await updatePosProduct(product.id, payload);
+        savedProduct = await updatePosProduct(product.id, payload);
         if (canManageBatches && tracksBatches && singleBatchId && originalSingleBatch) {
           if (
             singleBatchNumber.trim() !== originalSingleBatch.number ||
@@ -931,8 +1140,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           }
         }
       } else {
-        const created = await createPosProduct(payload);
-        onProductCreated?.(created);
+        savedProduct = await createPosProduct(payload);
+      }
+
+      if (isService) {
+        await setPosProductComponents(
+          savedProduct.id,
+          recipeComponents.map((c) => ({
+            productId: c.productId,
+            quantity: Number(c.quantity),
+          })),
+        );
+      } else if (product?.isRecipe) {
+        await setPosProductComponents(savedProduct.id, []);
+      }
+
+      if (!product) {
+        onProductCreated?.(savedProduct);
       }
 
       onSaved();
@@ -2445,6 +2669,362 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         )}
                       </>
                     )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* INSUMOS / COMPONENTES DEL COMBO O SERVICIO (solo SERVICIO) */}
+            {isService && (
+              <section className="rounded-2xl border border-purple-200/80 bg-purple-50/40 p-4 space-y-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-purple-950 uppercase tracking-wider">
+                      Insumos / Componentes del Combo
+                    </h4>
+                    <p className="text-xs text-purple-800/80 mt-0.5">
+                      Agregá los productos que se descuentan del inventario cada vez que vendés este combo o servicio (por ejemplo, gaseosas para una canasta o insumos de taller).
+                    </p>
+                  </div>
+                  {recipeComponents.length > 0 && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-900 shrink-0">
+                      {recipeComponents.length}{' '}
+                      {recipeComponents.length === 1 ? 'componente' : 'componentes'}
+                    </span>
+                  )}
+                </div>
+
+                {!isReadOnly && (
+                  <div className="bg-white p-3 rounded-xl border border-purple-200/80 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                      <div className="sm:col-span-7">
+                        <label className="block text-xs font-semibold text-gray-800 mb-1">
+                          Buscar insumo o producto (solo con control de existencia)
+                        </label>
+                        <select
+                          value={selectedCandidateId}
+                          onChange={(e) => {
+                            setSelectedCandidateId(e.target.value);
+                            setComponentError(null);
+                          }}
+                          className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 focus:outline-none focus:border-purple-600"
+                        >
+                          <option value="">Seleccioná un insumo o producto...</option>
+                          {stockedCandidates.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} — Stock: {Number(Number(c.stock || 0).toFixed(3))}{' '}
+                              {c.unit || 'UND'} · {formatCurrency(Number(c.price || 0), currency)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-3">
+                        <label className="block text-xs font-semibold text-gray-800 mb-1">
+                          Cantidad{' '}
+                          {selectedCandidate && (
+                            <span className="text-purple-700 font-mono">
+                              ({selectedCandidate.unit || 'UND'})
+                            </span>
+                          )}
+                        </label>
+                        <input
+                          type="number"
+                          step={selectedCandidate?.unit === 'UND' ? '1' : '0.001'}
+                          min="0.001"
+                          value={candidateQty}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            setCandidateQty(e.target.value);
+                            setComponentError(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddComponent();
+                            }
+                          }}
+                          placeholder="1"
+                          className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-white text-xs font-mono text-gray-900 focus:outline-none focus:border-purple-600"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <button
+                          type="button"
+                          onClick={handleAddComponent}
+                          className="w-full h-11 px-3 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <Plus size={14} weight="bold" />
+                          <span>Agregar</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {(componentError || fieldErrors.recipeComponents) && (
+                      <p className="text-xs text-red-700 font-medium">
+                        {componentError || fieldErrors.recipeComponents}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {recipeComponents.length === 0 ? (
+                  <div className="text-center py-3 px-4 bg-white/70 border border-dashed border-purple-200 rounded-xl text-purple-700 text-xs">
+                    Sin componentes configurados. Si el servicio no consume inventario (ej. solo mano de obra), podés guardarlo sin insumos.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="bg-white rounded-xl border border-purple-200/80 overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-purple-50/70 border-b border-purple-100 text-purple-950 font-semibold">
+                          <tr>
+                            <th className="py-2 px-3">Producto / Insumo</th>
+                            <th className="py-2 px-2 text-center">Stock</th>
+                            <th className="py-2 px-2 text-right">Costo u.</th>
+                            <th className="py-2 px-2 text-right">Precio u.</th>
+                            <th className="py-2 px-3 text-right">Cantidad</th>
+                            <th className="py-2 px-3 text-right">Subtotal</th>
+                            {!isReadOnly && <th className="py-2 px-2 text-center w-9"></th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {recipeComponents.map((comp) => {
+                            const isCompUnd = (comp.unit || 'UND') === 'UND';
+                            const catMatch = catalogCandidates.find((p) => p.id === comp.productId);
+                            const unitCost =
+                              comp.cost !== undefined
+                                ? comp.cost
+                                : catMatch?.cost != null
+                                  ? Number(catMatch.cost)
+                                  : null;
+                            const unitPrice =
+                              comp.price !== undefined
+                                ? Number(comp.price)
+                                : catMatch
+                                  ? Number(catMatch.price || 0)
+                                  : 0;
+                            const lineRetailSubtotal =
+                              Math.round(Number(comp.quantity || 0) * unitPrice * 100) / 100;
+
+                            return (
+                              <tr key={comp.productId} className="hover:bg-purple-50/30">
+                                <td className="py-2 px-3 font-semibold text-gray-900">
+                                  {comp.name}
+                                </td>
+                                <td className="py-2 px-2 text-center font-mono text-gray-600">
+                                  {Number(Number(comp.currentStock || 0).toFixed(3))}{' '}
+                                  {comp.unit || 'UND'}
+                                </td>
+                                <td className="py-2 px-2 text-right font-mono text-gray-600">
+                                  {unitCost !== null && unitCost !== undefined
+                                    ? formatCurrency(Number(unitCost), currency)
+                                    : '—'}
+                                </td>
+                                <td className="py-2 px-2 text-right font-mono text-gray-700 font-medium">
+                                  {formatCurrency(unitPrice, currency)}
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  {isReadOnly ? (
+                                    <span className="font-semibold font-mono text-gray-900">
+                                      {Number(Number(comp.quantity).toFixed(3))} {comp.unit || 'UND'}
+                                    </span>
+                                  ) : (
+                                    <div className="inline-flex items-center gap-1.5 justify-end">
+                                      <input
+                                        type="number"
+                                        step={isCompUnd ? '1' : '0.001'}
+                                        min="0.001"
+                                        value={comp.quantity}
+                                        onFocus={(e) => e.target.select()}
+                                        onChange={(e) =>
+                                          handleUpdateComponentQty(comp.productId, e.target.value)
+                                        }
+                                        className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-xs font-mono text-right focus:outline-none focus:border-purple-600"
+                                      />
+                                      <span className="font-mono text-gray-500 text-xs">
+                                        {comp.unit || 'UND'}
+                                      </span>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono font-bold text-gray-900">
+                                  {formatCurrency(lineRetailSubtotal, currency)}
+                                </td>
+                                {!isReadOnly && (
+                                  <td className="py-2 px-2 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveComponent(comp.productId)}
+                                      className="p-1 text-gray-400 hover:text-red-600 transition-colors rounded cursor-pointer"
+                                      title="Quitar insumo"
+                                    >
+                                      <Trash size={14} />
+                                    </button>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Resumen financiero de insumos + Switch de Mano de Obra */}
+                    <div className="bg-white rounded-xl border border-purple-200 p-3.5 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                        <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-200/80">
+                          <span className="text-gray-500 block">Costo total de insumos (COGS)</span>
+                          <span className="text-sm font-bold text-gray-900 font-mono mt-0.5 block">
+                            {recipeTotals.hasAnyCost
+                              ? formatCurrency(recipeTotals.totalCost, currency)
+                              : 'Sin costo'}
+                          </span>
+                          <span className="text-[11px] text-gray-500">
+                            Se registra como costo para reportes y utilidad
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-lg bg-purple-50/70 border border-purple-200/70">
+                          <span className="text-purple-800 block">Suma precios sueltos</span>
+                          <div className="flex items-center justify-between gap-2 mt-0.5">
+                            <span className="text-sm font-bold text-purple-950 font-mono">
+                              {formatCurrency(recipeTotals.totalRetailPrice, currency)}
+                            </span>
+                            {!isReadOnly &&
+                              !includeLaborInService &&
+                              recipeTotals.totalRetailPrice > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPrice(String(recipeTotals.totalRetailPrice))}
+                                  className="text-[11px] font-semibold text-purple-700 hover:text-purple-900 underline cursor-pointer"
+                                >
+                                  Usar suma
+                                </button>
+                              )}
+                          </div>
+                          <span className="text-[11px] text-purple-700/80">
+                            Valor normal si se vendieran por separado
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-200/70">
+                          <span className="text-emerald-800 block">Utilidad neta estimada</span>
+                          {numericPrice !== null && numericPrice >= 0 ? (
+                            <>
+                              <span
+                                className={`text-sm font-bold font-mono mt-0.5 block ${
+                                  numericPrice - recipeTotals.totalCost >= 0
+                                    ? 'text-emerald-800'
+                                    : 'text-red-600'
+                                }`}
+                              >
+                                {formatCurrency(numericPrice - recipeTotals.totalCost, currency)}
+                              </span>
+                              <span className="text-[11px] text-emerald-700/80">
+                                {!includeLaborInService &&
+                                recipeTotals.totalRetailPrice > numericPrice &&
+                                numericPrice > 0
+                                  ? `Ahorro combo cliente: ${formatCurrency(
+                                      recipeTotals.totalRetailPrice - numericPrice,
+                                      currency,
+                                    )}`
+                                  : 'Precio de venta − Costo de insumos'}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs text-gray-400 mt-0.5 block">
+                              Definí el precio de venta
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-purple-100 space-y-2.5">
+                        <label className="flex items-center justify-between gap-3 cursor-pointer">
+                          <div>
+                            <span className="text-xs font-semibold text-gray-900 block">
+                              Sumar mano de obra al precio de los productos
+                            </span>
+                            <p className="text-[11px] text-gray-500">
+                              Activalo para servicios con insumos (ej. cambio de aceite + mano de obra). Dejalo apagado para combos con precio promocional fijo (ej. 3 gaseosas a C$120).
+                            </p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            disabled={isReadOnly}
+                            checked={includeLaborInService}
+                            onChange={(e) => {
+                              const next = e.target.checked;
+                              setIncludeLaborInService(next);
+                              if (next) {
+                                const currentP = numericPrice ?? 0;
+                                const inferredLabor = Math.max(
+                                  0,
+                                  Math.round((currentP - recipeTotals.totalRetailPrice) * 100) /
+                                    100,
+                                );
+                                const nextLaborStr =
+                                  serviceLaborAmount.trim() !== ''
+                                    ? serviceLaborAmount
+                                    : inferredLabor > 0
+                                      ? String(inferredLabor)
+                                      : '0';
+                                setServiceLaborAmount(nextLaborStr);
+                                const laborVal =
+                                  parseFloat(nextLaborStr.replace(',', '.')) || 0;
+                                setPrice(
+                                  String(
+                                    Math.round(
+                                      (recipeTotals.totalRetailPrice + laborVal) * 100,
+                                    ) / 100,
+                                  ),
+                                );
+                              }
+                            }}
+                            className="w-5 h-5 text-purple-600 rounded border-gray-300 shrink-0"
+                          />
+                        </label>
+
+                        {includeLaborInService && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center pt-1">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-800 mb-1">
+                                Mano de obra / cargo del servicio ({currency})
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                disabled={isReadOnly}
+                                value={serviceLaborAmount}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => setServiceLaborAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full h-11 px-3 rounded-xl border border-purple-300 bg-white text-xs font-mono font-bold text-gray-900 focus:outline-none focus:border-purple-600"
+                              />
+                            </div>
+                            <div className="text-xs text-purple-950 bg-purple-50/80 p-2.5 rounded-xl border border-purple-200/80 space-y-0.5">
+                              <div>
+                                Productos ({formatCurrency(recipeTotals.totalRetailPrice, currency)}) + Mano de obra (
+                                {formatCurrency(
+                                  parseFloat(serviceLaborAmount.replace(',', '.')) || 0,
+                                  currency,
+                                )})
+                              </div>
+                              <div className="font-bold text-sm text-purple-900 font-mono">
+                                Precio de venta final:{' '}
+                                {formatCurrency(
+                                  recipeTotals.totalRetailPrice +
+                                    (parseFloat(serviceLaborAmount.replace(',', '.')) || 0),
+                                  currency,
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </section>
