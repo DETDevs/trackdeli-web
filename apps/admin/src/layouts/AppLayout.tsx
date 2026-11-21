@@ -19,6 +19,7 @@ import { MembershipBanner } from '../components/notifications/MembershipBanner';
 import { MembershipStatusModal } from '../components/notifications/MembershipStatusModal';
 import { NotificationCenterDrawer } from '../components/notifications/NotificationCenterDrawer';
 import { useNotificationCenterStore } from '../store/notificationCenter.store';
+import { isRestaurantSalonBusiness } from '../utils/salonVertical';
 
 const decodeTokenBusinessId = (token: string | null): string | null => {
   if (!token) return null;
@@ -61,13 +62,15 @@ export const AppLayout = () => {
     });
   };
 
-  const { data: business } = useQuery({
+  const { data: business, isLoading: isLoadingBusiness } = useQuery({
     queryKey: ['business', 'me'],
     queryFn: getMyBusiness,
     enabled: user?.role !== 'VENDEDOR',
     staleTime: 60000,
     retry: false,
   });
+
+  const isRestaurant = isRestaurantSalonBusiness(business, (user as any)?.business);
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -262,9 +265,10 @@ export const AppLayout = () => {
       (new URLSearchParams(location.search).get('fullscreen') === 'true' ||
         localStorage.getItem('pos_fullscreen') === 'true'));
 
-  // 1. Cajero solo puede acceder a rutas operativas del POS y Configuración restringida (Ticket 251b, 257b, 257e)
+  // 1. Cajero solo puede acceder a rutas operativas del POS y Configuración restringida (Ticket 251b, 257b, 257e, 269b)
   const isAllowedCajeroPos =
     isPosCobrar ||
+    location.pathname.startsWith('/pos/tables') ||
     location.pathname.startsWith('/pos/inventory') ||
     location.pathname.startsWith('/pos/sales') ||
     location.pathname.startsWith('/pos/quotes') ||
@@ -277,6 +281,11 @@ export const AppLayout = () => {
   // Vendedor solo accede a Proformas en web admin
   if (isVendedor && !location.pathname.startsWith('/pos/quotes')) {
     return <Navigate to="/pos/quotes" replace />;
+  }
+
+  // Salón (/pos/tables) solo abre en negocios de rubro restaurante (y no taller)
+  if (location.pathname.startsWith('/pos/tables') && !isLoadingBusiness && !isRestaurant) {
+    return <Navigate to={isCajero ? '/pos/cobrar' : '/pos/dashboard'} replace />;
   }
 
   // 2. Modo pantalla completa para POS en Cobrar
@@ -364,6 +373,7 @@ export const AppLayout = () => {
           isPosManager={isPosManager}
           isCajero={isCajero}
           isVendedor={isVendedor}
+          isRestaurant={isRestaurant}
           isDeliveryActive={isDeliveryActive}
           hasCarteraCobro={hasCarteraCobro}
         />

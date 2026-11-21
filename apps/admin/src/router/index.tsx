@@ -23,6 +23,8 @@ import { PosSalesPage } from "../pages/pos/PosSalesPage";
 import { PosAnalyticsPage } from "../pages/pos/PosAnalyticsPage";
 import { PosInventoryPage } from "../pages/pos/PosInventoryPage";
 import { PosPurchasesPage } from "../pages/pos/PosPurchasesPage";
+import { PosTablesPage } from "../pages/pos/PosTablesPage";
+import { PosTableOrderPlaceholderPage } from "../pages/pos/PosTableOrderPlaceholderPage";
 import { PosCashRegistersPage } from "../pages/pos/PosCashRegistersPage";
 import { PosCobrarPage } from "../pages/pos/PosCobrarPage";
 import { PosQuotesPage } from "../pages/pos/PosQuotesPage";
@@ -102,6 +104,8 @@ const router = createBrowserRouter([
       { path: "pos/analytics", element: <PosAnalyticsPage /> },
       { path: "pos/inventory", element: <PosInventoryPage /> },
       { path: "pos/purchases", element: <PosPurchasesPage /> },
+      { path: "pos/tables", element: <PosTablesPage /> },
+      { path: "pos/tables/:id", element: <PosTableOrderPlaceholderPage /> },
       { path: "pos/cash-registers", element: <PosCashRegistersPage /> },
       { path: "pos/reports", element: <ReportsPage /> },
       { path: "pos/cobrar", element: <PosCobrarPage /> },

@@ -2004,6 +2004,134 @@ export const importPosProducts = async (params: {
   return res.data;
 };
 
+// ============================================================
+// Salón y mesas (Ticket 269b — solo zonas, estado y abrir orden)
+// ============================================================
+
+export type PosTableShape = 'ROUND' | 'SQUARE';
+export type PosTableStatus = 'FREE' | 'OCCUPIED';
+
+export interface PosSalonZoneTablesCount {
+  total: number;
+  free: number;
+  occupied: number;
+  libres: number;
+  ocupadas: number;
+}
+
+export interface PosSalonZone {
+  id: string;
+  businessId: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  tablesCount?: PosSalonZoneTablesCount;
+}
+
+export interface PosTableWaiterSummary {
+  id: string;
+  name: string;
+}
+
+export interface PosTableCurrentOrder {
+  id: string;
+  status: 'OPEN' | 'CLOSED' | 'CANCELLED' | string;
+  openedAt: string;
+  createdAt: string;
+  notes: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  vehicleInfo: string | null;
+  assignedWaiterId: string | null;
+  assignedWaiter: PosTableWaiterSummary | null;
+  itemsCount: number;
+  total: number;
+}
+
+export interface PosTableStatusItem {
+  id: string;
+  number: string;
+  capacity: number;
+  shape: PosTableShape;
+  gridX: number | null;
+  gridY: number | null;
+  zoneId: string | null;
+  zoneName: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  vehicleInfo: string | null;
+  assignedWaiterId: string | null;
+  assignedWaiter: PosTableWaiterSummary | null;
+  status: PosTableStatus;
+  currentOrder: PosTableCurrentOrder | null;
+}
+
+export interface PosOpenedTableOrder {
+  id: string;
+  tableId: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+  notes?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  assignedWaiterId?: string | null;
+  assignedWaiter?: PosTableWaiterSummary | null;
+  openedByWaiterId?: string | null;
+  openedByWaiterName?: string | null;
+  table?: {
+    id: string;
+    number: string;
+    capacity: number;
+    shape: PosTableShape;
+    zoneId: string | null;
+    zone?: { id: string; name: string } | null;
+  } | null;
+  subtotal?: number;
+  total?: number;
+  items?: Array<{
+    id: string;
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    notes?: string | null;
+  }>;
+}
+
+export const getPosSalonZones = async (businessId?: string): Promise<PosSalonZone[]> => {
+  const res = await apiClient.get<PosSalonZone[]>('/pos/salon/zones', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const getPosTablesStatus = async (params?: {
+  zoneId?: string;
+  businessId?: string;
+}): Promise<PosTableStatusItem[]> => {
+  const res = await apiClient.get<PosTableStatusItem[]>('/pos/tables/status', {
+    params,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const openPosTableOrder = async (
+  tableId: string,
+  businessId?: string,
+): Promise<PosOpenedTableOrder> => {
+  const res = await apiClient.post<PosOpenedTableOrder>(
+    `/pos/tables/${tableId}/open-order`,
+    undefined,
+    {
+      params: businessId ? { businessId } : undefined,
+    },
+  );
+  return res.data;
+};
+
+
 
 
 

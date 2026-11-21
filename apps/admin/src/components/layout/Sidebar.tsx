@@ -23,6 +23,7 @@ import {
   Link as LinkIcon,
   Coins,
   Truck,
+  ForkKnife,
 } from '@phosphor-icons/react';
 
 interface SidebarProps {
@@ -40,6 +41,7 @@ interface SidebarProps {
   isPosManager: boolean;
   isCajero: boolean;
   isVendedor: boolean;
+  isRestaurant: boolean;
   isDeliveryActive: boolean;
   hasCarteraCobro: boolean;
 }
@@ -67,6 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isPosManager,
   isCajero,
   isVendedor,
+  isRestaurant,
   isDeliveryActive,
   hasCarteraCobro,
 }) => {
@@ -87,6 +90,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Punto de Venta',
       icon: ShoppingCartSimple,
       show: Boolean(isPosActive && canCobrar),
+    },
+    // 2b. Salón (mesas para restaurantes — ENCARGADO, SUPERADMIN y CAJERO)
+    {
+      to: '/pos/tables',
+      label: 'Salón',
+      icon: ForkKnife,
+      show: Boolean(
+        isPosActive && webAdminEnabled && isRestaurant && (isPosManager || isCajero),
+      ),
     },
     // 3. Caja y Turnos (abre /pos/cash-registers)
     {
