@@ -2131,6 +2131,651 @@ export const openPosTableOrder = async (
   return res.data;
 };
 
+// ============================================================
+// Salón y mesas — Orden, cocina, división, cobro y configuración (269c, 269d, 269e)
+// ============================================================
+
+export type PosWebDeviceHeaders = {
+  'X-Device-Id'?: string;
+  'X-Device-Secret'?: string;
+  'Idempotency-Key'?: string;
+};
+
+export interface PosTableOrderItem {
+  id: string;
+  productId: string;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  subtotal: number;
+  notes: string | null;
+  waiterId: string | null;
+  waiterName: string | null;
+  kitchenRoundId: string | null;
+  sentAt: string | null;
+  isSent: boolean;
+  subAccountId: string | null;
+  product?: {
+    id: string;
+    name: string;
+    imageUrl?: string | null;
+    price: number;
+    unit?: string;
+    stock?: number;
+    sendToKitchen?: boolean;
+  } | null;
+  createdAt: string;
+}
+
+export interface PosTableSubAccountItem {
+  id?: string;
+  productId: string;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  subtotal?: number;
+  notes?: string | null;
+  isSent?: boolean;
+  kitchenRoundId?: string | null;
+  subAccountId?: string | null;
+  discount?: number;
+}
+
+export interface PosTableSubAccount {
+  id: string;
+  label: string;
+  status: 'OPEN' | 'PAID';
+  saleId: string | null;
+  fixedAmount: number | null;
+  tipMode: 'NONE' | 'PERCENT' | 'CUSTOM' | string | null;
+  tipPercent: number | null;
+  tipAmount: number | null;
+  tipCurrency: 'NIO' | 'USD' | string | null;
+  itemsCount: number;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  createdBy?: string | null;
+  createdAt?: string;
+  items: PosTableSubAccountItem[];
+}
+
+export interface PosTableOrder {
+  id: string;
+  businessId: string;
+  tableId: string;
+  status: 'OPEN' | 'CLOSED' | 'CANCELLED' | string;
+  notes: string | null;
+  openedByWaiterId: string | null;
+  openedByWaiterName: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  vehicleInfo: string | null;
+  workshopVehicleId?: string | null;
+  customerId: string | null;
+  mileage?: number | null;
+  assignedWaiterId: string | null;
+  assignedWaiter: PosTableWaiterSummary | null;
+  cancelledAt: string | null;
+  cancelledByUserId: string | null;
+  cancelledByUserName: string | null;
+  cancellationReason: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  saleId: string | null;
+  table: {
+    id: string;
+    number: string;
+    capacity: number;
+    shape: PosTableShape;
+    zoneId: string | null;
+    zoneName: string;
+  } | null;
+  itemsCount: number;
+  subtotal: number;
+  discountPercent: number;
+  discountAmount: number;
+  discountTotal: number;
+  taxRate: number;
+  taxTotal: number;
+  total: number;
+  splitVersion: number;
+  splitMode: 'ITEMS' | 'EQUAL' | null;
+  tipMode: 'NONE' | 'PERCENT' | 'CUSTOM' | string | null;
+  tipPercent: number | null;
+  tipAmount: number | null;
+  tipCurrency: 'NIO' | 'USD' | string | null;
+  tipPolicy?: {
+    tipEnabled: boolean;
+    tipDefaultPercent: number;
+  };
+  subAccounts: PosTableSubAccount[];
+  items: PosTableOrderItem[];
+}
+
+export interface AddPosTableOrderItemInput {
+  productId: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface AddPosTableOrderItemsDto {
+  items: AddPosTableOrderItemInput[];
+}
+
+export interface UpdatePosTableOrderItemDto {
+  quantity: number;
+  notes?: string;
+}
+
+export interface VoidPosTableOrderItemDto {
+  reason?: string;
+  authorizerPin?: string;
+  qty?: number;
+}
+
+export interface VoidPosTableOrderItemResponse {
+  success: boolean;
+  voided: {
+    itemId: string;
+    productName: string;
+    quantity: number;
+  };
+  tableOrder: PosTableOrder;
+}
+
+export interface PosKitchenRoundItem {
+  id: string;
+  name: string;
+  quantity: number;
+  notes: string | null;
+  productId: string;
+  voidReason?: string;
+}
+
+export interface PosKitchenRound {
+  id: string;
+  businessId: string;
+  tableOrderId: string;
+  tableId: string;
+  number: number;
+  type: 'SEND' | 'VOID' | string;
+  status: string;
+  printStatus: 'PENDING' | 'PRINTED' | 'FAILED' | 'NOT_REQUIRED' | string;
+  printedAt?: string | null;
+  createdBy: string;
+  clientRequestId?: string | null;
+  items: PosKitchenRoundItem[];
+  reason?: string | null;
+  authorizedBy?: string | null;
+  createdAt: string;
+}
+
+export interface SendPosToKitchenDto {
+  clientRequestId?: string;
+  itemIds?: string[];
+}
+
+export interface SendPosToKitchenResponse {
+  round: PosKitchenRound;
+  tableOrder: PosTableOrder;
+}
+
+export interface SetPosTableOrderDiscountDto {
+  discountPercent?: number;
+  discountAmount?: number;
+}
+
+export interface CancelPosTableOrderDto {
+  reason?: string;
+}
+
+export interface CancelPosTableOrderResponse {
+  success: boolean;
+  message: string;
+  tableOrder: {
+    id: string;
+    tableId: string;
+    status: string;
+    cancelledAt: string | null;
+    cancelledByUserId: string | null;
+    cancelledByUserName: string | null;
+    reason: string | null;
+    cancellationReason: string | null;
+  };
+}
+
+export interface PosKitchenSettingsResponse {
+  mode: 'NONE' | 'PRINT' | string;
+}
+
+export interface StartPosTableSplitDto {
+  mode: 'ITEMS' | 'EQUAL';
+  parts?: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  splitVersion?: number;
+}
+
+export interface MovePosTableSplitItemDto {
+  itemId: string;
+  toSubAccountId: string;
+  qty?: number;
+  splitVersion?: number;
+}
+
+export interface AddPosTableSubAccountDto {
+  label?: string;
+  splitVersion?: number;
+}
+
+export interface MergePosTableSubAccountsDto {
+  fromSubAccountId: string;
+  toSubAccountId: string;
+  splitVersion?: number;
+}
+
+export interface UndoPosTableSplitDto {
+  splitVersion?: number;
+}
+
+export interface SetPosTableOrderTipDto {
+  subAccountId?: string;
+  mode: 'NONE' | 'PERCENT' | 'CUSTOM';
+  percent?: number;
+  amount?: number;
+  currency?: 'NIO' | 'USD';
+}
+
+export interface CheckoutPosTableOrderDto {
+  subAccountId?: string;
+  paymentMethod?: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'CREDITO' | 'MIXTO';
+  amountPaid?: number;
+  discountAmount?: number;
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  customerRuc?: string;
+  cashRegisterId?: string;
+  notes?: string;
+  reference?: string;
+  paymentReference?: string;
+  bankId?: string;
+  bankName?: string;
+  payments?: CreateSalePaymentPayload[];
+  tip?: CreateSaleTipPayload;
+}
+
+export interface CheckoutPosTableOrderResponse {
+  sale: SaleResponse;
+  tableOrder: {
+    id: string;
+    tableId: string;
+    status: string;
+    closedAt: string | null;
+    saleId: string | null;
+  };
+  allAccountsPaid: boolean;
+  remainingOpenAccounts?: number;
+}
+
+export interface CreatePosSalonZoneDto {
+  name: string;
+}
+
+export interface UpdatePosSalonZoneDto {
+  name?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface PosTableConfigItem {
+  id: string;
+  businessId: string;
+  zoneId: string | null;
+  zoneName: string;
+  number: string;
+  capacity: number;
+  shape: PosTableShape;
+  gridX: number | null;
+  gridY: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePosTableDto {
+  number: string;
+  capacity: number;
+  shape?: PosTableShape;
+  gridX?: number;
+  gridY?: number;
+  zoneId?: string;
+}
+
+export interface UpdatePosTableDto {
+  number?: string;
+  capacity?: number;
+  shape?: PosTableShape;
+  gridX?: number;
+  gridY?: number;
+  isActive?: boolean;
+  zoneId?: string;
+}
+
+export const getPosTableOrder = async (
+  tableId: string,
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.get<PosTableOrder>(`/pos/tables/${tableId}/order`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const addPosTableOrderItems = async (
+  tableId: string,
+  dto: AddPosTableOrderItemsDto,
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.post<PosTableOrder>(
+    `/pos/tables/${tableId}/order/items`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const updatePosTableOrderItem = async (
+  tableId: string,
+  itemId: string,
+  dto: UpdatePosTableOrderItemDto,
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.patch<PosTableOrder>(
+    `/pos/tables/${tableId}/order/items/${itemId}`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const deletePosTableOrderItem = async (
+  tableId: string,
+  itemId: string,
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.delete<PosTableOrder>(
+    `/pos/tables/${tableId}/order/items/${itemId}`,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const voidPosTableOrderItem = async (
+  tableId: string,
+  itemId: string,
+  dto: VoidPosTableOrderItemDto,
+  headers?: PosWebDeviceHeaders,
+  businessId?: string,
+): Promise<VoidPosTableOrderItemResponse> => {
+  const res = await apiClient.post<VoidPosTableOrderItemResponse>(
+    `/pos/tables/${tableId}/order/items/${itemId}/void`,
+    dto,
+    {
+      headers,
+      params: businessId ? { businessId } : undefined,
+    },
+  );
+  return res.data;
+};
+
+export const sendPosTableOrderToKitchen = async (
+  tableId: string,
+  dto: SendPosToKitchenDto = {},
+  businessId?: string,
+): Promise<SendPosToKitchenResponse> => {
+  const res = await apiClient.post<SendPosToKitchenResponse>(
+    `/pos/tables/${tableId}/order/send-to-kitchen`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const getPosTableOrderRounds = async (
+  tableId: string,
+  businessId?: string,
+): Promise<PosKitchenRound[]> => {
+  const res = await apiClient.get<PosKitchenRound[]>(
+    `/pos/tables/${tableId}/order/rounds`,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const setPosTableOrderDiscount = async (
+  tableId: string,
+  dto: SetPosTableOrderDiscountDto,
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.post<PosTableOrder>(
+    `/pos/tables/${tableId}/order/discount`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const cancelPosTableOrder = async (
+  tableId: string,
+  dto: CancelPosTableOrderDto = {},
+  headers?: PosWebDeviceHeaders,
+  businessId?: string,
+): Promise<CancelPosTableOrderResponse> => {
+  const res = await apiClient.post<CancelPosTableOrderResponse>(
+    `/pos/tables/${tableId}/order/cancel`,
+    dto,
+    {
+      headers,
+      params: businessId ? { businessId } : undefined,
+    },
+  );
+  return res.data;
+};
+
+export const getPosKitchenSettings = async (
+  businessId?: string,
+): Promise<PosKitchenSettingsResponse> => {
+  const res = await apiClient.get<PosKitchenSettingsResponse>('/pos/settings/kitchen', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const startPosTableOrderSplit = async (
+  tableId: string,
+  dto: StartPosTableSplitDto,
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.post<PosTableOrder>(
+    `/pos/tables/${tableId}/order/split/start`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const movePosTableSplitItem = async (
+  tableId: string,
+  dto: MovePosTableSplitItemDto,
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.post<PosTableOrder>(
+    `/pos/tables/${tableId}/order/split/move`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const addPosTableSubAccount = async (
+  tableId: string,
+  dto: AddPosTableSubAccountDto = {},
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.post<PosTableOrder>(
+    `/pos/tables/${tableId}/order/split/add-account`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const mergePosTableSubAccounts = async (
+  tableId: string,
+  dto: MergePosTableSubAccountsDto,
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.post<PosTableOrder>(
+    `/pos/tables/${tableId}/order/split/merge`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const undoPosTableOrderSplit = async (
+  tableId: string,
+  dto: UndoPosTableSplitDto = {},
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.post<PosTableOrder>(
+    `/pos/tables/${tableId}/order/split/undo`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const setPosTableOrderTip = async (
+  tableId: string,
+  dto: SetPosTableOrderTipDto,
+  businessId?: string,
+): Promise<PosTableOrder> => {
+  const res = await apiClient.patch<PosTableOrder>(
+    `/pos/tables/${tableId}/order/tip`,
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const checkoutPosTableOrder = async (
+  tableId: string,
+  dto: CheckoutPosTableOrderDto,
+  headers?: PosWebDeviceHeaders,
+  businessId?: string,
+): Promise<CheckoutPosTableOrderResponse> => {
+  const res = await apiClient.post<CheckoutPosTableOrderResponse>(
+    `/pos/tables/${tableId}/order/checkout`,
+    dto,
+    {
+      headers,
+      params: businessId ? { businessId } : undefined,
+    },
+  );
+  return res.data;
+};
+
+export const createPosSalonZone = async (
+  dto: CreatePosSalonZoneDto,
+  businessId?: string,
+): Promise<PosSalonZone> => {
+  const res = await apiClient.post<PosSalonZone>('/pos/salon/zones', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosSalonZone = async (
+  zoneId: string,
+  dto: UpdatePosSalonZoneDto,
+  businessId?: string,
+): Promise<PosSalonZone> => {
+  const res = await apiClient.patch<PosSalonZone>(`/pos/salon/zones/${zoneId}`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const reorderPosSalonZones = async (
+  ids: string[],
+  businessId?: string,
+): Promise<PosSalonZone[]> => {
+  const res = await apiClient.patch<PosSalonZone[]>(
+    '/pos/salon/zones/reorder',
+    { ids },
+    { params: businessId ? { businessId } : undefined },
+  );
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const deletePosSalonZone = async (
+  zoneId: string,
+  businessId?: string,
+): Promise<{ success: boolean; message: string }> => {
+  const res = await apiClient.delete<{ success: boolean; message: string }>(
+    `/pos/salon/zones/${zoneId}`,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const getPosTables = async (params?: {
+  zoneId?: string;
+  businessId?: string;
+}): Promise<PosTableConfigItem[]> => {
+  const res = await apiClient.get<PosTableConfigItem[]>('/pos/tables', {
+    params,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const createPosTable = async (
+  dto: CreatePosTableDto,
+  businessId?: string,
+): Promise<PosTableConfigItem> => {
+  const res = await apiClient.post<PosTableConfigItem>('/pos/tables', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosTable = async (
+  tableId: string,
+  dto: UpdatePosTableDto,
+  businessId?: string,
+): Promise<PosTableConfigItem> => {
+  const res = await apiClient.patch<PosTableConfigItem>(`/pos/tables/${tableId}`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const deletePosTable = async (
+  tableId: string,
+  businessId?: string,
+): Promise<{ success: boolean; message: string }> => {
+  const res = await apiClient.delete<{ success: boolean; message: string }>(
+    `/pos/tables/${tableId}`,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+
 
 
 

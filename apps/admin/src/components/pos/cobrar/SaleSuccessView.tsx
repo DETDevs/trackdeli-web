@@ -28,6 +28,7 @@ interface SaleSuccessViewProps {
   businessInfo?: ReceiptBusinessInfo;
   cashierName?: string;
   onNewSale: () => void;
+  primaryActionLabel?: string;
 }
 
 export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
@@ -35,6 +36,7 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
   businessInfo,
   cashierName,
   onNewSale,
+  primaryActionLabel,
 }) => {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -547,14 +549,14 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
             </button>
           </div>
 
-          {/* Acción principal: Nueva Venta */}
+          {/* Acción principal */}
           <button
             type="button"
             onClick={onNewSale}
             className="w-full py-3.5 px-4 bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs sm:text-sm rounded-2xl transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-98 min-h-[48px] mt-2"
           >
             <Plus size={18} weight="bold" />
-            <span>Nueva venta</span>
+            <span>{primaryActionLabel || 'Nueva venta'}</span>
           </button>
         </div>
       </div>

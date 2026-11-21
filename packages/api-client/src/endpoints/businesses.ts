@@ -73,6 +73,8 @@ export interface Business {
   autoUpdatePriceOnPurchase?: boolean;
   posVertical?: string;
   salonProfile?: string | null;
+  gridColumns?: number;
+  gridRows?: number;
   industryCode?: string;
   industry?: {
     id?: string;

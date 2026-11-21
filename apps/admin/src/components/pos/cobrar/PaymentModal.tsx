@@ -75,6 +75,25 @@ export interface FinalPaymentSubmission {
   clientGeneratedId: string;
 }
 
+export interface PaymentModalTableContext {
+  tableNumber: string;
+  zoneName?: string | null;
+  waiterName?: string | null;
+  tipMode?: 'NONE' | 'PERCENT' | 'CUSTOM' | string | null;
+  tipPercent?: number | null;
+  tipAmount?: number | null;
+  tipCurrency?: 'NIO' | 'USD' | string | null;
+}
+
+export interface PaymentModalTargetSubAccount {
+  id: string;
+  label: string;
+  tipMode?: 'NONE' | 'PERCENT' | 'CUSTOM' | string | null;
+  tipPercent?: number | null;
+  tipAmount?: number | null;
+  tipCurrency?: 'NIO' | 'USD' | string | null;
+}
+
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -96,6 +115,8 @@ interface PaymentModalProps {
   initialCustomer?: SelectedCustomerData | null;
   sourceQuoteNumber?: string | null;
   isQuoteOfflineBlocked?: boolean;
+  tableContext?: PaymentModalTableContext | null;
+  targetSubAccount?: PaymentModalTargetSubAccount | null;
 }
 
 interface MixedPaymentLine {
@@ -127,8 +148,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   initialCustomer = null,
   sourceQuoteNumber = null,
   isQuoteOfflineBlocked = false,
+  tableContext = null,
+  targetSubAccount = null,
 }) => {
-  const effectiveChannel = lockChannel ? 'MOSTRADOR' : channel;
+  const isTableMode = Boolean(tableContext);
+  const effectiveChannel = lockChannel || isTableMode ? 'MOSTRADOR' : channel;
   const deliveryFee = usePosCartStore((s) => s.deliveryFee);
   const deliveryAddress = usePosCartStore((s) => s.deliveryAddress);
   const deliveryPhone = usePosCartStore((s) => s.deliveryPhone);
@@ -230,6 +254,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Propina voluntaria
   const [tipMode, setTipMode] = useState<'NONE' | 'PERCENT' | 'CUSTOM'>('NONE');
+  const [activeTipPercent, setActiveTipPercent] = useState<number>(tipDefaultPercent);
   const [tipMethod, setTipMethod] = useState<'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA'>('EFECTIVO');
   const [tipCurrency, setTipCurrency] = useState<'NIO' | 'USD'>('NIO');
   const [tipCustomAmountStr, setTipCustomAmountStr] = useState<string>('');
@@ -238,9 +263,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const [localError, setLocalError] = useState<string | null>(null);
   const wasOpenRef = useRef<boolean>(false);
+  const isSubmittingRef = useRef<boolean>(false);
+
+  const savedTableTip = useMemo(() => {
+    if (!isTableMode) return null;
+    if (targetSubAccount?.tipMode && targetSubAccount.tipMode !== 'NONE') {
+      return targetSubAccount;
+    }
+    if (!targetSubAccount && tableContext?.tipMode && tableContext.tipMode !== 'NONE') {
+      return tableContext;
+    }
+    return null;
+  }, [isTableMode, targetSubAccount, tableContext]);
 
   const tipBlockedByChannel = ['PEDIDOSYA', 'DOMICILIO', 'WHATSAPP'].includes(effectiveChannel);
-  const canOfferTip = Boolean(tipEnabled && !tipBlockedByChannel);
+  const canOfferTip = Boolean((tipEnabled || savedTableTip) && !tipBlockedByChannel);
 
   // Cargar repartidores si el canal es DOMICILIO y el negocio exige repartidor
   useEffect(() => {
@@ -270,12 +307,41 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setLocalError(null);
       setApprovalToken(null);
       setCreditPrimaStr('0');
-      setTipMode('NONE');
-      setTipMethod('EFECTIVO');
-      setTipCurrency('NIO');
-      setTipCustomAmountStr('');
       setTipBankId('');
       setTipReference('');
+
+      if (savedTableTip) {
+        const modeUpper = String(savedTableTip.tipMode || '').toUpperCase();
+        if (modeUpper === 'PERCENT') {
+          const pct =
+            savedTableTip.tipPercent != null && Number(savedTableTip.tipPercent) > 0
+              ? Number(savedTableTip.tipPercent)
+              : tipDefaultPercent;
+          setTipMode('PERCENT');
+          setActiveTipPercent(pct);
+          setTipCurrency('NIO');
+          setTipCustomAmountStr('');
+          setTipMethod('EFECTIVO');
+        } else if (modeUpper === 'CUSTOM' && Number(savedTableTip.tipAmount || 0) > 0) {
+          setTipMode('CUSTOM');
+          setActiveTipPercent(tipDefaultPercent);
+          setTipCustomAmountStr(Number(savedTableTip.tipAmount).toFixed(2));
+          setTipCurrency(String(savedTableTip.tipCurrency || 'NIO').toUpperCase() === 'USD' ? 'USD' : 'NIO');
+          setTipMethod('EFECTIVO');
+        } else {
+          setTipMode('NONE');
+          setActiveTipPercent(tipDefaultPercent);
+          setTipCustomAmountStr('');
+          setTipCurrency('NIO');
+          setTipMethod('EFECTIVO');
+        }
+      } else {
+        setTipMode('NONE');
+        setActiveTipPercent(tipDefaultPercent);
+        setTipMethod('EFECTIVO');
+        setTipCurrency('NIO');
+        setTipCustomAmountStr('');
+      }
 
       if (initialCustomer && initialCustomer.name) {
         setSelectedCustomer({
@@ -397,7 +463,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       wasOpenRef.current = false;
       idempotencyKeyRef.current = '';
     }
-  }, [isOpen, total, multiCurrencyEnabled, tipEnabled, initialCustomer, deliveryPhone, deliveryAddress, deliveryReference, setDeliveryPhone, setDeliveryAddress, setDeliveryReference, pinnedSellerStorageKey]);
+  }, [isOpen, total, multiCurrencyEnabled, tipEnabled, tipDefaultPercent, savedTableTip, initialCustomer, deliveryPhone, deliveryAddress, deliveryReference, setDeliveryPhone, setDeliveryAddress, setDeliveryReference, pinnedSellerStorageKey]);
 
   // Si cambia el total mientras el modal está abierto (ej. al editar la tarifa de envío),
   // sincronizar el monto recibido sin reiniciar el cliente ni los demás campos
@@ -435,8 +501,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Cálculos de propina voluntaria (siempre separada de payments[])
   const tipPercentAmountNio = useMemo(() => {
-    return calculateTipFromTotal(total, tipDefaultPercent);
-  }, [total, tipDefaultPercent]);
+    return calculateTipFromTotal(total, activeTipPercent);
+  }, [total, activeTipPercent]);
 
   const effectiveTipCurrency: 'NIO' | 'USD' =
     tipMode === 'CUSTOM' && tipMethod === 'EFECTIVO' ? tipCurrency : 'NIO';
@@ -617,7 +683,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   // Envío final del cobro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || isSubmittingRef.current) return;
     setLocalError(null);
 
     if (isQuoteOfflineBlocked) {
@@ -692,7 +758,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         if (tipPercentAmountNio > 0) {
           tipPayload = {
             mode: 'PERCENT',
-            percent: tipDefaultPercent,
+            percent: activeTipPercent,
             currency: 'NIO',
             paymentMethod: tipMethod,
             bankId: cleanBankId,
@@ -781,10 +847,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       };
 
       try {
+        isSubmittingRef.current = true;
         saveDeliveryToCustomerSilently();
         await onSubmitSale(submission);
       } catch {
         // El error ya es manejado en el componente padre
+      } finally {
+        isSubmittingRef.current = false;
       }
       return;
     }
@@ -901,10 +970,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     };
 
     try {
+      isSubmittingRef.current = true;
       saveDeliveryToCustomerSilently();
       await onSubmitSale(submission);
     } catch {
       // Manejado arriba
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
 
@@ -920,11 +992,19 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               POS
             </div>
             <div>
-              <h3 className="font-bold text-sm sm:text-base text-gray-900 leading-tight">Cobrar venta</h3>
+              <h3 className="font-bold text-sm sm:text-base text-gray-900 leading-tight">
+                {isTableMode
+                  ? targetSubAccount
+                    ? `Cobrar ${targetSubAccount.label}`
+                    : 'Cobrar mesa'
+                  : 'Cobrar venta'}
+              </h3>
               <p className="text-xs text-gray-500">
-                {sourceQuoteNumber
-                  ? `Comprobante y forma de pago · Proforma ${sourceQuoteNumber}`
-                  : 'Comprobante y forma de pago'}
+                {isTableMode && tableContext
+                  ? `${/^mesa\s+/i.test(tableContext.tableNumber) ? tableContext.tableNumber : `Mesa ${tableContext.tableNumber}`}${tableContext.zoneName ? ` · ${tableContext.zoneName}` : ''}`
+                  : sourceQuoteNumber
+                    ? `Comprobante y forma de pago · Proforma ${sourceQuoteNumber}`
+                    : 'Comprobante y forma de pago'}
               </p>
             </div>
           </div>
@@ -1064,7 +1144,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               carteraActive={carteraActive}
               userRole={userRole}
               posVertical={posVertical}
-              deliveryChannelEnabled={deliveryChannelEnabled}
+              deliveryChannelEnabled={isTableMode ? false : deliveryChannelEnabled}
             />
           </div>
 
@@ -1765,7 +1845,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       : 'bg-white text-gray-800 border-gray-200 hover:bg-amber-50'
                   }`}
                 >
-                  <span>{tipDefaultPercent} %</span>
+                  <span>{activeTipPercent} %</span>
                   <span
                     className={`text-xs font-medium tabular-nums whitespace-nowrap ${
                       tipMode === 'PERCENT' ? 'text-amber-100' : 'text-gray-500'
@@ -1928,7 +2008,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           )}
 
           {/* Vendedor / Ruta (opcional) */}
-          {staffOptions.length > 0 && (
+          {!isTableMode && staffOptions.length > 0 && (
             <div className="p-3 bg-gray-50 border border-gray-200 rounded-2xl flex flex-wrap items-center justify-between gap-2.5 text-xs">
               <div className="flex items-center gap-2 text-gray-700 font-bold shrink-0">
                 <User size={16} className="text-gray-600" />

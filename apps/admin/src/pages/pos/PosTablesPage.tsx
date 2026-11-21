@@ -7,6 +7,7 @@ import {
   WifiSlash,
   WarningCircle,
   Armchair,
+  Gear,
 } from '@phosphor-icons/react';
 import {
   getMyBusiness,
@@ -22,6 +23,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { extractApiErrorMessage } from '../../utils/productCost';
 import { isRestaurantSalonBusiness } from '../../utils/salonVertical';
 import { SalonTableCard } from '../../components/pos/tables/SalonTableCard';
+import { SalonConfigModal } from '../../components/pos/tables/SalonConfigModal';
 
 type StatusFilter = 'ALL' | 'OCCUPIED' | 'FREE';
 
@@ -53,6 +55,8 @@ export const PosTablesPage: React.FC = () => {
     userRole === 'ENCARGADO' ||
     userRole === 'SUPERADMIN' ||
     userRole === 'CAJERO';
+  const canConfigureSalon =
+    userRole === 'ENCARGADO' || userRole === 'SUPERADMIN';
 
   const { data: business, isLoading: isLoadingBusiness } = useQuery({
     queryKey: ['business', 'me'],
@@ -80,6 +84,7 @@ export const PosTablesPage: React.FC = () => {
   const [selectedZoneId, setSelectedZoneId] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [openingTableId, setOpeningTableId] = useState<string | null>(null);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
 
   const zonesQuery = useQuery<PosSalonZone[]>({
     queryKey: ['pos', 'salon', 'zones'],
@@ -379,18 +384,32 @@ export const PosTablesPage: React.FC = () => {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleManualRefresh}
-          disabled={!isOnline || tablesQuery.isFetching}
-          className="min-h-[44px] px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-800 transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0 self-stretch sm:self-auto"
-        >
-          <ArrowsClockwise
-            size={16}
-            className={tablesQuery.isFetching ? 'animate-spin' : ''}
-          />
-          <span>Actualizar</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0 self-stretch sm:self-auto">
+          {canConfigureSalon && (
+            <button
+              type="button"
+              onClick={() => setIsConfigModalOpen(true)}
+              disabled={!isOnline}
+              className="min-h-[44px] flex-1 sm:flex-none px-4 rounded-xl bg-[#0F0F0F] hover:bg-gray-800 text-white text-xs font-semibold transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Gear size={16} weight="bold" />
+              <span>Configurar salón</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={!isOnline || tablesQuery.isFetching}
+            className="min-h-[44px] flex-1 sm:flex-none px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-800 transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ArrowsClockwise
+              size={16}
+              className={tablesQuery.isFetching ? 'animate-spin' : ''}
+            />
+            <span>Actualizar</span>
+          </button>
+        </div>
       </div>
 
       {/* Aviso sin conexión */}
@@ -552,6 +571,17 @@ export const PosTablesPage: React.FC = () => {
               Todavía no hay mesas. Las crea el encargado en Configuración del salón.
             </p>
           </div>
+          {canConfigureSalon && (
+            <button
+              type="button"
+              onClick={() => setIsConfigModalOpen(true)}
+              disabled={!isOnline}
+              className="min-h-[44px] px-4 rounded-xl bg-[#0F0F0F] hover:bg-gray-800 text-white text-xs font-semibold inline-flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Gear size={16} weight="bold" />
+              <span>Configurar salón</span>
+            </button>
+          )}
         </div>
       ) : filteredTables.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-200/80 p-8 flex flex-col items-center justify-center text-center gap-3">
@@ -604,6 +634,14 @@ export const PosTablesPage: React.FC = () => {
             );
           })}
         </div>
+      )}
+
+      {canConfigureSalon && (
+        <SalonConfigModal
+          isOpen={isConfigModalOpen}
+          business={business}
+          onClose={() => setIsConfigModalOpen(false)}
+        />
       )}
     </div>
   );
