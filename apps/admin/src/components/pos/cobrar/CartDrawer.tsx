@@ -12,6 +12,8 @@ import {
   Motorcycle,
   Percent,
   PencilSimple,
+  Tag,
+  CircleNotch,
 } from '@phosphor-icons/react';
 import { usePosCartStore, type DiscountType } from '../../../store/posCart.store';
 import { isLineBlockedFromManualDiscount } from '../../../utils/saleCalculation';
@@ -20,7 +22,7 @@ import { formatCurrency } from '../../../utils/formatters';
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onProceedToPayment: () => void;
+  onProceedToPayment: () => void | Promise<void>;
   onSaveAsQuote?: () => void;
   isOnline?: boolean;
   deliveryChannelEnabled?: boolean;
@@ -59,11 +61,23 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const getCalculationSummary = usePosCartStore((s) => s.getCalculationSummary);
   const getEffectiveDeliveryFee = usePosCartStore((s) => s.getEffectiveDeliveryFee);
   const businessContext = usePosCartStore((s) => s.businessContext);
+  const isPreviewLoading = usePosCartStore((s) => s.isPreviewLoading);
+  const [isPreparingPayment, setIsPreparingPayment] = useState(false);
   const [editingDiscountProductId, setEditingDiscountProductId] = useState<string | null>(null);
   const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
   const [priceInputStr, setPriceInputStr] = useState<string>('');
 
   if (!isOpen) return null;
+
+  const handleProceed = async () => {
+    if (isPreparingPayment || isPreviewLoading || isQuoteOfflineBlocked) return;
+    setIsPreparingPayment(true);
+    try {
+      await onProceedToPayment();
+    } finally {
+      setIsPreparingPayment(false);
+    }
+  };
 
   const isQuoteOfflineBlocked = Boolean(sourceQuote && !isOnline);
   const effectiveChannel = lockChannel || !deliveryChannelEnabled ? 'MOSTRADOR' : channel;
@@ -194,7 +208,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               const isLoweredManually = Boolean(
                 item.priceOverridden && item.unitPrice < item.regularPrice - 0.005,
               );
-              const blockedFromManual =
+              let blockedFromManual =
                 isLoweredManually ||
                 isLineBlockedFromManualDiscount(
                   {
@@ -212,13 +226,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 0,
                 Math.round((lineGross - lineManualDisc) * 100) / 100,
               );
+              const itemKey = item.id || item.productId;
               const isEditingThisLine =
-                discountsEnabled && !blockedFromManual && editingDiscountProductId === item.productId;
+                discountsEnabled && !blockedFromManual && editingDiscountProductId === itemKey;
               const lineDiscType = item.lineDiscountType || 'PERCENT';
               const lineDiscVal = item.lineDiscountValue || 0;
 
               let blockedReason = 'No admite descuento manual';
-              if (isLoweredManually) {
+              if (item.promotionName || (item.promoDiscount && item.promoDiscount > 0)) {
+                blockedFromManual = true;
+                blockedReason = 'Ya tiene una promoción aplicada';
+              } else if (isLoweredManually) {
                 blockedReason = 'Ya tiene una rebaja manual de precio aplicada';
               } else if (item.allowDiscount === false) {
                 blockedReason = 'Este producto tiene desactivados los descuentos';
@@ -235,7 +253,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               }
 
               return (
-                <div key={item.productId} className="pt-3 first:pt-0 space-y-2">
+                <div key={itemKey} className="pt-3 first:pt-0 space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -251,6 +269,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             }`}
                           >
                             {item.taxable ? '15% IVA' : 'Exento'}
+                          </span>
+                        )}
+                        {(item.promotionName || (item.promoDiscount && item.promoDiscount > 0)) && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <Tag size={12} weight="bold" />
+                            <span>Promo: {item.promotionName || 'Promoción'} (-{formatCurrency(item.promoDiscount || 0)})</span>
                           </span>
                         )}
                         {item.isWholesale && (
@@ -301,7 +325,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       </div>
                       <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5 flex-wrap">
                         {priceOverrideEnabled ? (
-                          editingPriceProductId === item.productId ? (
+                          editingPriceProductId === itemKey ? (
                             <span className="inline-flex items-center gap-1">
                               <span className="text-xs font-bold text-gray-500">C$</span>
                               <input
@@ -314,7 +338,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                 onBlur={() => {
                                   const parsed = parseFloat(priceInputStr.replace(',', '.'));
                                   if (!isNaN(parsed) && parsed >= 0) {
-                                    updateUnitPrice(item.productId, Math.round(parsed * 100) / 100);
+                                    updateUnitPrice(itemKey, Math.round(parsed * 100) / 100);
                                   }
                                   setEditingPriceProductId(null);
                                 }}
@@ -323,7 +347,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                     e.preventDefault();
                                     const parsed = parseFloat(priceInputStr.replace(',', '.'));
                                     if (!isNaN(parsed) && parsed >= 0) {
-                                      updateUnitPrice(item.productId, Math.round(parsed * 100) / 100);
+                                      updateUnitPrice(itemKey, Math.round(parsed * 100) / 100);
                                     }
                                     setEditingPriceProductId(null);
                                   } else if (e.key === 'Escape') {
@@ -339,7 +363,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                               type="button"
                               onClick={() => {
                                 setPriceInputStr(String(item.unitPrice ?? 0));
-                                setEditingPriceProductId(item.productId);
+                                setEditingPriceProductId(itemKey);
                               }}
                               title="Clic para modificar el precio unitario manualmente"
                               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-dashed border-gray-300 hover:border-amber-400 bg-gray-50 hover:bg-amber-50 text-gray-800 hover:text-amber-900 font-semibold transition-colors cursor-pointer"
@@ -358,7 +382,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                   : ''
                             }
                           >
-                            {formatCurrency(item.unitPrice)} c/u
+                            {item.unitAllowsDecimals
+                              ? `${item.quantity} ${item.unit || 'lb'} × ${formatCurrency(item.unitPrice)}`
+                              : `${formatCurrency(item.unitPrice)} c/u`}
                           </span>
                         )}
                         {businessContext.useListPrice && item.listPrice && item.listPrice > item.unitPrice && (
@@ -382,25 +408,63 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
                     {/* Controles de cantidad y descuento por línea */}
                     <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                      <div className="flex items-center border border-gray-200 rounded-xl bg-gray-50 overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => removeItem(item.productId)}
-                          className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
-                        >
-                          <Minus size={14} weight="bold" />
-                        </button>
-                        <span className="px-2 text-xs font-bold text-gray-900 min-w-[24px] text-center">
-                          {item.quantity}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                          className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
-                        >
-                          <Plus size={14} weight="bold" />
-                        </button>
-                      </div>
+                      {item.unitAllowsDecimals ? (
+                        <div className="flex items-center border border-gray-200 rounded-xl bg-gray-50 overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newQ = Math.max(0, Math.round((item.quantity - 1) * 1000) / 1000);
+                              updateQuantity(itemKey, newQ);
+                            }}
+                            className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
+                            title="Disminuir 1"
+                          >
+                            <Minus size={14} weight="bold" />
+                          </button>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0.001"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              updateQuantity(itemKey, isNaN(val) ? 0 : val);
+                            }}
+                            className="w-16 px-1 text-xs font-bold text-gray-900 text-center bg-transparent focus:outline-none focus:bg-white tabular-nums"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newQ = Math.round((item.quantity + 1) * 1000) / 1000;
+                              updateQuantity(itemKey, newQ);
+                            }}
+                            className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
+                            title="Aumentar 1"
+                          >
+                            <Plus size={14} weight="bold" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center border border-gray-200 rounded-xl bg-gray-50 overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => removeItem(itemKey)}
+                            className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
+                          >
+                            <Minus size={14} weight="bold" />
+                          </button>
+                          <span className="px-2 text-xs font-bold text-gray-900 min-w-[24px] text-center tabular-nums">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(itemKey, item.quantity + 1)}
+                            className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
+                          >
+                            <Plus size={14} weight="bold" />
+                          </button>
+                        </div>
+                      )}
 
                       {discountsEnabled && (
                         <button
@@ -415,7 +479,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           }
                           onClick={() =>
                             setEditingDiscountProductId((prev) =>
-                              prev === item.productId ? null : item.productId,
+                              prev === itemKey ? null : itemKey,
                             )
                           }
                           className={`p-1.5 rounded-lg border text-xs font-bold transition-colors ${
@@ -443,7 +507,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => deleteItem(item.productId)}
+                        onClick={() => deleteItem(itemKey)}
                         className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                       >
                         <Trash size={16} />
@@ -459,7 +523,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <div className="inline-flex rounded-lg border border-amber-300 bg-white p-0.5">
                           <button
                             type="button"
-                            onClick={() => setItemDiscount(item.productId, 'PERCENT', 0)}
+                            onClick={() => setItemDiscount(itemKey, 'PERCENT', 0)}
                             className={`px-2 py-0.5 rounded text-xs font-bold transition-colors cursor-pointer ${
                               lineDiscType === 'PERCENT'
                                 ? 'bg-gray-900 text-white'
@@ -470,7 +534,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setItemDiscount(item.productId, 'FIXED', 0)}
+                            onClick={() => setItemDiscount(itemKey, 'FIXED', 0)}
                             className={`px-2 py-0.5 rounded text-xs font-bold transition-colors cursor-pointer ${
                               lineDiscType === 'FIXED'
                                 ? 'bg-gray-900 text-white'
@@ -487,7 +551,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <button
                             key={pct}
                             type="button"
-                            onClick={() => setItemDiscount(item.productId, 'PERCENT', pct)}
+                            onClick={() => setItemDiscount(itemKey, 'PERCENT', pct)}
                             className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
                               lineDiscType === 'PERCENT' && lineDiscVal === pct
                                 ? 'bg-gray-900 text-white border-gray-900'
@@ -507,7 +571,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             onChange={(e) => {
                               const v = parseFloat(e.target.value);
                               setItemDiscount(
-                                item.productId,
+                                itemKey,
                                 lineDiscType,
                                 isNaN(v) ? 0 : v,
                               );
@@ -667,6 +731,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <span>Descuento ({listDiscountPct}%)</span>
                     <span>-{formatCurrency(calcSummary.listDiscountTotal)}</span>
                   </div>
+                  {(calcSummary.promoDiscountTotal ?? 0) > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-bold">
+                      <span className="flex items-center gap-1">
+                        <Tag size={13} weight="bold" />
+                        <span>Ahorro en promociones</span>
+                      </span>
+                      <span>-{formatCurrency(calcSummary.promoDiscountTotal)}</span>
+                    </div>
+                  )}
                   {calcSummary.lineDiscountTotal > 0 && (
                     <div className="flex justify-between text-emerald-700 font-medium">
                       <span>Descuento por producto</span>
@@ -706,6 +779,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <span>Subtotal</span>
                     <span className="font-semibold text-gray-800">{formatCurrency(calcSummary.subtotal)}</span>
                   </div>
+                  {(calcSummary.promoDiscountTotal ?? 0) > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-bold">
+                      <span className="flex items-center gap-1">
+                        <Tag size={13} weight="bold" />
+                        <span>Ahorro en promociones</span>
+                      </span>
+                      <span>-{formatCurrency(calcSummary.promoDiscountTotal)}</span>
+                    </div>
+                  )}
                   {calcSummary.lineDiscountTotal > 0 && (
                     <div className="flex justify-between text-emerald-700 font-medium">
                       <span>Descuento por producto</span>
@@ -757,15 +839,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
               <button
                 type="button"
-                disabled={isQuoteOfflineBlocked}
-                onClick={onProceedToPayment}
+                disabled={isQuoteOfflineBlocked || isPreparingPayment || isPreviewLoading}
+                onClick={handleProceed}
                 className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-sm rounded-2xl transition-colors flex items-center justify-between cursor-pointer shadow-md shadow-emerald-600/20 active:scale-98 min-h-[48px]"
               >
-                <span>Continuar al pago</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="whitespace-nowrap">{formatCurrency(total)}</span>
-                  <ArrowRight size={16} weight="bold" />
-                </div>
+                {isPreparingPayment || isPreviewLoading ? (
+                  <div className="flex items-center justify-center gap-2 w-full py-0.5">
+                    <CircleNotch size={18} className="animate-spin text-white" />
+                    <span>Calculando…</span>
+                  </div>
+                ) : (
+                  <>
+                    <span>Continuar al pago</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="whitespace-nowrap">{formatCurrency(total)}</span>
+                      <ArrowRight size={16} weight="bold" />
+                    </div>
+                  </>
+                )}
               </button>
 
               {onSaveAsQuote && !sourceQuote && (

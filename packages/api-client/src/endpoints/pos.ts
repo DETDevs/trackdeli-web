@@ -176,10 +176,13 @@ export interface PosRecipeComponentItem {
 
 export interface CreateSaleItemPayload {
   productId?: string;
+  presentationId?: string;
   productName: string;
   unitPrice: number;
   quantity: number;
   discount?: number;
+  promoDiscount?: number;
+  promotionName?: string | null;
   priceTier?: 'RETAIL' | 'WHOLESALE' | 'PROMO' | string;
   barcode?: string;
   listPrice?: number | null;
@@ -315,6 +318,8 @@ export interface CreateSalePayload {
   deliveryReference?: string;
   deliveryDriverId?: string;
   deliveryDriverName?: string;
+  applyPromotions?: boolean;
+  promoDiscountTotal?: number;
   items: CreateSaleItemPayload[];
   discountAmount?: number;
   discount?: number;
@@ -483,6 +488,83 @@ export const createPosSale = async (
 ): Promise<SaleResponse> => {
   const res = await apiClient.post<SaleResponse>('/pos/sales', payload, {
     headers: deviceHeaders,
+  });
+  return res.data;
+};
+
+export interface PosSalePreviewItemResult {
+  productId?: string | null;
+  productName: string;
+  barcode?: string | null;
+  unitPrice: number;
+  quantity: number;
+  discount: number;
+  promoDiscount: number;
+  promotionId: string | null;
+  promotionName: string | null;
+  subtotal: number;
+  priceTier: string;
+  listPrice: number | null;
+  listPriceDiscount: number;
+  manualDiscountShare: number;
+  taxable: boolean;
+  taxRate: number;
+  taxAmount: number;
+  unit: string;
+  presentationId: string | null;
+  presentationName: string | null;
+  conversionFactor: number;
+  allowManualDiscount: boolean;
+}
+
+export interface PosSalePreviewResult {
+  channel: string;
+  applyPromotions: boolean;
+  taxModel: 'PER_LINE' | 'LEGACY';
+  subtotal: number;
+  promoDiscountTotal: number;
+  lineDiscountTotal: number;
+  discountAmount: number;
+  totalDiscount: number;
+  eligibleForGlobalDiscountSubtotal: number;
+  subtotalBeforeTax: number;
+  deliveryFee: number;
+  listPriceTotal: number;
+  listDiscountTotal: number;
+  taxEnabled: boolean;
+  taxIncluded: boolean;
+  taxRate: number;
+  taxAmount: number;
+  total: number;
+  items: PosSalePreviewItemResult[];
+}
+
+export interface PreviewPosSalePayload {
+  items: Array<{
+    productId?: string;
+    presentationId?: string;
+    productName?: string;
+    barcode?: string;
+    unitPrice?: number;
+    quantity: number;
+    discount?: number;
+    listPrice?: number;
+    taxable?: boolean;
+    priceTier?: string;
+  }>;
+  discountAmount?: number;
+  channel?: string;
+  deliveryFee?: number;
+  applyPromotions?: boolean;
+  isSplitSale?: boolean;
+}
+
+export const previewPosSale = async (
+  payload: PreviewPosSalePayload,
+  businessId?: string,
+): Promise<PosSalePreviewResult> => {
+  const res = await apiClient.post<PosSalePreviewResult>('/pos/sales/preview', payload, {
+    params: businessId ? { businessId } : undefined,
   });
   return res.data;
 };

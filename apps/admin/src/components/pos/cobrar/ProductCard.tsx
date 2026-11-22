@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Minus, Package, Wrench, Sparkle, Stack } from '@phosphor-icons/react';
+import { Plus, Minus, Package, Wrench, Sparkle, Stack, SlidersHorizontal } from '@phosphor-icons/react';
 import { type PosProductItem } from 'api-client';
 import { formatCurrency } from '../../../utils/formatters';
 
@@ -9,6 +9,8 @@ interface ProductCardProps {
   onAdd: (product: PosProductItem) => void;
   onDecrement?: (product: PosProductItem) => void;
   disabled?: boolean;
+  onOpenVariantSelector?: (product: PosProductItem) => void;
+  onOpenPresentationSelector?: (product: PosProductItem) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -17,10 +19,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onAdd,
   onDecrement,
   disabled,
+  onOpenVariantSelector,
+  onOpenPresentationSelector,
 }) => {
   const isService = product.type === 'SERVICE';
   const isRecipe = Boolean(product.isRecipe);
-  const trackStock = product.trackInventory !== false && !isService;
+  const isVariantParent = Boolean(product.isVariantParent);
+  const activePresentations = (product.presentations || []).filter((p) => p.isActive !== false);
+  const hasPresentations = activePresentations.length > 0;
+  const trackStock = product.trackInventory !== false && !isService && !isVariantParent;
   const stock = typeof product.stock === 'number' ? product.stock : 0;
   const isOutOfStock = trackStock && stock <= 0;
   const hasBatches = Boolean(
@@ -66,6 +73,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const handleCardAdd = () => {
     if (disabled || isOutOfStock) return;
     vibrateLight();
+    if (isVariantParent && onOpenVariantSelector) {
+      onOpenVariantSelector(product);
+      return;
+    }
+    if (hasPresentations && onOpenPresentationSelector) {
+      onOpenPresentationSelector(product);
+      return;
+    }
     onAdd(product);
   };
 
@@ -80,6 +95,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     e.stopPropagation();
     if (disabled || isOutOfStock) return;
     vibrateLight();
+    if (isVariantParent && onOpenVariantSelector) {
+      onOpenVariantSelector(product);
+      return;
+    }
+    if (hasPresentations && onOpenPresentationSelector) {
+      onOpenPresentationSelector(product);
+      return;
+    }
     onAdd(product);
   };
 
@@ -146,6 +169,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             >
               <Stack size={12} weight="bold" />
               Lotes
+            </span>
+          )}
+
+          {isVariantParent && (
+            <span
+              title="Producto con variantes (tallas, colores, etc.)"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-purple-100 text-purple-900 border border-purple-200"
+            >
+              <SlidersHorizontal size={12} weight="bold" />
+              Variantes
+            </span>
+          )}
+
+          {hasPresentations && (
+            <span
+              title="Producto con presentaciones disponibles"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-indigo-100 text-indigo-900 border border-indigo-200"
+            >
+              <Stack size={12} weight="bold" />
+              Presentaciones
             </span>
           )}
 

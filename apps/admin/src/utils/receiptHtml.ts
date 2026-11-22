@@ -253,7 +253,16 @@ export const generateReceiptHtml = (
 
       const isTaxable = Boolean(item.taxable);
       const rawName = item.productName || item.name || 'Producto';
-      const displayName = isPerLine && isTaxable ? `${rawName} (G)` : rawName;
+      const presName = item.presentationName || item.presentation?.name;
+      const baseName = presName ? `${rawName} (${presName})` : rawName;
+      const displayName = isPerLine && isTaxable ? `${baseName} (G)` : baseName;
+
+      const promoDiscount = Number(item.promoDiscount || 0);
+      let promoHtml = '';
+      if (promoDiscount > 0) {
+        const pLabel = item.promotionName ? escapeHtml(item.promotionName) : 'Promoción';
+        promoHtml = `<div class="item-promo" style="font-size: 11px; color: #16a34a; font-weight: 600;">${pLabel}: -C$${promoDiscount.toFixed(2)}</div>`;
+      }
 
       let batchesHtml = '';
       if (showBatches && Array.isArray(batches) && batches.length > 0) {
@@ -272,6 +281,7 @@ export const generateReceiptHtml = (
             <span class="item-total">C$${itemSubtotal}</span>
           </div>
           <div class="item-sub">${qty}${unitStr} x C$${(listPrice != null ? listPrice : Number(item.unitPrice || 0)).toFixed(2)}</div>
+          ${promoHtml}
           ${batchesHtml}
         </div>
       `;
@@ -710,6 +720,8 @@ export const generateReceiptHtml = (
           out += `<div class="summary-row"><span>Subtotal:</span><span>C$${grossTotal.toFixed(2)}</span></div>`;
         }
 
+        const promoDiscountTotal = Number(sale.promoDiscountTotal || 0);
+
         if (hasListDiscount) {
           const discPct = Math.round((listDiscountTotal / listPriceTotal) * 100);
           out += `<div class="summary-row" style="color: #16a34a;"><span>Descuento (${discPct} %):</span><span>-C$${listDiscountTotal.toFixed(2)}</span></div>`;
@@ -718,6 +730,10 @@ export const generateReceiptHtml = (
           }
         } else if (discountManual > 0) {
           out += `<div class="summary-row" style="color: #16a34a;"><span>Descuento:</span><span>-C$${discountManual.toFixed(2)}</span></div>`;
+        }
+
+        if (promoDiscountTotal > 0) {
+          out += `<div class="summary-row" style="color: #16a34a;"><span>Ahorro en promociones:</span><span>-C$${promoDiscountTotal.toFixed(2)}</span></div>`;
         }
 
         if (sale.deliveryFee && Number(sale.deliveryFee) > 0) {
@@ -746,8 +762,12 @@ export const generateReceiptHtml = (
         if (hasMultipleProducts && discount > 0) {
           out += `<div class="summary-row"><span>Subtotal:</span><span>C$${Number(sale.subtotal || 0).toFixed(2)}</span></div>`;
         }
+        const promoDiscountTotal = Number(sale.promoDiscountTotal || 0);
         if (discount > 0) {
           out += `<div class="summary-row" style="color: #16a34a;"><span>Descuento:</span><span>-C$${discount.toFixed(2)}</span></div>`;
+        }
+        if (promoDiscountTotal > 0) {
+          out += `<div class="summary-row" style="color: #16a34a;"><span>Ahorro en promociones:</span><span>-C$${promoDiscountTotal.toFixed(2)}</span></div>`;
         }
         if (sale.deliveryFee && Number(sale.deliveryFee) > 0) {
           out += `<div class="summary-row"><span>Envío:</span><span>C$${Number(sale.deliveryFee).toFixed(2)}</span></div>`;

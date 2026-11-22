@@ -104,6 +104,7 @@ interface PaymentModalProps {
   onSubmitSale: (paymentData: FinalPaymentSubmission) => Promise<void>;
   isSubmitting: boolean;
   errorMessage?: string | null;
+  fallbackNotice?: string | null;
   onReloadProducts?: () => void;
   userRole?: string;
   carteraActive?: boolean;
@@ -137,6 +138,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onSubmitSale,
   isSubmitting,
   errorMessage,
+  fallbackNotice = null,
   onReloadProducts,
   userRole = 'CAJERO',
   carteraActive = true,
@@ -1030,8 +1032,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <div className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight tabular-nums whitespace-nowrap">
               {formatCurrency(total)}
             </div>
-            {calcSummary && (calcSummary.lineDiscountTotal > 0 || calcSummary.discountAmount > 0) && (
+            {calcSummary && (calcSummary.lineDiscountTotal > 0 || calcSummary.discountAmount > 0 || (calcSummary.promoDiscountTotal ?? 0) > 0) && (
               <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-emerald-900">
+                {(calcSummary.promoDiscountTotal ?? 0) > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-100/80 border border-emerald-200/80">
+                    Ahorro en promociones: -{formatCurrency(calcSummary.promoDiscountTotal)}
+                  </span>
+                )}
                 {calcSummary.lineDiscountTotal > 0 && (
                   <span className="px-2 py-0.5 rounded-lg bg-emerald-100/80 border border-emerald-200/80">
                     Desc. por producto: -{formatCurrency(calcSummary.lineDiscountTotal)}
@@ -1068,6 +1075,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* Aviso cuando las promociones no pudieron aplicarse (fallback) */}
+          {fallbackNotice && (
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+              <WarningCircle size={17} className="shrink-0 mt-0.5 text-amber-600" weight="fill" />
+              <span className="font-semibold leading-relaxed">{fallbackNotice}</span>
+            </div>
+          )}
 
           {/* Errores del API o de validación local */}
           {(isQuoteOfflineBlocked || localError || errorMessage) && (

@@ -51,6 +51,8 @@ import { CloseShiftModal } from '../../components/pos/cobrar/CloseShiftModal';
 import { CashMovementsModal } from '../../components/pos/cobrar/CashMovementsModal';
 import { ProductCard } from '../../components/pos/cobrar/ProductCard';
 import { CartDrawer } from '../../components/pos/cobrar/CartDrawer';
+import { VariantSelectorModal } from '../../components/pos/cobrar/VariantSelectorModal';
+import { PresentationSelectorModal } from '../../components/pos/cobrar/PresentationSelectorModal';
 import { CategorySelector, type CategorySelectorItem } from '../../components/pos/CategorySelector';
 import { PaymentModal, type FinalPaymentSubmission } from '../../components/pos/cobrar/PaymentModal';
 import { SaleSuccessView } from '../../components/pos/cobrar/SaleSuccessView';
@@ -189,6 +191,79 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
     }
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [variantModalProduct, setVariantModalProduct] = useState<PosProductItem | null>(null);
+  const [presentationModalProduct, setPresentationModalProduct] = useState<PosProductItem | null>(null);
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' || !searchQuery.trim()) return;
+    const q = searchQuery.trim().toLowerCase();
+
+    // 1. Coincidencia exacta de código de barras en presentaciones
+    for (const p of products) {
+      if (Array.isArray(p.presentations)) {
+        const pres = p.presentations.find(
+          (pr) => pr.isActive !== false && pr.barcode && pr.barcode.trim().toLowerCase() === q,
+        );
+        if (pres) {
+          addItem(p, pres, 1);
+          setSearchQuery('');
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+
+    // 2. Coincidencia exacta de código de barras en variantes
+    for (const p of products) {
+      if (Array.isArray(p.variants)) {
+        const v = p.variants.find(
+          (va) => va.isActive !== false && va.barcode && va.barcode.trim().toLowerCase() === q,
+        );
+        if (v) {
+          addItem(v as PosProductItem, undefined, 1);
+          setSearchQuery('');
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+
+    // 3. Coincidencia exacta de código de barras en productos base
+    const matchedProduct = products.find((p) => p.barcode && p.barcode.trim().toLowerCase() === q);
+    if (matchedProduct) {
+      if (matchedProduct.isVariantParent) {
+        setVariantModalProduct(matchedProduct);
+      } else if (
+        Array.isArray(matchedProduct.presentations) &&
+        matchedProduct.presentations.filter((pr) => pr.isActive !== false).length > 0
+      ) {
+        setPresentationModalProduct(matchedProduct);
+      } else {
+        addItem(matchedProduct, undefined, 1);
+      }
+      setSearchQuery('');
+      e.preventDefault();
+      return;
+    }
+
+    // 4. Si hay un solo producto en los resultados filtrados
+    if (filteredProducts.length === 1) {
+      const single = filteredProducts[0];
+      if (single.isVariantParent) {
+        setVariantModalProduct(single);
+      } else if (
+        Array.isArray(single.presentations) &&
+        single.presentations.filter((pr) => pr.isActive !== false).length > 0
+      ) {
+        setPresentationModalProduct(single);
+      } else {
+        addItem(single, undefined, 1);
+      }
+      setSearchQuery('');
+      e.preventDefault();
+      return;
+    }
+  };
 
   React.useEffect(() => {
     try {
@@ -202,6 +277,8 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
   const [completedSale, setCompletedSale] = useState<SaleResponse | null>(null);
   const [isSubmittingSale, setIsSubmittingSale] = useState(false);
   const [saleErrorMessage, setSaleErrorMessage] = useState<string | null>(null);
+  const [previewFallbackNotice, setPreviewFallbackNotice] = useState<string | null>(null);
+  const [usePromotionsInSale, setUsePromotionsInSale] = useState<boolean>(true);
   const [pendingDiscountApprovalSubmission, setPendingDiscountApprovalSubmission] =
     useState<FinalPaymentSubmission | null>(null);
   const [discountApprovalMessage, setDiscountApprovalMessage] = useState<string>('');
@@ -361,15 +438,15 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
     staleTime: 60000,
   });
 
-  // Consulta de productos del catálogo
+  // Consulta de productos del catálogo (294: con variantes agrupadas)
   const { data: products = [], isLoading: isLoadingProducts } = useQuery<PosProductItem[]>({
     queryKey: ['pos', 'products'],
-    queryFn: () => getPosProducts(),
+    queryFn: () => getPosProducts({ groupVariants: true }),
     enabled: Boolean(webBillingEnabled && canCobrar),
     staleTime: 30000,
   });
 
-  // Filtrado de productos por categoría y texto de búsqueda
+  // Filtrado de productos por categoría y texto de búsqueda (soporta variantes y presentaciones)
   const filteredProducts = useMemo(() => {
     let result = products;
     if (selectedCategoryId !== 'ALL') {
@@ -377,11 +454,24 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.barcode && p.barcode.toLowerCase().includes(q)),
-      );
+      result = result.filter((p) => {
+        if (p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q))) {
+          return true;
+        }
+        if (Array.isArray(p.presentations) && p.presentations.some((pres) =>
+          pres.isActive !== false &&
+          (pres.name.toLowerCase().includes(q) || (pres.barcode && pres.barcode.toLowerCase().includes(q)))
+        )) {
+          return true;
+        }
+        if (Array.isArray(p.variants) && p.variants.some((v) =>
+          v.isActive !== false &&
+          (v.name.toLowerCase().includes(q) || (v.barcode && v.barcode.toLowerCase().includes(q)))
+        )) {
+          return true;
+        }
+        return false;
+      });
     }
     return result;
   }, [products, selectedCategoryId, searchQuery]);
@@ -389,10 +479,22 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
   const cartQuantities = useMemo(() => {
     const map: Record<string, number> = {};
     cartItems.forEach((item) => {
-      map[item.productId] = item.quantity;
+      map[item.id] = (map[item.id] || 0) + item.quantity;
+      if (item.id !== item.productId) {
+        map[item.productId] = (map[item.productId] || 0) + item.quantity;
+      }
+    });
+    // Para productos padre con variantes, sumar el conteo de los hijos en carrito
+    products.forEach((p) => {
+      if (p.isVariantParent && Array.isArray(p.variants)) {
+        const sumVar = p.variants.reduce((s, v) => s + (map[v.id] || 0), 0);
+        if (sumVar > 0) {
+          map[p.id] = sumVar;
+        }
+      }
     });
     return map;
-  }, [cartItems]);
+  }, [cartItems, products]);
 
   const categoryCounts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -740,6 +842,11 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
     setIsSubmittingSale(true);
     setSaleErrorMessage(null);
 
+    const isUsingPromos =
+      usePromotionsInSale &&
+      !previewFallbackNotice &&
+      Boolean(usePosCartStore.getState().previewResult);
+
     const currentCalc = getCalculationSummary();
 
     const itemsPayload = currentCalc.lines.map((line, idx) => {
@@ -749,6 +856,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         String(line.productId || '').startsWith('quote-custom-');
       return {
         productId: isCustom ? undefined : line.productId || undefined,
+        presentationId: cartItem?.presentationId || undefined,
         productName: line.productName,
         barcode: line.barcode || undefined,
         unitPrice: line.unitPrice,
@@ -756,6 +864,8 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         discount: line.discount || 0,
         priceTier: line.priceTier,
         subtotal: line.subtotal,
+        promoDiscount: isUsingPromos ? cartItem?.promoDiscount || undefined : undefined,
+        promotionName: isUsingPromos ? cartItem?.promotionName || undefined : undefined,
         listPrice: line.listPrice != null ? line.listPrice : undefined,
         listPriceDiscount: line.listPriceDiscount,
         manualDiscountShare: line.manualDiscountShare,
@@ -781,6 +891,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
 
     const salePayload: any = {
       channel: effectiveChannel,
+      applyPromotions: isUsingPromos,
       deliveryFee: effectiveChannel === 'DOMICILIO' ? saleDeliveryFee : undefined,
       deliveryAddress:
         effectiveChannel === 'DOMICILIO'
@@ -806,6 +917,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
       subtotal: finalSubtotal,
       discountAmount: currentCalc.discountAmount > 0 ? currentCalc.discountAmount : undefined,
       discount: currentCalc.discountAmount > 0 ? currentCalc.discountAmount : undefined,
+      promoDiscountTotal: isUsingPromos && (currentCalc.promoDiscountTotal ?? 0) > 0 ? currentCalc.promoDiscountTotal : undefined,
       subtotalBeforeTax: finalSubtotalBeforeTax,
       total: finalTotal,
       clientTotal: finalTotal,
@@ -925,6 +1037,10 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         setSaleErrorMessage(
           errMsg || 'El catálogo de precios cambió. Recargá los productos para actualizar los precios.',
         );
+      } else if (errCode === 'VARIANT_PARENT_NOT_SELLABLE') {
+        setSaleErrorMessage(errMsg || 'Elegí la talla o el color antes de agregarlo.');
+      } else if (errCode === 'QUANTITY_MUST_BE_INTEGER') {
+        setSaleErrorMessage(errMsg || 'La unidad de este producto no admite decimales. Ingresá una cantidad entera.');
       } else if (errCode === 'TIP_DISABLED') {
         setSaleErrorMessage(errMsg || 'Las propinas están desactivadas para este negocio.');
       } else if (errCode === 'TIP_NOT_ALLOWED_FOR_CHANNEL') {
@@ -1232,6 +1348,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
               placeholder="Buscar producto o código de barras..."
               className="w-full pl-10 pr-11 py-2.5 bg-white border border-gray-200 rounded-2xl text-xs sm:text-sm text-gray-900 focus:outline-hidden focus:border-gray-900 transition-colors shadow-2xs min-h-[44px]"
             />
@@ -1400,8 +1517,21 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
                   key={product.id}
                   product={product}
                   quantityInCart={cartQuantities[product.id] || 0}
-                  onAdd={() => addItem(product)}
+                  onAdd={() => {
+                    if (product.isVariantParent) {
+                      setVariantModalProduct(product);
+                    } else if (
+                      Array.isArray(product.presentations) &&
+                      product.presentations.filter((pr) => pr.isActive !== false).length > 0
+                    ) {
+                      setPresentationModalProduct(product);
+                    } else {
+                      addItem(product);
+                    }
+                  }}
                   onDecrement={() => removeItem(product.id)}
+                  onOpenVariantSelector={(p) => setVariantModalProduct(p)}
+                  onOpenPresentationSelector={(p) => setPresentationModalProduct(p)}
                 />
               ))}
             </div>
@@ -1461,8 +1591,32 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         lockChannel={lockChannel}
         discountsEnabled={discountsEnabled}
         priceOverrideEnabled={priceOverrideEnabled}
-        onProceedToPayment={() => {
+        onProceedToPayment={async () => {
           setSaleErrorMessage(null);
+
+          const timeoutPromise = new Promise<'TIMEOUT'>((resolve) => {
+            setTimeout(() => resolve('TIMEOUT'), 5000);
+          });
+
+          let previewOutcome: any = null;
+          try {
+            previewOutcome = await Promise.race([
+              usePosCartStore.getState().flushPreview(),
+              timeoutPromise,
+            ]);
+          } catch {
+            previewOutcome = null;
+          }
+
+          if (!previewOutcome || previewOutcome === 'TIMEOUT') {
+            usePosCartStore.getState().clearPreview();
+            setPreviewFallbackNotice('No se pudieron aplicar las promociones. Se cobra el precio normal.');
+            setUsePromotionsInSale(false);
+          } else {
+            setPreviewFallbackNotice(null);
+            setUsePromotionsInSale(true);
+          }
+
           setIsCartDrawerOpen(false);
           setIsPaymentModalOpen(true);
         }}
@@ -1499,7 +1653,9 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         onClose={() => {
           setIsPaymentModalOpen(false);
           setSaleErrorMessage(null);
+          setPreviewFallbackNotice(null);
         }}
+        fallbackNotice={previewFallbackNotice}
         total={total}
         subtotal={subtotal}
         discountAmount={discountAmount}
@@ -1623,6 +1779,36 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
           }
         }}
       />
+
+      {/* Modal de selección de variantes de atributos (Talla, Color, etc.) */}
+      {variantModalProduct && (
+        <VariantSelectorModal
+          isOpen={Boolean(variantModalProduct)}
+          onClose={() => setVariantModalProduct(null)}
+          product={variantModalProduct}
+          onSelectVariant={(variant) => {
+            addItem(variant, undefined, 1);
+            setVariantModalProduct(null);
+          }}
+        />
+      )}
+
+      {/* Modal de selección de presentaciones (Saco, Caja, etc.) */}
+      {presentationModalProduct && (
+        <PresentationSelectorModal
+          isOpen={Boolean(presentationModalProduct)}
+          onClose={() => setPresentationModalProduct(null)}
+          product={presentationModalProduct}
+          onSelectSuelto={(p) => {
+            addItem(p);
+            setPresentationModalProduct(null);
+          }}
+          onSelectPresentation={(p, pres) => {
+            addItem(p, pres, 1);
+            setPresentationModalProduct(null);
+          }}
+        />
+      )}
     </div>
   );
 };

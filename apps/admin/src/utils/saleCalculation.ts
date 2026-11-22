@@ -58,6 +58,7 @@ export interface CalculatedSaleSummary {
   subtotal: number; // suma de netos de las líneas
   discountAmount: number; // descuento manual general del cajero
   lineDiscountTotal: number; // suma de descuentos manuales por línea
+  promoDiscountTotal?: number; // suma de descuentos por promociones
   eligibleForGlobalDiscountSubtotal: number; // subtotal elegible para descuento general
   subtotalBeforeTax: number; // subtotal - discountAmount
   listPriceTotal: number; // suma de precios de etiqueta
@@ -76,10 +77,13 @@ export function isLineBlockedFromManualDiscount(
     priceTier?: string | null;
     listPrice?: number | null;
     unitPrice: number;
+    promotionId?: string | null;
+    promoDiscount?: number | null;
   },
   useListPrice: boolean = false,
 ): boolean {
   if (item.allowDiscount === false) return true;
+  if (item.promotionId || Number(item.promoDiscount || 0) > 0) return true;
   const tier = (item.priceTier || 'RETAIL').toUpperCase();
   if (tier === 'WHOLESALE' || tier === 'PROMO') return true;
   if (
@@ -176,6 +180,7 @@ export function calculateSaleTotals(
       subtotal: subtotalCents / 100,
       discountAmount: discountAmountCents / 100,
       lineDiscountTotal: lineDiscountTotalCents / 100,
+      promoDiscountTotal: 0,
       eligibleForGlobalDiscountSubtotal: eligibleForGlobalCents / 100,
       subtotalBeforeTax: finalSubtotalCents / 100,
       listPriceTotal: 0,
@@ -328,6 +333,7 @@ export function calculateSaleTotals(
     subtotal: subtotalNetCents / 100,
     discountAmount: totalManualDiscountCents / 100,
     lineDiscountTotal: totalLineDiscountCents / 100,
+    promoDiscountTotal: 0,
     eligibleForGlobalDiscountSubtotal: eligibleForGlobalCents / 100,
     subtotalBeforeTax: subtotalBeforeTaxCents / 100,
     listPriceTotal: totalListPriceCents / 100,

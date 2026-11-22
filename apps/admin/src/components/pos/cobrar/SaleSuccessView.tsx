@@ -65,6 +65,7 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
       ? Math.round((rawListPriceTotal - deliveryFee) * 100) / 100
       : rawListPriceTotal;
   const listDiscountTotal = Number((sale as any).listDiscountTotal || 0);
+  const promoDiscountTotal = Number((sale as any).promoDiscountTotal || 0);
   const discountManual = Number(sale.discountAmount || 0);
   const taxAmount = Number(sale.taxAmount || 0);
   const total = Number(sale.total || 0);
@@ -331,6 +332,12 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
                     <span>-{formatCurrency(discountManual)}</span>
                   </div>
                 )}
+                {promoDiscountTotal > 0 && (
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Ahorro en promociones</span>
+                    <span>-{formatCurrency(promoDiscountTotal)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-gray-700 font-medium pt-1 border-t border-gray-200/60">
                   <span>Subtotal antes de IVA</span>
                   <span className="whitespace-nowrap tabular-nums shrink-0">{formatCurrency(subtotalBeforeTax)}</span>
@@ -368,6 +375,12 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
                   <div className="flex justify-between gap-2 text-emerald-700 font-medium">
                     <span>Descuento</span>
                     <span className="whitespace-nowrap tabular-nums shrink-0">-{formatCurrency(discountManual)}</span>
+                  </div>
+                )}
+                {promoDiscountTotal > 0 && (
+                  <div className="flex justify-between gap-2 text-emerald-700 font-medium">
+                    <span>Ahorro en promociones</span>
+                    <span className="whitespace-nowrap tabular-nums shrink-0">-{formatCurrency(promoDiscountTotal)}</span>
                   </div>
                 )}
                 {hasTaxable && (
@@ -413,6 +426,12 @@ export const SaleSuccessView: React.FC<SaleSuccessViewProps> = ({
                   <div className="flex justify-between gap-2 text-emerald-700 font-medium">
                     <span>Descuento</span>
                     <span className="whitespace-nowrap tabular-nums shrink-0">-{formatCurrency(discountManual)}</span>
+                  </div>
+                )}
+                {promoDiscountTotal > 0 && (
+                  <div className="flex justify-between gap-2 text-emerald-700 font-medium">
+                    <span>Ahorro en promociones</span>
+                    <span className="whitespace-nowrap tabular-nums shrink-0">-{formatCurrency(promoDiscountTotal)}</span>
                   </div>
                 )}
                 {isDelivery && (
