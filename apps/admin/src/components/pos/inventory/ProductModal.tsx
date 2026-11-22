@@ -18,6 +18,7 @@ import {
   Check,
   ChefHat,
   SlidersHorizontal,
+  Camera,
 } from '@phosphor-icons/react';
 import {
   type PosProductItem,
@@ -27,6 +28,7 @@ import {
   type PosInventoryAdjustmentType,
   type PosSupplier,
   type PosRecipeComponentItem,
+  type PosUnit,
   createPosProduct,
   updatePosProduct,
   getPosProducts,
@@ -37,6 +39,8 @@ import {
   getPosProductBatches,
   updatePosBatch,
   getPosSettings,
+  getPosUnits,
+  uploadPosProductImage,
 } from 'api-client';
 import { useAuthStore } from '../../../store/auth.store';
 import {
@@ -55,6 +59,10 @@ import { formatManaguaDate } from '../../../utils/dateManagua';
 import { ListFieldSelect, type ProductField } from './ListFieldSelect';
 import { EditBatchModal, type BatchToEdit } from './EditBatchModal';
 import { SupplierModal } from './SupplierModal';
+import { CreateUnitModal } from './CreateUnitModal';
+import { CreateFieldModal } from './CreateFieldModal';
+import { ProductPresentationsSection } from './ProductPresentationsSection';
+import { ProductVariantsSection } from './ProductVariantsSection';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -89,7 +97,14 @@ const ALLOWED_UNITS = [
   { value: 'LB', label: 'Libra (LB)' },
 ];
 
-type SectionKey = 'basic' | 'pricing' | 'inventory' | 'batches' | 'operation';
+type SectionKey =
+  | 'basic'
+  | 'pricing'
+  | 'inventory'
+  | 'presentations'
+  | 'variants'
+  | 'batches'
+  | 'operation';
 
 const normalizeDynamicAttributeValue = (val: any): string => {
   if (val === undefined || val === null) return '';
@@ -212,6 +227,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [sendToKitchen, setSendToKitchen] = useState(true);
   const [isActive, setIsActive] = useState(true);
 
+  // Foto del producto (Ticket 294)
+  const [imageUrl, setImageUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  // Unidades dinámicas (Ticket 294)
+  const [units, setUnits] = useState<PosUnit[]>([]);
+  const [isCreateUnitOpen, setIsCreateUnitOpen] = useState(false);
+  const [isCreateFieldOpen, setIsCreateFieldOpen] = useState(false);
+
   // Dynamic attributes
   const [attributes, setAttributes] = useState<Record<string, any>>({});
 
@@ -232,6 +257,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     basic: true,
     pricing: true,
     inventory: true,
+    presentations: false,
+    variants: false,
     batches: true,
     operation: false,
   });
@@ -252,6 +279,39 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const activeCustomFields = useMemo(
     () => productFields.filter((f) => f.isActive !== false && !f.key?.endsWith('_id')),
     [productFields],
+  );
+
+  const allAvailableUnits = useMemo(() => {
+    const list: Array<{ value: string; label: string; allowsDecimals: boolean }> = [];
+    const seenCodes = new Set<string>();
+
+    for (const u of units) {
+      if (u.isActive !== false) {
+        list.push({
+          value: u.code,
+          label: `${u.name} (${u.code})`,
+          allowsDecimals: Boolean(u.allowsDecimals),
+        });
+        seenCodes.add(u.code.toUpperCase());
+      }
+    }
+
+    for (const d of ALLOWED_UNITS) {
+      if (!seenCodes.has(d.value.toUpperCase())) {
+        list.push({
+          value: d.value,
+          label: d.label,
+          allowsDecimals: ['LT', 'GAL', 'KG', 'LB'].includes(d.value),
+        });
+        seenCodes.add(d.value.toUpperCase());
+      }
+    }
+
+    return list;
+  }, [units]);
+
+  const selectedUnitObj = allAvailableUnits.find(
+    (u) => u.value.toUpperCase() === (unit || '').toUpperCase(),
   );
 
   // Load settings if parent didn't pass them
@@ -280,7 +340,82 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     getPosProducts()
       .then((data) => setCatalogCandidates(Array.isArray(data) ? data : []))
       .catch(() => setCatalogCandidates([]));
-  }, [isOpen]);
+
+    getPosUnits({ businessId: business?.id })
+      .then((data) => setUnits(Array.isArray(data) ? data : []))
+      .catch(() => setUnits([]));
+  }, [isOpen, business?.id]);
+
+  // Reducción de imagen en cliente con Canvas nativo sin dependencias (Ticket 294)
+  const resizeImageClient = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX_DIM = 1024;
+          let width = img.width;
+          let height = img.height;
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            } else {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('No se pudo procesar la imagen'));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('No se pudo convertir la imagen procesada'));
+            },
+            'image/jpeg',
+            0.85,
+          );
+        };
+        img.onerror = () => reject(new Error('No se pudo cargar la imagen seleccionada'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo seleccionado'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type.toLowerCase())) {
+      setImageError('El archivo debe ser una imagen JPG, PNG o WebP.');
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setImageError(null);
+    try {
+      const resizedBlob = await resizeImageClient(file);
+      const res = await uploadPosProductImage(resizedBlob, business?.id);
+      if (res?.imageUrl) {
+        setImageUrl(res.imageUrl);
+      }
+    } catch (err: any) {
+      setImageError(err?.response?.data?.message || err?.message || 'No se pudo subir la foto.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   const loadBatches = useCallback(async (productId: string) => {
     setIsLoadingBatches(true);
@@ -316,6 +451,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       itemType: string;
       name: string;
       description: string;
+      imageUrl: string;
       barcode: string;
       sku: string;
       categoryId: string;
@@ -412,6 +548,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setItemType(nextType);
       setName(nextName);
       setDescription(nextDesc);
+      setImageUrl(product.imageUrl || '');
       setBarcode(nextBarcode);
       setSku(nextSku);
       setCategoryId(nextCatId);
@@ -442,6 +579,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         basic: true,
         pricing: true,
         inventory: nextType !== 'SERVICE',
+        presentations: false,
+        variants: false,
         batches: Boolean(businessTracksBatches && nextTracksBatches),
         operation: Boolean(isRestaurant),
       });
@@ -450,6 +589,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         itemType: nextType,
         name: nextName,
         description: nextDesc,
+        imageUrl: product.imageUrl || '',
         barcode: nextBarcode,
         sku: nextSku,
         categoryId: nextCatId,
@@ -537,6 +677,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setItemType('PRODUCT');
       setName(initialName || '');
       setDescription('');
+      setImageUrl('');
       setBarcode(initialBarcode || '');
       setSku('');
       setCategoryId(defaultCatId);
@@ -578,6 +719,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         basic: true,
         pricing: true,
         inventory: true,
+        presentations: false,
+        variants: false,
         batches: defaultTracksBatches,
         operation: Boolean(isRestaurant),
       });
@@ -586,6 +729,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         itemType: 'PRODUCT',
         name: initialName || '',
         description: '',
+        imageUrl: '',
         barcode: initialBarcode || '',
         sku: '',
         categoryId: defaultCatId,
@@ -807,6 +951,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     itemType,
     name,
     description,
+    imageUrl,
     barcode,
     sku,
     categoryId,
@@ -1011,6 +1156,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         basic: true,
         pricing: true,
         inventory: !isService,
+        presentations: false,
+        variants: false,
         batches: Boolean(canManageBatches && tracksBatches),
         operation: Boolean(isRestaurant),
       });
@@ -1066,6 +1213,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     const payload: Record<string, any> = {
       name: name.trim(),
       description: description.trim() || undefined,
+      imageUrl: imageUrl.trim() || null,
       type: itemType,
       categoryId,
       supplierId: supplierId || undefined,
@@ -1302,6 +1450,66 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
               {openSections.basic && (
                 <div className="p-4 space-y-3.5">
+                  {/* Foto del producto (Ticket 294) */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-800 mb-1.5">
+                      Foto del producto
+                    </label>
+                    <div className="flex items-center gap-3">
+                      {imageUrl ? (
+                        <div className="relative group shrink-0">
+                          <img
+                            src={imageUrl}
+                            alt="Foto del producto"
+                            className="w-20 h-20 rounded-2xl object-cover border border-gray-200 shadow-2xs bg-gray-50"
+                          />
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              onClick={() => setImageUrl('')}
+                              className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xs hover:bg-red-700 transition-colors"
+                              title="Quitar foto"
+                            >
+                              <X size={14} weight="bold" />
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="w-20 h-20 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 shrink-0">
+                          <Camera size={26} />
+                          <span className="text-xs font-medium mt-0.5">Sin foto</span>
+                        </div>
+                      )}
+
+                      {!isReadOnly && (
+                        <div className="space-y-1">
+                          <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 cursor-pointer transition-colors shadow-2xs">
+                            <Camera size={16} className="text-purple-700" />
+                            <span>{imageUrl ? 'Cambiar foto' : 'Subir foto'}</span>
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              disabled={isUploadingImage}
+                              onChange={handleImageFileSelect}
+                            />
+                          </label>
+                          <p className="text-xs text-gray-400">
+                            JPG, PNG o WebP. Se optimiza en el navegador antes de subir.
+                          </p>
+                          {isUploadingImage && (
+                            <p className="text-xs text-purple-700 font-semibold animate-pulse">
+                              Optimizando y subiendo foto...
+                            </p>
+                          )}
+                          {imageError && (
+                            <p className="text-xs text-red-600 font-medium">{imageError}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Tipo Producto vs Servicio */}
                   <div>
                     <label className="block text-xs font-semibold text-gray-800 mb-1.5">
@@ -1506,12 +1714,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
                   )}
 
-                  {/* Campos del rubro y personalizados */}
-                  {activeCustomFields.length > 0 && (
-                    <div className="pt-3 border-t border-gray-100 space-y-3">
+                  {/* Campos del rubro y personalizados (Ticket 294) */}
+                  <div className="pt-3 border-t border-gray-100 space-y-3">
+                    <div className="flex items-center justify-between">
                       <p className="text-xs font-bold text-gray-700">
-                        {isPharmacy ? 'Datos farmacéuticos y de catálogo' : 'Campos del catálogo'}
+                        {isPharmacy ? 'Datos farmacéuticos y atributos del catálogo' : 'Atributos del producto'}
                       </p>
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCreateFieldOpen(true)}
+                          className="text-xs font-semibold text-purple-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <Plus size={12} weight="bold" />
+                          <span>Agregar atributo</span>
+                        </button>
+                      )}
+                    </div>
+                  {activeCustomFields.length > 0 && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {activeCustomFields.map((field) => {
                           const isRequiredByIndustry =
@@ -1607,8 +1827,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           );
                         })}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
             </section>
@@ -2074,21 +2294,38 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     {trackStock && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs font-semibold text-gray-800 mb-1">
-                            Unidad de medida
-                          </label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-xs font-semibold text-gray-800">
+                              Unidad de medida
+                            </label>
+                            {!isReadOnly && (
+                              <button
+                                type="button"
+                                onClick={() => setIsCreateUnitOpen(true)}
+                                className="text-xs font-semibold text-purple-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+                              >
+                                <Plus size={12} weight="bold" />
+                                <span>Crear unidad</span>
+                              </button>
+                            )}
+                          </div>
                           <select
                             disabled={isReadOnly}
                             value={unit}
                             onChange={(e) => setUnit(e.target.value)}
                             className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 focus:outline-none focus:border-purple-600 disabled:bg-gray-50"
                           >
-                            {ALLOWED_UNITS.map((u) => (
+                            {allAvailableUnits.map((u) => (
                               <option key={u.value} value={u.value}>
                                 {u.label}
                               </option>
                             ))}
                           </select>
+                          {selectedUnitObj?.allowsDecimals && (
+                            <div className="mt-1 text-xs text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 font-medium">
+                              Se vende por peso o medida
+                            </div>
+                          )}
                         </div>
 
                         <div>
@@ -2196,6 +2433,89 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* SECCIÓN PRESENTACIONES (Ticket 294) */}
+            {!isService && (
+              <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection('presentations')}
+                  className="w-full px-4 py-3 bg-gray-50/70 flex items-center justify-between text-left border-b border-gray-100 cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Stack size={15} className="text-purple-700" />
+                    <span>Presentaciones</span>
+                    {product?.presentations && product.presentations.length > 0 && (
+                      <span className="ml-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 text-xs font-bold normal-case">
+                        {product.presentations.length}
+                      </span>
+                    )}
+                  </span>
+                  {openSections.presentations ? (
+                    <CaretUp size={16} className="text-gray-600" />
+                  ) : (
+                    <CaretDown size={16} className="text-gray-600" />
+                  )}
+                </button>
+
+                {openSections.presentations && (
+                  <div className="p-4">
+                    <ProductPresentationsSection
+                      productId={product?.id}
+                      unit={unit}
+                      currentStock={Number(stock || 0)}
+                      currency={currency}
+                      canManageCost={!isReadOnly}
+                      isReadOnly={isReadOnly}
+                      businessId={business?.id}
+                    />
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* SECCIÓN VARIANTES (Ticket 294) */}
+            {!isService && (
+              <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection('variants')}
+                  className="w-full px-4 py-3 bg-gray-50/70 flex items-center justify-between text-left border-b border-gray-100 cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <SlidersHorizontal size={15} className="text-purple-700" />
+                    <span>Variantes</span>
+                    {product?.variants && product.variants.length > 0 && (
+                      <span className="ml-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-900 text-xs font-bold normal-case">
+                        {product.variants.length}
+                      </span>
+                    )}
+                  </span>
+                  {openSections.variants ? (
+                    <CaretUp size={16} className="text-gray-600" />
+                  ) : (
+                    <CaretDown size={16} className="text-gray-600" />
+                  )}
+                </button>
+
+                {openSections.variants && (
+                  <div className="p-4">
+                    <ProductVariantsSection
+                      productId={product?.id}
+                      productName={name}
+                      isVariantParent={Boolean(product?.isVariantParent)}
+                      unit={unit}
+                      currency={currency}
+                      productFields={productFields}
+                      canManageCost={!isReadOnly}
+                      isReadOnly={isReadOnly}
+                      businessId={business?.id}
+                      onRequestCreateField={() => setIsCreateFieldOpen(true)}
+                    />
                   </div>
                 )}
               </section>
@@ -2946,7 +3266,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                             <span className="text-xs font-semibold text-gray-900 block">
                               Sumar mano de obra al precio de los productos
                             </span>
-                            <p className="text-[11px] text-gray-500">
+                            <p className="text-xs text-gray-500">
                               Activalo para servicios con insumos (ej. cambio de aceite + mano de obra). Dejalo apagado para combos con precio promocional fijo (ej. 3 gaseosas a C$120).
                             </p>
                           </div>
@@ -3166,6 +3486,29 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             setFieldErrors((p) => ({ ...p, supplierId: '' }));
           }
           setIsSupplierModalOpen(false);
+        }}
+      />
+
+      <CreateUnitModal
+        isOpen={isOpen && isCreateUnitOpen}
+        onClose={() => setIsCreateUnitOpen(false)}
+        businessId={business?.id}
+        onCreated={(newUnit) => {
+          setUnits((prev) => [newUnit, ...prev.filter((u) => u.id !== newUnit.id)]);
+          setUnit(newUnit.code);
+          setIsCreateUnitOpen(false);
+        }}
+      />
+
+      <CreateFieldModal
+        isOpen={isOpen && isCreateFieldOpen}
+        onClose={() => setIsCreateFieldOpen(false)}
+        businessId={business?.id}
+        onCreated={() => {
+          getPosProductFields(business?.id)
+            .then((fields) => setProductFields(Array.isArray(fields) ? fields : []))
+            .catch(() => {});
+          setIsCreateFieldOpen(false);
         }}
       />
     </>

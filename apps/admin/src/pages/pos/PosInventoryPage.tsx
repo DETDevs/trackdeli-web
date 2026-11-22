@@ -12,6 +12,7 @@ import {
   ArrowsDownUp,
   CaretLeft,
   CaretRight,
+  CaretDown,
   SlidersHorizontal,
   Info,
   UploadSimple,
@@ -51,6 +52,34 @@ import {
 type StockFilterType = 'all' | 'low' | 'near_low' | 'out' | 'no_cost';
 type SortOrderType = 'name_asc' | 'name_desc' | 'stock_asc' | 'stock_desc' | 'price_asc' | 'price_desc';
 
+const formatUnitLabel = (unit?: string): string => {
+  const u = (unit || 'UND').trim().toUpperCase();
+  switch (u) {
+    case 'LB':
+      return 'por libra';
+    case 'KG':
+      return 'por kilo';
+    case 'LT':
+      return 'por litro';
+    case 'GAL':
+      return 'por galón';
+    case 'UND':
+      return 'por unidad';
+    case 'ROLLO':
+      return 'por rollo';
+    case 'MT':
+      return 'por metro';
+    case 'DOC':
+      return 'por docena';
+    case 'PAR':
+      return 'por par';
+    case 'CAJA':
+      return 'por caja';
+    default:
+      return `por ${u.toLowerCase()}`;
+  }
+};
+
 export const PosInventoryPage: React.FC = () => {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
@@ -88,6 +117,16 @@ export const PosInventoryPage: React.FC = () => {
   });
   const [sortBy, setSortBy] = useState<SortOrderType>('name_asc');
   const [expiredQtyByProduct, setExpiredQtyByProduct] = useState<Record<string, number>>({});
+  const [expandedVariantIds, setExpandedVariantIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandVariants = (productId: string) => {
+    setExpandedVariantIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const st = (location.state as any) || null;
@@ -148,7 +187,7 @@ export const PosInventoryPage: React.FC = () => {
     setError(null);
     try {
       const [prodsData, catsData, bizData, settingsData, policiesData, expiringRes] = await Promise.all([
-        getPosProducts({ isActive: true }),
+        getPosProducts({ isActive: true, groupVariants: true }),
         getPosCategories().catch(() => []),
         getMyBusiness().catch(() => null),
         getPosSettings().catch(() => null),
@@ -707,149 +746,270 @@ export const PosInventoryPage: React.FC = () => {
                         (p.batchesCount ?? 0) > 0,
                     );
                     const hasComponents = Boolean(p.components && p.components.length > 0);
+                    const hasPresentations = Boolean(p.presentations && p.presentations.length > 0);
+                    const isVariantParent = Boolean(p.isVariantParent);
+                    const variantsCount = p.variants?.length || 0;
+                    const isExpanded = expandedVariantIds.has(p.id);
+                    const effectiveStock = isVariantParent && Array.isArray(p.variants) && p.variants.length > 0
+                      ? p.variants.reduce((acc, v) => acc + (v.stock || 0), 0)
+                      : (p.stock ?? 0);
 
                     return (
-                      <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
-                        {/* Nombre y pills */}
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-gray-900">{p.name}</span>
-                            {wp && wmq && wmq >= 2 && (
-                              <span
-                                title={`Precio mayorista ${formatCurrency(wp, currency)} a partir de ${wmq} unidades`}
-                                className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200"
-                              >
-                                Mayor ≥ {wmq}
-                              </span>
-                            )}
-                            {hasBatches && renderBatchPill(p)}
-                            {hasComponents && (
-                              <span
-                                title="Contiene receta de insumos"
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200"
-                              >
-                                <Info size={12} weight="bold" />
-                                <span>Receta</span>
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Categoría */}
-                        <td className="px-4 py-3.5 text-gray-600 whitespace-nowrap">
-                          {p.category?.name || 'Sin categoría'}
-                        </td>
-
-                        {/* SKU / Barcode */}
-                        <td className="px-4 py-3.5 font-mono text-xs text-gray-500 whitespace-nowrap">
-                          {p.sku || p.barcode || '—'}
-                        </td>
-
-                        {/* Costo (solo Encargado/Superadmin) */}
-                        {canManageCatalog && (
-                          <td className="px-4 py-3.5 text-right whitespace-nowrap text-gray-600">
-                            {p.cost != null && p.cost > 0
-                              ? formatCurrency(p.cost, currency)
-                              : '—'}
-                          </td>
-                        )}
-
-                        {/* Precio */}
-                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                          <div className="font-bold text-gray-900">
-                            {formatCurrency(p.price, currency)}
-                          </div>
-                          {wp && wmq && (
-                            <div className="text-xs text-purple-700">
-                              Mayor: {formatCurrency(wp, currency)}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Existencia */}
-                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                          {isService ? (
-                            <span className="text-gray-400 font-medium">Ilimitado</span>
-                          ) : (
-                            <div>
-                              <span
-                                className={`font-bold ${
-                                  (p.stock ?? 0) <= 0
-                                    ? 'text-red-700'
-                                    : (p.stock ?? 0) <= (p.minStock ?? 0)
-                                    ? 'text-amber-800'
-                                    : 'text-gray-900'
-                                }`}
-                              >
-                                {formatQuantity(p.stock, p.unit)}
-                              </span>
-                              {p.minStock != null && p.minStock > 0 && (
-                                <div className="text-xs text-gray-400">
-                                  Mín: {formatQuantity(p.minStock, p.unit)}
+                      <React.Fragment key={p.id}>
+                        <tr className="hover:bg-gray-50/70 transition-colors">
+                          {/* Foto, Nombre y pills */}
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-3">
+                              {p.imageUrl ? (
+                                <img
+                                  src={p.imageUrl}
+                                  alt={p.name}
+                                  className="w-10 h-10 rounded-xl object-cover border border-gray-200 shrink-0 bg-gray-50"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 shrink-0">
+                                  <Package size={20} />
                                 </div>
                               )}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-gray-900">{p.name}</span>
+                                  {isVariantParent && (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleExpandVariants(p.id)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
+                                      title={isExpanded ? 'Ocultar variantes' : 'Mostrar variantes'}
+                                    >
+                                      <span>{variantsCount} variantes</span>
+                                      <CaretDown
+                                        size={12}
+                                        weight="bold"
+                                        className={`transition-transform duration-200 ${
+                                          isExpanded ? 'rotate-180' : ''
+                                        }`}
+                                      />
+                                    </button>
+                                  )}
+                                  {hasPresentations && (
+                                    <span
+                                      title={`${p.presentations?.length} presentación(es) activa(s)`}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                    >
+                                      Presentaciones
+                                    </span>
+                                  )}
+                                  {wp && wmq && wmq >= 2 && (
+                                    <span
+                                      title={`Precio mayorista ${formatCurrency(wp, currency)} a partir de ${wmq} unidades`}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200"
+                                    >
+                                      Mayor ≥ {wmq}
+                                    </span>
+                                  )}
+                                  {hasBatches && renderBatchPill(p)}
+                                  {hasComponents && (
+                                    <span
+                                      title="Contiene receta de insumos"
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200"
+                                    >
+                                      <Info size={12} weight="bold" />
+                                      <span>Receta</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
+                          </td>
+
+                          {/* Categoría */}
+                          <td className="px-4 py-3.5 text-gray-600 whitespace-nowrap">
+                            {p.category?.name || 'Sin categoría'}
+                          </td>
+
+                          {/* SKU / Barcode */}
+                          <td className="px-4 py-3.5 font-mono text-xs text-gray-500 whitespace-nowrap">
+                            {p.sku || p.barcode || '—'}
+                          </td>
+
+                          {/* Costo (solo Encargado/Superadmin) */}
+                          {canManageCatalog && (
+                            <td className="px-4 py-3.5 text-right whitespace-nowrap text-gray-600">
+                              {p.cost != null && p.cost > 0
+                                ? formatCurrency(p.cost, currency)
+                                : '—'}
+                            </td>
                           )}
-                        </td>
 
-                        {/* Estado */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${status.color}`}
-                          >
-                            {status.label}
-                          </span>
-                        </td>
+                          {/* Precio */}
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                            <div className="font-bold text-gray-900">
+                              {formatCurrency(p.price, currency)}
+                            </div>
+                            {wp && wmq && (
+                              <div className="text-xs text-purple-700">
+                                Mayor: {formatCurrency(wp, currency)}
+                              </div>
+                            )}
+                          </td>
 
-                        {/* Acciones */}
-                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                          {canManageCatalog ? (
-                            <div className="flex items-center justify-end gap-1">
-                              {!isService && (
+                          {/* Existencia */}
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                            {isService ? (
+                              <span className="text-gray-400 font-medium">Ilimitado</span>
+                            ) : (
+                              <div>
+                                <span
+                                  className={`font-bold ${
+                                    effectiveStock <= 0
+                                      ? 'text-red-700'
+                                      : effectiveStock <= (p.minStock ?? 0)
+                                      ? 'text-amber-800'
+                                      : 'text-gray-900'
+                                  }`}
+                                >
+                                  {formatQuantity(effectiveStock, p.unit)}
+                                </span>
+                                <div className="text-xs text-gray-500 font-normal">
+                                  {formatUnitLabel(p.unit)}
+                                </div>
+                                {p.minStock != null && p.minStock > 0 && (
+                                  <div className="text-xs text-gray-400">
+                                    Mín: {formatQuantity(p.minStock, p.unit)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Estado */}
+                          <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${status.color}`}
+                            >
+                              {status.label}
+                            </span>
+                          </td>
+
+                          {/* Acciones */}
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                            {canManageCatalog ? (
+                              <div className="flex items-center justify-end gap-1">
+                                {!isService && !isVariantParent && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenAdjust(p)}
+                                    className="min-h-[38px] px-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium transition-colors shadow-2xs flex items-center gap-1"
+                                    title="Ajustar existencia"
+                                  >
+                                    <ArrowsDownUp size={15} />
+                                    <span>Ajustar</span>
+                                  </button>
+                                )}
+
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenAdjust(p)}
-                                  className="min-h-[38px] px-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium transition-colors shadow-2xs flex items-center gap-1"
-                                  title="Ajustar existencia"
+                                  onClick={() => handleOpenEdit(p)}
+                                  className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                                  title="Editar producto"
+                                  aria-label="Editar"
                                 >
-                                  <ArrowsDownUp size={15} />
-                                  <span>Ajustar</span>
+                                  <PencilSimple size={18} />
                                 </button>
-                              )}
 
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDelete(p)}
+                                  className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                  title="Desactivar producto"
+                                  aria-label="Desactivar"
+                                >
+                                  <Trash size={18} />
+                                </button>
+                              </div>
+                            ) : (
                               <button
                                 type="button"
                                 onClick={() => handleOpenEdit(p)}
-                                className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition-colors"
-                                title="Editar producto"
-                                aria-label="Editar"
+                                className="min-h-[38px] px-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors shadow-2xs inline-flex items-center gap-1"
+                                title="Ver detalle del producto"
                               >
-                                <PencilSimple size={18} />
+                                <MagnifyingGlass size={15} />
+                                <span>Ver</span>
                               </button>
+                            )}
+                          </td>
+                        </tr>
 
-                              <button
-                                type="button"
-                                onClick={() => handleOpenDelete(p)}
-                                className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                title="Desactivar producto"
-                                aria-label="Desactivar"
+                        {/* Filas desplegables de variantes (Ticket 294) */}
+                        {isVariantParent && isExpanded && Array.isArray(p.variants) && p.variants.map((v) => (
+                          <tr key={v.id} className="bg-indigo-50/25 border-b border-indigo-100/60 hover:bg-indigo-50/45 transition-colors">
+                            <td className="px-4 py-2.5 pl-14">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-indigo-400 font-mono">↳</span>
+                                {v.imageUrl ? (
+                                  <img
+                                    src={v.imageUrl}
+                                    alt={v.name}
+                                    className="w-7 h-7 rounded-lg object-cover border border-gray-200 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-7 h-7 rounded-lg bg-indigo-100/70 border border-indigo-200 flex items-center justify-center text-indigo-600 text-xs font-bold shrink-0">
+                                    V
+                                  </div>
+                                )}
+                                <span className="font-semibold text-gray-800 text-xs">{v.name}</span>
+                                {!v.isActive && (
+                                  <span className="px-1.5 py-0.2 rounded text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">
+                                    Inactiva
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                              {p.category?.name || '—'}
+                            </td>
+                            <td className="px-4 py-2.5 font-mono text-xs text-gray-500 whitespace-nowrap">
+                              {v.sku || v.barcode || '—'}
+                            </td>
+                            {canManageCatalog && (
+                              <td className="px-4 py-2.5 text-right whitespace-nowrap text-xs text-gray-600">
+                                {v.cost != null && v.cost > 0 ? formatCurrency(v.cost, currency) : '—'}
+                              </td>
+                            )}
+                            <td className="px-4 py-2.5 text-right whitespace-nowrap text-xs font-bold text-gray-900">
+                              {formatCurrency(v.price, currency)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right whitespace-nowrap text-xs font-semibold text-gray-800">
+                              {formatQuantity(v.stock, p.unit)}
+                            </td>
+                            <td className="px-4 py-2.5 text-center whitespace-nowrap">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                                  v.isActive
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : 'bg-gray-100 text-gray-600 border-gray-200'
+                                }`}
                               >
-                                <Trash size={18} />
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEdit(p)}
-                              className="min-h-[38px] px-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors shadow-2xs inline-flex items-center gap-1"
-                              title="Ver detalle del producto"
-                            >
-                              <MagnifyingGlass size={15} />
-                              <span>Ver</span>
-                            </button>
-                          )}
-                        </td>
-                      </tr>
+                                {v.isActive ? 'Activa' : 'Inactiva'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                              {canManageCatalog && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEdit(p)}
+                                  className="min-h-[30px] px-2.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-medium transition-colors shadow-2xs inline-flex items-center gap-1"
+                                  title="Editar variantes en el producto"
+                                >
+                                  <PencilSimple size={13} />
+                                  <span>Editar</span>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -871,47 +1031,113 @@ export const PosInventoryPage: React.FC = () => {
                   (p.batchesCount ?? 0) > 0,
               );
               const hasComponents = Boolean(p.components && p.components.length > 0);
+              const hasPresentations = Boolean(p.presentations && p.presentations.length > 0);
+              const isVariantParent = Boolean(p.isVariantParent);
+              const variantsCount = p.variants?.length || 0;
+              const isExpanded = expandedVariantIds.has(p.id);
+              const effectiveStock = isVariantParent && Array.isArray(p.variants) && p.variants.length > 0
+                ? p.variants.reduce((acc, v) => acc + (v.stock || 0), 0)
+                : (p.stock ?? 0);
 
               return (
                 <div
                   key={p.id}
                   className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs space-y-3"
                 >
-                  {/* Encabezado de tarjeta */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h2 className="font-bold text-xs sm:text-sm text-gray-900 leading-snug">
-                        {p.name}
-                      </h2>
+                  {/* Encabezado de tarjeta con foto y datos */}
+                  <div className="flex items-start gap-3">
+                    {p.imageUrl ? (
+                      <img
+                        src={p.imageUrl}
+                        alt={p.name}
+                        className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0 bg-gray-50"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 shrink-0">
+                        <Package size={22} />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <h2 className="font-bold text-xs sm:text-sm text-gray-900 leading-snug">
+                          {p.name}
+                        </h2>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border shrink-0 ${status.color}`}
+                        >
+                          {status.label}
+                        </span>
+                      </div>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {p.category?.name || 'Sin categoría'}
                         {p.sku && ` · SKU: ${p.sku}`}
                         {p.barcode && ` · ${p.barcode}`}
                       </p>
                     </div>
-
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border shrink-0 ${status.color}`}
-                    >
-                      {status.label}
-                    </span>
                   </div>
 
-                  {/* Pills de Mayoreo / Lotes / Receta */}
-                  {(Boolean(wp && wmq && wmq >= 2) || hasBatches || hasComponents) && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {wp && wmq && wmq >= 2 && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-                          Mayor: {formatCurrency(wp, currency)} (≥ {wmq})
-                        </span>
-                      )}
-                      {hasBatches && renderBatchPill(p)}
-                      {hasComponents && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                          <Info size={12} weight="bold" />
-                          <span>Receta</span>
-                        </span>
-                      )}
+                  {/* Pills de Variantes / Presentaciones / Mayoreo / Lotes / Receta */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {isVariantParent && (
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandVariants(p.id)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                      >
+                        <span>{variantsCount} variantes</span>
+                        <CaretDown
+                          size={12}
+                          weight="bold"
+                          className={`transition-transform duration-200 ${
+                            isExpanded ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+                    )}
+                    {hasPresentations && (
+                      <span
+                        title={`${p.presentations?.length} presentación(es)`}
+                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      >
+                        Presentaciones
+                      </span>
+                    )}
+                    {wp && wmq && wmq >= 2 && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                        Mayor: {formatCurrency(wp, currency)} (≥ {wmq})
+                      </span>
+                    )}
+                    {hasBatches && renderBatchPill(p)}
+                    {hasComponents && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                        <Info size={12} weight="bold" />
+                        <span>Receta</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Lista expandible de variantes en móvil */}
+                  {isVariantParent && isExpanded && Array.isArray(p.variants) && (
+                    <div className="p-2.5 rounded-xl bg-indigo-50/40 border border-indigo-100 space-y-2">
+                      <p className="text-xs font-bold text-indigo-900">Variantes ({p.variants.length})</p>
+                      <div className="space-y-1.5 divide-y divide-indigo-100/70">
+                        {p.variants.map((v) => (
+                          <div key={v.id} className="pt-1.5 first:pt-0 flex items-center justify-between text-xs gap-2">
+                            <div className="min-w-0">
+                              <span className="font-semibold text-gray-900 block truncate">{v.name}</span>
+                              <span className="text-xs text-gray-500 font-mono">
+                                {v.barcode || v.sku || 'Sin código'}
+                              </span>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="font-bold text-gray-900 block">{formatCurrency(v.price, currency)}</span>
+                              <span className="text-xs text-gray-600 font-medium">
+                                {formatQuantity(v.stock, p.unit)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -925,14 +1151,17 @@ export const PosInventoryPage: React.FC = () => {
                         <div>
                           <span
                             className={`font-bold ${
-                              (p.stock ?? 0) <= 0
+                              effectiveStock <= 0
                                 ? 'text-red-700'
-                                : (p.stock ?? 0) <= (p.minStock ?? 0)
+                                : effectiveStock <= (p.minStock ?? 0)
                                 ? 'text-amber-800'
                                 : 'text-gray-900'
                             }`}
                           >
-                            {formatQuantity(p.stock, p.unit)}
+                            {formatQuantity(effectiveStock, p.unit)}
+                          </span>
+                          <span className="text-xs text-gray-500 block">
+                            {formatUnitLabel(p.unit)}
                           </span>
                           {p.minStock != null && p.minStock > 0 && (
                             <span className="text-gray-400 text-xs block">
@@ -959,7 +1188,7 @@ export const PosInventoryPage: React.FC = () => {
                   {/* Botones de acción móvil (mínimo 44px) */}
                   {canManageCatalog ? (
                     <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                      {!isService && (
+                      {!isService && !isVariantParent && (
                         <button
                           type="button"
                           onClick={() => handleOpenAdjust(p)}

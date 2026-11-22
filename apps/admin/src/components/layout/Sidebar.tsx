@@ -24,6 +24,7 @@ import {
   Coins,
   Truck,
   ForkKnife,
+  Tag,
 } from '@phosphor-icons/react';
 
 interface SidebarProps {
@@ -114,7 +115,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Package,
       show: Boolean(isPosActive && webAdminEnabled && (isPosManager || isCajero)),
     },
-    // 4b. Compras (abre /pos/purchases — solo ENCARGADO y SUPERADMIN)
+    // 4b. Promociones (abre /pos/promotions — solo ENCARGADO y SUPERADMIN)
+    {
+      to: '/pos/promotions',
+      label: 'Promociones',
+      icon: Tag,
+      show: Boolean(isPosActive && webAdminEnabled && isPosManager),
+    },
+    // 4c. Compras (abre /pos/purchases — solo ENCARGADO y SUPERADMIN)
     {
       to: '/pos/purchases',
       label: 'Compras',

@@ -144,6 +144,12 @@ export interface PosProductItem {
   hasBatchWithoutDate?: boolean;
   initialLotNumber?: string;
   initialExpiryDate?: string;
+  isVariantParent?: boolean;
+  parentProductId?: string | null;
+  variantAxes?: string[];
+  variantValues?: Record<string, string>;
+  variants?: PosProductVariantSummary[];
+  presentations?: PosProductPresentation[];
   components?: Array<{
     id?: string;
     productId: string;
@@ -453,6 +459,7 @@ export const getPosProducts = async (params?: {
   expiryMonth?: string;
   type?: string;
   sort?: string;
+  groupVariants?: boolean;
 }): Promise<PosProductItem[]> => {
   const res = await apiClient.get<PosProductItem[]>('/pos/products', {
     params: {
@@ -464,6 +471,7 @@ export const getPosProducts = async (params?: {
       expiryMonth: params?.expiryMonth || undefined,
       type: params?.type || undefined,
       sort: params?.sort || undefined,
+      groupVariants: params?.groupVariants !== undefined ? params.groupVariants : undefined,
     },
   });
   return res.data;
@@ -2982,6 +2990,13 @@ export interface PosDevice {
   createdAt: string;
   updatedAt?: string;
   revokedAt?: string | null;
+  archivedAt?: string | null;
+}
+
+export interface PosDevicesSummary {
+  active: number;
+  revoked: number;
+  archived: number;
 }
 
 export const createMobilePairingCode = async (
@@ -3007,9 +3022,13 @@ export const pairMobileDevice = async (
 
 export const getPosDevices = async (
   businessId?: string,
+  includeArchived?: boolean,
 ): Promise<PosDevice[]> => {
   const res = await apiClient.get<PosDevice[]>('/pos/devices', {
-    params: businessId ? { businessId } : undefined,
+    params: {
+      ...(businessId ? { businessId } : {}),
+      ...(includeArchived ? { includeArchived: 'true' } : {}),
+    },
   });
   return Array.isArray(res.data) ? res.data : [];
 };
@@ -3025,6 +3044,463 @@ export const revokePosDevice = async (
   );
   return res.data;
 };
+
+export const archivePosDevice = async (
+  deviceId: string,
+): Promise<PosDevice> => {
+  const res = await apiClient.patch<PosDevice>(`/pos/devices/${deviceId}/archive`);
+  return res.data;
+};
+
+export const unarchivePosDevice = async (
+  deviceId: string,
+): Promise<PosDevice> => {
+  const res = await apiClient.patch<PosDevice>(`/pos/devices/${deviceId}/unarchive`);
+  return res.data;
+};
+
+export const archiveRevokedDevices = async (
+  businessId: string,
+): Promise<{ archived: number }> => {
+  const res = await apiClient.post<{ archived: number }>(
+    `/superadmin/businesses/${businessId}/devices/archive-revoked`
+  );
+  return res.data;
+};
+
+export const getBusinessDevicesSummary = async (
+  businessId: string,
+): Promise<PosDevicesSummary> => {
+  const res = await apiClient.get<PosDevicesSummary>(
+    `/superadmin/businesses/${businessId}/devices/summary`
+  );
+  return res.data;
+};
+
+// ==========================================
+// UNIDADES DE MEDIDA (TICKET 294)
+// ==========================================
+
+export interface PosUnit {
+  id: string;
+  businessId?: string;
+  code: string;
+  name: string;
+  allowsDecimals: boolean;
+  isSystem?: boolean;
+  isActive?: boolean;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreatePosUnitDto {
+  code: string;
+  name: string;
+  allowsDecimals: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdatePosUnitDto {
+  code?: string;
+  name?: string;
+  allowsDecimals?: boolean;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export const getPosUnits = async (params?: {
+  includeInactive?: boolean;
+  businessId?: string;
+}): Promise<PosUnit[]> => {
+  const res = await apiClient.get<PosUnit[]>('/pos/units', {
+    params: {
+      includeInactive: params?.includeInactive ? true : undefined,
+      businessId: params?.businessId || undefined,
+    },
+  });
+  return res.data;
+};
+
+export const createPosUnit = async (
+  dto: CreatePosUnitDto,
+  businessId?: string,
+): Promise<PosUnit> => {
+  const res = await apiClient.post<PosUnit>('/pos/units', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosUnit = async (
+  id: string,
+  dto: UpdatePosUnitDto,
+  businessId?: string,
+): Promise<PosUnit> => {
+  const res = await apiClient.patch<PosUnit>(`/pos/units/${id}`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const deletePosUnit = async (
+  id: string,
+  businessId?: string,
+): Promise<{ success: boolean; id: string }> => {
+  const res = await apiClient.delete<{ success: boolean; id: string }>(`/pos/units/${id}`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+// ==========================================
+// SUBIDA DE FOTO DE PRODUCTO (TICKET 294)
+// ==========================================
+
+export const uploadPosProductImage = async (
+  file: Blob | File,
+  businessId?: string,
+): Promise<{ imageUrl: string }> => {
+  const formData = new FormData();
+  formData.append('file', file, 'product.jpg');
+  const res = await apiClient.post<{ imageUrl: string }>('/pos/products/upload-image', formData, {
+    params: businessId ? { businessId } : undefined,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return res.data;
+};
+
+// ==========================================
+// PRESENTACIONES (TICKET 294)
+// ==========================================
+
+export interface PosProductPresentation {
+  id: string;
+  businessId?: string;
+  productId: string;
+  name: string;
+  factor: number;
+  price: number;
+  listPrice?: number | null;
+  wholesalePrice?: number | null;
+  wholesaleMinQty?: number | null;
+  barcode?: string | null;
+  sku?: string | null;
+  cost?: number | null;
+  isDefaultPurchase?: boolean;
+  sortOrder?: number;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreatePosPresentationDto {
+  name: string;
+  factor: number;
+  price: number;
+  listPrice?: number | null;
+  wholesalePrice?: number | null;
+  wholesaleMinQty?: number | null;
+  barcode?: string | null;
+  sku?: string | null;
+  cost?: number | null;
+  isDefaultPurchase?: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdatePosPresentationDto {
+  name?: string;
+  factor?: number;
+  price?: number;
+  listPrice?: number | null;
+  wholesalePrice?: number | null;
+  wholesaleMinQty?: number | null;
+  barcode?: string | null;
+  sku?: string | null;
+  cost?: number | null;
+  isDefaultPurchase?: boolean;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export const getPosPresentations = async (
+  productId: string,
+  businessId?: string,
+): Promise<PosProductPresentation[]> => {
+  const res = await apiClient.get<PosProductPresentation[]>(`/pos/products/${productId}/presentations`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const createPosPresentation = async (
+  productId: string,
+  dto: CreatePosPresentationDto,
+  businessId?: string,
+): Promise<PosProductPresentation> => {
+  const res = await apiClient.post<PosProductPresentation>(`/pos/products/${productId}/presentations`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosPresentation = async (
+  productId: string,
+  presentationId: string,
+  dto: UpdatePosPresentationDto,
+  businessId?: string,
+): Promise<PosProductPresentation> => {
+  const res = await apiClient.patch<PosProductPresentation>(
+    `/pos/products/${productId}/presentations/${presentationId}`,
+    dto,
+    {
+      params: businessId ? { businessId } : undefined,
+    },
+  );
+  return res.data;
+};
+
+export const deletePosPresentation = async (
+  productId: string,
+  presentationId: string,
+  businessId?: string,
+): Promise<{ deleted: boolean; id: string }> => {
+  const res = await apiClient.delete<{ deleted: boolean; id: string }>(
+    `/pos/products/${productId}/presentations/${presentationId}`,
+    {
+      params: businessId ? { businessId } : undefined,
+    },
+  );
+  return res.data;
+};
+
+// ==========================================
+// VARIANTES (TICKET 294)
+// ==========================================
+
+export interface PosProductVariantSummary {
+  id: string;
+  name: string;
+  variantValues: Record<string, string>;
+  price: number;
+  cost?: number | null;
+  stock: number;
+  barcode?: string | null;
+  sku?: string | null;
+  imageUrl?: string | null;
+  isActive: boolean;
+}
+
+export interface PosProductVariantDetail extends PosProductVariantSummary {
+  parentProductId: string | null;
+  unit: string;
+  minStock: number;
+  maxStock?: number | null;
+  taxable?: boolean;
+  taxIncluded?: boolean;
+  allowDiscount?: boolean;
+  categoryId?: string | null;
+  attributes?: Record<string, any>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GeneratePosVariantsAxis {
+  key: string;
+  values: string[];
+}
+
+export interface GeneratePosVariantsDto {
+  axes: GeneratePosVariantsAxis[];
+}
+
+export interface UpdatePosVariantDto {
+  price?: number;
+  cost?: number | null;
+  barcode?: string | null;
+  sku?: string | null;
+  isActive?: boolean;
+  imageUrl?: string | null;
+}
+
+export const getPosVariants = async (
+  productId: string,
+  businessId?: string,
+): Promise<PosProductVariantDetail[]> => {
+  const res = await apiClient.get<PosProductVariantDetail[]>(`/pos/products/${productId}/variants`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const generatePosVariants = async (
+  productId: string,
+  dto: GeneratePosVariantsDto,
+  businessId?: string,
+): Promise<{ parent: any; createdCount: number; totalCount: number; variants: PosProductVariantDetail[] }> => {
+  const res = await apiClient.post<{ parent: any; createdCount: number; totalCount: number; variants: PosProductVariantDetail[] }>(
+    `/pos/products/${productId}/variants/generate`,
+    dto,
+    {
+      params: businessId ? { businessId } : undefined,
+    },
+  );
+  return res.data;
+};
+
+export const updatePosVariant = async (
+  productId: string,
+  variantId: string,
+  dto: UpdatePosVariantDto,
+  businessId?: string,
+): Promise<PosProductVariantDetail> => {
+  const res = await apiClient.patch<PosProductVariantDetail>(
+    `/pos/products/${productId}/variants/${variantId}`,
+    dto,
+    {
+      params: businessId ? { businessId } : undefined,
+    },
+  );
+  return res.data;
+};
+
+// ==========================================
+// PROMOCIONES (TICKET 294)
+// ==========================================
+
+export type PromotionType = 'PERCENT_DISCOUNT' | 'FIXED_DISCOUNT' | 'BUY_N_PAY_M' | 'QTY_PRICE_TIER';
+export type PromotionScope = 'PRODUCT' | 'CATEGORY';
+
+export interface PosPromotion {
+  id: string;
+  businessId: string;
+  name: string;
+  type: PromotionType;
+  scope: PromotionScope;
+  productIds?: string[];
+  categoryIds?: string[];
+  discountPct?: number | null;
+  discountAmount?: number | null;
+  buyQty?: number | null;
+  payQty?: number | null;
+  minQty?: number | null;
+  tierUnitPrice?: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  daysOfWeek?: number[];
+  startTime?: string | null;
+  endTime?: string | null;
+  channels?: string[];
+  priority: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreatePosPromotionDto {
+  name: string;
+  type: PromotionType;
+  scope: PromotionScope;
+  productIds?: string[];
+  categoryIds?: string[];
+  discountPct?: number | null;
+  discountAmount?: number | null;
+  buyQty?: number | null;
+  payQty?: number | null;
+  minQty?: number | null;
+  tierUnitPrice?: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  daysOfWeek?: number[];
+  startTime?: string | null;
+  endTime?: string | null;
+  channels?: string[];
+  priority?: number;
+  isActive?: boolean;
+}
+
+export interface UpdatePosPromotionDto {
+  name?: string;
+  type?: PromotionType;
+  scope?: PromotionScope;
+  productIds?: string[];
+  categoryIds?: string[];
+  discountPct?: number | null;
+  discountAmount?: number | null;
+  buyQty?: number | null;
+  payQty?: number | null;
+  minQty?: number | null;
+  tierUnitPrice?: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  daysOfWeek?: number[];
+  startTime?: string | null;
+  endTime?: string | null;
+  channels?: string[];
+  priority?: number;
+  isActive?: boolean;
+}
+
+export const getPosPromotions = async (params?: {
+  activeNow?: boolean;
+  channel?: string;
+  includeInactive?: boolean;
+  businessId?: string;
+}): Promise<PosPromotion[]> => {
+  const res = await apiClient.get<PosPromotion[]>('/pos/promotions', {
+    params: {
+      activeNow: params?.activeNow ? true : undefined,
+      channel: params?.channel || undefined,
+      includeInactive: params?.includeInactive !== undefined ? params.includeInactive : true,
+      businessId: params?.businessId || undefined,
+    },
+  });
+  return res.data;
+};
+
+export const getPosPromotion = async (
+  id: string,
+  businessId?: string,
+): Promise<PosPromotion> => {
+  const res = await apiClient.get<PosPromotion>(`/pos/promotions/${id}`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const createPosPromotion = async (
+  dto: CreatePosPromotionDto,
+  businessId?: string,
+): Promise<PosPromotion> => {
+  const res = await apiClient.post<PosPromotion>('/pos/promotions', dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const updatePosPromotion = async (
+  id: string,
+  dto: UpdatePosPromotionDto,
+  businessId?: string,
+): Promise<PosPromotion> => {
+  const res = await apiClient.patch<PosPromotion>(`/pos/promotions/${id}`, dto, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
+export const deletePosPromotion = async (
+  id: string,
+  businessId?: string,
+): Promise<{ deleted: boolean; id: string }> => {
+  const res = await apiClient.delete<{ deleted: boolean; id: string }>(`/pos/promotions/${id}`, {
+    params: businessId ? { businessId } : undefined,
+  });
+  return res.data;
+};
+
 
 
 

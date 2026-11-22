@@ -28,6 +28,7 @@ import { PosTableOrderPage } from "../pages/pos/PosTableOrderPage";
 import { PosCashRegistersPage } from "../pages/pos/PosCashRegistersPage";
 import { PosCobrarPage } from "../pages/pos/PosCobrarPage";
 import { PosQuotesPage } from "../pages/pos/PosQuotesPage";
+import { PosPromotionsPage } from "../pages/pos/PosPromotionsPage";
 import { FinancesPage } from "../pages/FinancesPage";
 import { useMyProducts } from "../hooks/useMyProducts";
 
@@ -103,6 +104,7 @@ const router = createBrowserRouter([
       { path: "pos/sales", element: <PosSalesPage /> },
       { path: "pos/analytics", element: <PosAnalyticsPage /> },
       { path: "pos/inventory", element: <PosInventoryPage /> },
+      { path: "pos/promotions", element: <PosPromotionsPage /> },
       { path: "pos/purchases", element: <PosPurchasesPage /> },
       { path: "pos/tables", element: <PosTablesPage /> },
       { path: "pos/tables/:id", element: <PosTableOrderPage /> },

@@ -533,6 +533,7 @@ export interface PosDeviceItem {
   lastSeenAt: string | null;
   createdAt: string;
   revokedAt?: string | null;
+  archivedAt?: string | null;
 }
 
 export interface UpdatePosSubscriptionInput {
@@ -579,15 +580,41 @@ export function useUpdatePosSubscription() {
   });
 }
 
-export function useBusinessDevices(businessId: string) {
+export interface PosDevicesSummary {
+  active: number;
+  revoked: number;
+  archived: number;
+}
+
+export function useBusinessDevices(businessId: string, includeArchived = false) {
   return useQuery<PosDeviceItem[]>({
-    queryKey: ['superadmin-business-devices', businessId],
+    queryKey: ['superadmin-business-devices', businessId, includeArchived],
     queryFn: async () => {
       try {
-        const { data } = await apiClient.get(`/superadmin/businesses/${businessId}/devices`);
+        const { data } = await apiClient.get(`/superadmin/businesses/${businessId}/devices`, {
+          params: includeArchived ? { includeArchived: 'true' } : undefined,
+        });
         return Array.isArray(data) ? data : [];
       } catch {
         return [];
+      }
+    },
+    enabled: !!businessId,
+    refetchInterval: 15000,
+  });
+}
+
+export function useBusinessDevicesSummary(businessId: string) {
+  return useQuery<PosDevicesSummary>({
+    queryKey: ['superadmin-business-devices-summary', businessId],
+    queryFn: async () => {
+      try {
+        const { data } = await apiClient.get<PosDevicesSummary>(
+          `/superadmin/businesses/${businessId}/devices/summary`
+        );
+        return data;
+      } catch {
+        return { active: 0, revoked: 0, archived: 0 };
       }
     },
     enabled: !!businessId,
@@ -616,16 +643,91 @@ export function useUpdateBusinessDevice() {
     onSuccess: (_, variables) => {
       toast.success(
         variables.data.status === 'REVOKED'
-          ? 'Dispositivo revocado exitosamente'
-          : 'Dispositivo reactivado exitosamente'
+          ? 'Equipo revocado exitosamente'
+          : variables.data.status === 'ACTIVE'
+          ? 'Equipo reactivado exitosamente'
+          : 'Equipo actualizado exitosamente'
       );
       queryClient.invalidateQueries({ queryKey: ['superadmin-business-devices', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-devices-summary', variables.businessId] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-business', variables.businessId] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message;
-      const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al actualizar dispositivo';
+      const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al actualizar equipo';
+      toast.error(errorText);
+    },
+  });
+}
+
+export function useArchiveBusinessDevice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ deviceId }: { businessId: string; deviceId: string }) => {
+      const res = await apiClient.patch(`/pos/devices/${deviceId}/archive`);
+      return res.data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success('Equipo archivado exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-devices', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-devices-summary', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message;
+      const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al archivar equipo';
+      toast.error(errorText);
+    },
+  });
+}
+
+export function useUnarchiveBusinessDevice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ deviceId }: { businessId: string; deviceId: string }) => {
+      const res = await apiClient.patch(`/pos/devices/${deviceId}/unarchive`);
+      return res.data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success('Equipo desarchivado exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-devices', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-devices-summary', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message;
+      const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al desarchivar equipo';
+      toast.error(errorText);
+    },
+  });
+}
+
+export function useArchiveRevokedDevices() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ businessId }: { businessId: string }) => {
+      const res = await apiClient.post<{ archived: number }>(
+        `/superadmin/businesses/${businessId}/devices/archive-revoked`
+      );
+      return res.data;
+    },
+    onSuccess: (data, variables) => {
+      toast.success(
+        data.archived === 1
+          ? '1 equipo revocado archivado exitosamente'
+          : `${data.archived} equipos revocados archivados exitosamente`
+      );
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-devices', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-devices-summary', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business', variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message;
+      const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al archivar equipos revocados';
       toast.error(errorText);
     },
   });

@@ -1,64 +1,124 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Desktop,
-  ForkKnife,
-  Wrench,
-  CheckCircle,
-  WarningCircle,
-  ArrowsClockwise,
+  Globe,
+  DeviceMobile,
+  DotsThreeVertical,
   PencilSimple,
-  FloppyDisk,
-  Prohibit,
-  ArrowCounterClockwise,
+  Copy,
+  Check,
   Clock,
-  Hourglass,
+  Archive,
+  ArrowCounterClockwise,
   PlusCircle,
   StopCircle,
   Trash,
   X,
-  Globe,
-  DeviceMobile,
-  Info,
-  Receipt,
+  WarningCircle,
   Key,
-  Copy,
-  Check,
 } from '@phosphor-icons/react';
 import {
   useBusinessDevices,
-  useBusinessWebDevices,
+  useBusinessDevicesSummary,
   useUpdatePosSubscription,
   useUpdateBusinessDevice,
-  useUpdateBusinessWebDevice,
+  useArchiveBusinessDevice,
+  useUnarchiveBusinessDevice,
+  useArchiveRevokedDevices,
   useCreateMobilePairingCode,
   PosDeviceItem,
-  PosWebDeviceItem,
   BusinessDetail,
 } from '../../hooks/useBusinesses';
 import toast from 'react-hot-toast';
-import { formatDateTime, formatRelativeTime } from '../../utils/format';
+import { formatDateTime, formatDateShort, formatRelativeTime } from '../../utils/format';
 
 interface BusinessPosDevicesSectionProps {
   business: BusinessDetail;
 }
 
-export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps> = ({
-  business,
-}) => {
-  const { data: devices = [], isLoading: isLoadingDevices, refetch } = useBusinessDevices(business.id);
+function shortenId(id?: string | null): string {
+  if (!id) return '—';
+  if (id.length <= 10) return id;
+  return `${id.slice(0, 4)}…${id.slice(-5)}`;
+}
+
+function formatNicaraguaTrialDate(dateStr?: string | null): string {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '—';
+    const formatter = new Intl.DateTimeFormat('es-NI', {
+      timeZone: 'America/Managua',
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return formatter.format(d).replace(/\./g, '').replace(' de ', ' ');
+  } catch {
+    return '—';
+  }
+}
+
+function getDeviceTypeAndPlatform(device: PosDeviceItem): {
+  type: string;
+  platform: string;
+  icon: 'desktop' | 'web' | 'mobile';
+} {
+  const cat = (device.category || '').toUpperCase();
+  const plat = (device.platform || '').trim();
+  if (cat === 'MOBILE' || plat.toUpperCase().includes('ANDROID') || plat.toUpperCase().includes('IOS')) {
+    return {
+      type: 'Teléfono',
+      platform: plat || 'Android',
+      icon: 'mobile',
+    };
+  }
+  if (
+    cat === 'WEB' ||
+    plat.toUpperCase().includes('WEB') ||
+    plat.toUpperCase().includes('CHROME') ||
+    plat.toUpperCase().includes('SAFARI') ||
+    plat.toUpperCase().includes('FIREFOX')
+  ) {
+    return {
+      type: 'Navegador',
+      platform: plat || 'Web',
+      icon: 'web',
+    };
+  }
+  return {
+    type: 'Computadora',
+    platform: plat || 'Windows',
+    icon: 'desktop',
+  };
+}
+
+export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps> = ({ business }) => {
+  const [activeTab, setActiveTab] = useState<'active' | 'revoked' | 'archived'>('active');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'desktop' | 'web' | 'mobile'>('all');
+  const [openMenuDeviceId, setOpenMenuDeviceId] = useState<string | null>(null);
+  const [copiedIdDeviceId, setCopiedIdDeviceId] = useState<string | null>(null);
+
+  // Queries
+  const { data: summary } = useBusinessDevicesSummary(business.id);
+  const {
+    data: allDevices = [],
+    isLoading: isLoadingDevices,
+  } = useBusinessDevices(business.id, activeTab === 'archived');
+
+  // Mutations
   const updatePosSubMutation = useUpdatePosSubscription();
   const updateDeviceMutation = useUpdateBusinessDevice();
+  const archiveDeviceMutation = useArchiveBusinessDevice();
+  const unarchiveDeviceMutation = useUnarchiveBusinessDevice();
+  const archiveRevokedDevicesMutation = useArchiveRevokedDevices();
+  const createPairingCodeMutation = useCreateMobilePairingCode();
 
-  const {
-    data: webDevices = [],
-    isLoading: isLoadingWebDevices,
-    isError: isErrorWebDevices,
-    error: webDevicesError,
-    refetch: refetchWebDevices,
-  } = useBusinessWebDevices(business.id);
-  const updateWebDeviceMutation = useUpdateBusinessWebDevice();
-
+  // Subscripción POS actual
   const posSub = business.productSubscriptions?.find((s) => s.productType === 'POS');
+  const currentProfile = (business.salonProfile as 'RESTAURANTE' | 'TALLER') || 'RESTAURANTE';
   const currentWebAdmin = (business as any).webAdminEnabled ?? posSub?.webAdminEnabled ?? true;
   const currentWebBilling = (business as any).webBillingEnabled ?? posSub?.webBillingEnabled ?? false;
   const currentMaxWebDevices = (business as any).maxWebDevices !== undefined
@@ -67,44 +127,51 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
   const currentWebBillingMonthlyUsd = (business as any).webBillingMonthlyUsd !== undefined
     ? (business as any).webBillingMonthlyUsd
     : ((posSub as any)?.webBillingMonthlyUsd !== undefined ? (posSub as any)?.webBillingMonthlyUsd : null);
-
   const currentMaxMobileDevices = (business as any).maxMobileDevices !== undefined
     ? Number((business as any).maxMobileDevices)
     : (posSub?.maxMobileDevices !== undefined ? Number(posSub?.maxMobileDevices) : 0);
-  const activeMobileDevicesCount = (business as any).activeMobileDevices !== undefined
-    ? Number((business as any).activeMobileDevices)
-    : devices.filter((d) => d.category === 'MOBILE' && d.status === 'ACTIVE').length;
 
-  // Estados locales editables para perfil de salón y límite de computadoras
-  const currentProfile = (business.salonProfile as 'RESTAURANTE' | 'TALLER') || 'RESTAURANTE';
+  // Conteo de activos por tipo
+  const activeComputersCount = useMemo(() => {
+    if (business.activeDevices !== undefined) return business.activeDevices;
+    return allDevices.filter((d) => {
+      const { icon } = getDeviceTypeAndPlatform(d);
+      return icon === 'desktop' && d.status === 'ACTIVE' && !d.archivedAt;
+    }).length;
+  }, [business.activeDevices, allDevices]);
+
+  const activeWebDevicesCount = useMemo(() => {
+    return allDevices.filter((d) => {
+      const { icon } = getDeviceTypeAndPlatform(d);
+      return icon === 'web' && d.status === 'ACTIVE' && !d.archivedAt;
+    }).length;
+  }, [allDevices]);
+
+  const activeMobileDevicesCount = useMemo(() => {
+    if (business.activeMobileDevices !== undefined) return business.activeMobileDevices;
+    return allDevices.filter((d) => {
+      const { icon } = getDeviceTypeAndPlatform(d);
+      return icon === 'mobile' && d.status === 'ACTIVE' && !d.archivedAt;
+    }).length;
+  }, [business.activeMobileDevices, allDevices]);
+
+  // Modo edición de configuración general POS
+  const [isEditingConfig, setIsEditingConfig] = useState(false);
   const [salonProfile, setSalonProfile] = useState<'RESTAURANTE' | 'TALLER'>(currentProfile);
-  const [isUnlimited, setIsUnlimited] = useState<boolean>(business.maxDevices === null || business.maxDevices === undefined);
+  const [isUnlimitedComputers, setIsUnlimitedComputers] = useState<boolean>(
+    business.maxDevices === null || business.maxDevices === undefined
+  );
   const [maxDevicesInput, setMaxDevicesInput] = useState<string>(
-    business.maxDevices !== null && business.maxDevices !== undefined
-      ? String(business.maxDevices)
-      : '1'
+    business.maxDevices !== null && business.maxDevices !== undefined ? String(business.maxDevices) : '1'
   );
   const [maxMobileDevicesInput, setMaxMobileDevicesInput] = useState<string>(
     String(currentMaxMobileDevices ?? 0)
   );
-
-  // Modal de código de vinculación móvil
-  const [pairingModalOpen, setPairingModalOpen] = useState(false);
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
-  const [pairingExpiresAt, setPairingExpiresAt] = useState<Date | null>(null);
-  const [pairingSecondsLeft, setPairingSecondsLeft] = useState<number>(600);
-  const [codeCopied, setCodeCopied] = useState(false);
-  const createPairingCodeMutation = useCreateMobilePairingCode();
   const [formTrialHours, setFormTrialHours] = useState<string>(
     business.trialHours ? String(business.trialHours) : ''
   );
-  const [isEditingConfig, setIsEditingConfig] = useState(false);
-  const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
-
-  // Estados locales para Web Admin y Facturación Web
-  const [webAdminEnabled, setWebAdminEnabled] = useState<boolean>(currentWebAdmin);
-  const [isTogglingWebAdmin, setIsTogglingWebAdmin] = useState(false);
-  const [webBillingEnabled, setWebBillingEnabled] = useState<boolean>(currentWebBilling);
+  const [webAdminEnabledForm, setWebAdminEnabledForm] = useState<boolean>(currentWebAdmin);
+  const [webBillingEnabledForm, setWebBillingEnabledForm] = useState<boolean>(currentWebBilling);
   const [isUnlimitedWeb, setIsUnlimitedWeb] = useState<boolean>(currentMaxWebDevices === null);
   const [maxWebDevicesInput, setMaxWebDevicesInput] = useState<string>(
     currentMaxWebDevices !== null ? String(currentMaxWebDevices ?? 2) : '2'
@@ -114,48 +181,25 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
       ? String(currentWebBillingMonthlyUsd)
       : ''
   );
-  const [revokingWebDeviceId, setRevokingWebDeviceId] = useState<string | null>(null);
-  const [isTogglingWebBilling, setIsTogglingWebBilling] = useState(false);
 
-  // Estados locales para la sección de Prueba
-  const [isEditingTrialHours, setIsEditingTrialHours] = useState(false);
-  const [trialHoursInput, setTrialHoursInput] = useState(
-    business.trialHours ? String(business.trialHours) : ''
-  );
-  const [extendHours, setExtendHours] = useState<number>(6);
-  const [isActionPending, setIsActionPending] = useState(false);
-
-  // Hora actual para cálculo dinámico del tiempo restante
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 30000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Sincronizar estado local al cambiar business
+  // Sincronización al cambiar negocio
   useEffect(() => {
     setSalonProfile((business.salonProfile as 'RESTAURANTE' | 'TALLER') || 'RESTAURANTE');
-    setIsUnlimited(business.maxDevices === null || business.maxDevices === undefined);
+    setIsUnlimitedComputers(business.maxDevices === null || business.maxDevices === undefined);
     setMaxDevicesInput(
-      business.maxDevices !== null && business.maxDevices !== undefined
-        ? String(business.maxDevices)
-        : '1'
+      business.maxDevices !== null && business.maxDevices !== undefined ? String(business.maxDevices) : '1'
     );
+    setMaxMobileDevicesInput(String(currentMaxMobileDevices ?? 0));
     setFormTrialHours(business.trialHours ? String(business.trialHours) : '');
-    setTrialHoursInput(business.trialHours ? String(business.trialHours) : '');
-
-    setWebAdminEnabled(currentWebAdmin);
-    setWebBillingEnabled(currentWebBilling);
+    setWebAdminEnabledForm(currentWebAdmin);
+    setWebBillingEnabledForm(currentWebBilling);
     setIsUnlimitedWeb(currentMaxWebDevices === null);
-    setMaxWebDevicesInput(
-      currentMaxWebDevices !== null ? String(currentMaxWebDevices ?? 2) : '2'
-    );
+    setMaxWebDevicesInput(currentMaxWebDevices !== null ? String(currentMaxWebDevices ?? 2) : '2');
     setWebBillingMonthlyUsdInput(
       currentWebBillingMonthlyUsd !== null && currentWebBillingMonthlyUsd !== undefined
         ? String(currentWebBillingMonthlyUsd)
         : ''
     );
-    setMaxMobileDevicesInput(String(currentMaxMobileDevices ?? 0));
   }, [
     business.salonProfile,
     business.maxDevices,
@@ -166,6 +210,25 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     currentWebBillingMonthlyUsd,
     currentMaxMobileDevices,
   ]);
+
+  // Click outside para cerrar el menú ⋯
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-device-menu]')) {
+        setOpenMenuDeviceId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Modal de código de vinculación móvil
+  const [pairingModalOpen, setPairingModalOpen] = useState(false);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingExpiresAt, setPairingExpiresAt] = useState<Date | null>(null);
+  const [pairingSecondsLeft, setPairingSecondsLeft] = useState<number>(600);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   useEffect(() => {
     if (!pairingModalOpen || !pairingExpiresAt) return;
@@ -183,11 +246,13 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
       const data = await createPairingCodeMutation.mutateAsync({ businessId: business.id });
       setPairingCode(data.code);
       setPairingExpiresAt(new Date(data.expiresAt));
-      setPairingSecondsLeft(Math.max(0, Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000)));
+      setPairingSecondsLeft(
+        Math.max(0, Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000))
+      );
       setCodeCopied(false);
       setPairingModalOpen(true);
     } catch {
-      // Error handled by mutation
+      // Manejado en mutación
     }
   };
 
@@ -199,146 +264,47 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     setTimeout(() => setCodeCopied(false), 2000);
   };
 
-  const activeDevicesCount = devices.filter((d) => d.status === 'ACTIVE').length;
-  const effectiveActiveDevices = business.activeDevices ?? activeDevicesCount;
+  // Modales de acciones sobre equipos
+  const [renameModal, setRenameModal] = useState<{
+    isOpen: boolean;
+    device: PosDeviceItem | null;
+    newName: string;
+  }>({
+    isOpen: false,
+    device: null,
+    newName: '',
+  });
 
-  // Contador de dispositivos web
-  const activeWebDevicesCount = webDevices.filter((d) => d.status === 'ACTIVE').length;
-  const isWebLimitLowerThanActive =
-    currentWebBilling && currentMaxWebDevices !== null && activeWebDevicesCount > currentMaxWebDevices;
-  const parsedEditWebLimit = isUnlimitedWeb ? null : parseInt(maxWebDevicesInput, 10);
-  const isEditWebLimitLowerThanActive =
-    webBillingEnabled &&
-    parsedEditWebLimit !== null &&
-    !isNaN(parsedEditWebLimit) &&
-    activeWebDevicesCount > parsedEditWebLimit;
+  const [revokeModal, setRevokeModal] = useState<{
+    isOpen: boolean;
+    device: PosDeviceItem | null;
+  }>({
+    isOpen: false,
+    device: null,
+  });
 
-  // Lógica de estado de la prueba
-  const trialHours = business.trialHours ?? null;
-  const trialStartedAt = business.trialStartedAt ?? null;
-  const trialEndsAt = business.trialEndsAt ?? null;
+  const [archiveModal, setArchiveModal] = useState<{
+    isOpen: boolean;
+    device: PosDeviceItem | null;
+  }>({
+    isOpen: false,
+    device: null,
+  });
 
-  let trialState: 'SIN_PRUEBA' | 'SIN_INICIAR' | 'EN_CURSO' | 'VENCIDA' = 'SIN_PRUEBA';
-  let remainingText = '';
+  const [archiveAllModalOpen, setArchiveAllModalOpen] = useState(false);
 
-  if (!trialHours || trialHours <= 0) {
-    trialState = 'SIN_PRUEBA';
-  } else if (!trialStartedAt) {
-    trialState = 'SIN_INICIAR';
-  } else {
-    const ends = trialEndsAt ? new Date(trialEndsAt) : null;
-    if (ends && ends.getTime() <= currentTime.getTime()) {
-      trialState = 'VENCIDA';
-    } else if (ends) {
-      trialState = 'EN_CURSO';
-      const diffMs = Math.max(0, ends.getTime() - currentTime.getTime());
-      const totalMinutes = Math.floor(diffMs / (1000 * 60));
-      const h = Math.floor(totalMinutes / 60);
-      const m = totalMinutes % 60;
-      remainingText = `${h} h ${m} min`;
-    } else {
-      trialState = 'SIN_PRUEBA';
-    }
-  }
-
-  // Formato de fecha y hora local de Nicaragua (America/Managua, UTC-6)
-  const formatNicaraguaDateTime = (dateStr?: string | null): string => {
-    if (!dateStr) return '—';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return '—';
-      return new Intl.DateTimeFormat('es-NI', {
-        timeZone: 'America/Managua',
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      }).format(d);
-    } catch {
-      return '—';
-    }
-  };
-
-  const formatBrowserInfo = (userAgent?: string | null, platform?: string | null): string => {
-    if (platform && platform !== 'web' && platform !== 'web-mobile' && platform !== 'web-desktop') return platform;
-    if (!userAgent) return platform === 'web-mobile' ? 'Móvil' : 'Navegador Web';
-    if (/Android/i.test(userAgent)) {
-      if (/Chrome/i.test(userAgent)) return 'Chrome (Android)';
-      return 'Android Móvil';
-    }
-    if (/iPhone|iPad|iPod/i.test(userAgent)) {
-      if (/CriOS/i.test(userAgent)) return 'Chrome (iOS)';
-      return 'Safari (iOS)';
-    }
-    if (/Chrome/i.test(userAgent)) return 'Chrome';
-    if (/Firefox/i.test(userAgent)) return 'Firefox';
-    if (/Safari/i.test(userAgent)) return 'Safari';
-    if (/Edge/i.test(userAgent)) return 'Edge';
-    return 'Navegador Web';
-  };
-
-  const handleSaveConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const finalMaxDevices = isUnlimited ? null : Math.max(1, parseInt(maxDevicesInput, 10) || 1);
-    const parsedTrial = formTrialHours.trim() === '' ? null : parseInt(formTrialHours, 10);
-    const finalTrialHours =
-      parsedTrial === null
-        ? null
-        : !isNaN(parsedTrial) && parsedTrial >= 1
-        ? parsedTrial
-        : null;
-
-    const parsedWeb = parseInt(maxWebDevicesInput, 10);
-    const finalMaxWebDevices = isUnlimitedWeb
-      ? null
-      : isNaN(parsedWeb) || parsedWeb < 0
-      ? 2
-      : parsedWeb;
-
-    const parsedMobile = parseInt(maxMobileDevicesInput, 10);
-    const finalMaxMobileDevices = isNaN(parsedMobile)
-      ? 0
-      : Math.min(50, Math.max(0, parsedMobile));
-
-    const parsedWebBillingMonthlyUsd =
-      webBillingMonthlyUsdInput.trim() === '' ? null : parseFloat(webBillingMonthlyUsdInput);
-    const finalWebBillingMonthlyUsd =
-      parsedWebBillingMonthlyUsd === null
-        ? null
-        : !isNaN(parsedWebBillingMonthlyUsd) && parsedWebBillingMonthlyUsd >= 0
-        ? parsedWebBillingMonthlyUsd
-        : null;
-
-    const finalWebBillingEnabled = webAdminEnabled ? webBillingEnabled : false;
-
-    try {
-      await updatePosSubMutation.mutateAsync({
-        businessId: business.id,
-        data: {
-          salonProfile,
-          maxDevices: finalMaxDevices,
-          trialHours: finalTrialHours,
-          webAdminEnabled,
-          webBillingEnabled: finalWebBillingEnabled,
-          maxWebDevices: finalMaxWebDevices,
-          maxMobileDevices: finalMaxMobileDevices,
-          webBillingMonthlyUsd: finalWebBillingMonthlyUsd,
-        },
-      });
-      setIsEditingConfig(false);
-    } catch {
-      // Error is caught and notified by useUpdatePosSubscription
-    }
-  };
+  // Estados de carga para toggles directos
+  const [isTogglingWebAdmin, setIsTogglingWebAdmin] = useState(false);
+  const [isTogglingWebBilling, setIsTogglingWebBilling] = useState(false);
 
   const handleToggleWebAdminDirect = async () => {
     const nextVal = !currentWebAdmin;
     if (!nextVal && currentWebBilling) {
-      const confirmMsg =
-        '¿Confirmas desactivar el acceso a la Web Admin?\n\nAl desactivar la Web Admin, también se desactivará la facturación web para este negocio.';
-      if (!window.confirm(confirmMsg)) {
+      if (
+        !window.confirm(
+          '¿Confirmás desactivar el acceso a la web admin?\n\nAl desactivar la web admin, también se desactivará la facturación web para este negocio.'
+        )
+      ) {
         return;
       }
       setIsTogglingWebAdmin(true);
@@ -356,11 +322,13 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
       return;
     }
 
-    const confirmMsg = nextVal
-      ? '¿Confirmas activar el acceso a la Web Admin para este negocio?\n\nLos administradores podrán consultar reportes y el panel web.'
-      : '¿Confirmas desactivar el acceso a la Web Admin para este negocio?\n\nLos administradores no podrán ingresar a la web admin.';
-
-    if (!window.confirm(confirmMsg)) {
+    if (
+      !window.confirm(
+        nextVal
+          ? '¿Confirmás activar el acceso a la web admin para este negocio?'
+          : '¿Confirmás desactivar el acceso a la web admin para este negocio?'
+      )
+    ) {
       return;
     }
 
@@ -377,32 +345,20 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     }
   };
 
-  const handleToggleWebAdminInForm = (nextVal: boolean) => {
-    if (!nextVal && webBillingEnabled) {
-      const confirmMsg =
-        '¿Confirmas desactivar el acceso a la Web Admin?\n\nAl desactivar la Web Admin, se desactivará automáticamente la facturación web para este negocio.';
-      if (!window.confirm(confirmMsg)) {
-        return;
-      }
-      setWebAdminEnabled(false);
-      setWebBillingEnabled(false);
-      return;
-    }
-    setWebAdminEnabled(nextVal);
-  };
-
   const handleToggleWebBillingDirect = async () => {
     const nextVal = !currentWebBilling;
     if (nextVal && !currentWebAdmin) {
-      toast.error('La facturación web requiere que el acceso a la Web Admin esté habilitado.');
+      toast.error('La facturación web requiere que el acceso a la web admin esté habilitado.');
       return;
     }
 
-    const confirmMsg = nextVal
-      ? '¿Confirmas activar la facturación web para este negocio?\n\nLos cajeros de este negocio podrán cobrar desde el navegador y el teléfono.'
-      : '¿Confirmas desactivar la facturación web para este negocio?\n\nLos cajeros ya no podrán cobrar ventas desde el navegador ni desde teléfonos móviles.';
-
-    if (!window.confirm(confirmMsg)) {
+    if (
+      !window.confirm(
+        nextVal
+          ? '¿Confirmás activar la facturación web para este negocio?'
+          : '¿Confirmás desactivar la facturación web para este negocio?'
+      )
+    ) {
       return;
     }
 
@@ -419,38 +375,52 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     }
   };
 
-  const handleToggleWebBillingInForm = (nextVal: boolean) => {
-    if (nextVal && !webAdminEnabled) {
-      toast.error('La facturación web requiere que el acceso a la Web Admin esté habilitado.');
-      return;
+  // Sección de Prueba
+  const trialHours = business.trialHours ?? null;
+  const trialStartedAt = business.trialStartedAt ?? null;
+  const trialEndsAt = business.trialEndsAt ?? null;
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  let trialState: 'SIN_PRUEBA' | 'SIN_INICIAR' | 'EN_CURSO' | 'VENCIDA' = 'SIN_PRUEBA';
+  if (!trialHours || trialHours <= 0) {
+    trialState = 'SIN_PRUEBA';
+  } else if (!trialStartedAt) {
+    trialState = 'SIN_INICIAR';
+  } else if (trialEndsAt) {
+    const ends = new Date(trialEndsAt);
+    if (currentTime.getTime() > ends.getTime()) {
+      trialState = 'VENCIDA';
+    } else {
+      trialState = 'EN_CURSO';
     }
+  }
 
-    const confirmMsg = nextVal
-      ? '¿Confirmas habilitar la facturación web para este negocio?\n\nLos cajeros de este negocio podrán cobrar desde el navegador y el teléfono.'
-      : '¿Confirmas deshabilitar la facturación web para este negocio?\n\nLos cajeros ya no podrán cobrar ventas desde el navegador ni desde teléfonos móviles.';
+  const [isEditingTrialHours, setIsEditingTrialHours] = useState(false);
+  const [trialHoursInput, setTrialHoursInput] = useState(
+    business.trialHours ? String(business.trialHours) : ''
+  );
+  const [extendHours, setExtendHours] = useState<number>(6);
+  const [isActionPending, setIsActionPending] = useState(false);
 
-    if (!window.confirm(confirmMsg)) {
-      return;
-    }
-    setWebBillingEnabled(nextVal);
-  };
-
-  // Acciones de prueba con confirmación
   const handleSaveTrialHours = async () => {
     const val = parseInt(trialHoursInput, 10);
     if (isNaN(val) || val < 1) {
-      alert('Ingresa una cantidad de horas válida (número entero mayor o igual a 1).');
+      alert('Ingresá una cantidad de horas válida (número entero mayor o igual a 1).');
       return;
     }
-
-    const confirmMsg = trialHours
-      ? `¿Confirmas cambiar las horas de prueba a ${val} hora(s)?`
-      : `¿Confirmas establecer las horas de prueba en ${val} hora(s)?`;
-
-    if (!window.confirm(confirmMsg)) {
+    if (
+      !window.confirm(
+        trialHours
+          ? `¿Confirmás cambiar las horas de prueba a ${val} hora(s)?`
+          : `¿Confirmás establecer las horas de prueba en ${val} hora(s)?`
+      )
+    ) {
       return;
     }
-
     setIsActionPending(true);
     try {
       await updatePosSubMutation.mutateAsync({
@@ -463,46 +433,13 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     }
   };
 
-  const handleRemoveTrial = async () => {
-    if (
-      !window.confirm(
-        '¿Estás seguro de quitar la prueba de este negocio?\n\nSe restablecerá la configuración sin período de prueba.'
-      )
-    ) {
-      return;
-    }
-
-    setIsActionPending(true);
-    try {
-      await updatePosSubMutation.mutateAsync({
-        businessId: business.id,
-        data: { trialHours: null },
-      });
-      setIsEditingTrialHours(false);
-      setTrialHoursInput('');
-      setFormTrialHours('');
-    } finally {
-      setIsActionPending(false);
-    }
-  };
-
   const handleExtendTrial = async () => {
-    if (
-      !window.confirm(
-        `¿Confirmas extender la prueba por ${extendHours} hora(s) adicional(es)?`
-      )
-    ) {
-      return;
-    }
-
+    if (!window.confirm(`¿Confirmás extender la prueba en +${extendHours} hora(s)?`)) return;
     setIsActionPending(true);
     try {
       await updatePosSubMutation.mutateAsync({
         businessId: business.id,
-        data: {
-          trialAction: 'extend',
-          extendHours,
-        },
+        data: { trialAction: 'extend', extendHours },
       });
     } finally {
       setIsActionPending(false);
@@ -512,19 +449,16 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
   const handleResetTrial = async () => {
     if (
       !window.confirm(
-        '¿Estás seguro de reiniciar el reloj de prueba?\n\nEl tiempo volverá a contar desde el próximo inicio de sesión en la computadora.'
+        '¿Confirmás reiniciar el reloj de prueba? El conteo volverá a empezar en el próximo inicio de sesión en computadora.'
       )
     ) {
       return;
     }
-
     setIsActionPending(true);
     try {
       await updatePosSubMutation.mutateAsync({
         businessId: business.id,
-        data: {
-          trialAction: 'reset',
-        },
+        data: { trialAction: 'reset' },
       });
     } finally {
       setIsActionPending(false);
@@ -534,1558 +468,1472 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
   const handleTerminateTrial = async () => {
     if (
       !window.confirm(
-        '¿Estás seguro de terminar la prueba inmediatamente?\n\nLa prueba quedará vencida y se bloqueará el acceso al POS en la computadora.'
+        '¿Confirmás terminar la prueba ahora mismo? La prueba quedará vencida inmediatamente.'
       )
     ) {
       return;
     }
-
     setIsActionPending(true);
     try {
       await updatePosSubMutation.mutateAsync({
         businessId: business.id,
-        data: {
-          trialAction: 'terminate',
-        },
+        data: { trialAction: 'terminate' },
       });
     } finally {
       setIsActionPending(false);
     }
   };
 
-  const handleRevokeDevice = async (device: PosDeviceItem) => {
+  const handleRemoveTrial = async () => {
     if (
       !window.confirm(
-        `¿Estás seguro de revocar el acceso a "${device.name}" (${device.deviceId})?\n\nEsta computadora no podrá iniciar sesión en el POS hasta que sea reactivada.`
+        '¿Confirmás eliminar el período de prueba de este negocio? El negocio quedará sin prueba.'
       )
     ) {
       return;
     }
-
-    setRevokingDeviceId(device.id);
+    setIsActionPending(true);
     try {
-      await updateDeviceMutation.mutateAsync({
+      await updatePosSubMutation.mutateAsync({
         businessId: business.id,
-        deviceId: device.id,
-        data: { status: 'REVOKED' },
+        data: { trialHours: null },
       });
+      setIsEditingTrialHours(false);
     } finally {
-      setRevokingDeviceId(null);
+      setIsActionPending(false);
     }
   };
 
-  const handleReactivateDevice = async (device: PosDeviceItem) => {
-    setRevokingDeviceId(device.id);
+  // Guardar configuración general
+  const handleSaveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsedDevices = isUnlimitedComputers ? null : parseInt(maxDevicesInput, 10);
+    if (!isUnlimitedComputers && (isNaN(parsedDevices as number) || (parsedDevices as number) < 0)) {
+      toast.error('Ingresá un número válido para el cupo de computadoras (≥ 0).');
+      return;
+    }
+
+    const parsedWeb = isUnlimitedWeb ? null : parseInt(maxWebDevicesInput, 10);
+    if (webBillingEnabledForm && !isUnlimitedWeb && (isNaN(parsedWeb as number) || (parsedWeb as number) < 0)) {
+      toast.error('Ingresá un número válido para dispositivos web autorizados (≥ 0).');
+      return;
+    }
+
+    const parsedMobile = parseInt(maxMobileDevicesInput, 10);
+    const finalMaxMobileDevices = isNaN(parsedMobile) ? 0 : Math.max(0, Math.min(50, parsedMobile));
+
+    const parsedMonthlyFee =
+      webBillingEnabledForm && webBillingMonthlyUsdInput.trim() !== ''
+        ? parseFloat(webBillingMonthlyUsdInput)
+        : null;
+
+    const parsedTrial =
+      formTrialHours.trim() !== '' ? parseInt(formTrialHours, 10) : null;
+
+    try {
+      await updatePosSubMutation.mutateAsync({
+        businessId: business.id,
+        data: {
+          salonProfile,
+          maxDevices: parsedDevices,
+          maxMobileDevices: finalMaxMobileDevices,
+          webAdminEnabled: webAdminEnabledForm,
+          webBillingEnabled: webBillingEnabledForm,
+          maxWebDevices: parsedWeb,
+          webBillingMonthlyUsd: parsedMonthlyFee,
+          trialHours: parsedTrial,
+        },
+      });
+      setIsEditingConfig(false);
+    } catch {
+      // Manejado en mutación
+    }
+  };
+
+  // Acciones individuales sobre equipos
+  const handleCopyId = (deviceId: string) => {
+    navigator.clipboard.writeText(deviceId);
+    setCopiedIdDeviceId(deviceId);
+    toast.success('ID copiado al portapapeles');
+    setTimeout(() => setCopiedIdDeviceId(null), 2000);
+  };
+
+  const handleConfirmRevoke = async () => {
+    if (!revokeModal.device) return;
+    try {
+      await updateDeviceMutation.mutateAsync({
+        businessId: business.id,
+        deviceId: revokeModal.device.id,
+        data: { status: 'REVOKED' },
+      });
+      setRevokeModal({ isOpen: false, device: null });
+      setOpenMenuDeviceId(null);
+    } catch {
+      // Manejado en mutación
+    }
+  };
+
+  const handleConfirmArchive = async () => {
+    if (!archiveModal.device) return;
+    try {
+      await archiveDeviceMutation.mutateAsync({
+        businessId: business.id,
+        deviceId: archiveModal.device.id,
+      });
+      setArchiveModal({ isOpen: false, device: null });
+      setOpenMenuDeviceId(null);
+    } catch {
+      // Manejado en mutación
+    }
+  };
+
+  const handleConfirmUnarchive = async (device: PosDeviceItem) => {
+    try {
+      await unarchiveDeviceMutation.mutateAsync({
+        businessId: business.id,
+        deviceId: device.id,
+      });
+      setOpenMenuDeviceId(null);
+    } catch {
+      // Manejado en mutación
+    }
+  };
+
+  const handleConfirmReactivate = async (device: PosDeviceItem) => {
     try {
       await updateDeviceMutation.mutateAsync({
         businessId: business.id,
         deviceId: device.id,
         data: { status: 'ACTIVE' },
       });
-    } finally {
-      setRevokingDeviceId(null);
+      setOpenMenuDeviceId(null);
+    } catch {
+      // Manejado en mutación
     }
   };
 
-  const handleRevokeWebDevice = async (device: PosWebDeviceItem) => {
-    if (
-      !window.confirm(
-        `¿Estás seguro de revocar el acceso a "${device.name || 'Dispositivo Web'}" (${device.deviceId})?\n\nEste dispositivo web no podrá registrar ventas ni acceder al módulo de facturación web hasta que sea reactivado.`
-      )
-    ) {
+  const handleConfirmRename = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renameModal.device) return;
+    const trimmed = renameModal.newName.trim();
+    if (!trimmed) {
+      toast.error('El nombre no puede estar vacío');
       return;
     }
-
-    setRevokingWebDeviceId(device.id);
     try {
-      await updateWebDeviceMutation.mutateAsync({
+      await updateDeviceMutation.mutateAsync({
         businessId: business.id,
-        deviceId: device.id,
-        data: { status: 'REVOKED' },
+        deviceId: renameModal.device.id,
+        data: { name: trimmed },
       });
-    } finally {
-      setRevokingWebDeviceId(null);
+      setRenameModal({ isOpen: false, device: null, newName: '' });
+      setOpenMenuDeviceId(null);
+    } catch {
+      // Manejado en mutación
     }
   };
 
-  const handleReactivateWebDevice = async (device: PosWebDeviceItem) => {
-    if (
-      !window.confirm(
-        `¿Confirmas reactivar el acceso a "${device.name || 'Dispositivo Web'}" (${device.deviceId})?`
-      )
-    ) {
-      return;
-    }
-
-    setRevokingWebDeviceId(device.id);
+  const handleConfirmArchiveAll = async () => {
     try {
-      await updateWebDeviceMutation.mutateAsync({
-        businessId: business.id,
-        deviceId: device.id,
-        data: { status: 'ACTIVE' },
-      });
-    } finally {
-      setRevokingWebDeviceId(null);
+      await archiveRevokedDevicesMutation.mutateAsync({ businessId: business.id });
+      setArchiveAllModalOpen(false);
+    } catch {
+      // Manejado en mutación
     }
   };
+
+  // Filtrado de equipos según pestaña y tipo
+  const tabDevices = useMemo(() => {
+    if (activeTab === 'active') {
+      return allDevices.filter((d) => d.status === 'ACTIVE' && !d.archivedAt);
+    }
+    if (activeTab === 'revoked') {
+      return allDevices.filter((d) => d.status === 'REVOKED' && !d.archivedAt);
+    }
+    return allDevices.filter((d) => !!d.archivedAt);
+  }, [allDevices, activeTab]);
+
+  const filteredDevices = useMemo(() => {
+    if (typeFilter === 'all') return tabDevices;
+    return tabDevices.filter((d) => {
+      const { icon } = getDeviceTypeAndPlatform(d);
+      if (typeFilter === 'desktop') return icon === 'desktop';
+      if (typeFilter === 'web') return icon === 'web';
+      if (typeFilter === 'mobile') return icon === 'mobile';
+      return true;
+    });
+  }, [tabDevices, typeFilter]);
+
+  // Cálculos de cupos para las 3 tarjetas
+  // 1. Computadoras
+  const isComputersUnlimited = business.maxDevices === null || business.maxDevices === undefined;
+  const computersAllowed = isComputersUnlimited ? null : business.maxDevices;
+  const computersPercent = computersAllowed
+    ? Math.min(100, Math.round((activeComputersCount / computersAllowed) * 100))
+    : 0;
+  const isComputersFull = !isComputersUnlimited && activeComputersCount >= (computersAllowed ?? 0);
+
+  // 2. Navegadores
+  const isWebUnlimited = currentMaxWebDevices === null;
+  const webAllowed = currentMaxWebDevices;
+  const webPercent = webAllowed
+    ? Math.min(100, Math.round((activeWebDevicesCount / webAllowed) * 100))
+    : 0;
+  const isWebFull = !isWebUnlimited && activeWebDevicesCount >= (webAllowed ?? 0);
+
+  // 3. Teléfonos
+  const mobileAllowed = currentMaxMobileDevices;
+  const isMobileDisabled = mobileAllowed === 0;
+  const mobilePercent = mobileAllowed > 0
+    ? Math.min(100, Math.round((activeMobileDevicesCount / mobileAllowed) * 100))
+    : 0;
+  const isMobileFull = !isMobileDisabled && activeMobileDevicesCount >= mobileAllowed;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-6">
-      {/* Header de la sección */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+    <div className="space-y-6">
+      {/* Encabezado */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
         <div>
-          <div className="flex items-center gap-2">
-            <Desktop size={20} className="text-purple-700 shrink-0" weight="duotone" />
-            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-              Terminales POS y Configuración de Operación
-            </h3>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Gestión de computadoras autorizadas, perfil del salón y período de prueba por horas
+          <h3 className="text-base font-bold text-gray-900">
+            Equipos y operación del POS
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Cupos, equipos autorizados y configuración de cobro
           </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           {!isEditingConfig ? (
             <button
               type="button"
               onClick={() => setIsEditingConfig(true)}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-2xs cursor-pointer"
             >
               <PencilSimple size={14} />
-              <span>Editar Configuración POS</span>
+              <span>Editar configuración POS</span>
             </button>
           ) : (
             <button
               type="button"
-              onClick={() => {
-                setIsEditingConfig(false);
-                setSalonProfile((business.salonProfile as 'RESTAURANTE' | 'TALLER') || 'RESTAURANTE');
-                setIsUnlimited(business.maxDevices === null || business.maxDevices === undefined);
-                setMaxDevicesInput(
-                  business.maxDevices !== null && business.maxDevices !== undefined
-                    ? String(business.maxDevices)
-                    : '1'
-                );
-                setFormTrialHours(business.trialHours ? String(business.trialHours) : '');
-                setWebAdminEnabled(currentWebAdmin);
-                setWebBillingEnabled(currentWebBilling);
-                setIsUnlimitedWeb(currentMaxWebDevices === null);
-                setMaxWebDevicesInput(
-                  currentMaxWebDevices !== null ? String(currentMaxWebDevices ?? 2) : '2'
-                );
-                setWebBillingMonthlyUsdInput(
-                  currentWebBillingMonthlyUsd !== null && currentWebBillingMonthlyUsd !== undefined
-                    ? String(currentWebBillingMonthlyUsd)
-                    : ''
-                );
-              }}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+              onClick={() => setIsEditingConfig(false)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
             >
-              Cancelar
+              <X size={14} />
+              <span>Cancelar edición</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Modo Edición vs Modo Visualización de Configuración */}
-      {isEditingConfig ? (
-        <form onSubmit={handleSaveConfig} className="p-3.5 sm:p-4 rounded-xl bg-purple-50/40 border border-purple-200/80 space-y-4">
+      {/* Formulario de edición (si está activo) */}
+      {isEditingConfig && (
+        <form
+          onSubmit={handleSaveConfig}
+          className="p-4 rounded-xl bg-purple-50/40 border border-purple-200/80 space-y-4"
+        >
+          <div className="flex items-center justify-between border-b border-purple-200/60 pb-2">
+            <span className="text-xs font-bold text-purple-950 uppercase tracking-wider">
+              Ajustes de configuración
+            </span>
+            <span className="text-xs text-purple-700">Edición en progreso</span>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {/* Campo 1: Perfil del Salón */}
+            {/* Campo 1: Perfil del salón */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
-                Perfil del Salón *
+                Perfil del salón *
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setSalonProfile('RESTAURANTE')}
-                  className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-lg border text-left flex items-center gap-2 transition-all cursor-pointer ${
                     salonProfile === 'RESTAURANTE'
-                      ? 'border-purple-600 bg-purple-100/70 text-purple-950 font-semibold shadow-2xs'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                      ? 'border-purple-600 bg-white ring-1 ring-purple-600 text-purple-950 font-bold'
+                      : 'border-gray-200 bg-white/70 text-gray-600 hover:bg-white'
                   }`}
                 >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <ForkKnife size={15} className={salonProfile === 'RESTAURANTE' ? 'text-purple-700' : 'text-gray-500'} />
-                    <span className="text-xs font-bold">Restaurante</span>
-                  </div>
-                  <p className="text-[11px] text-gray-500 leading-tight">
-                    Mesas, comensales y comanderas
-                  </p>
+                  <Desktop size={16} className="text-purple-600 shrink-0" />
+                  <span className="text-xs">Restaurante / mesas</span>
                 </button>
-
                 <button
                   type="button"
                   onClick={() => setSalonProfile('TALLER')}
-                  className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-lg border text-left flex items-center gap-2 transition-all cursor-pointer ${
                     salonProfile === 'TALLER'
-                      ? 'border-purple-600 bg-purple-100/70 text-purple-950 font-semibold shadow-2xs'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                      ? 'border-purple-600 bg-white ring-1 ring-purple-600 text-purple-950 font-bold'
+                      : 'border-gray-200 bg-white/70 text-gray-600 hover:bg-white'
                   }`}
                 >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Wrench size={15} className={salonProfile === 'TALLER' ? 'text-purple-700' : 'text-gray-500'} />
-                    <span className="text-xs font-bold">Taller</span>
-                  </div>
-                  <p className="text-[11px] text-gray-500 leading-tight">
-                    Bahías, vehículos y técnicos
-                  </p>
+                  <Desktop size={16} className="text-amber-600 shrink-0" />
+                  <span className="text-xs">Taller / órdenes</span>
                 </button>
               </div>
             </div>
 
-            {/* Campo 2: Computadoras permitidas */}
+            {/* Campo 2: Cupo de computadoras */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Computadoras permitidas *
+                  Cupo de computadoras *
                 </label>
-                <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer select-none">
+                <label className="flex items-center gap-1.5 text-xs select-none cursor-pointer text-gray-700">
                   <input
                     type="checkbox"
-                    checked={isUnlimited}
-                    onChange={(e) => setIsUnlimited(e.target.checked)}
+                    checked={isUnlimitedComputers}
+                    onChange={(e) => setIsUnlimitedComputers(e.target.checked)}
                     className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
                   />
-                  <span className="text-xs font-semibold text-purple-950">Sin límite</span>
+                  <span className="font-semibold text-purple-950">Ilimitado</span>
                 </label>
               </div>
-
-              <div className="relative">
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  disabled={isUnlimited}
-                  value={isUnlimited ? '' : maxDevicesInput}
-                  onChange={(e) => setMaxDevicesInput(e.target.value)}
-                  placeholder={isUnlimited ? 'Sin límite de computadoras' : '1'}
-                  className={`w-full h-10 px-3 rounded-lg border text-xs bg-white focus:outline-none focus:border-purple-600 ${
-                    isUnlimited
-                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                      : 'text-gray-900 border-gray-300'
-                  }`}
-                />
-              </div>
-              <p className="text-[11px] text-gray-500 mt-1">
-                Cantidad de computadoras que pueden iniciar sesión simultáneamente
-              </p>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                disabled={isUnlimitedComputers}
+                value={isUnlimitedComputers ? '' : maxDevicesInput}
+                onChange={(e) => setMaxDevicesInput(e.target.value)}
+                placeholder={isUnlimitedComputers ? 'Sin límite' : '1'}
+                className={`w-full h-10 px-3 rounded-lg border text-xs bg-white focus:outline-none focus:border-purple-600 ${
+                  isUnlimitedComputers
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    : 'text-gray-900 border-gray-300'
+                }`}
+              />
             </div>
 
-            {/* Campo: Teléfonos (app móvil) */}
+            {/* Campo 3: Teléfonos (app móvil) */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Teléfonos (app móvil) *
-                </label>
-                <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
-                  {activeMobileDevicesCount} de {maxMobileDevicesInput || '0'} en uso
-                </span>
-              </div>
-
-              <div className="relative">
-                <input
-                  type="number"
-                  min="0"
-                  max="50"
-                  step="1"
-                  value={maxMobileDevicesInput}
-                  onChange={(e) => setMaxMobileDevicesInput(e.target.value)}
-                  placeholder="0"
-                  className="w-full h-10 px-3 rounded-lg border text-xs bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-purple-600"
-                />
-              </div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                Teléfonos (app móvil) *
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="50"
+                step="1"
+                value={maxMobileDevicesInput}
+                onChange={(e) => setMaxMobileDevicesInput(e.target.value)}
+                placeholder="0"
+                className="w-full h-10 px-3 rounded-lg border text-xs bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-purple-600"
+              />
               <p className="text-xs text-gray-500 mt-1">
                 Con 0, la app móvil queda apagada para este negocio.
               </p>
             </div>
 
-            {/* Campo 3: Prueba (horas) */}
+            {/* Campo 4: Horas de prueba */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Prueba (horas)
-                </label>
-                {formTrialHours && (
-                  <button
-                    type="button"
-                    onClick={() => setFormTrialHours('')}
-                    className="text-[11px] text-rose-600 hover:text-rose-800 font-medium cursor-pointer"
-                  >
-                    Quitar prueba
-                  </button>
-                )}
-              </div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                Horas de prueba (opcional)
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={formTrialHours}
+                onChange={(e) => setFormTrialHours(e.target.value)}
+                placeholder="Ej. 24"
+                className="w-full h-10 px-3 rounded-lg border text-xs bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-purple-600"
+              />
+            </div>
 
-              <div className="relative">
+            {/* Campo 5: Web admin básico */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                Web admin básico
+              </label>
+              <div className="flex items-center gap-3 h-10">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={webAdminEnabledForm}
+                  onClick={() => {
+                    const next = !webAdminEnabledForm;
+                    setWebAdminEnabledForm(next);
+                    if (!next) setWebBillingEnabledForm(false);
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                    webAdminEnabledForm ? 'bg-purple-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      webAdminEnabledForm ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span className="text-xs text-gray-700">
+                  {webAdminEnabledForm ? 'Habilitado' : 'Deshabilitado'}
+                </span>
+              </div>
+            </div>
+
+            {/* Campo 6: Facturación web */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                Facturación web
+              </label>
+              <div className="flex items-center gap-3 h-10">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={webBillingEnabledForm}
+                  disabled={!webAdminEnabledForm}
+                  onClick={() => setWebBillingEnabledForm(!webBillingEnabledForm)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 ${
+                    webBillingEnabledForm ? 'bg-purple-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      webBillingEnabledForm ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span className="text-xs text-gray-700">
+                  {webBillingEnabledForm ? 'Habilitada' : 'Deshabilitada'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Subcampos de facturación web */}
+          {webBillingEnabledForm && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-white rounded-xl border border-purple-200/60">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Dispositivos web autorizados *
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs select-none cursor-pointer text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={isUnlimitedWeb}
+                      onChange={(e) => setIsUnlimitedWeb(e.target.checked)}
+                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
+                    />
+                    <span className="font-semibold text-purple-950">Ilimitado</span>
+                  </label>
+                </div>
                 <input
                   type="number"
-                  min="1"
+                  min="0"
                   step="1"
-                  value={formTrialHours}
-                  onChange={(e) => setFormTrialHours(e.target.value)}
-                  placeholder="Opcional (ej. 24)"
-                  className="w-full h-10 px-3 rounded-lg border text-xs bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-purple-600"
+                  disabled={isUnlimitedWeb}
+                  value={isUnlimitedWeb ? '' : maxWebDevicesInput}
+                  onChange={(e) => setMaxWebDevicesInput(e.target.value)}
+                  placeholder={isUnlimitedWeb ? 'Sin límite' : '2'}
+                  className={`w-full h-10 px-3 rounded-lg border text-xs bg-white focus:outline-none focus:border-purple-600 ${
+                    isUnlimitedWeb
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                      : 'text-gray-900 border-gray-300'
+                  }`}
                 />
               </div>
-              <p className="text-[11px] text-gray-500 mt-1">
-                El tiempo empieza a contar desde el primer inicio de sesión en la computadora. Vacío = no es prueba.
-              </p>
-            </div>
-          </div>
 
-          {/* Fila: Configuración de Acceso Web y Facturación */}
-          <div className="pt-3 border-t border-purple-200/60 space-y-3">
-            <div className="flex items-center gap-2">
-              <Globe size={16} className="text-purple-700 shrink-0" weight="duotone" />
-              <h5 className="text-xs font-bold text-purple-950 uppercase tracking-wider">
-                Acceso Web y Facturación Móvil
-              </h5>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Campo: Interruptor Web Admin Básico */}
-              <div className="p-3.5 rounded-xl border bg-white border-purple-200/80 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
-                    <label className="block text-xs font-bold text-gray-900">
-                      Web admin básico
-                    </label>
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200/70">
-                      Incluido
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-gray-500 leading-tight">
-                    Permite consultar reportes y el estado del negocio desde cualquier navegador.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleToggleWebAdminInForm(!webAdminEnabled)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    webAdminEnabled ? 'bg-purple-600' : 'bg-gray-200'
-                  }`}
-                  title={webAdminEnabled ? 'Desactivar web admin' : 'Activar web admin'}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      webAdminEnabled ? 'translate-x-5' : 'translate-x-0'
-                    }`}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Tarifa mensual en USD (opcional)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={webBillingMonthlyUsdInput}
+                    onChange={(e) => setWebBillingMonthlyUsdInput(e.target.value)}
+                    placeholder="Ej. 15.00"
+                    className="w-full h-10 pl-7 pr-3 rounded-lg border text-xs bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-purple-600"
                   />
-                </button>
-              </div>
-
-              {/* Campo: Interruptor Facturar desde la web */}
-              <div
-                className={`p-3.5 rounded-xl border bg-white flex items-center justify-between gap-4 transition-all ${
-                  !webAdminEnabled
-                    ? 'border-gray-200 opacity-60 bg-gray-50/50'
-                    : 'border-purple-200/80'
-                }`}
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
-                    <label
-                      className={`block text-xs font-bold ${
-                        !webAdminEnabled ? 'text-gray-400' : 'text-gray-900'
-                      }`}
-                    >
-                      Facturar desde la web
-                    </label>
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-800 border border-purple-200/70">
-                      Módulo adicional
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-gray-500 leading-tight">
-                    {!webAdminEnabled
-                      ? 'Requiere activar el Web Admin básico primero.'
-                      : 'Permite a los cajeros registrar ventas y emitir recibos desde navegador y teléfonos.'}
-                  </p>
                 </div>
-
-                <button
-                  type="button"
-                  disabled={!webAdminEnabled}
-                  onClick={() => handleToggleWebBillingInForm(!webBillingEnabled)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    !webAdminEnabled
-                      ? 'bg-gray-200 cursor-not-allowed opacity-50'
-                      : webBillingEnabled
-                      ? 'bg-purple-600 cursor-pointer'
-                      : 'bg-gray-200 cursor-pointer'
-                  }`}
-                  title={
-                    !webAdminEnabled
-                      ? 'Requiere Web admin básico activo'
-                      : webBillingEnabled
-                      ? 'Desactivar facturación web'
-                      : 'Activar facturación web'
-                  }
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      webBillingEnabled && webAdminEnabled ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
               </div>
-
-              {/* Sub-fila: Opciones de Facturación Web cuando está activa */}
-              {webAdminEnabled && webBillingEnabled && (
-                <>
-                  {/* Dispositivos web autorizados */}
-                  <div className="p-3.5 rounded-xl border bg-white border-purple-200/80">
-                    <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                      <div className="flex items-center flex-wrap gap-2">
-                        <label className="block text-xs font-bold text-gray-900">
-                          Dispositivos web autorizados *
-                        </label>
-                        <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
-                          {activeWebDevicesCount} activos de {isUnlimitedWeb ? 'Ilimitado' : maxWebDevicesInput || '2'}
-                        </span>
-                      </div>
-
-                      <label className="flex items-center gap-1.5 text-xs select-none cursor-pointer text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={isUnlimitedWeb}
-                          onChange={(e) => setIsUnlimitedWeb(e.target.checked)}
-                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
-                        />
-                        <span className="text-xs font-semibold text-purple-950">Ilimitado</span>
-                      </label>
-                    </div>
-
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        disabled={isUnlimitedWeb}
-                        value={isUnlimitedWeb ? '' : maxWebDevicesInput}
-                        onChange={(e) => setMaxWebDevicesInput(e.target.value)}
-                        placeholder={isUnlimitedWeb ? 'Sin límite de dispositivos' : '2'}
-                        className={`w-full h-10 px-3 rounded-lg border text-xs bg-white focus:outline-none focus:border-purple-600 ${
-                          isUnlimitedWeb
-                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                            : 'text-gray-900 border-gray-300'
-                        }`}
-                      />
-                    </div>
-                    <p className="text-[11px] text-gray-500 mt-1">
-                      Cantidad de teléfonos o navegadores que pueden cobrar simultáneamente (por defecto 2).
-                    </p>
-
-                    {isEditWebLimitLowerThanActive && (
-                      <div className="mt-2.5 flex items-start gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px]">
-                        <Info size={15} className="text-amber-600 shrink-0 mt-0.5" weight="fill" />
-                        <span>Los dispositivos activos siguen funcionando; solo se impide registrar nuevos.</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Tarifa mensual del módulo de facturación web */}
-                  <div className="p-3.5 rounded-xl border bg-white border-purple-200/80">
-                    <label className="block text-xs font-bold text-gray-900 mb-2">
-                      Tarifa mensual del módulo en USD (opcional)
-                    </label>
-
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
-                        $
-                      </span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={webBillingMonthlyUsdInput}
-                        onChange={(e) => setWebBillingMonthlyUsdInput(e.target.value)}
-                        placeholder="Ej: 15.00"
-                        className="w-full h-10 pl-7 pr-3 rounded-lg border text-xs bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-purple-600"
-                      />
-                    </div>
-                    <p className="text-[11px] text-gray-500 mt-1">
-                      Tarifa mensual adicional a la membresía base por el uso de facturación web.
-                    </p>
-                  </div>
-                </>
-              )}
             </div>
-          </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-purple-200/60">
             <button
+              type="button"
+              onClick={() => setIsEditingConfig(false)}
+              className="px-3.5 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
               type="submit"
               disabled={updatePosSubMutation.isPending}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-700 text-white text-xs font-semibold hover:bg-purple-800 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
             >
-              <FloppyDisk size={15} />
-              <span>{updatePosSubMutation.isPending ? 'Guardando...' : 'Guardar Configuración'}</span>
+              {updatePosSubMutation.isPending ? 'Guardando...' : 'Guardar configuración'}
             </button>
           </div>
         </form>
-      ) : (
-        /* Tarjetas de Resumen de Configuración */
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
-          <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                Perfil del Salón
+      )}
+
+      {/* 1. Cupos (fila de 3 tarjetas iguales) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+        {/* Tarjeta 1: Computadoras */}
+        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Desktop size={18} className="text-gray-500 shrink-0" />
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Computadoras
               </span>
-              <div className="flex items-center gap-2 flex-wrap">
-                {currentProfile === 'TALLER' ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                    <Wrench size={14} weight="bold" className="text-amber-700" />
-                    <span>Taller Automotriz</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-300">
-                    <ForkKnife size={14} weight="bold" className="text-purple-700" />
-                    <span>Restaurante / Mesas</span>
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-gray-500 mt-1">
-                {currentProfile === 'TALLER'
-                  ? 'Operación por bahías, placa de vehículo y técnico'
-                  : 'Operación por zonas de mesas y comensales'}
-              </p>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+              {activeComputersCount} de {isComputersUnlimited ? 'Ilimitado' : computersAllowed}
+            </div>
+
+            {/* Barra de uso delgada */}
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden my-2.5">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  isComputersFull ? 'bg-amber-500' : 'bg-gray-400'
+                }`}
+                style={{ width: `${computersPercent}%` }}
+              />
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                Límite de Computadoras
+          <div className="text-xs font-medium text-gray-500 pt-1">
+            {isComputersUnlimited ? (
+              <span>Disponible: Ilimitado</span>
+            ) : isComputersFull ? (
+              <span className="text-amber-700 font-bold">Cupo lleno</span>
+            ) : (
+              <span>Disponible: {(computersAllowed ?? 0) - activeComputersCount}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Tarjeta 2: Navegadores */}
+        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Globe size={18} className="text-gray-500 shrink-0" />
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Navegadores
               </span>
-              <div className="flex items-center flex-wrap gap-2">
-                <span className="text-base font-extrabold text-gray-900">
-                  {effectiveActiveDevices}
-                </span>
-                <span className="text-xs text-gray-500 font-medium">
-                  {business.maxDevices === null || business.maxDevices === undefined
-                    ? 'activas (Sin límite permitido)'
-                    : `de ${business.maxDevices} permitida${business.maxDevices === 1 ? '' : 's'}`}
-                </span>
-                {business.maxDevices !== null &&
-                  business.maxDevices !== undefined &&
-                  effectiveActiveDevices >= business.maxDevices && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                      <WarningCircle size={12} weight="fill" />
-                      <span>Límite alcanzado</span>
-                    </span>
-                  )}
-              </div>
-              <p className="text-[11px] text-gray-500 mt-1">
-                {business.maxDevices === null || business.maxDevices === undefined
-                  ? 'Cualquier computadora autorizada puede iniciar sesión'
-                  : `Máximo ${business.maxDevices} equipo(s) simultáneo(s)`}
-              </p>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+              {activeWebDevicesCount} de {isWebUnlimited ? 'Ilimitado' : webAllowed}
+            </div>
+
+            {/* Barra de uso delgada */}
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden my-2.5">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  isWebFull ? 'bg-amber-500' : 'bg-gray-400'
+                }`}
+                style={{ width: `${webPercent}%` }}
+              />
             </div>
           </div>
 
-          {/* Tarjeta 3: Web Admin Básico */}
-          <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Globe size={16} className="text-blue-700" weight="duotone" />
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                    Web Admin Básico
-                  </span>
-                </div>
+          <div className="text-xs font-medium text-gray-500 pt-1">
+            {isWebUnlimited ? (
+              <span>Disponible: Ilimitado</span>
+            ) : isWebFull ? (
+              <span className="text-amber-700 font-bold">Cupo lleno</span>
+            ) : (
+              <span>Disponible: {(webAllowed ?? 0) - activeWebDevicesCount}</span>
+            )}
+          </div>
+        </div>
 
-                <button
-                  type="button"
-                  disabled={isTogglingWebAdmin || updatePosSubMutation.isPending}
-                  onClick={handleToggleWebAdminDirect}
-                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    currentWebAdmin ? 'bg-blue-600' : 'bg-gray-300'
-                  } ${isTogglingWebAdmin ? 'opacity-50 cursor-wait' : ''}`}
-                  title={currentWebAdmin ? 'Click para desactivar acceso web admin' : 'Click para activar acceso web admin'}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      currentWebAdmin ? 'translate-x-4' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
+        {/* Tarjeta 3: Teléfonos (app) */}
+        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <DeviceMobile size={18} className="text-gray-500 shrink-0" />
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Teléfonos (app)
+              </span>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+              {isMobileDisabled ? '0 de 0' : `${activeMobileDevicesCount} de ${mobileAllowed}`}
+            </div>
 
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                {currentWebAdmin ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                    <CheckCircle size={11} weight="bold" />
-                    <span>Activo (Incluido)</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                    <Prohibit size={11} weight="bold" />
-                    <span>Desactivado</span>
-                  </span>
-                )}
-              </div>
-
-              <p className="text-[11px] text-gray-500 mt-1 leading-tight">
-                {currentWebAdmin
-                  ? 'Consulta de reportes y catálogo en navegador habilitada.'
-                  : 'Acceso a la plataforma web para este negocio deshabilitado.'}
-              </p>
+            {/* Barra de uso delgada */}
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden my-2.5">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  isMobileFull ? 'bg-amber-500' : 'bg-gray-400'
+                }`}
+                style={{ width: `${mobilePercent}%` }}
+              />
             </div>
           </div>
 
-          {/* Tarjeta 4: Facturación Web */}
-          <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Receipt size={16} className="text-purple-700" weight="duotone" />
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                    Facturación Web
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={!currentWebAdmin || isTogglingWebBilling || updatePosSubMutation.isPending}
-                  onClick={handleToggleWebBillingDirect}
-                  className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    !currentWebAdmin
-                      ? 'bg-gray-200 cursor-not-allowed opacity-50'
-                      : currentWebBilling
-                      ? 'bg-purple-600 cursor-pointer'
-                      : 'bg-gray-300 cursor-pointer'
-                  } ${isTogglingWebBilling ? 'opacity-50 cursor-wait' : ''}`}
-                  title={
-                    !currentWebAdmin
-                      ? 'Requiere Web admin básico activo'
-                      : currentWebBilling
-                      ? 'Click para desactivar facturación web'
-                      : 'Click para activar facturación web'
-                  }
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      currentWebBilling && currentWebAdmin ? 'translate-x-4' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                {currentWebBilling ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <CheckCircle size={11} weight="bold" />
-                    <span>Habilitada</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                    <Prohibit size={11} weight="bold" />
-                    <span>Desactivada</span>
-                  </span>
-                )}
-
-                <span className="text-xs font-semibold text-gray-800">
-                  {activeWebDevicesCount} de {currentMaxWebDevices === null ? 'Ilimitado' : currentMaxWebDevices} disp.
-                </span>
-
-                {currentWebBilling && currentWebBillingMonthlyUsd !== null && Number(currentWebBillingMonthlyUsd) > 0 && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-800 border border-purple-200">
-                    ${Number(currentWebBillingMonthlyUsd).toFixed(2)}/mes
-                  </span>
-                )}
-              </div>
-
-              <p className="text-[11px] text-gray-500 mt-1 leading-tight">
-                {currentWebBilling
-                  ? 'Cobro desde navegador y teléfono móvil habilitado.'
-                  : 'Cobro desde navegador y teléfono deshabilitado.'}
-              </p>
-
-              {/* Aviso informativo cuando el límite esté por debajo de los activos */}
-              {isWebLimitLowerThanActive && (
-                <div className="mt-2.5 flex items-start gap-1.5 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[10px] leading-tight">
-                  <Info size={13} className="text-amber-600 shrink-0 mt-0.5" weight="fill" />
-                  <span>Los dispositivos activos siguen funcionando; solo se impide registrar nuevos.</span>
-                </div>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="text-xs font-medium text-gray-500">
+              {isMobileDisabled ? (
+                <span className="text-gray-400">Apagada</span>
+              ) : isMobileFull ? (
+                <span className="text-amber-700 font-bold">Cupo lleno</span>
+              ) : (
+                <span>Disponible: {mobileAllowed - activeMobileDevicesCount}</span>
               )}
             </div>
-          </div>
 
-          {/* Tarjeta 5: Teléfonos (app móvil) */}
-          <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <DeviceMobile size={16} className="text-purple-700" weight="duotone" />
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                    Teléfonos (app móvil)
-                  </span>
-                </div>
-                {currentMaxMobileDevices > 0 ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <CheckCircle size={11} weight="bold" />
-                    <span>Habilitada</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                    <Prohibit size={11} weight="bold" />
-                    <span>Desactivada</span>
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="text-xs font-bold text-gray-900">
-                  {activeMobileDevicesCount} de {currentMaxMobileDevices} en uso
-                </span>
-                {currentMaxMobileDevices > 0 && activeMobileDevicesCount >= currentMaxMobileDevices && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                    <WarningCircle size={11} weight="fill" />
-                    <span>Cupo lleno</span>
-                  </span>
-                )}
-              </div>
-
-              <p className="text-[11px] text-gray-500 mt-1 leading-tight">
-                {currentMaxMobileDevices > 0
-                  ? 'Acceso a la app móvil NEXOL POS habilitado.'
-                  : 'Con 0, la app móvil queda apagada para este negocio.'}
-              </p>
-            </div>
-
-            <div className="mt-3 pt-2.5 border-t border-gray-200/60">
+            {!isMobileDisabled && (
               <button
                 type="button"
                 onClick={handleGeneratePairingCode}
                 disabled={createPairingCodeMutation.isPending}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                title="Generar código de vinculación para que soporte/operaciones pueda ayudar al cliente por teléfono"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-purple-50 text-purple-800 hover:bg-purple-100 text-xs font-semibold transition-colors cursor-pointer"
               >
                 <Key size={13} weight="bold" />
-                <span>{createPairingCodeMutation.isPending ? 'Generando...' : 'Generar código de vinculación'}</span>
+                <span>Generar código</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Operación (lista de ajustes, no tarjetas) */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-2xs divide-y divide-gray-100 overflow-hidden">
+        {/* Fila 1: Perfil del salón */}
+        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+              Perfil del salón
+            </span>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Modalidad de atención y disposición del local.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            <span className="text-sm font-semibold text-gray-900">
+              {currentProfile === 'RESTAURANTE' ? 'Restaurante / mesas' : 'Taller / órdenes'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsEditingConfig(true)}
+              className="text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors cursor-pointer underline underline-offset-2"
+            >
+              Cambiar
+            </button>
+          </div>
+        </div>
+
+        {/* Fila 2: Web admin básico */}
+        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+              Web admin básico
+            </span>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Acceso al panel web de administración para encargados y administradores.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={currentWebAdmin}
+              disabled={isTogglingWebAdmin}
+              onClick={handleToggleWebAdminDirect}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50 ${
+                currentWebAdmin ? 'bg-purple-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  currentWebAdmin ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Fila 3: Facturación web */}
+        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+              Facturación web
+            </span>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Emisión de comprobantes y cobro directo desde navegadores autorizados.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            {currentWebBilling && (
+              <span className="text-xs font-semibold text-gray-600">
+                {currentMaxWebDevices === null
+                  ? 'Disponibles: Ilimitado'
+                  : `${Math.max(0, currentMaxWebDevices - activeWebDevicesCount)} de ${currentMaxWebDevices} disponibles`}
+              </span>
+            )}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={currentWebBilling}
+              disabled={isTogglingWebBilling}
+              onClick={handleToggleWebBillingDirect}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50 ${
+                currentWebBilling ? 'bg-purple-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  currentWebBilling ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Prueba */}
+      <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Clock size={20} className="text-gray-400 shrink-0" weight="duotone" />
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+                Prueba
+              </span>
+              <span className="text-sm font-semibold text-gray-900">
+                {trialState === 'SIN_PRUEBA' && 'Sin prueba'}
+                {trialState === 'SIN_INICIAR' && `Prueba sin iniciar (${trialHours} h)`}
+                {trialState === 'EN_CURSO' && `Termina el ${formatNicaraguaTrialDate(trialEndsAt)}`}
+                {trialState === 'VENCIDA' && `Vencida el ${formatNicaraguaTrialDate(trialEndsAt)}`}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setTrialHoursInput(trialHours ? String(trialHours) : '24');
+                setIsEditingTrialHours(!isEditingTrialHours);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-2xs cursor-pointer"
+            >
+              <PencilSimple size={13} />
+              <span>{trialHours ? 'Cambiar horas de prueba' : 'Fijar horas de prueba'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Acciones de la prueba al expandir */}
+        {isEditingTrialHours && (
+          <div className="mt-4 pt-3 border-t border-gray-100 space-y-3">
+            <div className="p-3 bg-purple-50/50 rounded-lg border border-purple-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-700 font-semibold">Horas:</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="Ej. 24"
+                  value={trialHoursInput}
+                  onChange={(e) => setTrialHoursInput(e.target.value)}
+                  className="w-24 h-8 px-2.5 rounded-lg border border-gray-300 text-xs bg-white font-semibold focus:outline-none focus:border-purple-600"
+                />
+                <button
+                  type="button"
+                  disabled={isActionPending}
+                  onClick={handleSaveTrialHours}
+                  className="px-3 py-1.5 rounded-lg bg-purple-700 text-white text-xs font-semibold hover:bg-purple-800 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Guardar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingTrialHours(false)}
+                  className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              {trialHours && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="inline-flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-200 shadow-2xs">
+                    <span className="text-xs text-gray-500 font-medium pl-1">Extender:</span>
+                    <select
+                      value={extendHours}
+                      onChange={(e) => setExtendHours(Number(e.target.value))}
+                      disabled={isActionPending}
+                      aria-label="Horas para extender la prueba"
+                      className="h-7 px-1.5 bg-gray-50 border border-gray-200 rounded text-xs font-bold text-gray-800 focus:outline-none"
+                    >
+                      <option value={1}>1 h</option>
+                      <option value={6}>6 h</option>
+                      <option value={12}>12 h</option>
+                      <option value={24}>24 h</option>
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isActionPending}
+                      onClick={handleExtendTrial}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <PlusCircle size={13} weight="bold" />
+                      <span>Extender</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isActionPending}
+                    onClick={handleResetTrial}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <ArrowCounterClockwise size={13} weight="bold" />
+                    <span>Reiniciar reloj</span>
+                  </button>
+
+                  {trialState === 'EN_CURSO' && (
+                    <button
+                      type="button"
+                      disabled={isActionPending}
+                      onClick={handleTerminateTrial}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <StopCircle size={13} weight="bold" />
+                      <span>Terminar ahora</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={isActionPending}
+                    onClick={handleRemoveTrial}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <Trash size={13} />
+                    <span>Quitar prueba</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 4. Equipos */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-2xs p-4 space-y-4">
+        {/* Pestañas con conteo del API y botón Archivar todos */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+          {/* Pestañas */}
+          <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setActiveTab('active')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'active'
+                  ? 'bg-white text-gray-900 shadow-2xs'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Activos ({summary?.active ?? 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('revoked')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'revoked'
+                  ? 'bg-white text-gray-900 shadow-2xs'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Revocados ({summary?.revoked ?? 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('archived')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'archived'
+                  ? 'bg-white text-gray-900 shadow-2xs'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Archivados ({summary?.archived ?? 0})
+            </button>
+          </div>
+
+          {/* Botón Archivar todos (solo en pestaña Revocados) */}
+          {activeTab === 'revoked' && (summary?.revoked ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => setArchiveAllModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-2xs cursor-pointer self-start sm:self-auto"
+            >
+              <Archive size={14} className="text-gray-500" />
+              <span>Archivar todos</span>
+            </button>
+          )}
+        </div>
+
+        {/* Filtro por tipo */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs font-semibold text-gray-400 mr-1">Filtrar por tipo:</span>
+          {(
+            [
+              { key: 'all', label: 'Todos' },
+              { key: 'desktop', label: 'Computadoras' },
+              { key: 'web', label: 'Navegadores' },
+              { key: 'mobile', label: 'Teléfonos' },
+            ] as const
+          ).map((item) => {
+            const isActive = typeFilter === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setTypeFilter(item.key)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  isActive
+                    ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                    : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200/60'
+                }`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Listado de equipos */}
+        {isLoadingDevices ? (
+          <div className="p-8 text-center bg-gray-50/50 rounded-xl border border-gray-100 text-xs text-gray-500">
+            Cargando equipos...
+          </div>
+        ) : filteredDevices.length === 0 ? (
+          <div className="p-8 text-center bg-gray-50/50 rounded-xl border border-gray-100">
+            <p className="text-xs font-semibold text-gray-500">
+              {typeFilter !== 'all'
+                ? 'No hay equipos de este tipo en esta pestaña.'
+                : activeTab === 'active'
+                ? 'No hay equipos activos.'
+                : activeTab === 'revoked'
+                ? 'No hay equipos revocados.'
+                : 'No hay equipos archivados.'}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Vista desktop: tabla */}
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-left border-collapse min-w-[640px]">
+                <thead>
+                  <tr className="bg-gray-50/80 border-b border-gray-100 text-xs font-semibold text-gray-500">
+                    <th className="py-2.5 px-3">Equipo</th>
+                    <th className="py-2.5 px-3">Última conexión</th>
+                    <th className="py-2.5 px-3">Registrado</th>
+                    <th className="py-2.5 px-3">Estado</th>
+                    <th className="py-2.5 px-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredDevices.map((device) => {
+                    const { type, platform, icon } = getDeviceTypeAndPlatform(device);
+                    const isMenuOpen = openMenuDeviceId === device.id;
+                    const isArchived = !!device.archivedAt;
+
+                    return (
+                      <tr key={device.id} className="hover:bg-gray-50/50 transition-colors">
+                        {/* Columna Equipo */}
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200/80 flex items-center justify-center shrink-0">
+                              {icon === 'desktop' && <Desktop size={16} className="text-gray-600" />}
+                              {icon === 'web' && <Globe size={16} className="text-gray-600" />}
+                              {icon === 'mobile' && <DeviceMobile size={16} className="text-gray-600" />}
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-gray-900">
+                                {device.name || 'Sin nombre'}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {type} · {platform}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Columna Última conexión */}
+                        <td
+                          className="py-3 px-3 text-xs text-gray-700 whitespace-nowrap cursor-help"
+                          title={device.lastSeenAt ? formatDateTime(device.lastSeenAt) : undefined}
+                        >
+                          {device.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : 'Nunca'}
+                        </td>
+
+                        {/* Columna Registrado */}
+                        <td className="py-3 px-3 text-xs text-gray-500 whitespace-nowrap">
+                          {formatDateShort(device.createdAt)}
+                        </td>
+
+                        {/* Columna Estado */}
+                        <td className="py-3 px-3 whitespace-nowrap text-xs font-medium text-gray-700">
+                          {isArchived ? (
+                            <span className="inline-flex items-center">
+                              <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-1.5 shrink-0" />
+                              Archivado
+                            </span>
+                          ) : device.status === 'ACTIVE' ? (
+                            <span className="inline-flex items-center">
+                              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1.5 shrink-0" />
+                              Activo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center">
+                              <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-1.5 shrink-0" />
+                              Revocado
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Columna Acciones (menú ⋯) */}
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          <div className="relative inline-block text-left" data-device-menu>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenMenuDeviceId(isMenuOpen ? null : device.id)
+                              }
+                              className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                              title="Acciones"
+                            >
+                              <DotsThreeVertical size={18} weight="bold" />
+                            </button>
+
+                            {isMenuOpen && (
+                              <div className="absolute right-0 mt-1 w-52 rounded-xl bg-white border border-gray-200 shadow-lg py-1 z-30 divide-y divide-gray-100 text-left">
+                                {/* Encabezado con ID abreviado y botón Copiar */}
+                                <div className="px-3 py-2 flex items-center justify-between gap-2">
+                                  <span className="font-mono text-xs text-gray-500 truncate">
+                                    {shortenId(device.deviceId || device.id)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyId(device.deviceId || device.id)}
+                                    className="inline-flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 font-semibold cursor-pointer shrink-0"
+                                  >
+                                    {copiedIdDeviceId === (device.deviceId || device.id) ? (
+                                      <>
+                                        <Check size={12} className="text-emerald-600" />
+                                        <span>Copiado</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy size={12} />
+                                        <span>Copiar ID</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+
+                                {/* Opciones del menú */}
+                                <div className="py-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRenameModal({
+                                        isOpen: true,
+                                        device,
+                                        newName: device.name || '',
+                                      });
+                                      setOpenMenuDeviceId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                                  >
+                                    Renombrar
+                                  </button>
+
+                                  {device.status === 'ACTIVE' && !isArchived && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRevokeModal({ isOpen: true, device });
+                                        setOpenMenuDeviceId(null);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                                    >
+                                      Revocar
+                                    </button>
+                                  )}
+
+                                  {device.status === 'REVOKED' && !isArchived && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleConfirmReactivate(device)}
+                                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                                      >
+                                        Reactivar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setArchiveModal({ isOpen: true, device });
+                                          setOpenMenuDeviceId(null);
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                                      >
+                                        Archivar
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {isArchived && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleConfirmUnarchive(device)}
+                                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                                    >
+                                      Desarchivar
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Vista móvil (< md): fila de dos líneas */}
+            <div className="md:hidden space-y-2.5">
+              {filteredDevices.map((device) => {
+                const { type, platform, icon } = getDeviceTypeAndPlatform(device);
+                const isMenuOpen = openMenuDeviceId === device.id;
+                const isArchived = !!device.archivedAt;
+
+                return (
+                  <div
+                    key={device.id}
+                    className="p-3 bg-white rounded-xl border border-gray-100 shadow-2xs space-y-2"
+                  >
+                    {/* Línea 1: Nombre y tipo arriba + Menú ⋯ a la derecha */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-gray-50 border border-gray-200/80 flex items-center justify-center shrink-0">
+                          {icon === 'desktop' && <Desktop size={14} className="text-gray-600" />}
+                          {icon === 'web' && <Globe size={14} className="text-gray-600" />}
+                          {icon === 'mobile' && <DeviceMobile size={14} className="text-gray-600" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-gray-900 truncate">
+                            {device.name || 'Sin nombre'}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {type} · {platform}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="relative shrink-0" data-device-menu>
+                        <button
+                          type="button"
+                          onClick={() => setOpenMenuDeviceId(isMenuOpen ? null : device.id)}
+                          className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                        >
+                          <DotsThreeVertical size={18} weight="bold" />
+                        </button>
+
+                        {isMenuOpen && (
+                          <div className="absolute right-0 mt-1 w-48 rounded-xl bg-white border border-gray-200 shadow-lg py-1 z-30 divide-y divide-gray-100 text-left">
+                            <div className="px-3 py-2 flex items-center justify-between gap-1">
+                              <span className="font-mono text-xs text-gray-500 truncate">
+                                {shortenId(device.deviceId || device.id)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyId(device.deviceId || device.id)}
+                                className="inline-flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 font-semibold cursor-pointer shrink-0"
+                              >
+                                {copiedIdDeviceId === (device.deviceId || device.id) ? (
+                                  <>
+                                    <Check size={12} className="text-emerald-600" />
+                                    <span>Copiado</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={12} />
+                                    <span>Copiar</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            <div className="py-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRenameModal({
+                                    isOpen: true,
+                                    device,
+                                    newName: device.name || '',
+                                  });
+                                  setOpenMenuDeviceId(null);
+                                }}
+                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                              >
+                                Renombrar
+                              </button>
+
+                              {device.status === 'ACTIVE' && !isArchived && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRevokeModal({ isOpen: true, device });
+                                    setOpenMenuDeviceId(null);
+                                  }}
+                                  className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                                >
+                                  Revocar
+                                </button>
+                              )}
+
+                              {device.status === 'REVOKED' && !isArchived && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConfirmReactivate(device)}
+                                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                                  >
+                                    Reactivar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setArchiveModal({ isOpen: true, device });
+                                      setOpenMenuDeviceId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                                  >
+                                    Archivar
+                                  </button>
+                                </>
+                              )}
+
+                              {isArchived && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleConfirmUnarchive(device)}
+                                  className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                                >
+                                  Desarchivar
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Línea 2: Conexión y estado abajo */}
+                    <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-50">
+                      <span title={device.lastSeenAt ? formatDateTime(device.lastSeenAt) : undefined}>
+                        {device.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : 'Nunca'}
+                      </span>
+                      <div>
+                        {isArchived ? (
+                          <span className="inline-flex items-center font-medium text-gray-600">
+                            <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-1.5 shrink-0" />
+                            Archivado
+                          </span>
+                        ) : device.status === 'ACTIVE' ? (
+                          <span className="inline-flex items-center font-medium text-gray-800">
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1.5 shrink-0" />
+                            Activo
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center font-medium text-gray-600">
+                            <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-1.5 shrink-0" />
+                            Revocado
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Modal: Renombrar equipo */}
+      {renameModal.isOpen && renameModal.device && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-gray-900">Renombrar equipo</h3>
+              <button
+                type="button"
+                onClick={() => setRenameModal({ isOpen: false, device: null, newName: '' })}
+                className="text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleConfirmRename} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Nombre del equipo
+                </label>
+                <input
+                  type="text"
+                  value={renameModal.newName}
+                  onChange={(e) =>
+                    setRenameModal((prev) => ({ ...prev, newName: e.target.value }))
+                  }
+                  placeholder="Ej. Caja Principal"
+                  className="w-full h-10 px-3 rounded-lg border border-gray-300 text-xs bg-white text-gray-900 focus:outline-none focus:border-purple-600"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRenameModal({ isOpen: false, device: null, newName: '' })}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateDeviceMutation.isPending}
+                  className="px-4 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirmación de revocar equipo (con botón rojo) */}
+      {revokeModal.isOpen && revokeModal.device && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-4">
+            <div className="flex items-center gap-2 text-rose-600">
+              <WarningCircle size={22} weight="fill" />
+              <h3 className="text-sm font-bold text-gray-900">Revocar equipo</h3>
+            </div>
+            <p className="text-xs text-gray-600">
+              ¿Confirmás revocar el acceso al equipo{' '}
+              <strong>"{revokeModal.device.name || revokeModal.device.deviceId}"</strong>? Dejará de
+              poder operar en el punto de venta.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setRevokeModal({ isOpen: false, device: null })}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={updateDeviceMutation.isPending}
+                onClick={handleConfirmRevoke}
+                className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {updateDeviceMutation.isPending ? 'Revocando...' : 'Revocar equipo'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Sección Prueba */}
-      <div className="p-4 sm:p-5 rounded-xl bg-gray-50/80 border border-gray-200 space-y-4">
-        {/* Cabecera de la sección de Prueba */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-200/80">
-          <div className="flex items-center gap-2">
-            <Clock size={18} className="text-amber-600" weight="duotone" />
-            <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
-              Prueba
-            </h4>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Estado Badge según los 4 estados especificados */}
-            {trialState === 'SIN_PRUEBA' && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200">
-                <Prohibit size={13} weight="bold" />
-                <span>Sin prueba</span>
-              </span>
-            )}
-            {trialState === 'SIN_INICIAR' && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                <Hourglass size={13} weight="bold" className="text-blue-600" />
-                <span>Prueba sin iniciar ({trialHours} h)</span>
-              </span>
-            )}
-            {trialState === 'EN_CURSO' && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                <Clock size={13} weight="bold" className="text-amber-700 animate-pulse" />
-                <span>En curso · quedan {remainingText}</span>
-              </span>
-            )}
-            {trialState === 'VENCIDA' && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                <WarningCircle size={13} weight="bold" className="text-rose-600" />
-                <span>Vencida</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Metadatos y Fechas (Hora local de Nicaragua) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="bg-white p-3 rounded-lg border border-gray-200/80">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
-              Horas de Prueba
-            </span>
-            <span className="text-sm font-bold text-gray-900">
-              {trialHours ? `${trialHours} horas` : 'No configuradas'}
-            </span>
-            <p className="text-[11px] text-gray-500 mt-0.5">
-              {trialHours
-                ? 'Conteo por horas de uso en computadora'
-                : 'Sin período de prueba configurado'}
-            </p>
-          </div>
-
-          <div className="bg-white p-3 rounded-lg border border-gray-200/80">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
-              Fecha de Inicio (Nicaragua)
-            </span>
-            <span className="text-xs font-semibold text-gray-900">
-              {trialStartedAt
-                ? formatNicaraguaDateTime(trialStartedAt)
-                : trialHours
-                ? 'Pendiente de inicio en PC'
-                : '—'}
-            </span>
-            <p className="text-[11px] text-gray-500 mt-0.5">
-              {trialStartedAt
-                ? 'Primer inicio de sesión en computadora'
-                : trialHours
-                ? 'Empieza al primer inicio de sesión'
-                : 'Sin prueba'}
-            </p>
-          </div>
-
-          <div className="bg-white p-3 rounded-lg border border-gray-200/80">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
-              Fecha de Fin (Nicaragua)
-            </span>
-            <span className="text-xs font-semibold text-gray-900">
-              {trialEndsAt
-                ? formatNicaraguaDateTime(trialEndsAt)
-                : trialHours
-                ? `Al iniciar + ${trialHours}h`
-                : '—'}
-            </span>
-            <p className="text-[11px] text-gray-500 mt-0.5">
-              {trialEndsAt
-                ? trialState === 'VENCIDA'
-                  ? 'Prueba finalizada'
-                  : 'Límite de bloqueo automático en POS'
-                : '—'}
-            </p>
-          </div>
-        </div>
-
-        {/* Acciones de la Prueba */}
-        <div className="pt-2 border-t border-gray-200/80 space-y-3">
-          {/* Subformulario inline para Fijar / Cambiar horas */}
-          {isEditingTrialHours && (
-            <div className="p-3 bg-white rounded-lg border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-              <div className="flex-1 max-w-sm">
-                <label className="block text-[11px] font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                  {trialHours ? 'Cambiar Horas de Prueba' : 'Fijar Horas de Prueba'}
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    placeholder="Ej. 24"
-                    value={trialHoursInput}
-                    onChange={(e) => setTrialHoursInput(e.target.value)}
-                    className="w-28 h-8 px-2.5 rounded-lg border border-gray-300 text-xs focus:outline-none focus:border-purple-600 font-semibold"
-                  />
-                  <span className="text-xs text-gray-500">horas</span>
-                </div>
-                <p className="text-[11px] text-gray-400 mt-1">
-                  Número entero ≥ 1.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={isActionPending}
-                  onClick={handleSaveTrialHours}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-700 text-white text-xs font-semibold hover:bg-purple-800 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <FloppyDisk size={14} />
-                  <span>Guardar</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEditingTrialHours(false);
-                    setTrialHoursInput(trialHours ? String(trialHours) : '');
-                  }}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
-                >
-                  <X size={14} />
-                  <span>Cancelar</span>
-                </button>
-              </div>
+      {/* Modal: Confirmación de archivar equipo individual */}
+      {archiveModal.isOpen && archiveModal.device && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-4">
+            <div className="flex items-center gap-2 text-gray-700">
+              <Archive size={20} weight="bold" />
+              <h3 className="text-sm font-bold text-gray-900">Archivar equipo</h3>
             </div>
-          )}
-
-          {/* Barra de botones de acción */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Lado izquierdo: Fijar o cambiar horas y Quitar prueba */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {!isEditingTrialHours && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTrialHoursInput(trialHours ? String(trialHours) : '24');
-                    setIsEditingTrialHours(true);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-                >
-                  <PencilSimple size={13} />
-                  <span>{trialHours ? 'Cambiar horas' : 'Fijar horas de prueba'}</span>
-                </button>
-              )}
-
-              {trialHours && (
-                <button
-                  type="button"
-                  disabled={isActionPending}
-                  onClick={handleRemoveTrial}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-semibold text-rose-700 bg-rose-50/50 hover:bg-rose-100/60 transition-colors cursor-pointer disabled:opacity-50"
-                  title="Eliminar período de prueba de este negocio"
-                >
-                  <Trash size={13} />
-                  <span>Quitar prueba</span>
-                </button>
-              )}
-            </div>
-
-            {/* Lado derecho: Extender, Reiniciar reloj, Terminar ahora */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Extender con selector 1 h / 6 h / 12 h / 24 h */}
-              {trialHours && (
-                <div className="inline-flex flex-wrap items-center gap-1.5 bg-white p-1 rounded-lg border border-gray-200 shadow-2xs max-w-full">
-                  <span className="text-[11px] text-gray-500 font-medium pl-1.5">Extender:</span>
-                  <select
-                    value={extendHours}
-                    onChange={(e) => setExtendHours(Number(e.target.value))}
-                    disabled={isActionPending}
-                    aria-label="Horas para extender la prueba"
-                    className="h-7 px-2 bg-gray-50 border border-gray-200 rounded text-xs font-bold text-gray-800 focus:outline-none focus:border-purple-600"
-                  >
-                    <option value={1}>1 h</option>
-                    <option value={6}>6 h</option>
-                    <option value={12}>12 h</option>
-                    <option value={24}>24 h</option>
-                  </select>
-                  <button
-                    type="button"
-                    disabled={isActionPending}
-                    onClick={handleExtendTrial}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                    title="Extender tiempo de prueba"
-                  >
-                    <PlusCircle size={13} weight="bold" />
-                    <span>Extender</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Reiniciar reloj */}
-              {trialHours && (
-                <button
-                  type="button"
-                  disabled={isActionPending}
-                  onClick={handleResetTrial}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
-                  title="Reinicia el reloj para que vuelva a contar desde el próximo inicio de sesión"
-                >
-                  <ArrowCounterClockwise size={13} weight="bold" className="text-gray-500" />
-                  <span>Reiniciar reloj</span>
-                </button>
-              )}
-
-              {/* Terminar ahora */}
-              {trialHours && trialState === 'EN_CURSO' && (
-                <button
-                  type="button"
-                  disabled={isActionPending}
-                  onClick={handleTerminateTrial}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-300 bg-rose-50 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-50"
-                  title="Terminar la prueba inmediatamente (marcar como vencida)"
-                >
-                  <StopCircle size={13} weight="bold" />
-                  <span>Terminar ahora</span>
-                </button>
-              )}
+            <p className="text-xs text-gray-600">
+              ¿Confirmás archivar el equipo{' '}
+              <strong>"{archiveModal.device.name || archiveModal.device.deviceId}"</strong>? Se
+              moverá a la pestaña de archivados.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setArchiveModal({ isOpen: false, device: null })}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={archiveDeviceMutation.isPending}
+                onClick={handleConfirmArchive}
+                className="px-4 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {archiveDeviceMutation.isPending ? 'Archivando...' : 'Archivar equipo'}
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Listado de Computadoras / Dispositivos Registrados */}
-      <div className="space-y-3 pt-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h4 className="text-xs font-semibold text-gray-800 uppercase tracking-wider">
-              Equipos Registrados
-            </h4>
-            <span className="text-xs font-bold text-gray-400">
-              ({devices.length})
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isLoadingDevices}
-            className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-            title="Actualizar listado de dispositivos"
-          >
-            <ArrowsClockwise size={15} className={isLoadingDevices ? 'animate-spin' : ''} />
-          </button>
-        </div>
-
-        {isLoadingDevices && devices.length === 0 ? (
-          <div className="p-8 text-center text-xs text-gray-400">
-            Cargando equipos registrados...
-          </div>
-        ) : devices.length === 0 ? (
-          <div className="p-6 rounded-xl border border-dashed border-gray-200 text-center space-y-1 bg-gray-50/50">
-            <Desktop size={28} className="mx-auto text-gray-300" weight="duotone" />
-            <p className="text-xs font-semibold text-gray-700">
-              No hay equipos registrados
-            </p>
-            <p className="text-[11px] text-gray-400 max-w-sm mx-auto">
-              Las computadoras de escritorio y los teléfonos móviles vinculados se registrarán automáticamente aquí.
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Vista móvil: tarjetas */}
-            <div className="md:hidden space-y-2.5">
-              {devices.map((device) => {
-                const isActive = device.status === 'ACTIVE';
-                const isProcessing = revokingDeviceId === device.id;
-
-                return (
-                  <div
-                    key={device.id}
-                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/40 space-y-2.5 text-xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {device.category === 'MOBILE' ? (
-                          <DeviceMobile
-                            size={17}
-                            className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`}
-                          />
-                        ) : device.category === 'WEB' ? (
-                          <Globe
-                            size={17}
-                            className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`}
-                          />
-                        ) : (
-                          <Desktop
-                            size={17}
-                            className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`}
-                          />
-                        )}
-                        <span className="font-semibold text-gray-900 truncate">
-                          {device.name || (device.category === 'MOBILE' ? 'Teléfono POS' : 'Sin nombre')}
-                        </span>
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
-                          {device.category === 'MOBILE' ? 'Teléfono' : device.category === 'WEB' ? 'Web' : 'Computadora'}
-                        </span>
-                      </div>
-                      {isActive ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                          <CheckCircle size={11} weight="bold" />
-                          <span>{device.category === 'MOBILE' ? 'Activo' : 'Activa'}</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shrink-0">
-                          <Prohibit size={11} weight="bold" />
-                          <span>{device.category === 'MOBILE' ? 'Revocado' : 'Revocada'}</span>
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="bg-white px-2.5 py-2 rounded-lg border border-gray-100">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                        ID Dispositivo
-                      </span>
-                      <p className="font-mono text-[11px] text-gray-600 break-all mt-0.5">
-                        {device.deviceId}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div>
-                        <span className="text-gray-400 block">Última conexión</span>
-                        {device.lastSeenAt ? (
-                          <>
-                            <span className="text-gray-900 font-medium block">
-                              {formatDateTime(device.lastSeenAt)}
-                            </span>
-                            <span className="text-[10px] text-gray-400">
-                              {formatRelativeTime(device.lastSeenAt)}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </div>
-                      <div>
-                        <span className="text-gray-400 block">Fecha registro</span>
-                        <span className="text-gray-700 font-medium block">
-                          {formatDateTime(device.createdAt)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-gray-200/60 flex justify-end">
-                      {isActive ? (
-                        <button
-                          type="button"
-                          disabled={isProcessing}
-                          onClick={() => handleRevokeDevice(device)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                          <Prohibit size={13} weight="bold" />
-                          <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={isProcessing}
-                          onClick={() => handleReactivateDevice(device)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                          <ArrowCounterClockwise size={13} weight="bold" />
-                          <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+      {/* Modal: Confirmación de archivar todos los revocados */}
+      {archiveAllModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-4">
+            <div className="flex items-center gap-2 text-gray-700">
+              <Archive size={20} weight="bold" />
+              <h3 className="text-sm font-bold text-gray-900">Archivar equipos revocados</h3>
             </div>
-
-            {/* Vista desktop: tabla con scroll horizontal */}
-            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
-              <table className="w-full text-left border-collapse min-w-[720px]">
-                <thead>
-                  <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                    <th className="py-2.5 px-3 whitespace-nowrap">Equipo / Nombre</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">ID Dispositivo</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Estado</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Última Conexión</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Fecha Registro</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
-                  {devices.map((device) => {
-                    const isActive = device.status === 'ACTIVE';
-                    const isProcessing = revokingDeviceId === device.id;
-
-                    return (
-                      <tr key={device.id} className="hover:bg-gray-50/60 transition-colors">
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2">
-                            {device.category === 'MOBILE' ? (
-                              <DeviceMobile size={16} className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
-                            ) : device.category === 'WEB' ? (
-                              <Globe size={16} className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
-                            ) : (
-                              <Desktop size={16} className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
-                            )}
-                            <div className="min-w-0">
-                              <span className="font-semibold text-gray-900 block whitespace-nowrap">
-                                {device.name || (device.category === 'MOBILE' ? 'Teléfono POS' : 'Sin nombre')}
-                              </span>
-                              {device.platform && (
-                                <span className="text-[10px] text-gray-400 block">
-                                  {device.platform}
-                                </span>
-                              )}
-                            </div>
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
-                              {device.category === 'MOBILE' ? 'Teléfono' : device.category === 'WEB' ? 'Web' : 'Computadora'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-[11px] text-gray-500 max-w-[200px] xl:max-w-[300px]">
-                          <span className="block truncate" title={device.deviceId}>
-                            {device.deviceId}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          {isActive ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <CheckCircle size={11} weight="bold" />
-                              <span>{device.category === 'MOBILE' ? 'Activo' : 'Activa'}</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                              <Prohibit size={11} weight="bold" />
-                              <span>{device.category === 'MOBILE' ? 'Revocado' : 'Revocada'}</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">
-                          {device.lastSeenAt ? (
-                            <div>
-                              <span className="block text-[11px] text-gray-900">
-                                {formatDateTime(device.lastSeenAt)}
-                              </span>
-                              <span className="block text-[10px] text-gray-400">
-                                {formatRelativeTime(device.lastSeenAt)}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-gray-500 text-[11px] whitespace-nowrap">
-                          {formatDateTime(device.createdAt)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          {isActive ? (
-                            <button
-                              type="button"
-                              disabled={isProcessing}
-                              onClick={() => handleRevokeDevice(device)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                              title="Revocar acceso a esta computadora"
-                            >
-                              <Prohibit size={13} weight="bold" />
-                              <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={isProcessing}
-                              onClick={() => handleReactivateDevice(device)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                              title="Reactivar acceso a esta computadora"
-                            >
-                              <ArrowCounterClockwise size={13} weight="bold" />
-                              <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <p className="text-xs text-gray-600">
+              ¿Confirmás archivar los <strong>{summary?.revoked ?? 0}</strong> equipos revocados de
+              este negocio? Se moverán a la pestaña de archivados.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setArchiveAllModalOpen(false)}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={archiveRevokedDevicesMutation.isPending}
+                onClick={handleConfirmArchiveAll}
+                className="px-4 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {archiveRevokedDevicesMutation.isPending ? 'Archivando...' : 'Archivar todos'}
+              </button>
             </div>
-          </>
-        )}
-      </div>
-
-      {/* Listado de Dispositivos Web */}
-      <div className="space-y-3 pt-4 border-t border-gray-100">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center flex-wrap gap-2 min-w-0">
-            <Globe size={18} className="text-purple-600 shrink-0" weight="duotone" />
-            <h4 className="text-xs font-semibold text-gray-800 uppercase tracking-wider">
-              Dispositivos Web
-            </h4>
-            <span className="text-xs font-bold text-gray-400">
-              ({webDevices.length})
-            </span>
-            {!currentWebBilling && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-200">
-                Facturación web desactivada
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => refetchWebDevices()}
-              disabled={isLoadingWebDevices}
-              className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
-              title="Actualizar listado de dispositivos web"
-            >
-              <ArrowsClockwise size={15} className={isLoadingWebDevices ? 'animate-spin' : ''} />
-            </button>
           </div>
         </div>
+      )}
 
-        {/* Error del API con reintento */}
-        {isErrorWebDevices && (
-          <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/70 text-rose-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <WarningCircle size={18} className="text-rose-600 shrink-0" weight="fill" />
-              <span>
-                {(webDevicesError as any)?.response?.data?.message ||
-                  (webDevicesError as Error)?.message ||
-                  'No se pudo cargar la lista de dispositivos web de este negocio.'}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => refetchWebDevices()}
-              className="inline-flex items-center justify-center px-3 py-1 bg-white hover:bg-rose-100 border border-rose-300 rounded-lg text-xs font-semibold text-rose-700 transition-colors shrink-0 cursor-pointer"
-            >
-              Reintentar
-            </button>
-          </div>
-        )}
-
-        {/* Estado de carga */}
-        {isLoadingWebDevices && webDevices.length === 0 ? (
-          <div className="p-8 text-center text-xs text-gray-400">
-            Cargando dispositivos web registrados...
-          </div>
-        ) : webDevices.length === 0 ? (
-          /* Estado vacío */
-          <div className="p-6 rounded-xl border border-dashed border-gray-200 text-center space-y-1 bg-gray-50/50">
-            <Globe size={28} className="mx-auto text-gray-300" weight="duotone" />
-            <p className="text-xs font-semibold text-gray-700">
-              Todavía no hay dispositivos web registrados
-            </p>
-            <p className="text-[11px] text-gray-400 max-w-sm mx-auto">
-              Cada usuario o cajero que abra el módulo de facturación web desde un navegador o teléfono móvil registrará su dispositivo automáticamente aquí.
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Vista móvil: tarjetas de dispositivos web */}
-            <div className="md:hidden space-y-2.5">
-              {webDevices.map((device) => {
-                const isActive = device.status === 'ACTIVE';
-                const isProcessing = revokingWebDeviceId === device.id;
-                const browserDisplay = formatBrowserInfo(device.userAgent, device.platform);
-
-                return (
-                  <div
-                    key={device.id}
-                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/40 space-y-2.5 text-xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">
-                          {device.user?.name || 'Usuario desconocido'}
-                        </p>
-                        {device.user?.email && (
-                          <p className="text-[11px] text-gray-400 break-all">
-                            {device.user.email}
-                          </p>
-                        )}
-                      </div>
-                      {isActive ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                          <CheckCircle size={11} weight="bold" />
-                          <span>Activo</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
-                          <Prohibit size={11} weight="bold" />
-                          <span>Revocado</span>
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="bg-white p-2.5 rounded-lg border border-gray-100 space-y-1">
-                      <div className="flex items-center gap-1.5">
-                        <DeviceMobile size={14} className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
-                        <span className="font-medium text-gray-900 truncate">
-                          {device.name || 'Dispositivo Web'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-gray-500">{browserDisplay}</p>
-                      {device.deviceId && (
-                        <p className="font-mono text-[10px] text-gray-400 break-all">
-                          ID: {device.deviceId.length > 20 ? `${device.deviceId.slice(0, 20)}...` : device.deviceId}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div>
-                        <span className="text-gray-400 block">IP</span>
-                        <span className="font-mono text-gray-700">{device.ipAddress || '—'}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 block">Última actividad</span>
-                        {device.lastSeenAt ? (
-                          <span className="text-gray-900 font-medium block">
-                            {formatDateTime(device.lastSeenAt)}
-                          </span>
-                        ) : device.firstSeenAt ? (
-                          <span className="text-gray-900 font-medium block">
-                            {formatDateTime(device.firstSeenAt)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-gray-200/60 flex justify-end">
-                      {isActive ? (
-                        <button
-                          type="button"
-                          disabled={isProcessing}
-                          onClick={() => handleRevokeWebDevice(device)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                          <Prohibit size={13} weight="bold" />
-                          <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={isProcessing}
-                          onClick={() => handleReactivateWebDevice(device)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                          <ArrowCounterClockwise size={13} weight="bold" />
-                          <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Tabla desktop de dispositivos web */}
-            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
-              <table className="w-full text-left border-collapse min-w-[700px]">
-                <thead>
-                  <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                    <th className="py-2.5 px-3">Usuario</th>
-                    <th className="py-2.5 px-3">Nombre / Navegador</th>
-                    <th className="py-2.5 px-3">IP</th>
-                    <th className="py-2.5 px-3">Última Actividad</th>
-                    <th className="py-2.5 px-3">Estado</th>
-                    <th className="py-2.5 px-3 text-right">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
-                  {webDevices.map((device) => {
-                    const isActive = device.status === 'ACTIVE';
-                    const isProcessing = revokingWebDeviceId === device.id;
-                    const browserDisplay = formatBrowserInfo(device.userAgent, device.platform);
-
-                    return (
-                      <tr key={device.id} className="hover:bg-gray-50/60 transition-colors">
-                        <td className="py-2.5 px-3">
-                          <div className="font-semibold text-gray-900">
-                            {device.user?.name || 'Usuario desconocido'}
-                          </div>
-                          {device.user?.email && (
-                            <div className="text-[11px] text-gray-400">
-                              {device.user.email}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-1.5">
-                            <DeviceMobile size={15} className={isActive ? 'text-purple-600' : 'text-gray-400'} />
-                            <span className="font-medium text-gray-900">
-                              {device.name || 'Dispositivo Web'}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-gray-500 mt-0.5">
-                            {browserDisplay}
-                          </div>
-                          {device.deviceId && (
-                            <div className="font-mono text-[10px] text-gray-400 mt-0.5">
-                              ID: {device.deviceId.length > 16 ? `${device.deviceId.slice(0, 16)}...` : device.deviceId}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-[11px] text-gray-600">
-                          {device.ipAddress || '—'}
-                        </td>
-                        <td className="py-2.5 px-3 text-gray-600">
-                          {device.lastSeenAt ? (
-                            <div>
-                              <span className="block text-[11px] text-gray-900">
-                                {formatDateTime(device.lastSeenAt)}
-                              </span>
-                              <span className="block text-[10px] text-gray-400">
-                                {formatRelativeTime(device.lastSeenAt)}
-                              </span>
-                            </div>
-                          ) : device.firstSeenAt ? (
-                            <div>
-                              <span className="block text-[11px] text-gray-900">
-                                {formatDateTime(device.firstSeenAt)}
-                              </span>
-                              <span className="block text-[10px] text-gray-400">
-                                Primera conexión
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {isActive ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <CheckCircle size={11} weight="bold" />
-                              <span>Activo</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              <Prohibit size={11} weight="bold" />
-                              <span>Revocado</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          {isActive ? (
-                            <button
-                              type="button"
-                              disabled={isProcessing}
-                              onClick={() => handleRevokeWebDevice(device)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-700 hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                              title="Revocar acceso a este dispositivo web"
-                            >
-                              <Prohibit size={13} weight="bold" />
-                              <span>{isProcessing ? 'Revocando...' : 'Revocar'}</span>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={isProcessing}
-                              onClick={() => handleReactivateWebDevice(device)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                              title="Reactivar acceso a este dispositivo web"
-                            >
-                              <ArrowCounterClockwise size={13} weight="bold" />
-                              <span>{isProcessing ? 'Reactivando...' : 'Reactivar'}</span>
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Modal de Código de Vinculación Móvil */}
+      {/* Modal de vinculación móvil */}
       {pairingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
-                  <DeviceMobile size={20} weight="duotone" />
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                  <DeviceMobile size={22} weight="duotone" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-gray-900">
-                    Vincular un teléfono
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    App móvil NEXOL POS
-                  </p>
+                  <h3 className="text-base font-bold text-gray-900">Vincular un teléfono</h3>
+                  <p className="text-xs text-gray-500">App móvil NEXOL POS</p>
                 </div>
               </div>
               <button
@@ -2097,7 +1945,6 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
               </button>
             </div>
 
-            {/* Código grande legible */}
             <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-5 text-center space-y-2">
               <span className="text-xs font-semibold text-purple-900 uppercase tracking-wider block">
                 Código de vinculación
@@ -2126,13 +1973,20 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
               </div>
             </div>
 
-            {/* Temporizador de cuenta regresiva */}
             <div className="flex items-center justify-center gap-2 text-xs font-medium">
-              <Clock size={16} className={pairingSecondsLeft < 60 ? 'text-rose-600 animate-pulse' : 'text-amber-600'} weight="fill" />
+              <Clock
+                size={16}
+                className={pairingSecondsLeft < 60 ? 'text-rose-600 animate-pulse' : 'text-amber-600'}
+                weight="fill"
+              />
               <span className={pairingSecondsLeft < 60 ? 'text-rose-600 font-bold' : 'text-gray-600'}>
                 {pairingSecondsLeft > 0 ? (
                   <>
-                    Vence en: <span className="font-mono font-bold">{Math.floor(pairingSecondsLeft / 60)}:{String(pairingSecondsLeft % 60).padStart(2, '0')}</span>
+                    Vence en:{' '}
+                    <span className="font-mono font-bold">
+                      {Math.floor(pairingSecondsLeft / 60)}:
+                      {String(pairingSecondsLeft % 60).padStart(2, '0')}
+                    </span>
                   </>
                 ) : (
                   <span className="text-rose-600 font-bold">Código vencido</span>
@@ -2140,7 +1994,6 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
               </span>
             </div>
 
-            {/* Instrucciones 1-2-3 */}
             <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2.5">
               <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
                 Pasos para vincular
@@ -2150,7 +2003,9 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                   <span className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-800 text-xs font-bold shrink-0 mt-0.5">
                     1
                   </span>
-                  <span>Abrí la app <strong>NEXOL POS</strong> en el teléfono.</span>
+                  <span>
+                    Abrí la app <strong>NEXOL POS</strong> en el teléfono.
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-800 text-xs font-bold shrink-0 mt-0.5">
