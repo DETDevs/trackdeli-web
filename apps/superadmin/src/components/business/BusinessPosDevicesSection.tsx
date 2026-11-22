@@ -98,7 +98,11 @@ function getDeviceTypeAndPlatform(device: PosDeviceItem): {
 export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps> = ({ business }) => {
   const [activeTab, setActiveTab] = useState<'active' | 'revoked' | 'archived'>('active');
   const [typeFilter, setTypeFilter] = useState<'all' | 'desktop' | 'web' | 'mobile'>('all');
-  const [openMenuDeviceId, setOpenMenuDeviceId] = useState<string | null>(null);
+  const [deviceMenu, setDeviceMenu] = useState<{
+    top: number;
+    right: number;
+    device: PosDeviceItem;
+  } | null>(null);
   const [copiedIdDeviceId, setCopiedIdDeviceId] = useState<string | null>(null);
 
   // Queries
@@ -211,17 +215,36 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     currentMaxMobileDevices,
   ]);
 
-  // Click outside para cerrar el menú ⋯
+  // Cerrar menú flotante ⋯ al hacer scroll o resize en la ventana
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-device-menu]')) {
-        setOpenMenuDeviceId(null);
-      }
+    if (!deviceMenu) return;
+    const close = () => setDeviceMenu(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [deviceMenu]);
+
+  const handleOpenDeviceMenu = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    device: PosDeviceItem
+  ) => {
+    e.stopPropagation();
+    if (deviceMenu?.device.id === device.id) {
+      setDeviceMenu(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuHeight = 160;
+    const openUp = window.innerHeight - rect.bottom < menuHeight + 12;
+    setDeviceMenu({
+      top: openUp ? Math.max(12, rect.top - menuHeight - 4) : rect.bottom + 4,
+      right: Math.max(12, window.innerWidth - rect.right),
+      device,
+    });
+  };
 
   // Modal de código de vinculación móvil
   const [pairingModalOpen, setPairingModalOpen] = useState(false);
@@ -567,7 +590,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         data: { status: 'REVOKED' },
       });
       setRevokeModal({ isOpen: false, device: null });
-      setOpenMenuDeviceId(null);
+      setDeviceMenu(null);
     } catch {
       // Manejado en mutación
     }
@@ -581,7 +604,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         deviceId: archiveModal.device.id,
       });
       setArchiveModal({ isOpen: false, device: null });
-      setOpenMenuDeviceId(null);
+      setDeviceMenu(null);
     } catch {
       // Manejado en mutación
     }
@@ -593,7 +616,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         businessId: business.id,
         deviceId: device.id,
       });
-      setOpenMenuDeviceId(null);
+      setDeviceMenu(null);
     } catch {
       // Manejado en mutación
     }
@@ -606,7 +629,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         deviceId: device.id,
         data: { status: 'ACTIVE' },
       });
-      setOpenMenuDeviceId(null);
+      setDeviceMenu(null);
     } catch {
       // Manejado en mutación
     }
@@ -627,7 +650,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         data: { name: trimmed },
       });
       setRenameModal({ isOpen: false, device: null, newName: '' });
-      setOpenMenuDeviceId(null);
+      setDeviceMenu(null);
     } catch {
       // Manejado en mutación
     }
@@ -1438,7 +1461,6 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                 <tbody className="divide-y divide-gray-100">
                   {filteredDevices.map((device) => {
                     const { type, platform, icon } = getDeviceTypeAndPlatform(device);
-                    const isMenuOpen = openMenuDeviceId === device.id;
                     const isArchived = !!device.archivedAt;
 
                     return (
@@ -1497,109 +1519,15 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
 
                         {/* Columna Acciones (menú ⋯) */}
                         <td className="py-3 px-3 text-right whitespace-nowrap">
-                          <div className="relative inline-block text-left" data-device-menu>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setOpenMenuDeviceId(isMenuOpen ? null : device.id)
-                              }
-                              className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                              title="Acciones"
-                            >
-                              <DotsThreeVertical size={18} weight="bold" />
-                            </button>
-
-                            {isMenuOpen && (
-                              <div className="absolute right-0 mt-1 w-52 rounded-xl bg-white border border-gray-200 shadow-lg py-1 z-30 divide-y divide-gray-100 text-left">
-                                {/* Encabezado con ID abreviado y botón Copiar */}
-                                <div className="px-3 py-2 flex items-center justify-between gap-2">
-                                  <span className="font-mono text-xs text-gray-500 truncate">
-                                    {shortenId(device.deviceId || device.id)}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCopyId(device.deviceId || device.id)}
-                                    className="inline-flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 font-semibold cursor-pointer shrink-0"
-                                  >
-                                    {copiedIdDeviceId === (device.deviceId || device.id) ? (
-                                      <>
-                                        <Check size={12} className="text-emerald-600" />
-                                        <span>Copiado</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Copy size={12} />
-                                        <span>Copiar ID</span>
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
-
-                                {/* Opciones del menú */}
-                                <div className="py-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setRenameModal({
-                                        isOpen: true,
-                                        device,
-                                        newName: device.name || '',
-                                      });
-                                      setOpenMenuDeviceId(null);
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
-                                  >
-                                    Renombrar
-                                  </button>
-
-                                  {device.status === 'ACTIVE' && !isArchived && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setRevokeModal({ isOpen: true, device });
-                                        setOpenMenuDeviceId(null);
-                                      }}
-                                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
-                                    >
-                                      Revocar
-                                    </button>
-                                  )}
-
-                                  {device.status === 'REVOKED' && !isArchived && (
-                                    <>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleConfirmReactivate(device)}
-                                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
-                                      >
-                                        Reactivar
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setArchiveModal({ isOpen: true, device });
-                                          setOpenMenuDeviceId(null);
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
-                                      >
-                                        Archivar
-                                      </button>
-                                    </>
-                                  )}
-
-                                  {isArchived && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleConfirmUnarchive(device)}
-                                      className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
-                                    >
-                                      Desarchivar
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleOpenDeviceMenu(e, device)}
+                            className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                            title="Acciones"
+                            aria-label="Acciones"
+                          >
+                            <DotsThreeVertical size={18} weight="bold" />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1612,7 +1540,6 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             <div className="md:hidden space-y-2.5">
               {filteredDevices.map((device) => {
                 const { type, platform, icon } = getDeviceTypeAndPlatform(device);
-                const isMenuOpen = openMenuDeviceId === device.id;
                 const isArchived = !!device.archivedAt;
 
                 return (
@@ -1638,104 +1565,15 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                         </div>
                       </div>
 
-                      <div className="relative shrink-0" data-device-menu>
-                        <button
-                          type="button"
-                          onClick={() => setOpenMenuDeviceId(isMenuOpen ? null : device.id)}
-                          className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                        >
-                          <DotsThreeVertical size={18} weight="bold" />
-                        </button>
-
-                        {isMenuOpen && (
-                          <div className="absolute right-0 mt-1 w-48 rounded-xl bg-white border border-gray-200 shadow-lg py-1 z-30 divide-y divide-gray-100 text-left">
-                            <div className="px-3 py-2 flex items-center justify-between gap-1">
-                              <span className="font-mono text-xs text-gray-500 truncate">
-                                {shortenId(device.deviceId || device.id)}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleCopyId(device.deviceId || device.id)}
-                                className="inline-flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 font-semibold cursor-pointer shrink-0"
-                              >
-                                {copiedIdDeviceId === (device.deviceId || device.id) ? (
-                                  <>
-                                    <Check size={12} className="text-emerald-600" />
-                                    <span>Copiado</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy size={12} />
-                                    <span>Copiar</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-
-                            <div className="py-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setRenameModal({
-                                    isOpen: true,
-                                    device,
-                                    newName: device.name || '',
-                                  });
-                                  setOpenMenuDeviceId(null);
-                                }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
-                              >
-                                Renombrar
-                              </button>
-
-                              {device.status === 'ACTIVE' && !isArchived && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setRevokeModal({ isOpen: true, device });
-                                    setOpenMenuDeviceId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
-                                >
-                                  Revocar
-                                </button>
-                              )}
-
-                              {device.status === 'REVOKED' && !isArchived && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleConfirmReactivate(device)}
-                                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
-                                  >
-                                    Reactivar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setArchiveModal({ isOpen: true, device });
-                                      setOpenMenuDeviceId(null);
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
-                                  >
-                                    Archivar
-                                  </button>
-                                </>
-                              )}
-
-                              {isArchived && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleConfirmUnarchive(device)}
-                                  className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
-                                >
-                                  Desarchivar
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenDeviceMenu(e, device)}
+                        className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
+                        title="Acciones"
+                        aria-label="Acciones"
+                      >
+                        <DotsThreeVertical size={18} weight="bold" />
+                      </button>
                     </div>
 
                     {/* Línea 2: Conexión y estado abajo */}
@@ -1766,6 +1604,119 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                 );
               })}
             </div>
+
+            {/* Menú flotante ⋯ para desktop y mobile */}
+            {deviceMenu && (() => {
+              const device = deviceMenu.device;
+              const isArchived = !!device.archivedAt;
+              const devId = device.deviceId || device.id;
+
+              return (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setDeviceMenu(null)}
+                  />
+                  <div
+                    style={{ top: deviceMenu.top, right: deviceMenu.right }}
+                    className="fixed w-52 rounded-xl bg-white border border-gray-200 shadow-lg py-1 z-50 divide-y divide-gray-100 text-left whitespace-normal animate-in fade-in zoom-in-95 duration-100"
+                  >
+                    {/* Encabezado con ID abreviado y botón Copiar */}
+                    <div className="px-3 py-2 flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-gray-500 truncate" title={devId}>
+                        {shortenId(devId)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyId(devId)}
+                        className="inline-flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 font-semibold cursor-pointer shrink-0"
+                      >
+                        {copiedIdDeviceId === devId ? (
+                          <>
+                            <Check size={12} className="text-emerald-600" />
+                            <span>Copiado</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={12} />
+                            <span>Copiar ID</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Opciones del menú */}
+                    <div className="py-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRenameModal({
+                            isOpen: true,
+                            device,
+                            newName: device.name || '',
+                          });
+                          setDeviceMenu(null);
+                        }}
+                        className="block w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                      >
+                        Renombrar
+                      </button>
+
+                      {device.status === 'ACTIVE' && !isArchived && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRevokeModal({ isOpen: true, device });
+                            setDeviceMenu(null);
+                          }}
+                          className="block w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                        >
+                          Revocar
+                        </button>
+                      )}
+
+                      {device.status === 'REVOKED' && !isArchived && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleConfirmReactivate(device);
+                              setDeviceMenu(null);
+                            }}
+                            className="block w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                          >
+                            Reactivar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setArchiveModal({ isOpen: true, device });
+                              setDeviceMenu(null);
+                            }}
+                            className="block w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                          >
+                            Archivar
+                          </button>
+                        </>
+                      )}
+
+                      {isArchived && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleConfirmUnarchive(device);
+                            setDeviceMenu(null);
+                          }}
+                          className="block w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                        >
+                          Desarchivar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </>
         )}
       </div>
