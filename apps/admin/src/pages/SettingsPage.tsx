@@ -15,6 +15,7 @@ import {
   Users,
   CurrencyCircleDollar,
   LockKey,
+  DeviceMobile,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/auth.store';
 import { useMyProducts } from '../hooks/useMyProducts';
@@ -26,6 +27,7 @@ import { InvoiceSettingsTab } from '../components/settings/InvoiceSettingsTab';
 import { ReceiptDesignSettingsTab } from '../components/settings/ReceiptDesignSettingsTab';
 import { CatalogSettingsTab } from '../components/settings/CatalogSettingsTab';
 import { StaffSettingsTab } from '../components/settings/StaffSettingsTab';
+import { PhonesSettingsTab } from '../components/settings/PhonesSettingsTab';
 
 export type SettingsTabId =
   | 'general'
@@ -35,7 +37,8 @@ export type SettingsTabId =
   | 'invoice'
   | 'receipt-design'
   | 'catalog'
-  | 'staff';
+  | 'staff'
+  | 'phones';
 
 export const SettingsPage = () => {
   const user = useAuthStore((s) => s.user);
@@ -71,6 +74,8 @@ export const SettingsPage = () => {
   const channelsActive = Boolean(
     isDeliveryActive || channelConfig?.delivery?.enabled || channelConfig?.pedidosYa?.enabled
   );
+  const maxMobileDevices = Number((productsData?.products?.POS as any)?.maxMobileDevices ?? 0);
+  const showPhonesTab = isManagerOrAdmin && maxMobileDevices > 0;
 
   // Tab definitions matching desktop POS
   const tabs: { id: SettingsTabId; label: string; icon: any; visible: boolean }[] = [
@@ -102,6 +107,12 @@ export const SettingsPage = () => {
     },
     { id: 'catalog', label: 'Catálogo', icon: Package, visible: !isCajero },
     { id: 'staff', label: 'Personal', icon: Users, visible: !isCajero },
+    {
+      id: 'phones',
+      label: 'Teléfonos',
+      icon: DeviceMobile,
+      visible: showPhonesTab,
+    },
   ];
 
   const visibleTabs = tabs.filter((t) => t.visible);
@@ -185,6 +196,9 @@ export const SettingsPage = () => {
         )}
         {activeTab === 'catalog' && <CatalogSettingsTab isReadOnly={isCajero} />}
         {activeTab === 'staff' && <StaffSettingsTab isReadOnly={isCajero} />}
+        {activeTab === 'phones' && (
+          <PhonesSettingsTab maxMobileDevices={maxMobileDevices} isReadOnly={isCajero} />
+        )}
       </div>
     </div>
   );

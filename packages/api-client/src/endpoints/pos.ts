@@ -2946,6 +2946,86 @@ export const cancelPosTableBillRequest = async (
   return res.data;
 };
 
+// 277b - Dispositivos y App Móvil
+export interface CreateMobilePairingCodeResponse {
+  code: string;
+  expiresAt: string;
+}
+
+export interface PairMobileDeviceDto {
+  code: string;
+  deviceId: string;
+  deviceName?: string;
+  platform?: string;
+}
+
+export interface PairMobileDeviceResponse {
+  businessId: string;
+  businessName: string;
+  deviceSecret: string;
+}
+
+export interface PosDevice {
+  id: string;
+  businessId: string;
+  deviceId: string;
+  name?: string | null;
+  platform?: string | null;
+  appVersion?: string | null;
+  status: 'ACTIVE' | 'REVOKED';
+  category: 'DESKTOP' | 'WEB' | 'MOBILE' | string;
+  userId?: string | null;
+  userAgent?: string | null;
+  ipAddress?: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  revokedAt?: string | null;
+}
+
+export const createMobilePairingCode = async (
+  businessId?: string,
+): Promise<CreateMobilePairingCodeResponse> => {
+  const res = await apiClient.post<CreateMobilePairingCodeResponse>(
+    '/pos/mobile-devices/pairing-codes',
+    {},
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const pairMobileDevice = async (
+  dto: PairMobileDeviceDto,
+): Promise<PairMobileDeviceResponse> => {
+  const res = await apiClient.post<PairMobileDeviceResponse>(
+    '/pos/mobile-devices/pair',
+    dto,
+  );
+  return res.data;
+};
+
+export const getPosDevices = async (
+  businessId?: string,
+): Promise<PosDevice[]> => {
+  const res = await apiClient.get<PosDevice[]>('/pos/devices', {
+    params: businessId ? { businessId } : undefined,
+  });
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+export const revokePosDevice = async (
+  deviceId: string,
+  businessId?: string,
+): Promise<PosDevice> => {
+  const res = await apiClient.patch<PosDevice>(
+    `/pos/devices/${deviceId}/revoke`,
+    {},
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
 
 
 

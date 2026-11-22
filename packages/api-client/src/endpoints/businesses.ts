@@ -86,6 +86,12 @@ export interface Business {
   twoStepMinVersion?: string | null;
   deliveryChannelEnabled?: boolean;
   pedidosYaChannelEnabled?: boolean;
+  maxMobileDevices?: number | null;
+  activeMobileDevices?: number;
+  mobileDevices?: {
+    active: number;
+    allowed: number | null;
+  };
   taxEnabled?: boolean;
   taxIncluded?: boolean;
   taxRate?: number;
@@ -126,6 +132,7 @@ export interface UpdateBusinessInput {
   twoStepTicketTtlHours?: number;
   deliveryChannelEnabled?: boolean;
   pedidosYaChannelEnabled?: boolean;
+  maxMobileDevices?: number | null;
 }
 
 export const getMyBusiness = async () => {

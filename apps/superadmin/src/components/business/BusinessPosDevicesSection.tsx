@@ -20,6 +20,9 @@ import {
   DeviceMobile,
   Info,
   Receipt,
+  Key,
+  Copy,
+  Check,
 } from '@phosphor-icons/react';
 import {
   useBusinessDevices,
@@ -27,6 +30,7 @@ import {
   useUpdatePosSubscription,
   useUpdateBusinessDevice,
   useUpdateBusinessWebDevice,
+  useCreateMobilePairingCode,
   PosDeviceItem,
   PosWebDeviceItem,
   BusinessDetail,
@@ -64,6 +68,13 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     ? (business as any).webBillingMonthlyUsd
     : ((posSub as any)?.webBillingMonthlyUsd !== undefined ? (posSub as any)?.webBillingMonthlyUsd : null);
 
+  const currentMaxMobileDevices = (business as any).maxMobileDevices !== undefined
+    ? Number((business as any).maxMobileDevices)
+    : (posSub?.maxMobileDevices !== undefined ? Number(posSub?.maxMobileDevices) : 0);
+  const activeMobileDevicesCount = (business as any).activeMobileDevices !== undefined
+    ? Number((business as any).activeMobileDevices)
+    : devices.filter((d) => d.category === 'MOBILE' && d.status === 'ACTIVE').length;
+
   // Estados locales editables para perfil de salón y límite de computadoras
   const currentProfile = (business.salonProfile as 'RESTAURANTE' | 'TALLER') || 'RESTAURANTE';
   const [salonProfile, setSalonProfile] = useState<'RESTAURANTE' | 'TALLER'>(currentProfile);
@@ -73,6 +84,17 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
       ? String(business.maxDevices)
       : '1'
   );
+  const [maxMobileDevicesInput, setMaxMobileDevicesInput] = useState<string>(
+    String(currentMaxMobileDevices ?? 0)
+  );
+
+  // Modal de código de vinculación móvil
+  const [pairingModalOpen, setPairingModalOpen] = useState(false);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingExpiresAt, setPairingExpiresAt] = useState<Date | null>(null);
+  const [pairingSecondsLeft, setPairingSecondsLeft] = useState<number>(600);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const createPairingCodeMutation = useCreateMobilePairingCode();
   const [formTrialHours, setFormTrialHours] = useState<string>(
     business.trialHours ? String(business.trialHours) : ''
   );
@@ -133,6 +155,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         ? String(currentWebBillingMonthlyUsd)
         : ''
     );
+    setMaxMobileDevicesInput(String(currentMaxMobileDevices ?? 0));
   }, [
     business.salonProfile,
     business.maxDevices,
@@ -141,7 +164,40 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
     currentWebBilling,
     currentMaxWebDevices,
     currentWebBillingMonthlyUsd,
+    currentMaxMobileDevices,
   ]);
+
+  useEffect(() => {
+    if (!pairingModalOpen || !pairingExpiresAt) return;
+    const updateCountdown = () => {
+      const diffSec = Math.max(0, Math.floor((pairingExpiresAt.getTime() - Date.now()) / 1000));
+      setPairingSecondsLeft(diffSec);
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [pairingModalOpen, pairingExpiresAt]);
+
+  const handleGeneratePairingCode = async () => {
+    try {
+      const data = await createPairingCodeMutation.mutateAsync({ businessId: business.id });
+      setPairingCode(data.code);
+      setPairingExpiresAt(new Date(data.expiresAt));
+      setPairingSecondsLeft(Math.max(0, Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000)));
+      setCodeCopied(false);
+      setPairingModalOpen(true);
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleCopyPairingCode = () => {
+    if (!pairingCode) return;
+    navigator.clipboard.writeText(pairingCode);
+    setCodeCopied(true);
+    toast.success('Código copiado al portapapeles');
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
 
   const activeDevicesCount = devices.filter((d) => d.status === 'ACTIVE').length;
   const effectiveActiveDevices = business.activeDevices ?? activeDevicesCount;
@@ -241,6 +297,11 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
       ? 2
       : parsedWeb;
 
+    const parsedMobile = parseInt(maxMobileDevicesInput, 10);
+    const finalMaxMobileDevices = isNaN(parsedMobile)
+      ? 0
+      : Math.min(50, Math.max(0, parsedMobile));
+
     const parsedWebBillingMonthlyUsd =
       webBillingMonthlyUsdInput.trim() === '' ? null : parseFloat(webBillingMonthlyUsdInput);
     const finalWebBillingMonthlyUsd =
@@ -262,6 +323,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           webAdminEnabled,
           webBillingEnabled: finalWebBillingEnabled,
           maxWebDevices: finalMaxWebDevices,
+          maxMobileDevices: finalMaxMobileDevices,
           webBillingMonthlyUsd: finalWebBillingMonthlyUsd,
         },
       });
@@ -712,6 +774,34 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
               </p>
             </div>
 
+            {/* Campo: Teléfonos (app móvil) */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Teléfonos (app móvil) *
+                </label>
+                <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                  {activeMobileDevicesCount} de {maxMobileDevicesInput || '0'} en uso
+                </span>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="1"
+                  value={maxMobileDevicesInput}
+                  onChange={(e) => setMaxMobileDevicesInput(e.target.value)}
+                  placeholder="0"
+                  className="w-full h-10 px-3 rounded-lg border text-xs bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-purple-600"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Con 0, la app móvil queda apagada para este negocio.
+              </p>
+            </div>
+
             {/* Campo 3: Prueba (horas) */}
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -939,7 +1029,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         </form>
       ) : (
         /* Tarjetas de Resumen de Configuración */
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
           <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
             <div className="min-w-0">
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
@@ -1122,6 +1212,62 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                   <span>Los dispositivos activos siguen funcionando; solo se impide registrar nuevos.</span>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Tarjeta 5: Teléfonos (app móvil) */}
+          <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <DeviceMobile size={16} className="text-purple-700" weight="duotone" />
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                    Teléfonos (app móvil)
+                  </span>
+                </div>
+                {currentMaxMobileDevices > 0 ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <CheckCircle size={11} weight="bold" />
+                    <span>Habilitada</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                    <Prohibit size={11} weight="bold" />
+                    <span>Desactivada</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="text-xs font-bold text-gray-900">
+                  {activeMobileDevicesCount} de {currentMaxMobileDevices} en uso
+                </span>
+                {currentMaxMobileDevices > 0 && activeMobileDevicesCount >= currentMaxMobileDevices && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                    <WarningCircle size={11} weight="fill" />
+                    <span>Cupo lleno</span>
+                  </span>
+                )}
+              </div>
+
+              <p className="text-[11px] text-gray-500 mt-1 leading-tight">
+                {currentMaxMobileDevices > 0
+                  ? 'Acceso a la app móvil NEXOL POS habilitado.'
+                  : 'Con 0, la app móvil queda apagada para este negocio.'}
+              </p>
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t border-gray-200/60">
+              <button
+                type="button"
+                onClick={handleGeneratePairingCode}
+                disabled={createPairingCodeMutation.isPending}
+                className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                title="Generar código de vinculación para que soporte/operaciones pueda ayudar al cliente por teléfono"
+              >
+                <Key size={13} weight="bold" />
+                <span>{createPairingCodeMutation.isPending ? 'Generando...' : 'Generar código de vinculación'}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1375,7 +1521,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h4 className="text-xs font-semibold text-gray-800 uppercase tracking-wider">
-              Computadoras Registradas
+              Equipos Registrados
             </h4>
             <span className="text-xs font-bold text-gray-400">
               ({devices.length})
@@ -1395,16 +1541,16 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
 
         {isLoadingDevices && devices.length === 0 ? (
           <div className="p-8 text-center text-xs text-gray-400">
-            Cargando computadoras registradas...
+            Cargando equipos registrados...
           </div>
         ) : devices.length === 0 ? (
           <div className="p-6 rounded-xl border border-dashed border-gray-200 text-center space-y-1 bg-gray-50/50">
             <Desktop size={28} className="mx-auto text-gray-300" weight="duotone" />
             <p className="text-xs font-semibold text-gray-700">
-              No hay computadoras registradas
+              No hay equipos registrados
             </p>
             <p className="text-[11px] text-gray-400 max-w-sm mx-auto">
-              Cada equipo que inicie sesión en la aplicación de escritorio TrackDeli POS se registrará automáticamente aquí.
+              Las computadoras de escritorio y los teléfonos móviles vinculados se registrarán automáticamente aquí.
             </p>
           </div>
         ) : (
@@ -1422,23 +1568,38 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <Desktop
-                          size={17}
-                          className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`}
-                        />
+                        {device.category === 'MOBILE' ? (
+                          <DeviceMobile
+                            size={17}
+                            className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`}
+                          />
+                        ) : device.category === 'WEB' ? (
+                          <Globe
+                            size={17}
+                            className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`}
+                          />
+                        ) : (
+                          <Desktop
+                            size={17}
+                            className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`}
+                          />
+                        )}
                         <span className="font-semibold text-gray-900 truncate">
-                          {device.name || 'Sin nombre'}
+                          {device.name || (device.category === 'MOBILE' ? 'Teléfono POS' : 'Sin nombre')}
+                        </span>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                          {device.category === 'MOBILE' ? 'Teléfono' : device.category === 'WEB' ? 'Web' : 'Computadora'}
                         </span>
                       </div>
                       {isActive ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                           <CheckCircle size={11} weight="bold" />
-                          <span>Activa</span>
+                          <span>{device.category === 'MOBILE' ? 'Activo' : 'Activa'}</span>
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shrink-0">
                           <Prohibit size={11} weight="bold" />
-                          <span>Revocada</span>
+                          <span>{device.category === 'MOBILE' ? 'Revocado' : 'Revocada'}</span>
                         </span>
                       )}
                     </div>
@@ -1526,8 +1687,26 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                       <tr key={device.id} className="hover:bg-gray-50/60 transition-colors">
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
-                            <Desktop size={16} className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
-                            <span className="font-semibold text-gray-900 whitespace-nowrap">{device.name || 'Sin nombre'}</span>
+                            {device.category === 'MOBILE' ? (
+                              <DeviceMobile size={16} className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
+                            ) : device.category === 'WEB' ? (
+                              <Globe size={16} className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
+                            ) : (
+                              <Desktop size={16} className={`shrink-0 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
+                            )}
+                            <div className="min-w-0">
+                              <span className="font-semibold text-gray-900 block whitespace-nowrap">
+                                {device.name || (device.category === 'MOBILE' ? 'Teléfono POS' : 'Sin nombre')}
+                              </span>
+                              {device.platform && (
+                                <span className="text-[10px] text-gray-400 block">
+                                  {device.platform}
+                                </span>
+                              )}
+                            </div>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                              {device.category === 'MOBILE' ? 'Teléfono' : device.category === 'WEB' ? 'Web' : 'Computadora'}
+                            </span>
                           </div>
                         </td>
                         <td className="py-2.5 px-3 font-mono text-[11px] text-gray-500 max-w-[200px] xl:max-w-[300px]">
@@ -1539,12 +1718,12 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                           {isActive ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               <CheckCircle size={11} weight="bold" />
-                              <span>Activa</span>
+                              <span>{device.category === 'MOBILE' ? 'Activo' : 'Activa'}</span>
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
                               <Prohibit size={11} weight="bold" />
-                              <span>Revocada</span>
+                              <span>{device.category === 'MOBILE' ? 'Revocado' : 'Revocada'}</span>
                             </span>
                           )}
                         </td>
@@ -1890,6 +2069,116 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           </>
         )}
       </div>
+
+      {/* Modal de Código de Vinculación Móvil */}
+      {pairingModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
+                  <DeviceMobile size={20} weight="duotone" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">
+                    Vincular un teléfono
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    App móvil NEXOL POS
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPairingModalOpen(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Código grande legible */}
+            <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-5 text-center space-y-2">
+              <span className="text-xs font-semibold text-purple-900 uppercase tracking-wider block">
+                Código de vinculación
+              </span>
+              <div className="font-mono text-3xl sm:text-4xl font-extrabold tracking-widest text-purple-950 py-1 select-all">
+                {pairingCode}
+              </div>
+              <div className="flex items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleCopyPairingCode}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-purple-200 text-xs font-semibold text-purple-800 hover:bg-purple-50 transition-colors shadow-2xs cursor-pointer"
+                >
+                  {codeCopied ? (
+                    <>
+                      <Check size={14} className="text-emerald-600" weight="bold" />
+                      <span>Copiado</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} />
+                      <span>Copiar código</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Temporizador de cuenta regresiva */}
+            <div className="flex items-center justify-center gap-2 text-xs font-medium">
+              <Clock size={16} className={pairingSecondsLeft < 60 ? 'text-rose-600 animate-pulse' : 'text-amber-600'} weight="fill" />
+              <span className={pairingSecondsLeft < 60 ? 'text-rose-600 font-bold' : 'text-gray-600'}>
+                {pairingSecondsLeft > 0 ? (
+                  <>
+                    Vence en: <span className="font-mono font-bold">{Math.floor(pairingSecondsLeft / 60)}:{String(pairingSecondsLeft % 60).padStart(2, '0')}</span>
+                  </>
+                ) : (
+                  <span className="text-rose-600 font-bold">Código vencido</span>
+                )}
+              </span>
+            </div>
+
+            {/* Instrucciones 1-2-3 */}
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2.5">
+              <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
+                Pasos para vincular
+              </span>
+              <ol className="text-xs text-gray-600 space-y-2 list-none">
+                <li className="flex items-start gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-800 text-xs font-bold shrink-0 mt-0.5">
+                    1
+                  </span>
+                  <span>Abrí la app <strong>NEXOL POS</strong> en el teléfono.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-800 text-xs font-bold shrink-0 mt-0.5">
+                    2
+                  </span>
+                  <span>Escribí este código.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-800 text-xs font-bold shrink-0 mt-0.5">
+                    3
+                  </span>
+                  <span>Iniciá sesión con tu usuario.</span>
+                </li>
+              </ol>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setPairingModalOpen(false)}
+                className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

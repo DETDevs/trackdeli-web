@@ -56,6 +56,7 @@ export interface BusinessItem {
     webAdminEnabled?: boolean;
     webBillingEnabled?: boolean;
     maxWebDevices?: number | null;
+    maxMobileDevices?: number | null;
     webBillingMonthlyUsd?: number | null;
     trialHours?: number | null;
     trialStartedAt?: string | null;
@@ -114,6 +115,12 @@ export interface BusinessItem {
   twoStepMinVersion?: string | null;
   deliveryChannelEnabled?: boolean;
   pedidosYaChannelEnabled?: boolean;
+  maxMobileDevices?: number | null;
+  activeMobileDevices?: number;
+  mobileDevices?: {
+    active: number;
+    allowed: number | null;
+  };
 }
 
 export interface BusinessDetail extends BusinessItem {
@@ -519,7 +526,10 @@ export interface PosDeviceItem {
   businessId: string;
   deviceId: string;
   name: string;
+  platform?: string | null;
+  appVersion?: string | null;
   status: 'ACTIVE' | 'REVOKED';
+  category?: string;
   lastSeenAt: string | null;
   createdAt: string;
   revokedAt?: string | null;
@@ -531,6 +541,7 @@ export interface UpdatePosSubscriptionInput {
   webAdminEnabled?: boolean;
   webBillingEnabled?: boolean;
   maxWebDevices?: number | null;
+  maxMobileDevices?: number | null;
   webBillingMonthlyUsd?: number | null;
   backofficeTier?: 'BASIC' | 'PRO' | null;
   trialHours?: number | null;
@@ -605,8 +616,8 @@ export function useUpdateBusinessDevice() {
     onSuccess: (_, variables) => {
       toast.success(
         variables.data.status === 'REVOKED'
-          ? 'Computadora revocada exitosamente'
-          : 'Computadora reactivada exitosamente'
+          ? 'Dispositivo revocado exitosamente'
+          : 'Dispositivo reactivado exitosamente'
       );
       queryClient.invalidateQueries({ queryKey: ['superadmin-business-devices', variables.businessId] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-business', variables.businessId] });
@@ -686,6 +697,24 @@ export function useUpdateBusinessWebDevice() {
     onError: (err: any) => {
       const msg = err.response?.data?.message;
       const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al actualizar dispositivo web';
+      toast.error(errorText);
+    },
+  });
+}
+
+export function useCreateMobilePairingCode() {
+  return useMutation({
+    mutationFn: async ({ businessId }: { businessId?: string }) => {
+      const res = await apiClient.post<{ code: string; expiresAt: string }>(
+        '/pos/mobile-devices/pairing-codes',
+        {},
+        { params: businessId ? { businessId } : undefined }
+      );
+      return res.data;
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message;
+      const errorText = Array.isArray(msg) ? msg.join(', ') : msg || 'Error al generar código de vinculación';
       toast.error(errorText);
     },
   });

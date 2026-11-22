@@ -7,6 +7,7 @@ export interface BusinessProductItem {
   id?: string;
   productType: 'DELIVERY' | 'POS' | 'CARTERA_COBRO' | 'CITAS';
   status: BusinessProductStatus;
+  maxMobileDevices?: number;
   [key: string]: any;
 }
 
