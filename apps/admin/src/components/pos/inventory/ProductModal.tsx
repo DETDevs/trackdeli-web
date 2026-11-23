@@ -41,6 +41,11 @@ import {
   getPosSettings,
   getPosUnits,
   uploadPosProductImage,
+  getPosVariants,
+  generatePosVariants,
+  updatePosVariant,
+  createPosInventoryAdjustment,
+  createPosProductFieldOption,
 } from 'api-client';
 import { useAuthStore } from '../../../store/auth.store';
 import {
@@ -62,7 +67,19 @@ import { SupplierModal } from './SupplierModal';
 import { CreateUnitModal } from './CreateUnitModal';
 import { CreateFieldModal } from './CreateFieldModal';
 import { ProductPresentationsSection } from './ProductPresentationsSection';
-import { ProductVariantsSection } from './ProductVariantsSection';
+import {
+  VariantsOptionsSection,
+  VariantsTableSection,
+  type VariantsDraftState,
+  type DraftVariantRow,
+  buildCombinations,
+  isComboChecked,
+  countTotalCombinations,
+  hydrateVariantsDraftFromExisting,
+  makeCanonicalComboKey,
+  extractFieldOptionLabels,
+  MAX_VARIANTS,
+} from './ProductVariantsSection';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -252,6 +269,18 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [includeLaborInService, setIncludeLaborInService] = useState(false);
   const [serviceLaborAmount, setServiceLaborAmount] = useState('');
 
+  // Variantes (Ticket 301b)
+  const [variantsDraft, setVariantsDraft] = useState<VariantsDraftState>({
+    enabled: false,
+    samePrice: true,
+    sameCost: true,
+    selectedAxisKeys: [],
+    axisValues: {},
+    valuePriceDeltas: {},
+    rows: {},
+  });
+  const [isLoadingVariants, setIsLoadingVariants] = useState(false);
+
   // Accordion & UI states
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
     basic: true,
@@ -279,6 +308,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const activeCustomFields = useMemo(
     () => productFields.filter((f) => f.isActive !== false && !f.key?.endsWith('_id')),
     [productFields],
+  );
+
+  const isExistingProductWithStock = Boolean(
+    product && !product.isVariantParent && Number(product.stock) !== 0,
+  );
+  const canToggleVariants = !product || (!product.isVariantParent && !isExistingProductWithStock);
+  const isEditingExistingParent = Boolean(product?.isVariantParent);
+
+  const activeCommonFields = useMemo(
+    () =>
+      activeCustomFields.filter(
+        (f) => !variantsDraft.enabled || !variantsDraft.selectedAxisKeys.includes(f.key),
+      ),
+    [activeCustomFields, variantsDraft.enabled, variantsDraft.selectedAxisKeys],
   );
 
   const allAvailableUnits = useMemo(() => {
@@ -669,10 +712,57 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           })
           .catch(() => {});
       }
+
+      if (product.isVariantParent) {
+        setIsLoadingVariants(true);
+        getPosVariants(product.id, business?.id)
+          .then((serverVars) => {
+            setVariantsDraft(
+              hydrateVariantsDraftFromExisting(
+                product.variantAxes,
+                serverVars,
+                Number(product.price || 0),
+                product.cost != null ? Number(product.cost) : null,
+              ),
+            );
+          })
+          .catch(() => {
+            setVariantsDraft({
+              enabled: true,
+              samePrice: true,
+              sameCost: true,
+              selectedAxisKeys: Array.isArray(product.variantAxes) ? product.variantAxes : [],
+              axisValues: {},
+              valuePriceDeltas: {},
+              rows: {},
+            });
+          })
+          .finally(() => setIsLoadingVariants(false));
+      } else {
+        setVariantsDraft({
+          enabled: false,
+          samePrice: true,
+          sameCost: true,
+          selectedAxisKeys: [],
+          axisValues: {},
+          valuePriceDeltas: {},
+          rows: {},
+        });
+      }
     } else {
       const defaultCatId = categories[0]?.id || '';
       const defaultTrackStock = !isRestaurant;
       const defaultTracksBatches = Boolean(canManageBatches && isPharmacy);
+
+      setVariantsDraft({
+        enabled: false,
+        samePrice: true,
+        sameCost: true,
+        selectedAxisKeys: [],
+        axisValues: {},
+        valuePriceDeltas: {},
+        rows: {},
+      });
 
       setItemType('PRODUCT');
       setName(initialName || '');
@@ -1150,6 +1240,43 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       }
     }
 
+    if (!isService && variantsDraft.enabled) {
+      if (variantsDraft.selectedAxisKeys.length === 0) {
+        nextFieldErrors.variants =
+          'Seleccioná al menos una opción para las variantes (por ejemplo: Talla o Color).';
+      } else {
+        const emptyAxis = variantsDraft.selectedAxisKeys.find(
+          (k) => !variantsDraft.axisValues[k] || variantsDraft.axisValues[k].length === 0,
+        );
+        if (emptyAxis) {
+          const axisField = productFields.find((f) => f.key === emptyAxis);
+          nextFieldErrors.variants = `Agregá al menos un valor para "${axisField?.label || emptyAxis}".`;
+        }
+      }
+
+      if (!nextFieldErrors.variants) {
+        const total = countTotalCombinations(
+          variantsDraft.selectedAxisKeys,
+          variantsDraft.axisValues,
+        );
+        if (total === 0) {
+          nextFieldErrors.variants = 'Tenés que definir al menos una combinación de variante.';
+        } else if (total > MAX_VARIANTS) {
+          nextFieldErrors.variants = `Demasiadas variantes (${total}). El máximo permitido es ${MAX_VARIANTS}.`;
+        } else {
+          const combos = buildCombinations(
+            variantsDraft.selectedAxisKeys,
+            variantsDraft.axisValues,
+          );
+          const hasAnyChecked = combos.some((c) => isComboChecked(variantsDraft, c.comboKey));
+          if (!hasAnyChecked) {
+            nextFieldErrors.variants =
+              'Tenés que seleccionar al menos una combinación de variante.';
+          }
+        }
+      }
+    }
+
     if (Object.keys(nextFieldErrors).length > 0) {
       setFieldErrors(nextFieldErrors);
       setOpenSections({
@@ -1257,6 +1384,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       }
     }
 
+    if (!isService && variantsDraft.enabled) {
+      payload.isVariantParent = true;
+      payload.stock = 0;
+      payload.trackStock = false;
+      payload.barcode = undefined;
+      payload.sku = undefined;
+    }
+
     if (isWholesaleActive && !isService) {
       payload.wholesalePrice = parsedWp;
       payload.wholesaleMinQty = parsedWmq;
@@ -1301,6 +1436,168 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         );
       } else if (product?.isRecipe) {
         await setPosProductComponents(savedProduct.id, []);
+      }
+
+      if (!isService && variantsDraft.enabled) {
+        // 1. Crear opciones en ProductFields de tipo LIST que no existan
+        for (const axisKey of variantsDraft.selectedAxisKeys) {
+          const field = productFields.find((f) => f.key.toLowerCase() === axisKey.toLowerCase());
+          if (field && field.dataType === 'LIST') {
+            const existingLabels = extractFieldOptionLabels(field).map((l) => l.trim().toLowerCase());
+            const curValues = variantsDraft.axisValues[axisKey] || [];
+            for (const val of curValues) {
+              if (val.trim() && !existingLabels.includes(val.trim().toLowerCase())) {
+                try {
+                  await createPosProductFieldOption(field.id, { label: val.trim() }, business?.id);
+                } catch {
+                  // Si ya existe o falla opción, continuar
+                }
+              }
+            }
+          }
+        }
+
+        // 2. Generar combinaciones en backend
+        const activeAxes = variantsDraft.selectedAxisKeys.map((key) => ({
+          key,
+          values: variantsDraft.axisValues[key] || [],
+        }));
+        await generatePosVariants(savedProduct.id, { axes: activeAxes }, business?.id);
+
+        // 3. Traer variantes del servidor para obtener sus IDs
+        const serverVariants = await getPosVariants(savedProduct.id, business?.id);
+        const byComboKey = new Map(
+          serverVariants.map((v) => [makeCanonicalComboKey(v.variantValues), v]),
+        );
+
+        const combos = buildCombinations(
+          variantsDraft.selectedAxisKeys,
+          variantsDraft.axisValues,
+        ).slice(0, MAX_VARIANTS);
+
+        const nextRows: Record<string, DraftVariantRow> = { ...variantsDraft.rows };
+        let partialFailures = 0;
+
+        for (const combo of combos) {
+          const serverVar = byComboKey.get(combo.comboKey);
+          if (!serverVar) continue;
+
+          const currentRow: DraftVariantRow = nextRows[combo.comboKey] || {
+            comboKey: combo.comboKey,
+            label: combo.label,
+            variantValues: combo.variantValues,
+            priceText: String(numPrice),
+            costText: typeof parsedCostValue === 'number' ? String(parsedCostValue) : '',
+            barcode: '',
+            sku: '',
+            initialStockText: '',
+            isActive: true,
+            excluded: false,
+          };
+
+          if (currentRow.savedOk) continue;
+
+          const desiredActive = !currentRow.excluded && currentRow.isActive;
+
+          let desiredPrice = numPrice;
+          if (!variantsDraft.samePrice && currentRow.priceText) {
+            const parsedRowPrice = Number(currentRow.priceText.replace(',', '.').trim());
+            if (Number.isFinite(parsedRowPrice) && parsedRowPrice >= 0) {
+              desiredPrice = parsedRowPrice;
+            }
+          } else {
+            let deltaSum = 0;
+            if (Array.isArray(serverVar.variantValues)) {
+              for (const vv of serverVar.variantValues) {
+                const d =
+                  variantsDraft.valuePriceDeltas[`${vv.key}::${vv.value}`] ??
+                  variantsDraft.valuePriceDeltas[vv.value];
+                if (typeof d === 'number' && Number.isFinite(d)) {
+                  deltaSum += d;
+                }
+              }
+            }
+            desiredPrice = Math.max(0, Math.round((numPrice + deltaSum) * 100) / 100);
+          }
+
+          let desiredCost: number | null | undefined =
+            typeof parsedCostValue === 'number' ? parsedCostValue : null;
+          if (!variantsDraft.sameCost && currentRow.costText !== undefined) {
+            const parsedRowCost = currentRow.costText.trim()
+              ? Number(currentRow.costText.replace(',', '.').trim())
+              : null;
+            if (parsedRowCost === null || (Number.isFinite(parsedRowCost) && parsedRowCost >= 0)) {
+              desiredCost = parsedRowCost;
+            }
+          }
+
+          const desiredBarcode = currentRow.barcode?.trim() || null;
+          const desiredSku = currentRow.sku?.trim() || null;
+
+          try {
+            await updatePosVariant(
+              savedProduct.id,
+              serverVar.id,
+              {
+                price: desiredPrice,
+                cost: desiredCost,
+                barcode: desiredBarcode,
+                sku: desiredSku,
+                isActive: desiredActive,
+              },
+              business?.id,
+            );
+
+            if (!currentRow.existingId && desiredActive) {
+              const initStock = Number(
+                (currentRow.initialStockText || '').replace(',', '.').trim(),
+              );
+              if (Number.isFinite(initStock) && initStock > 0) {
+                try {
+                  await createPosInventoryAdjustment(
+                    {
+                      productId: serverVar.id,
+                      type: 'CORRECTION',
+                      qtyDelta: initStock,
+                      reason: 'Stock inicial',
+                    },
+                    undefined,
+                    business?.id,
+                  );
+                } catch (adjErr) {
+                  console.error('Error setting initial variant stock:', adjErr);
+                }
+              }
+            }
+
+            nextRows[combo.comboKey] = {
+              ...currentRow,
+              existingId: serverVar.id,
+              savedOk: true,
+              error: undefined,
+            };
+          } catch (varErr: any) {
+            partialFailures++;
+            const errMsg = extractApiErrorMessage(varErr, 'Error al actualizar variante');
+            nextRows[combo.comboKey] = {
+              ...currentRow,
+              existingId: serverVar.id,
+              savedOk: false,
+              error: errMsg,
+            };
+          }
+        }
+
+        setVariantsDraft((prev) => ({ ...prev, rows: nextRows }));
+
+        if (partialFailures > 0) {
+          setError(
+            `Se guardó el producto, pero ${partialFailures} variante(s) tuvieron error. Corregilas abajo y tocá Guardar de nuevo.`,
+          );
+          setOpenSections((prev) => ({ ...prev, pricing: true }));
+          errorBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          return;
+        }
       }
 
       if (!product) {
@@ -1682,8 +1979,29 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Código de barras + SKU */}
+                  {/* Variantes (Ticket 301b): Opciones y valores */}
                   {!isService && (
+                    isLoadingVariants ? (
+                      <div className="p-4 rounded-xl border border-gray-200 bg-gray-50 text-xs text-gray-500 animate-pulse">
+                        Cargando variantes del producto...
+                      </div>
+                    ) : (
+                      <VariantsOptionsSection
+                        state={variantsDraft}
+                        onChange={setVariantsDraft}
+                        fields={productFields}
+                        isEditingExistingParent={isEditingExistingParent}
+                        canToggleVariants={canToggleVariants}
+                        parentPriceNum={Number(price.replace(',', '.')) || 0}
+                        currency={currency}
+                        onRequestCreateField={() => setIsCreateFieldOpen(true)}
+                        commonAttributes={attributes}
+                      />
+                    )
+                  )}
+
+                  {/* Código de barras + SKU */}
+                  {!isService && !variantsDraft.enabled && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-gray-800 mb-1">
@@ -1714,11 +2032,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
                   )}
 
-                  {/* Campos del rubro y personalizados (Ticket 294) */}
+                  {/* Campos del rubro y personalizados (Ticket 294 / 301b: datos comunes) */}
                   <div className="pt-3 border-t border-gray-100 space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-bold text-gray-700">
-                        {isPharmacy ? 'Datos farmacéuticos y atributos del catálogo' : 'Atributos del producto'}
+                        {variantsDraft.enabled
+                          ? 'Datos comunes del producto (no varían por opción)'
+                          : isPharmacy
+                          ? 'Datos farmacéuticos y atributos del catálogo'
+                          : 'Atributos del producto'}
                       </p>
                       {!isReadOnly && (
                         <button
@@ -1731,9 +2053,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         </button>
                       )}
                     </div>
-                  {activeCustomFields.length > 0 && (
+                    {activeCommonFields.length > 0 && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {activeCustomFields.map((field) => {
+                        {activeCommonFields.map((field) => {
                           const isRequiredByIndustry =
                             isPharmacy &&
                             !isService &&
@@ -2248,6 +2570,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       </div>
                     )}
                   </div>
+
+                  {/* Variantes (Ticket 301b): Combinaciones y tabla de precios/stock */}
+                  {!isService && variantsDraft.enabled && (
+                    <div className="pt-4 border-t border-gray-100">
+                      <VariantsTableSection
+                        state={variantsDraft}
+                        onChange={setVariantsDraft}
+                        isEditingExistingParent={isEditingExistingParent}
+                        parentPriceNum={Number(price.replace(',', '.')) || 0}
+                        parentCostNum={typeof parsedCostValue === 'number' ? parsedCostValue : null}
+                        currency={currency}
+                        canManageCost={!isReadOnly}
+                        isReadOnly={isReadOnly}
+                        unit={unit}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -2334,7 +2673,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                               Existencia actual{' '}
                               {isPharmacy && <span className="text-red-600">*</span>}
                             </label>
-                            {product && !isReadOnly && onRequestStockAdjustment && (
+                            {product && !isReadOnly && onRequestStockAdjustment && !variantsDraft.enabled && (
                               <button
                                 type="button"
                                 onClick={() => onRequestStockAdjustment(product)}
@@ -2345,33 +2684,45 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                               </button>
                             )}
                           </div>
-                          <input
-                            type="number"
-                            step={isUnd ? '1' : '0.001'}
-                            min="0"
-                            disabled={
-                              isReadOnly ||
-                              Boolean(product && tracksBatches) ||
-                              Boolean(lockInitialStockZero && !product)
-                            }
-                            value={stock}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => {
-                              setStock(e.target.value);
-                              if (fieldErrors.stock) setFieldErrors((p) => ({ ...p, stock: '' }));
-                            }}
-                            className={`w-full h-11 px-3 rounded-xl border text-xs font-mono text-gray-900 focus:outline-none disabled:bg-gray-100 disabled:text-gray-700 ${
-                              fieldErrors.stock
-                                ? 'border-red-500 bg-red-50/20'
-                                : 'border-gray-200 focus:border-purple-600'
-                            }`}
-                          />
-                          {lockInitialStockZero && !product && (
+                          {variantsDraft.enabled ? (
+                            <div className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-between text-xs font-mono font-bold text-gray-700">
+                              <span>
+                                {Object.values(variantsDraft.rows)
+                                  .filter((r) => !r.excluded && r.isActive)
+                                  .reduce((acc, r) => acc + (Number(r.existingStock) || 0), 0)}{' '}
+                                {unit}
+                              </span>
+                              <span className="text-gray-400 font-normal">Suma de variantes</span>
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              step={isUnd ? '1' : '0.001'}
+                              min="0"
+                              disabled={
+                                isReadOnly ||
+                                Boolean(product && tracksBatches) ||
+                                Boolean(lockInitialStockZero && !product)
+                              }
+                              value={stock}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                setStock(e.target.value);
+                                if (fieldErrors.stock) setFieldErrors((p) => ({ ...p, stock: '' }));
+                              }}
+                              className={`w-full h-11 px-3 rounded-xl border text-xs font-mono text-gray-900 focus:outline-none disabled:bg-gray-100 disabled:text-gray-700 ${
+                                fieldErrors.stock
+                                  ? 'border-red-500 bg-red-50/20'
+                                  : 'border-gray-200 focus:border-purple-600'
+                              }`}
+                            />
+                          )}
+                          {!variantsDraft.enabled && lockInitialStockZero && !product && (
                             <p className="mt-1 text-xs text-gray-600">
                               La existencia ingresará al guardar la compra.
                             </p>
                           )}
-                          {product && tracksBatches && (
+                          {!variantsDraft.enabled && product && tracksBatches && (
                             <p className="mt-1 text-xs text-gray-600">
                               Con control de lotes, modificá la existencia con{' '}
                               <strong>Ajustar</strong> para mantener integridad por lote.
@@ -2472,49 +2823,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       canManageCost={!isReadOnly}
                       isReadOnly={isReadOnly}
                       businessId={business?.id}
-                    />
-                  </div>
-                )}
-              </section>
-            )}
-
-            {/* SECCIÓN VARIANTES (Ticket 294) */}
-            {!isService && (
-              <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => toggleSection('variants')}
-                  className="w-full px-4 py-3 bg-gray-50/70 flex items-center justify-between text-left border-b border-gray-100 cursor-pointer"
-                >
-                  <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <SlidersHorizontal size={15} className="text-purple-700" />
-                    <span>Variantes</span>
-                    {product?.variants && product.variants.length > 0 && (
-                      <span className="ml-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-900 text-xs font-bold normal-case">
-                        {product.variants.length}
-                      </span>
-                    )}
-                  </span>
-                  {openSections.variants ? (
-                    <CaretUp size={16} className="text-gray-600" />
-                  ) : (
-                    <CaretDown size={16} className="text-gray-600" />
-                  )}
-                </button>
-
-                {openSections.variants && (
-                  <div className="p-4">
-                    <ProductVariantsSection
-                      productId={product?.id}
-                      productName={name}
-                      isVariantParent={Boolean(product?.isVariantParent)}
-                      unit={unit}
-                      currency={currency}
-                      productFields={productFields}
-                      canManageCost={!isReadOnly}
-                      isReadOnly={isReadOnly}
-                      businessId={business?.id}
-                      onRequestCreateField={() => setIsCreateFieldOpen(true)}
                     />
                   </div>
                 )}

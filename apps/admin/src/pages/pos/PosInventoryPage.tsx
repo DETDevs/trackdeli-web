@@ -753,6 +753,17 @@ export const PosInventoryPage: React.FC = () => {
                     const effectiveStock = isVariantParent && Array.isArray(p.variants) && p.variants.length > 0
                       ? p.variants.reduce((acc, v) => acc + (v.stock || 0), 0)
                       : (p.stock ?? 0);
+                    const activeVariants = isVariantParent && Array.isArray(p.variants)
+                      ? p.variants.filter((v: any) => v.isActive !== false)
+                      : [];
+                    const variantPrices = activeVariants.map((v: any) => Number(v.price ?? p.price));
+                    const minVariantPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : Number(p.price);
+                    const maxVariantPrice = variantPrices.length > 0 ? Math.max(...variantPrices) : Number(p.price);
+                    const priceDisplay = isVariantParent && variantPrices.length > 0
+                      ? minVariantPrice === maxVariantPrice
+                        ? formatCurrency(minVariantPrice, currency)
+                        : `${formatCurrency(minVariantPrice, currency)} – ${formatCurrency(maxVariantPrice, currency)}`
+                      : formatCurrency(p.price, currency);
 
                     return (
                       <React.Fragment key={p.id}>
@@ -844,7 +855,7 @@ export const PosInventoryPage: React.FC = () => {
                           {/* Precio */}
                           <td className="px-4 py-3.5 text-right whitespace-nowrap">
                             <div className="font-bold text-gray-900">
-                              {formatCurrency(p.price, currency)}
+                              {priceDisplay}
                             </div>
                             {wp && wmq && (
                               <div className="text-xs text-purple-700">
@@ -1038,6 +1049,17 @@ export const PosInventoryPage: React.FC = () => {
               const effectiveStock = isVariantParent && Array.isArray(p.variants) && p.variants.length > 0
                 ? p.variants.reduce((acc, v) => acc + (v.stock || 0), 0)
                 : (p.stock ?? 0);
+              const activeVariants = isVariantParent && Array.isArray(p.variants)
+                ? p.variants.filter((v: any) => v.isActive !== false)
+                : [];
+              const variantPrices = activeVariants.map((v: any) => Number(v.price ?? p.price));
+              const minVariantPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : Number(p.price);
+              const maxVariantPrice = variantPrices.length > 0 ? Math.max(...variantPrices) : Number(p.price);
+              const priceDisplay = isVariantParent && variantPrices.length > 0
+                ? minVariantPrice === maxVariantPrice
+                  ? formatCurrency(minVariantPrice, currency)
+                  : `${formatCurrency(minVariantPrice, currency)} – ${formatCurrency(maxVariantPrice, currency)}`
+                : formatCurrency(p.price, currency);
 
               return (
                 <div
@@ -1175,7 +1197,7 @@ export const PosInventoryPage: React.FC = () => {
                     <div className="text-right">
                       <span className="text-gray-400 block font-medium">Precio</span>
                       <span className="font-bold text-gray-900 text-xs sm:text-sm">
-                        {formatCurrency(p.price, currency)}
+                        {priceDisplay}
                       </span>
                       {canManageCatalog && p.cost != null && p.cost > 0 && (
                         <span className="text-gray-500 text-xs block">
