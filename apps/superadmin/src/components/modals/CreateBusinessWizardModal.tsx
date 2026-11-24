@@ -1,43 +1,27 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Storefront,
-  Motorcycle,
-  Receipt,
-  Wallet,
-  CalendarBlank,
-  ForkKnife,
-  Wrench,
-  ShieldCheck,
   Check,
   ArrowRight,
   ArrowLeft,
-  Sparkle,
-  Globe,
   MagnifyingGlass,
-  Info,
-  Package,
-  Tag,
-  Money,
-  Gift,
-  UploadSimple,
-  FilePdf,
-  X,
   CircleNotch,
-  Warning,
-  Clock,
+  Plus,
+  Trash,
 } from '@phosphor-icons/react';
 import apiClient from '../../lib/apiClient';
 import { Modal } from '../ui/Modal';
+import { useCreateBusiness } from '../../hooks/useBusinesses';
+import { useIndustries } from '../../hooks/useIndustries';
 import {
-  useCreateBusiness,
-  type BusinessType,
-  CreateBusinessResult,
-} from '../../hooks/useBusinesses';
-import { useIndustries, Industry } from '../../hooks/useIndustries';
+  useCommercialPricingConfig,
+  type CommercialSaleModality,
+  type CommercialPaymentType,
+  type CommercialEquipmentType,
+  SALE_MODALITY_LABELS,
+} from '../../hooks/useCommercial';
 
 const SHORT_MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
-/** Formatea una fecha como «9 nov 2026». Acepta Date o «YYYY-MM-DD» (sin desfase de zona horaria). */
 function formatShortDate(input: Date | string): string {
   let d: Date;
   if (typeof input === 'string') {
@@ -50,27 +34,46 @@ function formatShortDate(input: Date | string): string {
   return `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-/** Misma fecha del mes siguiente (ajustada al último día si el mes es más corto). */
-function addOneMonth(from: Date): Date {
-  const y = from.getFullYear();
-  const m = from.getMonth() + 1;
-  const lastDay = new Date(y, m + 1, 0).getDate();
-  return new Date(y, m, Math.min(from.getDate(), lastDay), 12, 0, 0);
+function addMonths(from: Date, months: number): Date {
+  const d = new Date(from);
+  d.setMonth(d.getMonth() + months);
+  return d;
 }
 
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  TRANSFERENCIA: 'Transferencia bancaria',
-  EFECTIVO: 'Efectivo',
-  PAYPAL: 'PayPal',
-  BINANCE: 'Binance',
-  OTRO: 'Otro',
-};
+const PAYMENT_METHODS: Array<{ value: string; label: string }> = [
+  { value: 'TRANSFERENCIA', label: 'Transferencia bancaria' },
+  { value: 'EFECTIVO', label: 'Efectivo' },
+  { value: 'PAYPAL', label: 'PayPal' },
+  { value: 'BINANCE', label: 'Binance' },
+  { value: 'OTRO', label: 'Otro' },
+];
 
 interface CreateBusinessWizardModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (credentials: { businessName: string; email: string; password?: string }) => void;
 }
+
+interface EquipmentPieceItem {
+  id: string;
+  equipmentType: CommercialEquipmentType;
+  name: string;
+  selected: boolean;
+  price?: number;
+  serialNumber?: string;
+  brand?: string;
+  model?: string;
+}
+
+const DEFAULT_COMBO_PIECES: Array<{ equipmentType: CommercialEquipmentType; name: string }> = [
+  { equipmentType: 'COMPUTADORA', name: 'Computadora con Windows' },
+  { equipmentType: 'MONITOR', name: 'Monitor 19" o superior' },
+  { equipmentType: 'TECLADO', name: 'Teclado y mouse USB' },
+  { equipmentType: 'IMPRESORA_TERMICA', name: 'Impresora térmica 80 mm' },
+  { equipmentType: 'GAVETA_DINERO', name: 'Gaveta de dinero' },
+  { equipmentType: 'LECTOR_BARRA', name: 'Lector de código de barras USB' },
+  { equipmentType: 'OTRO', name: 'Rollos de papel térmico' },
+];
 
 export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps> = ({
   isOpen,
@@ -79,456 +82,312 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
 }) => {
   const createMutation = useCreateBusiness();
   const { data: industries = [] } = useIndustries();
+  const { data: pricingConfig } = useCommercialPricingConfig();
   const activeIndustries = useMemo(() => industries.filter((i) => i.isActive), [industries]);
 
-  // Asistente: paso actual (1 a 5)
+  // Paso actual (1 a 5)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
-  // Paso 1: Negocio
+  // ── Paso 1: Negocio ──
   const [name, setName] = useState('');
   const [industryId, setIndustryId] = useState('');
   const [industrySearch, setIndustrySearch] = useState('');
   const [isIndustryDropdownOpen, setIsIndustryDropdownOpen] = useState(false);
   const [posVertical, setPosVertical] = useState<'RESTAURANTE' | 'RETAIL'>('RESTAURANTE');
   const [salonProfile, setSalonProfile] = useState<'RESTAURANTE' | 'TALLER'>('RESTAURANTE');
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-  const [hasCustomizedProfile, setHasCustomizedProfile] = useState(false);
+  const [showAdvancedProfile, setShowAdvancedProfile] = useState(false);
 
-  // Paso 2: Productos contratados (por defecto POS para negocios tipo POS)
-  const [hasDelivery, setHasDelivery] = useState(false);
+  // ── Paso 2: Productos contratados y opciones ──
   const [hasPOS, setHasPOS] = useState(true);
+  const [posMonthlyFee, setPosMonthlyFee] = useState('45');
   const [hasCarteraCobro, setHasCarteraCobro] = useState(false);
+  const [carteraMonthlyFee, setCarteraMonthlyFee] = useState('30');
   const [hasCitas, setHasCitas] = useState(false);
-  const [hasUserModifiedProducts, setHasUserModifiedProducts] = useState(false);
+  const [citasMonthlyFee, setCitasMonthlyFee] = useState('25');
+  const [hasDelivery, setHasDelivery] = useState(false);
+  const [deliveryMonthlyFee, setDeliveryMonthlyFee] = useState('35');
+
+  // Opciones
   const [tracksBatches, setTracksBatches] = useState(false);
   const [useListPrice, setUseListPrice] = useState(false);
 
-  // Delivery config
-  const [businessType, setBusinessType] = useState<BusinessType>('NEGOCIO');
-  const [commissionRate, setCommissionRate] = useState('15');
-  const [altCommissionRate, setAltCommissionRate] = useState('12');
-  const [altCommissionDistanceKm, setAltCommissionDistanceKm] = useState('40');
-  const [dispatchTimeoutMin, setDispatchTimeoutMin] = useState('3');
+  // ── Paso 3: Forma de venta (302a/302b) ──
+  const [saleModality, setSaleModality] = useState<CommercialSaleModality>('MEMBRESIA_MENSUAL');
 
-  // Paso 3: Condiciones y acceso
-  // POS
+  // Sub-opciones de Membresía mensual
+  const [startType, setStartType] = useState<'TRIAL' | 'PAID'>('TRIAL');
+  const [trialUnit, setTrialUnit] = useState<'HOURS' | 'DAYS'>('HOURS');
+  const trialHoursPreset = 24;
+  const trialDaysPreset = 15;
+  const [customTrialDuration, setCustomTrialDuration] = useState('');
+
+  // Pago inicial membresía
+  const [initialPaidAmount, setInitialPaidAmount] = useState('45');
+  const [initialPaymentMethod, setInitialPaymentMethod] = useState('TRANSFERENCIA');
+  const todayIso = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const [initialPaidAt, setInitialPaidAt] = useState(todayIso);
+  const [initialProofFile, setInitialProofFile] = useState<File | null>(null);
+
+  // Sub-opciones de Pago Único / Combo
+  const [commercialTotalPrice, setCommercialTotalPrice] = useState('800');
+  const [commercialCurrency, setCommercialCurrency] = useState<'USD' | 'NIO'>('USD');
+  const [commercialPaymentType, setCommercialPaymentType] = useState<CommercialPaymentType>('CONTADO');
+  const [commercialDownPayment, setCommercialDownPayment] = useState('400');
+  const [commercialInstallmentsCount, setCommercialInstallmentsCount] = useState<number>(4);
+
+  // Pago recibido hoy para acuerdo comercial
+  const [commercialPaidTodayAmount, setCommercialPaidTodayAmount] = useState('800');
+  const [commercialPaymentMethod, setCommercialPaymentMethod] = useState('TRANSFERENCIA');
+  const [commercialPaidAt, setCommercialPaidAt] = useState(todayIso);
+  const [commercialReferenceNumber, setCommercialReferenceNumber] = useState('');
+
+  // Equipos entregados
+  const [comboPieces, setComboPieces] = useState<EquipmentPieceItem[]>(
+    DEFAULT_COMBO_PIECES.map((p, idx) => ({
+      id: `piece-${idx}`,
+      equipmentType: p.equipmentType,
+      name: p.name,
+      selected: true,
+      serialNumber: '',
+    }))
+  );
+
+  // Piezas en combo parcial
+  const [partialPieces, setPartialPieces] = useState<EquipmentPieceItem[]>([
+    { id: 'part-1', equipmentType: 'COMPUTADORA', name: 'Computadora', selected: true, price: 280, serialNumber: '' },
+    { id: 'part-2', equipmentType: 'IMPRESORA_TERMICA', name: 'Impresora térmica 80 mm', selected: true, price: 140, serialNumber: '' },
+    { id: 'part-3', equipmentType: 'GAVETA_DINERO', name: 'Gaveta de dinero', selected: true, price: 70, serialNumber: '' },
+  ]);
+
+  // Mantenimiento comercial
+  const [maintenanceFreeMonths, setMaintenanceFreeMonths] = useState<number>(12);
+  const [maintenanceMonthlyNio, setMaintenanceMonthlyNio] = useState<number>(555);
+  const [showEditMaintenance, setShowEditMaintenance] = useState(false);
+
+  // ── Paso 4: Equipos y accesos ──
   const [maxDevices, setMaxDevices] = useState('1');
   const [isUnlimitedDevices, setIsUnlimitedDevices] = useState(false);
-  const [posMonthlyFee, setPosMonthlyFee] = useState(''); // sugerido: 45.00
-  // Acceso Web POS
+  const [maxMobileDevices, setMaxMobileDevices] = useState('0');
   const [webAdminEnabled, setWebAdminEnabled] = useState(true);
   const [webBillingEnabled, setWebBillingEnabled] = useState(false);
   const [maxWebDevices, setMaxWebDevices] = useState('2');
   const [isUnlimitedWebDevices, setIsUnlimitedWebDevices] = useState(false);
   const [webBillingMonthlyUsd, setWebBillingMonthlyUsd] = useState('');
 
-  // Tarifas de otros productos
-  const [deliveryMonthlyFee, setDeliveryMonthlyFee] = useState('');
-  const [carteraMonthlyFee, setCarteraMonthlyFee] = useState('');
-  const [citasMonthlyFee, setCitasMonthlyFee] = useState('');
-
-  // Paso 4: Encargado
+  // ── Paso 5: Encargado y confirmación ──
   const [encargadoName, setEncargadoName] = useState('');
   const [encargadoEmail, setEncargadoEmail] = useState('');
   const [encargadoPassword, setEncargadoPassword] = useState('');
-  // ¿Cómo empieza este cliente? (Ticket 252b - horas y días)
-  const [startType, setStartType] = useState<'TRIAL' | 'PAID' | null>('TRIAL');
-  const [trialUnit, setTrialUnit] = useState<'HOURS' | 'DAYS'>('HOURS');
-  const [trialHoursPreset, setTrialHoursPreset] = useState<number>(6);
-  const [customTrialHours, setCustomTrialHours] = useState('');
-  const [trialDaysPreset, setTrialDaysPreset] = useState<number>(15);
-  const [customTrialDays, setCustomTrialDays] = useState('');
 
-  const effectiveTrialHours = useMemo(() => {
-    if (startType !== 'TRIAL') return null;
-    if (trialUnit === 'HOURS') {
-      const v = customTrialHours.trim() ? parseInt(customTrialHours, 10) : trialHoursPreset;
-      return v > 0 ? v : 6;
-    } else {
-      const d = customTrialDays.trim() ? parseInt(customTrialDays, 10) : trialDaysPreset;
-      return (d > 0 ? d : 15) * 24;
-    }
-  }, [startType, trialUnit, trialHoursPreset, customTrialHours, trialDaysPreset, customTrialDays]);
-
-  const effectiveTrialDays = useMemo(() => {
-    if (startType !== 'TRIAL') return 0;
-    if (trialUnit === 'HOURS') {
-      const h = effectiveTrialHours || 6;
-      return Math.max(1, Math.ceil(h / 24));
-    } else {
-      const d = customTrialDays.trim() ? parseInt(customTrialDays, 10) : trialDaysPreset;
-      return d > 0 ? d : 15;
-    }
-  }, [startType, trialUnit, effectiveTrialHours, trialDaysPreset, customTrialDays]);
-
-  const [initialPaidAmount, setInitialPaidAmount] = useState('');
-  const [initialPaymentMethod, setInitialPaymentMethod] = useState<
-    'TRANSFERENCIA' | 'EFECTIVO' | 'PAYPAL' | 'BINANCE' | 'OTRO'
-  >('TRANSFERENCIA');
-  const todayIso = useMemo(() => {
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${mm}-${dd}`;
-  }, []);
-  const [initialPaidAt, setInitialPaidAt] = useState<string>(todayIso);
-  const [initialProofFile, setInitialProofFile] = useState<File | null>(null);
-  const [initialProofPreview, setInitialProofPreview] = useState<string | null>(null);
-
-  // Errores de validación por paso
+  // Errores de validación
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Industria seleccionada
+  // Rubro seleccionado
   const selectedIndustry = useMemo(
-    () => activeIndustries.find((i) => i.id === industryId),
-    [activeIndustries, industryId]
+    () => industries.find((i) => i.id === industryId) || null,
+    [industries, industryId]
   );
 
-  // Clasificación del tipo seleccionado
-  const industryDeduction = useMemo(() => {
-    if (!selectedIndustry) return null;
-    const isTaller =
-      selectedIndustry.code === 'taller' ||
-      selectedIndustry.name.toLowerCase().includes('taller') ||
-      selectedIndustry.name.toLowerCase().includes('mecanic') ||
-      selectedIndustry.name.toLowerCase().includes('automotriz');
-
-    const isRestaurante =
-      selectedIndustry.code === 'restaurante' ||
-      selectedIndustry.posVertical === 'RESTAURANTE' ||
-      selectedIndustry.name.toLowerCase().includes('restaurante') ||
-      selectedIndustry.name.toLowerCase().includes('cafeter') ||
-      selectedIndustry.name.toLowerCase().includes('bar') ||
-      selectedIndustry.name.toLowerCase().includes('comida');
-
-    const isGeneral = selectedIndustry.code === 'general';
-
-    if (isTaller) {
-      return {
-        type: 'TALLER' as const,
-        posVertical: 'RETAIL' as const,
-        salonProfile: 'TALLER' as const,
-        label: 'Taller',
-        description: 'Bahías de servicio y órdenes automotrices',
-        hasClearCorrespondence: true,
-      };
-    }
-    if (isRestaurante) {
-      return {
-        type: 'RESTAURANTE' as const,
-        posVertical: 'RESTAURANTE' as const,
-        salonProfile: 'RESTAURANTE' as const,
-        label: 'Restaurante',
-        description: 'Mesas, comandas y salón comedor',
-        hasClearCorrespondence: true,
-      };
-    }
-    if (isGeneral) {
-      return {
-        type: 'GENERAL' as const,
-        posVertical: 'RETAIL' as const,
-        salonProfile: 'RESTAURANTE' as const,
-        label: 'General',
-        description: 'Sin perfil predefinido. Selecciona Restaurante o Taller.',
-        hasClearCorrespondence: false,
-      };
-    }
-    // Retail general (farmacia, ferretería, abarrotes, ropa, cosmetiquería)
-    return {
-      type: 'RETAIL' as const,
-      posVertical: (selectedIndustry.posVertical || 'RETAIL') as 'RETAIL' | 'RESTAURANTE',
-      salonProfile: 'RESTAURANTE' as const,
-      label: 'Retail / Comercio',
-      description: 'Punto de venta directo (mostrador). Sin mesas ni comandas.',
-      hasClearCorrespondence: true,
-    };
-  }, [selectedIndustry]);
-
-  // Etiqueta y descripción del perfil actual para mostrar en el asistente
-  const profileLabel = useMemo(() => {
-    if (salonProfile === 'TALLER') return 'Taller';
-    if (posVertical === 'RETAIL') return 'Retail';
-    return 'Restaurante';
-  }, [salonProfile, posVertical]);
-
-  const profileDescription = useMemo(() => {
-    if (salonProfile === 'TALLER') return 'Bahías de servicio y órdenes automotrices.';
-    if (posVertical === 'RETAIL') return 'Punto de venta directo (mostrador). Sin mesas ni comandas.';
-    return 'Mesas, comandas y salón comedor.';
-  }, [salonProfile, posVertical]);
-
-  // Selección de tipo de negocio con deducción automática
-  const handleSelectIndustry = (ind: Industry) => {
-    setIndustryId(ind.id);
-    setIsIndustryDropdownOpen(false);
-    setIndustrySearch('');
-
-    // Deducir vertical y perfil si el usuario no los personalizó manualmente
-    const isTaller =
-      ind.code === 'taller' ||
-      ind.name.toLowerCase().includes('taller') ||
-      ind.name.toLowerCase().includes('mecanic') ||
-      ind.name.toLowerCase().includes('automotriz');
-
-    const isRestaurante =
-      ind.code === 'restaurante' ||
-      ind.posVertical === 'RESTAURANTE' ||
-      ind.name.toLowerCase().includes('restaurante') ||
-      ind.name.toLowerCase().includes('cafeter');
-
-    if (!hasCustomizedProfile) {
-      if (isTaller) {
-        setPosVertical('RETAIL');
-        setSalonProfile('TALLER');
-      } else if (isRestaurante) {
-        setPosVertical('RESTAURANTE');
-        setSalonProfile('RESTAURANTE');
-      } else {
-        setPosVertical(ind.posVertical || 'RETAIL');
-        setSalonProfile('RESTAURANTE');
-      }
-    }
-
-    // Preselección de productos: para tipos POS, queda Sistema POS y NO Delivery
-    if (!hasUserModifiedProducts) {
-      setHasPOS(true);
-      setHasDelivery(false);
-      setHasCarteraCobro(false);
-      setHasCitas(false);
-    }
-
-    // Preselección de lotes: si la industria es farmacia o tiene tracksBatches activo
-    const isFarmaciaOrBatches = Boolean(ind.tracksBatches || ind.code === 'farmacia');
-    setTracksBatches(isFarmaciaOrBatches);
-
-    // Preselección de precio de etiqueta: si el rubro es farmacia, activado por defecto
-    const isFarmacia = ind.code === 'farmacia' || ind.name?.toLowerCase().includes('farmacia');
-    setUseListPrice(Boolean(isFarmacia));
-
-    setErrors((prev) => {
-      const copy = { ...prev };
-      delete copy.industryId;
-      return copy;
-    });
-  };
-
-  const handleResetToAutomatic = () => {
-    if (!industryDeduction) return;
-    setPosVertical(industryDeduction.posVertical);
-    setSalonProfile(industryDeduction.salonProfile);
-    setHasCustomizedProfile(false);
-    setIsAdvancedOpen(false);
-  };
-
-  // Filtrado de industrias por búsqueda
   const filteredIndustries = useMemo(() => {
     if (!industrySearch.trim()) return activeIndustries;
     const term = industrySearch.toLowerCase();
-    return activeIndustries.filter(
-      (i) =>
-        i.name.toLowerCase().includes(term) ||
-        i.code.toLowerCase().includes(term)
-    );
+    return activeIndustries.filter((i) => i.name.toLowerCase().includes(term));
   }, [activeIndustries, industrySearch]);
 
-  // Cálculo de total mensual estimado
-  const { totalEstimatedUsd, feesList, missingFeesList } = useMemo(() => {
-    const list: Array<{ name: string; amount: number }> = [];
-    const missing: string[] = [];
-
-    if (hasPOS) {
-      if (posMonthlyFee && !isNaN(Number(posMonthlyFee)) && Number(posMonthlyFee) > 0) {
-        list.push({ name: 'Sistema POS', amount: Number(posMonthlyFee) });
-      } else {
-        missing.push('POS (sin tarifa)');
+  // Actualizar valores sugeridos al seleccionar rubro o cargar pricing config
+  useEffect(() => {
+    if (selectedIndustry) {
+      if (selectedIndustry.posVertical) {
+        setPosVertical(selectedIndustry.posVertical);
       }
-
-      if (webAdminEnabled && webBillingEnabled) {
-        if (
-          webBillingMonthlyUsd &&
-          !isNaN(Number(webBillingMonthlyUsd)) &&
-          Number(webBillingMonthlyUsd) > 0
-        ) {
-          list.push({ name: 'Facturación Web', amount: Number(webBillingMonthlyUsd) });
-        } else {
-          missing.push('Facturación Web (sin tarifa adicional)');
-        }
+      const isTaller =
+        selectedIndustry.code === 'taller' ||
+        selectedIndustry.name.toLowerCase().includes('taller');
+      setSalonProfile(isTaller ? 'TALLER' : 'RESTAURANTE');
+      if (selectedIndustry.tracksBatches || selectedIndustry.code === 'farmacia') {
+        setTracksBatches(true);
+      }
+      if (selectedIndustry.code === 'farmacia') {
+        setUseListPrice(true);
       }
     }
+  }, [selectedIndustry]);
 
-    if (hasDelivery) {
-      if (businessType === 'NEGOCIO') {
-        if (
-          deliveryMonthlyFee &&
-          !isNaN(Number(deliveryMonthlyFee)) &&
-          Number(deliveryMonthlyFee) > 0
-        ) {
-          list.push({ name: 'TrackDeli (Membresía)', amount: Number(deliveryMonthlyFee) });
-        } else {
-          missing.push('TrackDeli (sin tarifa)');
-        }
-      } else {
-        missing.push(`TrackDeli Riders (${commissionRate}% comisión)`);
+  // Sincronizar precios sugeridos de pricing config
+  useEffect(() => {
+    if (pricingConfig) {
+      if (saleModality === 'PAGO_UNICO_SISTEMA') {
+        setCommercialTotalPrice(String(pricingConfig.soloSistemaPriceUsd ?? 380));
+      } else if (saleModality === 'COMBO_COMPLETO') {
+        setCommercialTotalPrice(String(pricingConfig.comboCompletoPriceUsd ?? 800));
+      }
+      if (pricingConfig.maintenanceMonthlyNio) {
+        setMaintenanceMonthlyNio(pricingConfig.maintenanceMonthlyNio);
+      }
+      if (pricingConfig.maintenanceFreeMonths) {
+        setMaintenanceFreeMonths(pricingConfig.maintenanceFreeMonths);
       }
     }
+  }, [pricingConfig, saleModality]);
 
-    if (hasCarteraCobro) {
-      if (
-        carteraMonthlyFee &&
-        !isNaN(Number(carteraMonthlyFee)) &&
-        Number(carteraMonthlyFee) > 0
-      ) {
-        list.push({ name: 'Finanzas', amount: Number(carteraMonthlyFee) });
-      } else {
-        missing.push('Finanzas (sin tarifa)');
-      }
+  // Recalcular total mensual de membresía
+  const totalMonthlyFee = useMemo(() => {
+    let sum = 0;
+    if (hasPOS) sum += Number(posMonthlyFee) || 0;
+    if (hasCarteraCobro) sum += Number(carteraMonthlyFee) || 0;
+    if (hasCitas) sum += Number(citasMonthlyFee) || 0;
+    if (hasDelivery) sum += Number(deliveryMonthlyFee) || 0;
+    return sum;
+  }, [hasPOS, posMonthlyFee, hasCarteraCobro, carteraMonthlyFee, hasCitas, citasMonthlyFee, hasDelivery, deliveryMonthlyFee]);
+
+  // Sincronizar pago inicial membresía con la tarifa mensual
+  useEffect(() => {
+    if (saleModality === 'MEMBRESIA_MENSUAL' && totalMonthlyFee > 0) {
+      setInitialPaidAmount(totalMonthlyFee.toFixed(2));
     }
+  }, [totalMonthlyFee, saleModality]);
 
-    if (hasCitas) {
-      if (citasMonthlyFee && !isNaN(Number(citasMonthlyFee)) && Number(citasMonthlyFee) > 0) {
-        list.push({ name: 'Citas y Reservas', amount: Number(citasMonthlyFee) });
-      } else {
-        missing.push('Citas y Reservas (sin tarifa)');
-      }
+  // Sincronizar prima al cambiar precio total en crédito
+  useEffect(() => {
+    if (commercialPaymentType === 'CREDITO') {
+      const tot = Number(commercialTotalPrice) || 0;
+      const downPct = pricingConfig?.defaultCreditDownPaymentPct ?? 50;
+      const down = Math.round((tot * (downPct / 100)) * 100) / 100;
+      setCommercialDownPayment(String(down));
+      setCommercialPaidTodayAmount(String(down));
+    } else {
+      setCommercialPaidTodayAmount(commercialTotalPrice);
     }
+  }, [commercialTotalPrice, commercialPaymentType, pricingConfig]);
 
-    const total = list.reduce((sum, item) => sum + item.amount, 0);
-    return { totalEstimatedUsd: total, feesList: list, missingFeesList: missing };
-  }, [
-    hasPOS,
-    posMonthlyFee,
-    webAdminEnabled,
-    webBillingEnabled,
-    webBillingMonthlyUsd,
-    hasDelivery,
-    businessType,
-    deliveryMonthlyFee,
-    commissionRate,
-    hasCarteraCobro,
-    carteraMonthlyFee,
-    hasCitas,
-    citasMonthlyFee,
-  ]);
+  // Sincronizar precio en combo parcial con la suma de piezas
+  const partialPiecesSum = useMemo(() => {
+    return partialPieces
+      .filter((p) => p.selected)
+      .reduce((sum, p) => sum + (Number(p.price) || 0), 0);
+  }, [partialPieces]);
 
-  // Validaciones por paso
+  useEffect(() => {
+    if (saleModality === 'COMBO_PARCIAL') {
+      setCommercialTotalPrice(String(partialPiecesSum));
+    }
+  }, [saleModality, partialPiecesSum]);
 
+  // Calendario de cuotas calculado
+  const installmentSchedule = useMemo(() => {
+    if (commercialPaymentType !== 'CREDITO') return [];
+    const tot = Number(commercialTotalPrice) || 0;
+    const down = Number(commercialDownPayment) || 0;
+    const financed = Math.max(0, tot - down);
+    const count = commercialInstallmentsCount || 1;
+    const totalCents = Math.round(financed * 100);
+    const baseCents = Math.floor(totalCents / count);
+    const remainder = totalCents - baseCents * count;
+
+    const schedule = [];
+    const today = new Date();
+    for (let k = 1; k <= count; k++) {
+      const instCents = k === count ? baseCents + remainder : baseCents;
+      const dueDate = addMonths(today, k);
+      schedule.push({
+        number: k,
+        dueDateStr: formatShortDate(dueDate),
+        amount: (instCents / 100).toFixed(2),
+      });
+    }
+    return schedule;
+  }, [commercialPaymentType, commercialTotalPrice, commercialDownPayment, commercialInstallmentsCount]);
+
+  // Fecha en que inicia el cobro de mantenimiento (mes 13)
+  const maintenanceStartDateStr = useMemo(() => {
+    const today = new Date();
+    const startDate = addMonths(today, maintenanceFreeMonths);
+    return formatShortDate(startDate);
+  }, [maintenanceFreeMonths]);
+
+  // Duración efectiva de la prueba
+  const effectiveTrialHours = useMemo(() => {
+    if (trialUnit === 'HOURS') {
+      const v = customTrialDuration.trim() ? parseInt(customTrialDuration, 10) : trialHoursPreset;
+      return v > 0 ? v : 24;
+    } else {
+      const d = customTrialDuration.trim() ? parseInt(customTrialDuration, 10) : trialDaysPreset;
+      return (d > 0 ? d : 15) * 24;
+    }
+  }, [trialUnit, customTrialDuration, trialHoursPreset, trialDaysPreset]);
+
+  // Validación de pasos
   const validateStep = (step: number): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (step === 1) {
-      if (!name.trim()) {
-        newErrors.name = 'Ingresa el nombre del negocio.';
-      }
-      if (!industryId) {
-        newErrors.industryId = 'Selecciona el tipo de negocio.';
-      }
+      if (!name.trim()) newErrors.name = 'Ingresá el nombre del negocio.';
+      if (!industryId) newErrors.industryId = 'Seleccioná el tipo de negocio.';
     }
 
     if (step === 2) {
-      if (!hasDelivery && !hasPOS && !hasCarteraCobro && !hasCitas) {
-        newErrors.products = 'Debes seleccionar al menos un producto contratado.';
+      if (!hasPOS && !hasCarteraCobro && !hasCitas && !hasDelivery) {
+        newErrors.products = 'Marcá al menos un producto para el negocio.';
       }
-      if (hasDelivery && businessType === 'EMPRESA_RIDERS') {
-        const comm = Number(commissionRate);
-        if (isNaN(comm) || comm <= 0 || comm > 100) {
-          newErrors.commissionRate = 'Ingresa un porcentaje de comisión válido (1-100).';
-        }
+      if (hasPOS && (!posMonthlyFee || Number(posMonthlyFee) < 0)) {
+        newErrors.posMonthlyFee = 'Ingresá una tarifa válida para POS.';
+      }
+      if (hasCarteraCobro && (!carteraMonthlyFee || Number(carteraMonthlyFee) < 0)) {
+        newErrors.carteraMonthlyFee = 'Ingresá una tarifa válida para Finanzas.';
       }
     }
 
     if (step === 3) {
-      if (hasPOS) {
-        if (!isUnlimitedDevices) {
-          const devs = parseInt(maxDevices, 10);
-          if (isNaN(devs) || devs < 1) {
-            newErrors.maxDevices = 'Ingresa una cantidad válida de computadoras (mínimo 1).';
+      if (saleModality === 'MEMBRESIA_MENSUAL') {
+        if (startType === 'PAID') {
+          const amt = Number(initialPaidAmount);
+          if (isNaN(amt) || amt <= 0) {
+            newErrors.initialPaidAmount = 'Ingresá un monto mayor a 0.';
+          }
+          if (!initialPaidAt) {
+            newErrors.initialPaidAt = 'Indicá la fecha del pago recibido.';
           }
         }
-        if (posMonthlyFee.trim()) {
-          const pmf = Number(posMonthlyFee);
-          if (isNaN(pmf) || pmf < 0) {
-            newErrors.posMonthlyFee = 'La tarifa de POS debe ser un número mayor o igual a 0.';
+      } else {
+        const tot = Number(commercialTotalPrice);
+        if (isNaN(tot) || tot <= 0) {
+          newErrors.commercialTotalPrice = 'Ingresá un precio total mayor a 0.';
+        }
+        if (commercialPaymentType === 'CREDITO') {
+          const down = Number(commercialDownPayment);
+          if (isNaN(down) || down < 0 || down >= tot) {
+            newErrors.commercialDownPayment = 'La prima debe ser menor al total y mayor a 0.';
           }
         }
-        if (webAdminEnabled && webBillingEnabled) {
-          if (!isUnlimitedWebDevices) {
-            const wdevs = parseInt(maxWebDevices, 10);
-            if (isNaN(wdevs) || wdevs < 0) {
-              newErrors.maxWebDevices = 'Los dispositivos web autorizados no pueden ser negativos.';
-            }
-          }
-          if (webBillingMonthlyUsd.trim()) {
-            const wbUsd = Number(webBillingMonthlyUsd);
-            if (isNaN(wbUsd) || wbUsd < 0) {
-              newErrors.webBillingMonthlyUsd = 'La tarifa del módulo no puede ser negativa.';
-            }
-          }
-        }
-      }
-      if (hasDelivery && businessType === 'NEGOCIO' && deliveryMonthlyFee.trim()) {
-        const dmf = Number(deliveryMonthlyFee);
-        if (isNaN(dmf) || dmf < 0) {
-          newErrors.deliveryMonthlyFee = 'La tarifa de delivery debe ser un número válido.';
-        }
-      }
-      if (hasCarteraCobro && carteraMonthlyFee.trim()) {
-        const cmf = Number(carteraMonthlyFee);
-        if (isNaN(cmf) || cmf < 0) {
-          newErrors.carteraMonthlyFee = 'La tarifa de finanzas debe ser un número válido.';
-        }
-      }
-      if (hasCitas && citasMonthlyFee.trim()) {
-        const citmf = Number(citasMonthlyFee);
-        if (isNaN(citmf) || citmf < 0) {
-          newErrors.citasMonthlyFee = 'La tarifa de citas debe ser un número válido.';
+        const paidToday = Number(commercialPaidTodayAmount);
+        if (isNaN(paidToday) || paidToday <= 0) {
+          newErrors.commercialPaidTodayAmount = 'Ingresá el monto recibido hoy (mayor a 0).';
         }
       }
     }
 
     if (step === 4) {
-      if (!startType) {
-        newErrors.startType = 'Elegí cómo empieza este cliente: prueba gratis o primer mes pagado.';
-      } else if (startType === 'TRIAL') {
-        if (trialUnit === 'HOURS') {
-          const h = effectiveTrialHours;
-          if (!h || h < 1) {
-            newErrors.trialDuration = 'Ingresá una cantidad de horas válida (mínimo 1 hora).';
-          }
-        } else {
-          const d = effectiveTrialDays;
-          if (!d || d < 1) {
-            newErrors.trialDuration = 'Ingresá una cantidad de días válida (mínimo 1 día).';
-          }
-        }
-      } else {
-        const amt = Number(initialPaidAmount || totalEstimatedUsd);
-        if (isNaN(amt) || amt <= 0) {
-          newErrors.initialPaidAmount = 'Ingresá el monto que el cliente pagó (mayor a 0).';
-        }
-        if (!initialPaidAt) {
-          newErrors.initialPaidAt = 'Indicá la fecha en que se recibió el pago.';
-        } else if (initialPaidAt > todayIso) {
-          newErrors.initialPaidAt = 'La fecha del pago no puede ser futura.';
-        }
+      if (!isUnlimitedDevices) {
+        const dev = parseInt(maxDevices, 10);
+        if (isNaN(dev) || dev < 1) newErrors.maxDevices = 'Ingresá al menos 1 computadora autorizada.';
+      }
+      if (webBillingEnabled && !webAdminEnabled) {
+        newErrors.webBilling = 'La facturación web requiere que el acceso a la web admin esté habilitado.';
       }
     }
 
     if (step === 5) {
-      if (!encargadoName.trim()) {
-        newErrors.encargadoName = 'Ingresa el nombre del primer encargado.';
-      }
+      if (!encargadoName.trim()) newErrors.encargadoName = 'Ingresá el nombre del encargado.';
       if (!encargadoEmail.trim()) {
-        newErrors.encargadoEmail = 'Ingresa el correo del encargado.';
+        newErrors.encargadoEmail = 'Ingresá el correo del encargado.';
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(encargadoEmail.trim())) {
-        newErrors.encargadoEmail = 'Ingresa un formato de correo electrónico válido.';
+        newErrors.encargadoEmail = 'Ingresá un correo electrónico válido.';
       }
       if (!encargadoPassword) {
-        newErrors.encargadoPassword = 'Crea una contraseña temporal inicial.';
+        newErrors.encargadoPassword = 'Creá una contraseña temporal.';
       } else if (encargadoPassword.length < 6) {
         newErrors.encargadoPassword = 'La contraseña debe tener al menos 6 caracteres.';
       }
-
     }
 
     setErrors(newErrors);
@@ -541,1065 +400,1348 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
     }
   };
 
-  const handlePrev = () => {
+  const handleBack = () => {
     setErrors({});
     setCurrentStep((prev) => Math.max(1, prev - 1) as 1 | 2 | 3 | 4 | 5);
   };
 
-  // Creación del negocio
-  const handleFinalSubmit = async () => {
-    if (!validateStep(4)) {
-      setCurrentStep(4);
-      return;
-    }
+  // Guardar negocio
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!validateStep(5)) return;
-    if (!startType) return;
 
-    setIsSubmitting(true);
+    try {
+      const isOneTime = saleModality !== 'MEMBRESIA_MENSUAL';
 
-    const derivedVertical = posVertical;
-    const finalMaxDevices = isUnlimitedDevices ? null : parseInt(maxDevices, 10) || 1;
-    // La prueba del POS y la vigencia se derivan de la decisión del paso 4:
-    // - Prueba gratis: horas y días según lo configurado (en horas o en días).
-    // - Primer mes pagado: sin prueba (null), para que el POS no quede en modo prueba.
-    const finalTrialHours = startType === 'TRIAL' ? effectiveTrialHours : null;
-    const finalTrialDays = startType === 'TRIAL' ? effectiveTrialDays : undefined;
-    const finalPosMonthlyFee = posMonthlyFee.trim() ? Number(posMonthlyFee) : undefined;
-    const finalDeliveryMonthlyFee =
-      hasDelivery && businessType === 'NEGOCIO' && deliveryMonthlyFee.trim()
-        ? Number(deliveryMonthlyFee)
-        : undefined;
-    const finalCarteraMonthlyFee =
-      hasCarteraCobro && carteraMonthlyFee.trim() ? Number(carteraMonthlyFee) : undefined;
-    const finalCitasMonthlyFee =
-      hasCitas && citasMonthlyFee.trim() ? Number(citasMonthlyFee) : undefined;
+      let commercialPayload = undefined;
+      if (isOneTime) {
+        const tot = Number(commercialTotalPrice);
+        const isCred = commercialPaymentType === 'CREDITO';
+        const down = isCred ? Number(commercialDownPayment) : tot;
 
-    const finalWebAdminEnabled = hasPOS ? webAdminEnabled : false;
-    const finalWebBillingEnabled = hasPOS ? (webAdminEnabled ? webBillingEnabled : false) : false;
-    const finalMaxWebDevices = hasPOS
-      ? isUnlimitedWebDevices
-        ? null
-        : parseInt(maxWebDevices, 10) || 2
-      : null;
-    const finalWebBillingMonthlyUsd =
-      hasPOS && webBillingMonthlyUsd.trim() ? Number(webBillingMonthlyUsd) : null;
+        const piecesToSend =
+          saleModality === 'COMBO_COMPLETO'
+            ? comboPieces.filter((p) => p.selected)
+            : saleModality === 'COMBO_PARCIAL'
+            ? partialPieces.filter((p) => p.selected)
+            : [];
 
-    createMutation.mutate(
-      {
+        commercialPayload = {
+          saleModality,
+          paymentType: commercialPaymentType,
+          totalPrice: tot,
+          downPayment: down,
+          currency: commercialCurrency,
+          installmentsCount: isCred ? commercialInstallmentsCount : 0,
+          maintenanceFreeMonths,
+          maintenanceFeeNio: maintenanceMonthlyNio,
+          equipment: piecesToSend.map((p) => ({
+            equipmentType: p.equipmentType,
+            name: p.name,
+            brand: p.brand || 'Genérica',
+            model: p.model || 'POS',
+            serialNumber: p.serialNumber?.trim() || undefined,
+            price: p.price !== undefined ? Number(p.price) : undefined,
+            status: 'ENTREGADO',
+          })),
+          initialPayment: Number(commercialPaidTodayAmount) > 0 ? {
+            kind: isCred ? 'PRIMA' : 'PAGO',
+            amount: Number(commercialPaidTodayAmount),
+            currency: commercialCurrency,
+            paymentMethod: commercialPaymentMethod,
+            paidAt: commercialPaidAt,
+            referenceNumber: commercialReferenceNumber || undefined,
+          } : undefined,
+        };
+      }
+
+      const input: any = {
         name: name.trim(),
-        industryId,
+        industryId: selectedIndustry?.id || undefined,
+        type: selectedIndustry?.name || undefined,
+        hasPOS,
+        posMonthlyFee: hasPOS ? Number(posMonthlyFee) : undefined,
+        hasCarteraCobro,
+        carteraMonthlyFee: hasCarteraCobro ? Number(carteraMonthlyFee) : undefined,
+        hasCitas,
+        citasMonthlyFee: hasCitas ? Number(citasMonthlyFee) : undefined,
+        hasDelivery,
+        deliveryMonthlyFee: hasDelivery ? Number(deliveryMonthlyFee) : undefined,
         tracksBatches,
         useListPrice,
-        businessType: hasDelivery ? businessType : 'NEGOCIO',
-        commissionRate:
-          hasDelivery && businessType === 'EMPRESA_RIDERS'
-            ? Number(commissionRate) / 100 || 0.15
+        posVertical,
+        salonProfile,
+        maxDevices: isUnlimitedDevices ? null : Number(maxDevices),
+        maxMobileDevices: Number(maxMobileDevices) || 0,
+        webAdminEnabled,
+        webBillingEnabled,
+        maxWebDevices: isUnlimitedWebDevices ? null : Number(maxWebDevices),
+        webBillingMonthlyUsd: webBillingEnabled && webBillingMonthlyUsd ? Number(webBillingMonthlyUsd) : null,
+        saleModality,
+        commercial: commercialPayload,
+        startType: !isOneTime ? startType : undefined,
+        trialHours: !isOneTime && startType === 'TRIAL' ? effectiveTrialHours : null,
+        trialDays: !isOneTime && startType === 'TRIAL' ? Math.max(1, Math.round(effectiveTrialHours / 24)) : undefined,
+        firstPayment:
+          !isOneTime && startType === 'PAID'
+            ? {
+                amount: Number(initialPaidAmount),
+                paymentMethod: initialPaymentMethod,
+                paidAt: initialPaidAt,
+              }
             : undefined,
-        altCommissionRate:
-          hasDelivery && businessType === 'EMPRESA_RIDERS'
-            ? Number(altCommissionRate) / 100 || 0.12
-            : undefined,
-        altCommissionDistanceKm:
-          hasDelivery && businessType === 'EMPRESA_RIDERS'
-            ? Number(altCommissionDistanceKm) || 40
-            : undefined,
-        dispatchTimeoutMin:
-          hasDelivery && businessType === 'EMPRESA_RIDERS'
-            ? Number(dispatchTimeoutMin) || 3
-            : undefined,
-        hasDelivery,
-        deliveryMonthlyFee: finalDeliveryMonthlyFee,
-        hasPOS,
-        posVertical: hasPOS ? derivedVertical : undefined,
-        salonProfile: hasPOS ? salonProfile : undefined,
-        maxDevices: hasPOS ? finalMaxDevices : undefined,
-        trialHours: hasPOS ? finalTrialHours : undefined,
-        posMonthlyFee: finalPosMonthlyFee,
-        webAdminEnabled: finalWebAdminEnabled,
-        webBillingEnabled: finalWebBillingEnabled,
-        maxWebDevices: finalMaxWebDevices,
-        webBillingMonthlyUsd: finalWebBillingMonthlyUsd,
-        hasCarteraCobro,
-        carteraMonthlyFee: finalCarteraMonthlyFee,
-        hasCitas,
-        citasMonthlyFee: finalCitasMonthlyFee,
         encargado: {
           name: encargadoName.trim(),
           email: encargadoEmail.trim(),
           password: encargadoPassword,
         },
-        startType,
-        trialDays: finalTrialDays,
-        firstPayment: startType === 'PAID' ? {
-          amount: initialPaidAmount.trim() ? Number(initialPaidAmount) : totalEstimatedUsd,
-          paymentMethod: initialPaymentMethod,
-          paidAt: initialPaidAt,
-        } : undefined,
-      },
-      {
-        onSuccess: async (data: CreateBusinessResult) => {
-          const bizId = data.business.id;
+      };
 
-          try {
-            if (startType === 'PAID' && initialProofFile && (data as any).membership?.id) {
-              try {
-                const formData = new FormData();
-                formData.append('file', initialProofFile);
-                await apiClient.post(
-                  `/superadmin/memberships/${(data as any).membership.id}/proof`,
-                  formData,
-                  { headers: { 'Content-Type': 'multipart/form-data' } }
-                );
-              } catch (proofErr) {
-                console.warn('Error subiendo comprobante inicial:', proofErr);
-              }
-            }
-            const activationPromises: Promise<any>[] = [];
+      const result = await createMutation.mutateAsync(input);
 
-            if (hasDelivery) {
-              activationPromises.push(
-                apiClient.post(`/businesses/${bizId}/products/DELIVERY/activate`, {
-                  deliveryMonthlyFee: finalDeliveryMonthlyFee,
-                  commissionRate:
-                    businessType === 'EMPRESA_RIDERS'
-                      ? Number(commissionRate) / 100 || 0.15
-                      : 0.15,
-                  altCommissionRate:
-                    businessType === 'EMPRESA_RIDERS'
-                      ? Number(altCommissionRate) / 100 || 0.12
-                      : 0.12,
-                  altCommissionDistanceKm:
-                    businessType === 'EMPRESA_RIDERS'
-                      ? Number(altCommissionDistanceKm) || 40
-                      : 40,
-                  dispatchTimeoutMin:
-                    businessType === 'EMPRESA_RIDERS'
-                      ? Number(dispatchTimeoutMin) || 3
-                      : 3,
-                  reason: 'Activación inicial al crear negocio',
-                })
-              );
-            }
-
-            if (hasPOS) {
-              activationPromises.push(
-                apiClient.post(`/businesses/${bizId}/products/POS/activate`, {
-                  posVertical: derivedVertical,
-                  posMonthlyFee: finalPosMonthlyFee,
-                  reason: 'Activación inicial al crear negocio',
-                })
-              );
-              activationPromises.push(
-                apiClient.patch(`/superadmin/businesses/${bizId}/pos-subscription`, {
-                  salonProfile,
-                  maxDevices: finalMaxDevices,
-                  trialHours: finalTrialHours,
-                  webAdminEnabled: finalWebAdminEnabled,
-                  webBillingEnabled: finalWebBillingEnabled,
-                  maxWebDevices: finalMaxWebDevices,
-                  webBillingMonthlyUsd: finalWebBillingMonthlyUsd,
-                })
-              );
-            }
-
-            if (hasCarteraCobro) {
-              activationPromises.push(
-                apiClient.post(`/businesses/${bizId}/products/CARTERA_COBRO/activate`, {
-                  carteraMonthlyFee: finalCarteraMonthlyFee,
-                  reason: 'Activación inicial al crear negocio',
-                })
-              );
-            }
-
-            if (hasCitas) {
-              activationPromises.push(
-                apiClient.post(`/businesses/${bizId}/products/CITAS/activate`, {
-                  citasMonthlyFee: finalCitasMonthlyFee,
-                  reason: 'Activación inicial al crear negocio',
-                })
-              );
-            }
-
-            if (activationPromises.length > 0) {
-              await Promise.all(activationPromises);
-            }
-          } catch (activateErr) {
-            console.error('Error al activar productos tras crear negocio:', activateErr);
-          } finally {
-            setIsSubmitting(false);
-          }
-
-          resetForm();
-          onClose();
-          onSuccess({
-            businessName: data.business.name,
-            email: data.encargado.email,
-            password: data.encargado.temporaryPassword,
-          });
-        },
-        onError: () => {
-          // El hook ya dispara toast de error. Mantenemos todos los datos intactos.
-          setIsSubmitting(false);
-        },
+      // Si subió comprobante inicial, intentamos enviarlo
+      const createdBizId = result?.business?.id;
+      if (initialProofFile && createdBizId && result?.membership?.id) {
+        try {
+          const formData = new FormData();
+          formData.append('file', initialProofFile);
+          await apiClient.post(
+            `/superadmin/memberships/${result.membership.id}/proof`,
+            formData,
+            { headers: { 'Content-Type': 'multipart/form-data' } }
+          );
+        } catch {
+          // Ya se creó el negocio; el comprobante no bloquea
+        }
       }
-    );
+
+      onSuccess({
+        businessName: name.trim(),
+        email: encargadoEmail.trim(),
+        password: encargadoPassword,
+      });
+      onClose();
+    } catch {
+      // Manejado en mutación
+    }
   };
 
-  const resetForm = () => {
-    setCurrentStep(1);
-    setName('');
-    setIndustryId('');
-    setIndustrySearch('');
-    setIsIndustryDropdownOpen(false);
-    setPosVertical('RESTAURANTE');
-    setSalonProfile('RESTAURANTE');
-    setIsAdvancedOpen(false);
-    setHasCustomizedProfile(false);
-    setHasDelivery(false);
-    setHasPOS(true);
-    setHasCarteraCobro(false);
-    setHasCitas(false);
-    setHasUserModifiedProducts(false);
-    setTracksBatches(false);
-    setUseListPrice(false);
-    setBusinessType('NEGOCIO');
-    setCommissionRate('15');
-    setAltCommissionRate('12');
-    setAltCommissionDistanceKm('40');
-    setDispatchTimeoutMin('3');
-    setMaxDevices('1');
-    setIsUnlimitedDevices(false);
-    setPosMonthlyFee('');
-    setWebAdminEnabled(true);
-    setWebBillingEnabled(false);
-    setMaxWebDevices('2');
-    setIsUnlimitedWebDevices(false);
-    setWebBillingMonthlyUsd('');
-    setDeliveryMonthlyFee('');
-    setCarteraMonthlyFee('');
-    setCitasMonthlyFee('');
-    setEncargadoName('');
-    setEncargadoEmail('');
-    setEncargadoPassword('');
-    setStartType('TRIAL');
-    setTrialUnit('HOURS');
-    setTrialHoursPreset(6);
-    setCustomTrialHours('');
-    setTrialDaysPreset(15);
-    setCustomTrialDays('');
-    setInitialPaidAmount('');
-    setInitialPaidAt(todayIso);
-    setInitialPaymentMethod('TRANSFERENCIA');
-    setInitialProofFile(null);
-    if (initialProofPreview) URL.revokeObjectURL(initialProofPreview);
-    setInitialProofPreview(null);
-    setErrors({});
-    setIsSubmitting(false);
-  };
-
-  const handleClose = () => {
-    if (isSubmitting) return;
-    resetForm();
-    onClose();
-  };
-
-  // Footer fijo al pie con botones
-  const modalFooter = (
-    <div className="flex items-center justify-between gap-3">
-      <div>
-        {currentStep > 1 ? (
-          <button
-            type="button"
-            onClick={handlePrev}
-            disabled={isSubmitting}
-            className="inline-flex items-center justify-center gap-1.5 h-11 min-h-[44px] px-4 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
-          >
-            <ArrowLeft size={14} />
-            <span>Atrás</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={isSubmitting}
-            className="inline-flex items-center justify-center h-11 min-h-[44px] px-4 rounded-xl border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2">
-        {currentStep < 5 ? (
-          <button
-            type="button"
-            onClick={handleNext}
-            className="inline-flex items-center justify-center gap-1.5 h-11 min-h-[44px] px-5 rounded-xl bg-gray-900 text-white text-xs font-semibold hover:bg-black transition-colors shadow-xs cursor-pointer"
-          >
-            <span>Siguiente</span>
-            <ArrowRight size={15} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleFinalSubmit}
-            disabled={isSubmitting || createMutation.isPending}
-            className="inline-flex items-center justify-center gap-2 h-11 min-h-[44px] px-6 rounded-xl bg-purple-700 text-white text-xs font-bold hover:bg-purple-800 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
-          >
-            {isSubmitting || createMutation.isPending ? (
-              <>
-                <CircleNotch size={16} className="animate-spin" />
-                <span>Creando negocio...</span>
-              </>
-            ) : (
-              <>
-                <Check size={16} weight="bold" />
-                <span>
-                  {startType === 'TRIAL'
-                    ? trialUnit === 'HOURS'
-                      ? `Crear negocio con prueba gratis (${effectiveTrialHours}h)`
-                      : `Crear negocio con prueba gratis (${effectiveTrialDays} días)`
-                    : 'Crear negocio y registrar pago'}
-                </span>
-              </>
-            )}
-          </button>
-        )}
-      </div>
-    </div>
-  );
+  const stepsList = [
+    { num: 1, title: 'Negocio' },
+    { num: 2, title: 'Productos' },
+    { num: 3, title: 'Forma de venta' },
+    { num: 4, title: 'Equipos y accesos' },
+    { num: 5, title: 'Encargado y resumen' },
+  ];
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={handleClose}
-      title="Crear Nuevo Negocio"
-      subtitle="Asistente de configuración paso a paso"
-      maxWidth="max-w-2xl"
-      footer={modalFooter}
+      onClose={onClose}
+      title="Crear nuevo negocio"
+      subtitle={`Paso ${currentStep} de 5: ${stepsList[currentStep - 1].title}`}
+      maxWidth="max-w-3xl"
+      footer={
+        <div className="flex items-center justify-between">
+          {currentStep > 1 ? (
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={createMutation.isPending}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <ArrowLeft size={14} />
+              <span>Atrás</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={createMutation.isPending}
+              className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+          )}
+
+          {currentStep < 5 ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <span>Siguiente</span>
+              <ArrowRight size={14} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={createMutation.isPending}
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {createMutation.isPending ? (
+                <>
+                  <CircleNotch size={14} className="animate-spin" />
+                  <span>Creando negocio...</span>
+                </>
+              ) : (
+                <span>
+                  {saleModality === 'MEMBRESIA_MENSUAL' && startType === 'PAID'
+                    ? 'Crear negocio y registrar pago'
+                    : saleModality !== 'MEMBRESIA_MENSUAL' && Number(commercialPaidTodayAmount) > 0
+                    ? 'Crear negocio y registrar pago'
+                    : 'Crear negocio'}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      }
     >
-      <div className="space-y-4">
-        {/* Barra de progreso de 5 pasos */}
+      <div className="space-y-6">
+        {/* Stepper limpio en una sola línea */}
         <div className="pb-3 border-b border-gray-100">
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5">
-            {[
-              { num: 1, label: 'Negocio', icon: Storefront },
-              { num: 2, label: 'Productos', icon: Package },
-              { num: 3, label: 'Condiciones', icon: Receipt },
-              { num: 4, label: 'Inicio y cobro', icon: Clock },
-              { num: 5, label: 'Confirmación', icon: ShieldCheck },
-            ].map((step) => {
-              const isDone = currentStep > step.num;
-              const isCurrent = currentStep === step.num;
-              const StepIcon = step.icon;
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+            {stepsList.map((s, idx) => {
+              const isCurrent = currentStep === s.num;
+              const isPassed = currentStep > s.num;
               return (
-                <div key={step.num} className="flex flex-col gap-1.5">
-                  <div
-                    className={`flex items-center gap-1.5 p-1 sm:p-1.5 rounded-lg transition-all ${
-                      isCurrent
-                        ? 'bg-purple-50 ring-1 ring-purple-600/30'
-                        : isDone
-                        ? 'bg-gray-50'
-                        : 'opacity-60'
-                    }`}
-                  >
-                    <div
-                      className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 transition-colors ${
-                        isDone
-                          ? 'bg-emerald-600 text-white'
-                          : isCurrent
-                          ? 'bg-purple-700 text-white shadow-xs'
-                          : 'bg-gray-200 text-gray-500'
+                <React.Fragment key={s.num}>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold ${
+                        isCurrent
+                          ? 'bg-purple-700 text-white'
+                          : isPassed
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-gray-100 text-gray-500'
                       }`}
                     >
-                      {isDone ? <Check size={11} weight="bold" /> : <StepIcon size={12} weight={isCurrent ? 'bold' : 'regular'} />}
-                    </div>
+                      {isPassed ? <Check size={11} weight="bold" /> : s.num}
+                    </span>
                     <span
-                      className={`text-[11px] font-bold truncate ${
+                      className={`text-xs ${
                         isCurrent
-                          ? 'text-purple-950 font-black'
-                          : isDone
+                          ? 'font-bold text-gray-900'
+                          : isPassed
                           ? 'text-gray-700'
                           : 'text-gray-400'
-                      } ${isCurrent ? 'inline' : 'hidden md:inline'}`}
+                      }`}
                     >
-                      {step.label}
+                      {s.title}
                     </span>
                   </div>
-                  <div
-                    className={`h-1 w-full rounded-full transition-all ${
-                      isDone
-                        ? 'bg-emerald-600'
-                        : isCurrent
-                        ? 'bg-purple-700'
-                        : 'bg-gray-200'
-                    }`}
-                  />
-                </div>
+                  {idx < stepsList.length - 1 && (
+                    <span className="text-gray-300 shrink-0">·</span>
+                  )}
+                </React.Fragment>
               );
             })}
           </div>
         </div>
 
-        {/* ============================================================== */}
-        {/* PASO 1: NEGOCIO */}
-        {/* ============================================================== */}
-        {currentStep === 1 && (
-          <div className="space-y-4 animate-fade-in">
-            {/* Nombre del negocio */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Nombre del negocio *
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (errors.name) {
-                    setErrors((prev) => {
-                      const next = { ...prev };
-                      delete next.name;
-                      return next;
-                    });
-                  }
-                }}
-                placeholder="Ej: Pollos El Buen Sabor"
-                autoFocus
-                className={`w-full h-10 px-3 rounded-lg border text-xs text-gray-900 bg-white focus:outline-none ${
-                  errors.name
-                    ? 'border-rose-300 focus:border-rose-500'
-                    : 'border-gray-200 focus:border-gray-900'
-                }`}
-              />
-              {errors.name && (
-                <p className="text-xs text-rose-600 mt-1">{errors.name}</p>
-              )}
-            </div>
+        {/* Cuerpo del formulario: una sola superficie blanca */}
+        <div className="space-y-6">
+          {/* ═══════════════════════════════════════════════ */}
+          {/* PASO 1: NEGOCIO */}
+          {/* ═══════════════════════════════════════════════ */}
+          {currentStep === 1 && (
+            <div className="space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Nombre del negocio *
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (errors.name) setErrors((prev) => ({ ...prev, name: '' }));
+                  }}
+                  placeholder="Ej. Farmacia San Rafael, Taller Central, Café París"
+                  className={`w-full h-10 px-3 rounded-lg border text-xs bg-white text-gray-900 focus:outline-none focus:border-purple-600 ${
+                    errors.name ? 'border-rose-400 ring-1 ring-rose-400' : 'border-gray-300'
+                  }`}
+                  autoFocus
+                />
+                {errors.name ? (
+                  <p className="text-xs text-rose-600 mt-1">{errors.name}</p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">Nombre comercial con el que se identifica el local.</p>
+                )}
+              </div>
 
-            {/* Tipo de negocio (selector con búsqueda) */}
-            <div className="relative">
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Tipo de negocio *
-              </label>
+              {/* Selector de rubro / tipo */}
+              <div className="relative">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Tipo o rubro de negocio *
+                </label>
 
-              {/* Botón selector que abre el desplegable de búsqueda */}
-              <button
-                type="button"
-                onClick={() => setIsIndustryDropdownOpen(!isIndustryDropdownOpen)}
-                className={`w-full h-10 px-3 rounded-lg border text-xs text-left flex items-center justify-between transition-all bg-white cursor-pointer ${
-                  errors.industryId
-                    ? 'border-rose-300'
-                    : isIndustryDropdownOpen
-                    ? 'border-gray-900 ring-1 ring-gray-900'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <Storefront size={16} className="text-gray-400 shrink-0" />
-                  <span className={selectedIndustry ? 'text-gray-900 font-medium' : 'text-gray-400'}>
-                    {selectedIndustry
-                      ? selectedIndustry.name
-                      : 'Selecciona o busca un tipo de negocio...'}
-                  </span>
-                </div>
-                <span className="text-xs text-gray-400 uppercase font-semibold">
-                  {isIndustryDropdownOpen ? 'Cerrar' : 'Elegir'}
-                </span>
-              </button>
-
-              {errors.industryId && (
-                <p className="text-xs text-rose-600 mt-1">{errors.industryId}</p>
-              )}
-
-              {/* Dropdown flotante con buscador */}
-              {isIndustryDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl z-30 p-2 space-y-2 animate-fade-in">
-                  <div className="relative">
-                    <MagnifyingGlass
-                      size={14}
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-                    />
-                    <input
-                      type="text"
-                      value={industrySearch}
-                      onChange={(e) => setIndustrySearch(e.target.value)}
-                      placeholder="Buscar tipo de negocio..."
-                      autoFocus
-                      className="w-full h-8 pl-8 pr-3 rounded-lg border border-gray-200 text-xs text-gray-900 focus:outline-none focus:border-gray-900 bg-gray-50/50"
-                    />
-                  </div>
-
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {filteredIndustries.length === 0 ? (
-                      <p className="p-3 text-center text-xs text-gray-400">
-                        No se encontraron tipos con "{industrySearch}"
-                      </p>
-                    ) : (
-                      filteredIndustries.map((ind) => {
-                        const isSelected = ind.id === industryId;
-                        const isTaller =
-                          ind.code === 'taller' || ind.name.toLowerCase().includes('taller');
-                        return (
-                          <div
-                            key={ind.id}
-                            onClick={() => handleSelectIndustry(ind)}
-                            className={`p-2 rounded-lg text-xs cursor-pointer flex items-center justify-between transition-colors ${
-                              isSelected
-                                ? 'bg-purple-50 text-purple-950 font-semibold border border-purple-200'
-                                : 'hover:bg-gray-50 text-gray-700'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              {isTaller ? (
-                                <Wrench size={14} className="text-amber-600 shrink-0" />
-                              ) : ind.posVertical === 'RESTAURANTE' ? (
-                                <ForkKnife size={14} className="text-purple-600 shrink-0" />
-                              ) : (
-                                <Storefront size={14} className="text-blue-600 shrink-0" />
-                              )}
-                              <span>{ind.name}</span>
-                            </div>
-                            <span className="text-xs font-medium text-gray-400">
-                              {isTaller ? 'Taller' : ind.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'}
-                            </span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Recuadro de deducción automática */}
-            {selectedIndustry && industryDeduction && (
-              <div className="space-y-2.5">
-                {industryDeduction.hasClearCorrespondence ? (
-                  <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200/80 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5">
-                      <div className="p-1.5 rounded-lg bg-purple-100 text-purple-700 shrink-0 mt-0.5">
-                        <Sparkle size={16} weight="duotone" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-purple-950">
-                          Detectamos: {selectedIndustry.name} → Sistema POS, perfil{' '}
-                          {profileLabel}
-                        </p>
-                        <p className="text-xs text-purple-800/80 mt-0.5">
-                          {profileDescription}
-                        </p>
-                      </div>
+                {!selectedIndustry ? (
+                  <div>
+                    <div className="relative">
+                      <MagnifyingGlass
+                        size={16}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        type="text"
+                        value={industrySearch}
+                        onChange={(e) => {
+                          setIndustrySearch(e.target.value);
+                          setIsIndustryDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsIndustryDropdownOpen(true)}
+                        placeholder="Buscá un rubro: Farmacia, Taller, Restaurante, Ferretería..."
+                        className={`w-full h-10 pl-9 pr-3 rounded-lg border text-xs bg-white text-gray-900 focus:outline-none focus:border-purple-600 ${
+                          errors.industryId ? 'border-rose-400 ring-1 ring-rose-400' : 'border-gray-300'
+                        }`}
+                      />
                     </div>
+                    {errors.industryId && (
+                      <p className="text-xs text-rose-600 mt-1">{errors.industryId}</p>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-                      className="text-xs font-semibold text-purple-700 hover:text-purple-900 underline shrink-0 cursor-pointer"
-                    >
-                      {isAdvancedOpen ? 'Ocultar' : 'Cambiar'}
-                    </button>
+                    {isIndustryDropdownOpen && (
+                      <div className="mt-1.5 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-sm divide-y divide-gray-100">
+                        {filteredIndustries.length === 0 ? (
+                          <div className="p-3 text-xs text-gray-500 text-center">
+                            No se encontraron rubros con esa búsqueda.
+                          </div>
+                        ) : (
+                          filteredIndustries.map((ind) => (
+                            <button
+                              key={ind.id}
+                              type="button"
+                              onClick={() => {
+                                setIndustryId(ind.id);
+                                setIsIndustryDropdownOpen(false);
+                                setIndustrySearch('');
+                                if (errors.industryId) {
+                                  setErrors((prev) => ({ ...prev, industryId: '' }));
+                                }
+                              }}
+                              className="w-full text-left p-2.5 hover:bg-gray-50 transition-colors flex items-center justify-between cursor-pointer"
+                            >
+                              <div>
+                                <span className="text-xs font-semibold text-gray-900 block">
+                                  {ind.name}
+                                </span>
+                                <span className="text-xs text-gray-500 block">
+                                  {ind.posVertical === 'RESTAURANTE' ? 'Restaurante / mesas' : 'Retail / mostrador'}
+                                </span>
+                              </div>
+                              <span className="text-xs text-purple-700 font-medium">Elegir</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  /* Caso sin correspondencia clara (General) */
-                  <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
-                    <div className="flex items-center gap-2 text-amber-900 text-xs font-semibold">
-                      <Info size={16} className="text-amber-600 shrink-0" />
-                      <span>Este tipo de negocio no tiene un perfil de salón predefinido</span>
-                    </div>
-                    <p className="text-xs text-amber-800">
-                      Selecciona si operará como restaurante con mesas o como taller automotriz con bahías de servicio:
-                    </p>
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSalonProfile('RESTAURANTE');
-                          setHasCustomizedProfile(true);
-                        }}
-                        className={`p-2 rounded-lg border text-xs font-medium flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                          salonProfile === 'RESTAURANTE'
-                            ? 'border-purple-600 bg-white shadow-2xs text-purple-950 font-bold'
-                            : 'border-gray-200 bg-white/70 text-gray-700 hover:border-gray-300'
-                        }`}
-                      >
-                        <ForkKnife size={14} className="text-purple-700" />
-                        <span>Perfil Restaurante</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSalonProfile('TALLER');
-                          setHasCustomizedProfile(true);
-                        }}
-                        className={`p-2 rounded-lg border text-xs font-medium flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                          salonProfile === 'TALLER'
-                            ? 'border-purple-600 bg-white shadow-2xs text-purple-950 font-bold'
-                            : 'border-gray-200 bg-white/70 text-gray-700 hover:border-gray-300'
-                        }`}
-                      >
-                        <Wrench size={14} className="text-amber-700" />
-                        <span>Perfil Taller</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Opciones avanzadas reveladas con "Cambiar" */}
-                {isAdvancedOpen && (
-                  <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-3 animate-fade-in">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">
-                        Opciones avanzadas de POS
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleResetToAutomatic}
-                        className="text-xs text-purple-700 hover:text-purple-900 font-medium cursor-pointer"
-                      >
-                        Restablecer automático
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">
-                          Vertical de POS
-                        </label>
-                        <select
-                          value={posVertical}
-                          onChange={(e) => {
-                            setPosVertical(e.target.value as 'RESTAURANTE' | 'RETAIL');
-                            setHasCustomizedProfile(true);
-                          }}
-                          className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                        >
-                          <option value="RESTAURANTE">Restaurante / Comedor</option>
-                          <option value="RETAIL">Retail / Comercio</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">
-                          Perfil del salón
-                        </label>
-                        <select
-                          value={salonProfile}
-                          onChange={(e) => {
-                            setSalonProfile(e.target.value as 'RESTAURANTE' | 'TALLER');
-                            setHasCustomizedProfile(true);
-                          }}
-                          className="w-full h-8 px-2.5 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
-                        >
-                          <option value="RESTAURANTE">Restaurante (Mesas y comandas)</option>
-                          <option value="TALLER">Taller (Bahías y servicios)</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ============================================================== */}
-        {/* PASO 2: PRODUCTOS CONTRATADOS */}
-        {/* ============================================================== */}
-        {currentStep === 2 && (
-          <div className="space-y-3.5 animate-fade-in">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Selecciona los productos contratados *
-              </label>
-              <span className="text-xs text-gray-400">Al menos uno obligatorio</span>
-            </div>
-
-            {errors.products && (
-              <p className="text-xs text-rose-600 font-medium">{errors.products}</p>
-            )}
-
-            {/* Grid 2x2 de productos */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Tarjeta 1: Sistema POS */}
-              <div
-                onClick={() => {
-                  setHasPOS(!hasPOS);
-                  setHasUserModifiedProducts(true);
-                }}
-                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                  hasPOS
-                    ? 'border-purple-600 bg-purple-50/50 shadow-2xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white opacity-60'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                        hasPOS ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-400'
-                      }`}
-                    >
-                      <Receipt size={17} weight="duotone" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-xs text-gray-900 leading-tight">Sistema POS</p>
-                      <p className="text-xs text-gray-500">Punto de venta y caja</p>
-                    </div>
-                  </div>
-                  <div
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 ${
-                      hasPOS ? 'bg-purple-600 border-purple-600 text-white' : 'border-gray-300 bg-white'
-                    }`}
-                  >
-                    {hasPOS && <Check size={12} weight="bold" />}
-                  </div>
-                </div>
-
-                {hasPOS && (
-                  <div className="pt-2 border-t border-purple-200/60 text-xs text-purple-950 font-medium">
-                    Perfil: <span className="font-bold">{profileLabel}</span> • Acceso web configurable en paso 3
-                  </div>
-                )}
-              </div>
-
-              {/* Tarjeta 2: TrackDeli (Delivery) */}
-              <div
-                onClick={() => {
-                  setHasDelivery(!hasDelivery);
-                  setHasUserModifiedProducts(true);
-                }}
-                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                  hasDelivery
-                    ? 'border-amber-500 bg-amber-50/50 shadow-2xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white opacity-60'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                        hasDelivery ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-400'
-                      }`}
-                    >
-                      <Motorcycle size={17} weight="duotone" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-xs text-gray-900 leading-tight">TrackDeli (Delivery)</p>
-                      <p className="text-xs text-gray-500">Despacho y pedidos a domicilio</p>
-                    </div>
-                  </div>
-                  <div
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 ${
-                      hasDelivery ? 'bg-amber-500 border-amber-500 text-white' : 'border-gray-300 bg-white'
-                    }`}
-                  >
-                    {hasDelivery && <Check size={12} weight="bold" />}
-                  </div>
-                </div>
-
-                {hasDelivery && (
-                  <div className="pt-2 border-t border-amber-200/60 text-xs text-amber-950 font-medium">
-                    Modelo: <span className="font-bold">{businessType === 'EMPRESA_RIDERS' ? 'Empresa de Riders' : 'Comercio Común'}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Tarjeta 3: Cartera de Cobro */}
-              <div
-                onClick={() => {
-                  setHasCarteraCobro(!hasCarteraCobro);
-                  setHasUserModifiedProducts(true);
-                }}
-                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                  hasCarteraCobro
-                    ? 'border-emerald-600 bg-emerald-50/50 shadow-2xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white opacity-60'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                        hasCarteraCobro ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-400'
-                      }`}
-                    >
-                      <Wallet size={17} weight="duotone" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-xs text-gray-900 leading-tight">Finanzas</p>
-                      <p className="text-xs text-gray-500">Cuentas por pagar, gastos y cartera</p>
-                    </div>
-                  </div>
-                  <div
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 ${
-                      hasCarteraCobro ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-gray-300 bg-white'
-                    }`}
-                  >
-                    {hasCarteraCobro && <Check size={12} weight="bold" />}
-                  </div>
-                </div>
-
-                {hasCarteraCobro && (
-                  <div className="pt-2 border-t border-emerald-200/60 text-xs text-emerald-950 font-medium">
-                    Módulo activo • Tarifa configurable en paso 3
-                  </div>
-                )}
-              </div>
-
-              {/* Tarjeta 4: Citas y Reservas */}
-              <div
-                onClick={() => {
-                  setHasCitas(!hasCitas);
-                  setHasUserModifiedProducts(true);
-                }}
-                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                  hasCitas
-                    ? 'border-sky-600 bg-sky-50/50 shadow-2xs'
-                    : 'border-gray-200 hover:border-gray-300 bg-white opacity-60'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                        hasCitas ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-400'
-                      }`}
-                    >
-                      <CalendarBlank size={17} weight="duotone" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-xs text-gray-900 leading-tight">Citas y Reservas</p>
-                      <p className="text-xs text-gray-500">Agenda online y reservas</p>
-                    </div>
-                  </div>
-                  <div
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 ${
-                      hasCitas ? 'bg-sky-600 border-sky-600 text-white' : 'border-gray-300 bg-white'
-                    }`}
-                  >
-                    {hasCitas && <Check size={12} weight="bold" />}
-                  </div>
-                </div>
-
-                {hasCitas && (
-                  <div className="pt-2 border-t border-sky-200/60 text-xs text-sky-950 font-medium">
-                    Módulo activo • Tarifa configurable en paso 3
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Control de lotes y vencimientos */}
-            <div className="p-3.5 rounded-xl border bg-white border-purple-200/80 flex items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-700 shrink-0 mt-0.5">
-                  <Package size={18} weight="duotone" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-900">
-                      Control de lotes y vencimientos
-                    </span>
-                    {tracksBatches && (
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                        Activo
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 leading-relaxed mt-0.5">
-                    Agrega Lote y Fecha de Vencimiento a compras, ventas, alertas y a la plantilla Excel.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setTracksBatches(!tracksBatches)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  tracksBatches ? 'bg-purple-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                    tracksBatches ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Usar precio de etiqueta */}
-            <div className="p-3.5 rounded-xl border bg-white border-blue-200/80 flex items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-700 shrink-0 mt-0.5">
-                  <Tag size={18} weight="duotone" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-900">
-                      Usar precio de etiqueta
-                    </span>
-                    {useListPrice && (
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                        Activo
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 leading-relaxed mt-0.5">
-                    Muestra precio de etiqueta y descuento en productos y comprobantes (farmacias)
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setUseListPrice(!useListPrice)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  useListPrice ? 'bg-blue-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                    useListPrice ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Configuración compacta de Delivery si está marcado */}
-            {hasDelivery && (
-              <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200 space-y-2.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
-                  <Motorcycle size={15} />
-                  <span>Modelo de Operación TrackDeli</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setBusinessType('NEGOCIO')}
-                    className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${
-                      businessType === 'NEGOCIO'
-                        ? 'border-amber-600 bg-white shadow-2xs font-semibold text-amber-950'
-                        : 'border-gray-200 bg-white/70 text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    <p className="font-bold">Comercio Común</p>
-                    <p className="text-xs text-gray-500">Membresía mensual fija</p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setBusinessType('EMPRESA_RIDERS')}
-                    className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${
-                      businessType === 'EMPRESA_RIDERS'
-                        ? 'border-amber-600 bg-white shadow-2xs font-semibold text-amber-950'
-                        : 'border-gray-200 bg-white/70 text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    <p className="font-bold">Empresa de Riders</p>
-                    <p className="text-xs text-gray-500">Comisión por carrera</p>
-                  </button>
-                </div>
-
-                {businessType === 'EMPRESA_RIDERS' && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-amber-200/60">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-0.5">
-                        Comisión (%)
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={commissionRate}
-                        onChange={(e) => setCommissionRate(e.target.value)}
-                        placeholder="15"
-                        className="w-full h-8 px-2 rounded-md border border-gray-200 text-xs bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-0.5">
-                        Distancia Larga (%)
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={altCommissionRate}
-                        onChange={(e) => setAltCommissionRate(e.target.value)}
-                        placeholder="12"
-                        className="w-full h-8 px-2 rounded-md border border-gray-200 text-xs bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-0.5">
-                        Distancia (km)
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={altCommissionDistanceKm}
-                        onChange={(e) => setAltCommissionDistanceKm(e.target.value)}
-                        placeholder="40"
-                        className="w-full h-8 px-2 rounded-md border border-gray-200 text-xs bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-0.5">
-                        Timeout (min)
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={dispatchTimeoutMin}
-                        onChange={(e) => setDispatchTimeoutMin(e.target.value)}
-                        placeholder="3"
-                        className="w-full h-8 px-2 rounded-md border border-gray-200 text-xs bg-white"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ============================================================== */}
-        {/* PASO 3: CONDICIONES Y ACCESO */}
-        {/* ============================================================== */}
-        {currentStep === 3 && (
-          <div className="space-y-4 animate-fade-in">
-            {/* Sección POS */}
-            {hasPOS && (
-              <div className="p-3.5 rounded-xl bg-purple-50/40 border border-purple-200 space-y-3">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-purple-950 uppercase tracking-wider">
-                  <Receipt size={16} className="text-purple-700" />
-                  <span>Condiciones y Acceso Web — Sistema POS</span>
-                </div>
-
-                {/* Computadoras y Tarifa POS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-semibold text-gray-700">
-                        Computadoras permitidas *
-                      </label>
-                      <label className="flex items-center gap-1 cursor-pointer text-xs select-none">
-                        <input
-                          type="checkbox"
-                          checked={isUnlimitedDevices}
-                          onChange={(e) => {
-                            setIsUnlimitedDevices(e.target.checked);
-                            if (e.target.checked) setMaxDevices('');
-                            else setMaxDevices('1');
-                          }}
-                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3 h-3"
-                        />
-                        <span className="text-xs font-semibold text-gray-600">Sin límite</span>
-                      </label>
+                    <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-gray-900">
+                            {selectedIndustry.name}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            · {selectedIndustry.posVertical === 'RESTAURANTE' ? 'Mesas y comandas' : 'Punto de venta mostrador (Retail)'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Configuración base aplicada
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIndustryId('');
+                          setIsIndustryDropdownOpen(true);
+                        }}
+                        className="text-xs text-purple-700 hover:text-purple-900 font-semibold cursor-pointer underline underline-offset-2"
+                      >
+                        Cambiar
+                      </button>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Ajuste de perfil de salón (discreto) */}
+              <div className="pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedProfile(!showAdvancedProfile)}
+                  className="text-xs text-gray-500 hover:text-gray-700 font-medium cursor-pointer"
+                >
+                  {showAdvancedProfile ? 'Ocultar ajuste de perfil' : 'Personalizar perfil del local (opcional)'}
+                </button>
+
+                {showAdvancedProfile && (
+                  <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className="flex items-center gap-2 p-2.5 rounded-lg border border-gray-200 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="salonProfileRadio"
+                        checked={salonProfile === 'RESTAURANTE'}
+                        onChange={() => setSalonProfile('RESTAURANTE')}
+                        className="text-purple-700 focus:ring-purple-600"
+                      />
+                      <span className="text-xs font-semibold text-gray-900">
+                        Restaurante / mesas
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 p-2.5 rounded-lg border border-gray-200 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="salonProfileRadio"
+                        checked={salonProfile === 'TALLER'}
+                        onChange={() => setSalonProfile('TALLER')}
+                        className="text-purple-700 focus:ring-purple-600"
+                      />
+                      <span className="text-xs font-semibold text-gray-900">
+                        Taller / órdenes de trabajo
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════ */}
+          {/* PASO 2: PRODUCTOS */}
+          {/* ═══════════════════════════════════════════════ */}
+          {currentStep === 2 && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">
+                  Productos a contratar
+                </h3>
+                {errors.products && (
+                  <p className="text-xs text-rose-600 mb-2">{errors.products}</p>
+                )}
+
+                <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg bg-white">
+                  {/* Fila POS */}
+                  <div className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasPOS}
+                        onChange={(e) => {
+                          const next = e.target.checked;
+                          setHasPOS(next);
+                          if (next && !posMonthlyFee) setPosMonthlyFee('45');
+                          if (errors.products) setErrors((prev) => ({ ...prev, products: '' }));
+                        }}
+                        className="mt-0.5 rounded border-gray-300 text-purple-700 focus:ring-purple-600 w-4 h-4"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-gray-900 block">
+                          Sistema POS
+                        </span>
+                        <span className="text-xs text-gray-500 block">
+                          Punto de venta para computadoras, navegadores y app móvil
+                        </span>
+                      </div>
+                    </label>
+
+                    {hasPOS && (
+                      <div className="flex items-center gap-2 self-end sm:self-auto pl-6 sm:pl-0">
+                        <span className="text-xs text-gray-600 whitespace-nowrap">Tarifa mensual: US$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={posMonthlyFee}
+                          onChange={(e) => setPosMonthlyFee(e.target.value)}
+                          className="w-24 h-8 px-2 rounded-lg border border-gray-300 text-xs font-semibold bg-white text-gray-900 focus:outline-none focus:border-purple-600"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fila Finanzas */}
+                  <div className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasCarteraCobro}
+                        onChange={(e) => {
+                          const next = e.target.checked;
+                          setHasCarteraCobro(next);
+                          if (next && !carteraMonthlyFee) setCarteraMonthlyFee('30');
+                          if (errors.products) setErrors((prev) => ({ ...prev, products: '' }));
+                        }}
+                        className="mt-0.5 rounded border-gray-300 text-purple-700 focus:ring-purple-600 w-4 h-4"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-gray-900 block">
+                          Finanzas
+                        </span>
+                        <span className="text-xs text-gray-500 block">
+                          Cuentas por pagar, compras, gastos y cartera de crédito
+                        </span>
+                      </div>
+                    </label>
+
+                    {hasCarteraCobro && (
+                      <div className="flex items-center gap-2 self-end sm:self-auto pl-6 sm:pl-0">
+                        <span className="text-xs text-gray-600 whitespace-nowrap">Tarifa mensual: US$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={carteraMonthlyFee}
+                          onChange={(e) => setCarteraMonthlyFee(e.target.value)}
+                          className="w-24 h-8 px-2 rounded-lg border border-gray-300 text-xs font-semibold bg-white text-gray-900 focus:outline-none focus:border-purple-600"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fila Citas y reservas */}
+                  <div className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasCitas}
+                        onChange={(e) => {
+                          const next = e.target.checked;
+                          setHasCitas(next);
+                          if (next && !citasMonthlyFee) setCitasMonthlyFee('25');
+                          if (errors.products) setErrors((prev) => ({ ...prev, products: '' }));
+                        }}
+                        className="mt-0.5 rounded border-gray-300 text-purple-700 focus:ring-purple-600 w-4 h-4"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-gray-900 block">
+                          Citas y reservas
+                        </span>
+                        <span className="text-xs text-gray-500 block">
+                          Agenda de turnos y calendario de atención
+                        </span>
+                      </div>
+                    </label>
+
+                    {hasCitas && (
+                      <div className="flex items-center gap-2 self-end sm:self-auto pl-6 sm:pl-0">
+                        <span className="text-xs text-gray-600 whitespace-nowrap">Tarifa mensual: US$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={citasMonthlyFee}
+                          onChange={(e) => setCitasMonthlyFee(e.target.value)}
+                          className="w-24 h-8 px-2 rounded-lg border border-gray-300 text-xs font-semibold bg-white text-gray-900 focus:outline-none focus:border-purple-600"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fila Delivery */}
+                  <div className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasDelivery}
+                        onChange={(e) => {
+                          const next = e.target.checked;
+                          setHasDelivery(next);
+                          if (next && !deliveryMonthlyFee) setDeliveryMonthlyFee('35');
+                          if (errors.products) setErrors((prev) => ({ ...prev, products: '' }));
+                        }}
+                        className="mt-0.5 rounded border-gray-300 text-purple-700 focus:ring-purple-600 w-4 h-4"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-gray-900 block">
+                          Delivery
+                        </span>
+                        <span className="text-xs text-gray-500 block">
+                          Despacho de pedidos con motorizados propios o TrackDeli
+                        </span>
+                      </div>
+                    </label>
+
+                    {hasDelivery && (
+                      <div className="flex items-center gap-2 self-end sm:self-auto pl-6 sm:pl-0">
+                        <span className="text-xs text-gray-600 whitespace-nowrap">Tarifa mensual: US$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={deliveryMonthlyFee}
+                          onChange={(e) => setDeliveryMonthlyFee(e.target.value)}
+                          className="w-24 h-8 px-2 rounded-lg border border-gray-300 text-xs font-semibold bg-white text-gray-900 focus:outline-none focus:border-purple-600"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Opciones adicionales */}
+              <div className="pt-2">
+                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">
+                  Opciones de catálogo
+                </h3>
+                <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg bg-white">
+                  <div className="p-3.5 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-semibold text-gray-900 block">
+                        Control de lotes y vencimientos
+                      </span>
+                      <span className="text-xs text-gray-500 block">
+                        Seguimiento de números de lote y fecha de vencimiento en inventario
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={tracksBatches}
+                      onClick={() => setTracksBatches(!tracksBatches)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                        tracksBatches ? 'bg-purple-700' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          tracksBatches ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="p-3.5 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-semibold text-gray-900 block">
+                        Precio de etiqueta
+                      </span>
+                      <span className="text-xs text-gray-500 block">
+                        Mostrar precio tachado y porcentaje de descuento en tickets
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={useListPrice}
+                      onClick={() => setUseListPrice(!useListPrice)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                        useListPrice ? 'bg-purple-700' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          useListPrice ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════ */}
+          {/* PASO 3: FORMA DE VENTA (302a/302b) */}
+          {/* ═══════════════════════════════════════════════ */}
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              {/* Radios de modalidad de venta */}
+              <div>
+                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">
+                  ¿Cómo se vendió este cliente?
+                </h3>
+                <div className="space-y-2">
+                  {(
+                    [
+                      {
+                        key: 'MEMBRESIA_MENSUAL',
+                        title: 'Membresía mensual',
+                        desc: 'Suscripción mes a mes con prueba gratis o cobro inicial de mensualidad.',
+                      },
+                      {
+                        key: 'PAGO_UNICO_SISTEMA',
+                        title: 'Solo sistema (pago único)',
+                        desc: 'Licencia del software sin equipos incluidos.',
+                      },
+                      {
+                        key: 'COMBO_COMPLETO',
+                        title: 'Combo completo (pago único)',
+                        desc: 'Computadora, monitor, impresora 80 mm, gaveta y lector de barra.',
+                      },
+                      {
+                        key: 'COMBO_PARCIAL',
+                        title: 'Combo parcial',
+                        desc: 'Piezas de equipo seleccionadas individualmente.',
+                      },
+                    ] as const
+                  ).map((opt) => (
+                    <label
+                      key={opt.key}
+                      className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
+                        saleModality === opt.key
+                          ? 'border-purple-700 bg-purple-50/20 ring-1 ring-purple-700'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="saleModalityRadio"
+                        checked={saleModality === opt.key}
+                        onChange={() => setSaleModality(opt.key)}
+                        className="mt-0.5 text-purple-700 focus:ring-purple-600"
+                      />
+                      <div className="flex-1">
+                        <span className="text-xs font-bold text-gray-900 block">
+                          {opt.title}
+                        </span>
+                        <span className="text-xs text-gray-500 block">
+                          {opt.desc}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* OPCIÓN A: MEMBRESÍA MENSUAL */}
+              {saleModality === 'MEMBRESIA_MENSUAL' && (
+                <div className="space-y-4 pt-4 border-t border-gray-100">
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                    Inicio de la membresía
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label
+                      className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer ${
+                        startType === 'TRIAL'
+                          ? 'border-purple-700 bg-purple-50/20 ring-1 ring-purple-700'
+                          : 'border-gray-200 bg-white'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="startTypeRadio"
+                        checked={startType === 'TRIAL'}
+                        onChange={() => setStartType('TRIAL')}
+                        className="text-purple-700 focus:ring-purple-600"
+                      />
+                      <span className="text-xs font-semibold text-gray-900">
+                        Prueba gratis
+                      </span>
+                    </label>
+
+                    <label
+                      className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer ${
+                        startType === 'PAID'
+                          ? 'border-purple-700 bg-purple-50/20 ring-1 ring-purple-700'
+                          : 'border-gray-200 bg-white'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="startTypeRadio"
+                        checked={startType === 'PAID'}
+                        onChange={() => {
+                          setStartType('PAID');
+                          if (totalMonthlyFee > 0) setInitialPaidAmount(totalMonthlyFee.toFixed(2));
+                        }}
+                        className="text-purple-700 focus:ring-purple-600"
+                      />
+                      <span className="text-xs font-semibold text-gray-900">
+                        Ya pagó el primer mes
+                      </span>
+                    </label>
+                  </div>
+
+                  {startType === 'TRIAL' ? (
+                    <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-4 text-xs">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="trialUnitRadio"
+                            checked={trialUnit === 'HOURS'}
+                            onChange={() => setTrialUnit('HOURS')}
+                            className="text-purple-700"
+                          />
+                          <span>En horas</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="trialUnitRadio"
+                            checked={trialUnit === 'DAYS'}
+                            onChange={() => setTrialUnit('DAYS')}
+                            className="text-purple-700"
+                          />
+                          <span>En días</span>
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="number"
+                          min="1"
+                          value={customTrialDuration || (trialUnit === 'HOURS' ? trialHoursPreset : trialDaysPreset)}
+                          onChange={(e) => setCustomTrialDuration(e.target.value)}
+                          placeholder={trialUnit === 'HOURS' ? '24' : '15'}
+                          className="w-24 h-9 px-2.5 rounded-lg border border-gray-300 text-xs bg-white text-gray-900 font-semibold"
+                        />
+                        <span className="text-xs text-gray-600">
+                          {trialUnit === 'HOURS' ? 'horas de prueba para POS' : 'días de prueba'}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 p-3.5 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label className="block font-semibold text-gray-700 mb-1">
+                            Monto recibido (USD) *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={initialPaidAmount}
+                            onChange={(e) => {
+                              setInitialPaidAmount(e.target.value);
+                              if (errors.initialPaidAmount) {
+                                setErrors((prev) => ({ ...prev, initialPaidAmount: '' }));
+                              }
+                            }}
+                            className={`w-full h-9 px-2.5 rounded-lg border text-xs bg-white font-semibold text-gray-900 ${
+                              errors.initialPaidAmount ? 'border-rose-400' : 'border-gray-300'
+                            }`}
+                          />
+                          {errors.initialPaidAmount && (
+                            <p className="text-xs text-rose-600 mt-1">{errors.initialPaidAmount}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-gray-700 mb-1">
+                            Método de pago
+                          </label>
+                          <select
+                            value={initialPaymentMethod}
+                            onChange={(e) => setInitialPaymentMethod(e.target.value)}
+                            className="w-full h-9 px-2.5 rounded-lg border border-gray-300 text-xs bg-white text-gray-900"
+                          >
+                            {PAYMENT_METHODS.map((m) => (
+                              <option key={m.value} value={m.value}>
+                                {m.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-gray-700 mb-1">
+                            Fecha de cobro *
+                          </label>
+                          <input
+                            type="date"
+                            value={initialPaidAt}
+                            onChange={(e) => setInitialPaidAt(e.target.value)}
+                            className="w-full h-9 px-2.5 rounded-lg border border-gray-300 text-xs bg-white text-gray-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-gray-700 mb-1">
+                            Comprobante (opcional)
+                          </label>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={(e) => setInitialProofFile(e.target.files?.[0] || null)}
+                            className="w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-gray-200 file:text-gray-700 hover:file:bg-gray-300"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* OPCIÓN B, C, D: PAGO ÚNICO / COMBOS */}
+              {saleModality !== 'MEMBRESIA_MENSUAL' && (
+                <div className="space-y-5 pt-4 border-t border-gray-100">
+                  {/* Precio y forma de pago */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Precio total de la venta *
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={commercialCurrency}
+                          onChange={(e) => setCommercialCurrency(e.target.value as 'USD' | 'NIO')}
+                          className="w-20 h-9 px-2 rounded-lg border border-gray-300 text-xs bg-white font-bold text-gray-900"
+                        >
+                          <option value="USD">USD</option>
+                          <option value="NIO">NIO</option>
+                        </select>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          disabled={saleModality === 'COMBO_PARCIAL'}
+                          value={commercialTotalPrice}
+                          onChange={(e) => {
+                            setCommercialTotalPrice(e.target.value);
+                            if (errors.commercialTotalPrice) {
+                              setErrors((prev) => ({ ...prev, commercialTotalPrice: '' }));
+                            }
+                          }}
+                          className={`flex-1 h-9 px-3 rounded-lg border text-xs bg-white text-gray-900 font-semibold ${
+                            errors.commercialTotalPrice ? 'border-rose-400' : 'border-gray-300'
+                          }`}
+                        />
+                      </div>
+                      {errors.commercialTotalPrice ? (
+                        <p className="text-xs text-rose-600 mt-1">{errors.commercialTotalPrice}</p>
+                      ) : saleModality === 'COMBO_PARCIAL' ? (
+                        <p className="text-xs text-gray-500 mt-1">Suma de las piezas seleccionadas abajo.</p>
+                      ) : (
+                        <p className="text-xs text-gray-500 mt-1">Precio sugerido, editable.</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Forma de pago
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 h-9">
+                        <label
+                          className={`flex items-center justify-center gap-1.5 px-3 rounded-lg border text-xs font-semibold cursor-pointer ${
+                            commercialPaymentType === 'CONTADO'
+                              ? 'border-purple-700 bg-purple-50/30 text-purple-900 ring-1 ring-purple-700'
+                              : 'border-gray-200 text-gray-600 bg-white'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="commercialPaymentTypeRadio"
+                            checked={commercialPaymentType === 'CONTADO'}
+                            onChange={() => setCommercialPaymentType('CONTADO')}
+                            className="sr-only"
+                          />
+                          <span>Contado</span>
+                        </label>
+
+                        <label
+                          className={`flex items-center justify-center gap-1.5 px-3 rounded-lg border text-xs font-semibold cursor-pointer ${
+                            commercialPaymentType === 'CREDITO'
+                              ? 'border-purple-700 bg-purple-50/30 text-purple-900 ring-1 ring-purple-700'
+                              : 'border-gray-200 text-gray-600 bg-white'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="commercialPaymentTypeRadio"
+                            checked={commercialPaymentType === 'CREDITO'}
+                            onChange={() => setCommercialPaymentType('CREDITO')}
+                            className="sr-only"
+                          />
+                          <span>Crédito</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Si es crédito: prima y cuotas */}
+                  {commercialPaymentType === 'CREDITO' && (
+                    <div className="p-3.5 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label className="block font-semibold text-gray-700 mb-1">
+                            Prima (adelanto) *
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
+                              {commercialCurrency === 'USD' ? '$' : 'C$'}
+                            </span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={commercialDownPayment}
+                              onChange={(e) => {
+                                setCommercialDownPayment(e.target.value);
+                                setCommercialPaidTodayAmount(e.target.value);
+                                if (errors.commercialDownPayment) {
+                                  setErrors((prev) => ({ ...prev, commercialDownPayment: '' }));
+                                }
+                              }}
+                              className="w-full h-9 pl-7 pr-3 rounded-lg border border-gray-300 text-xs bg-white font-semibold text-gray-900"
+                            />
+                          </div>
+                          {errors.commercialDownPayment ? (
+                            <p className="text-xs text-rose-600 mt-1">{errors.commercialDownPayment}</p>
+                          ) : (
+                            <p className="text-xs text-gray-500 mt-0.5">Sugerido 50 %, editable.</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-gray-700 mb-1">
+                            Número de cuotas
+                          </label>
+                          <select
+                            value={commercialInstallmentsCount}
+                            onChange={(e) => setCommercialInstallmentsCount(Number(e.target.value))}
+                            className="w-full h-9 px-2.5 rounded-lg border border-gray-300 text-xs bg-white text-gray-900 font-semibold"
+                          >
+                            <option value={1}>1 cuota mensual</option>
+                            <option value={2}>2 cuotas mensuales</option>
+                            <option value={3}>3 cuotas mensuales</option>
+                            <option value={4}>4 cuotas mensuales</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Calendario de cuotas simple */}
+                      {installmentSchedule.length > 0 && (
+                        <div className="pt-2 border-t border-gray-200">
+                          <span className="text-xs font-semibold text-gray-700 block mb-1.5">
+                            Calendario de cuotas estimado
+                          </span>
+                          <div className="overflow-x-auto border border-gray-200 rounded-md bg-white">
+                            <table className="w-full text-xs text-left">
+                              <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
+                                <tr>
+                                  <th className="py-1.5 px-3 font-semibold">Cuota</th>
+                                  <th className="py-1.5 px-3 font-semibold">Vencimiento</th>
+                                  <th className="py-1.5 px-3 font-semibold text-right">Monto</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {installmentSchedule.map((inst) => (
+                                  <tr key={inst.number}>
+                                    <td className="py-1.5 px-3 font-medium text-gray-900">
+                                      Cuota #{inst.number}
+                                    </td>
+                                    <td className="py-1.5 px-3 text-gray-600">
+                                      {inst.dueDateStr}
+                                    </td>
+                                    <td className="py-1.5 px-3 text-right font-mono font-semibold text-gray-900">
+                                      {commercialCurrency === 'USD' ? '$' : 'C$'} {inst.amount}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pago recibido hoy */}
+                  <div className="p-3.5 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                    <span className="text-xs font-bold text-gray-900 uppercase tracking-wider block">
+                      Pago recibido hoy
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block font-semibold text-gray-700 mb-1">
+                          Monto recibido ({commercialCurrency}) *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={commercialPaidTodayAmount}
+                          onChange={(e) => {
+                            setCommercialPaidTodayAmount(e.target.value);
+                            if (errors.commercialPaidTodayAmount) {
+                              setErrors((prev) => ({ ...prev, commercialPaidTodayAmount: '' }));
+                            }
+                          }}
+                          className={`w-full h-9 px-2.5 rounded-lg border text-xs bg-white font-semibold text-gray-900 ${
+                            errors.commercialPaidTodayAmount ? 'border-rose-400' : 'border-gray-300'
+                          }`}
+                        />
+                        {errors.commercialPaidTodayAmount && (
+                          <p className="text-xs text-rose-600 mt-1">{errors.commercialPaidTodayAmount}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-gray-700 mb-1">
+                          Método de pago
+                        </label>
+                        <select
+                          value={commercialPaymentMethod}
+                          onChange={(e) => setCommercialPaymentMethod(e.target.value)}
+                          className="w-full h-9 px-2.5 rounded-lg border border-gray-300 text-xs bg-white text-gray-900"
+                        >
+                          {PAYMENT_METHODS.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-gray-700 mb-1">
+                          Fecha de cobro *
+                        </label>
+                        <input
+                          type="date"
+                          value={commercialPaidAt}
+                          onChange={(e) => setCommercialPaidAt(e.target.value)}
+                          className="w-full h-9 px-2.5 rounded-lg border border-gray-300 text-xs bg-white text-gray-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-gray-700 mb-1">
+                          Número de comprobante / ref.
+                        </label>
+                        <input
+                          type="text"
+                          value={commercialReferenceNumber}
+                          onChange={(e) => setCommercialReferenceNumber(e.target.value)}
+                          placeholder="Ej. Depósito #10492"
+                          className="w-full h-9 px-2.5 rounded-lg border border-gray-300 text-xs bg-white text-gray-900"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Equipo entregado en combos */}
+                  {(saleModality === 'COMBO_COMPLETO' || saleModality === 'COMBO_PARCIAL') && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-900 uppercase tracking-wider block">
+                          Equipo entregado
+                        </span>
+                        {saleModality === 'COMBO_PARCIAL' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newId = `part-${Date.now()}`;
+                              setPartialPieces([
+                                ...partialPieces,
+                                {
+                                  id: newId,
+                                  equipmentType: 'OTRO',
+                                  name: 'Pieza adicional',
+                                  price: 50,
+                                  selected: true,
+                                  serialNumber: '',
+                                },
+                              ]);
+                            }}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 hover:text-purple-900 cursor-pointer"
+                          >
+                            <Plus size={13} weight="bold" />
+                            <span>Agregar pieza</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {saleModality === 'COMBO_COMPLETO' ? (
+                        <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg bg-white">
+                          {comboPieces.map((p, idx) => (
+                            <div
+                              key={p.id}
+                              className="p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                            >
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={p.selected}
+                                  onChange={(e) => {
+                                    const next = [...comboPieces];
+                                    next[idx].selected = e.target.checked;
+                                    setComboPieces(next);
+                                  }}
+                                  className="rounded border-gray-300 text-purple-700 focus:ring-purple-600 w-4 h-4"
+                                />
+                                <span className={`text-xs ${p.selected ? 'font-semibold text-gray-900' : 'text-gray-400'}`}>
+                                  {p.name}
+                                </span>
+                              </label>
+
+                              {p.selected && (
+                                <input
+                                  type="text"
+                                  value={p.serialNumber || ''}
+                                  onChange={(e) => {
+                                    const next = [...comboPieces];
+                                    next[idx].serialNumber = e.target.value;
+                                    setComboPieces(next);
+                                  }}
+                                  placeholder="N.º de serie (opcional)"
+                                  className="w-full sm:w-44 h-7 px-2 rounded border border-gray-200 text-xs text-gray-700 placeholder-gray-400"
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg bg-white">
+                          {partialPieces.map((p, idx) => (
+                            <div
+                              key={p.id}
+                              className="p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                            >
+                              <div className="flex items-center gap-2 flex-1">
+                                <input
+                                  type="checkbox"
+                                  checked={p.selected}
+                                  onChange={(e) => {
+                                    const next = [...partialPieces];
+                                    next[idx].selected = e.target.checked;
+                                    setPartialPieces(next);
+                                  }}
+                                  className="rounded border-gray-300 text-purple-700 focus:ring-purple-600 w-4 h-4"
+                                />
+                                <input
+                                  type="text"
+                                  value={p.name}
+                                  onChange={(e) => {
+                                    const next = [...partialPieces];
+                                    next[idx].name = e.target.value;
+                                    setPartialPieces(next);
+                                  }}
+                                  className="text-xs font-semibold text-gray-900 border-0 p-0 focus:ring-0 bg-transparent"
+                                />
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-gray-400">$</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={p.price ?? 0}
+                                    onChange={(e) => {
+                                      const next = [...partialPieces];
+                                      next[idx].price = Number(e.target.value) || 0;
+                                      setPartialPieces(next);
+                                    }}
+                                    className="w-20 h-7 px-1.5 rounded border border-gray-200 text-xs font-mono text-gray-900"
+                                  />
+                                </div>
+                                <input
+                                  type="text"
+                                  value={p.serialNumber || ''}
+                                  onChange={(e) => {
+                                    const next = [...partialPieces];
+                                    next[idx].serialNumber = e.target.value;
+                                    setPartialPieces(next);
+                                  }}
+                                  placeholder="Serie (opcional)"
+                                  className="w-32 h-7 px-1.5 rounded border border-gray-200 text-xs text-gray-700 placeholder-gray-400"
+                                />
+                                {partialPieces.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPartialPieces(partialPieces.filter((_, i) => i !== idx));
+                                    }}
+                                    className="text-gray-400 hover:text-rose-600 p-1 cursor-pointer"
+                                  >
+                                    <Trash size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Mantenimiento */}
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <p className="text-gray-700">
+                        Incluye <strong>{maintenanceFreeMonths} meses</strong> de mantenimiento. Desde el mes{' '}
+                        {maintenanceFreeMonths + 1} se cobran{' '}
+                        <strong>C$ {maintenanceMonthlyNio} al mes</strong> (desde el{' '}
+                        {maintenanceStartDateStr}).
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowEditMaintenance(!showEditMaintenance)}
+                        className="text-xs text-purple-700 hover:text-purple-900 font-semibold cursor-pointer underline underline-offset-2 shrink-0 ml-2"
+                      >
+                        {showEditMaintenance ? 'Cerrar' : 'Cambiar monto'}
+                      </button>
+                    </div>
+
+                    {showEditMaintenance && (
+                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-200 text-xs">
+                        <div>
+                          <label className="block text-gray-600 mb-1">Meses de mantenimiento incluidos</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={maintenanceFreeMonths}
+                            onChange={(e) => setMaintenanceFreeMonths(Number(e.target.value) || 0)}
+                            className="w-full h-8 px-2 rounded border border-gray-300 text-xs bg-white text-gray-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 mb-1">Cuota mensual en córdobas (NIO)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={maintenanceMonthlyNio}
+                            onChange={(e) => setMaintenanceMonthlyNio(Number(e.target.value) || 0)}
+                            className="w-full h-8 px-2 rounded border border-gray-300 text-xs bg-white text-gray-900"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════ */}
+          {/* PASO 4: EQUIPOS Y ACCESOS */}
+          {/* ═══════════════════════════════════════════════ */}
+          {currentStep === 4 && (
+            <div className="space-y-5">
+              <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">
+                Cupos de dispositivos y accesos
+              </h3>
+
+              <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg bg-white">
+                {/* Computadoras permitidas */}
+                <div className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-semibold text-gray-900 block">
+                      Cupo de computadoras (POS desktop)
+                    </span>
+                    <span className="text-xs text-gray-500 block">
+                      Número máximo de computadoras autorizadas simultáneamente.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 self-end sm:self-auto">
+                    <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isUnlimitedDevices}
+                        onChange={(e) => setIsUnlimitedDevices(e.target.checked)}
+                        className="rounded border-gray-300 text-purple-700 focus:ring-purple-600 w-3.5 h-3.5"
+                      />
+                      <span>Ilimitado</span>
+                    </label>
                     <input
                       type="number"
                       min="1"
@@ -1607,1004 +1749,327 @@ export const CreateBusinessWizardModal: React.FC<CreateBusinessWizardModalProps>
                       value={isUnlimitedDevices ? '' : maxDevices}
                       onChange={(e) => setMaxDevices(e.target.value)}
                       placeholder={isUnlimitedDevices ? 'Sin límite' : '1'}
-                      className={`w-full h-8 px-2.5 rounded-lg border text-xs bg-white ${
-                        isUnlimitedDevices ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                      className={`w-20 h-8 px-2 rounded-lg border text-xs text-gray-900 font-semibold ${
+                        isUnlimitedDevices ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-white border-gray-300'
                       }`}
                     />
-                    <p className="text-xs text-gray-500 mt-0.5">Equipos de escritorio autorizados</p>
+                  </div>
+                </div>
+
+                {/* Navegadores web autorizados */}
+                <div className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-semibold text-gray-900 block">
+                      Cupo de navegadores (web)
+                    </span>
+                    <span className="text-xs text-gray-500 block">
+                      Número máximo de navegadores web autorizados para este negocio.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 self-end sm:self-auto">
+                    <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isUnlimitedWebDevices}
+                        onChange={(e) => setIsUnlimitedWebDevices(e.target.checked)}
+                        className="rounded border-gray-300 text-purple-700 focus:ring-purple-600 w-3.5 h-3.5"
+                      />
+                      <span>Ilimitado</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      disabled={isUnlimitedWebDevices}
+                      value={isUnlimitedWebDevices ? '' : maxWebDevices}
+                      onChange={(e) => setMaxWebDevices(e.target.value)}
+                      placeholder={isUnlimitedWebDevices ? 'Sin límite' : '2'}
+                      className={`w-20 h-8 px-2 rounded-lg border text-xs text-gray-900 font-semibold ${
+                        isUnlimitedWebDevices ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-white border-gray-300'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Teléfonos (app móvil) */}
+                <div className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-semibold text-gray-900 block">
+                      Cupo de teléfonos (app móvil)
+                    </span>
+                    <span className="text-xs text-gray-500 block">
+                      Con 0 la app móvil queda desactivada para este negocio.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value={maxMobileDevices}
+                      onChange={(e) => setMaxMobileDevices(e.target.value)}
+                      className="w-20 h-8 px-2 rounded-lg border border-gray-300 text-xs bg-white text-gray-900 font-semibold"
+                    />
+                  </div>
+                </div>
+
+                {/* Web admin básico */}
+                <div className="p-3.5 flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-semibold text-gray-900 block">
+                      Acceso web admin básico
+                    </span>
+                    <span className="text-xs text-gray-500 block">
+                      Panel web para que el encargado gestione catálogo y reportes.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={webAdminEnabled}
+                    onClick={() => {
+                      const next = !webAdminEnabled;
+                      setWebAdminEnabled(next);
+                      if (!next) setWebBillingEnabled(false);
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                      webAdminEnabled ? 'bg-purple-700' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        webAdminEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Facturación web */}
+                <div className="p-3.5 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-semibold text-gray-900 block">
+                        Facturación desde navegador web
+                      </span>
+                      <span className="text-xs text-gray-500 block">
+                        Permite cobrar y emitir comprobantes directamente desde la web.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={webBillingEnabled}
+                      disabled={!webAdminEnabled}
+                      onClick={() => setWebBillingEnabled(!webBillingEnabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer disabled:opacity-40 ${
+                        webBillingEnabled ? 'bg-purple-700' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          webBillingEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Tarifa mensual POS en USD
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
-                        $
-                      </span>
+                  {webBillingEnabled && (
+                    <div className="pt-2 border-t border-gray-100 max-w-xs text-xs">
+                      <label className="block font-semibold text-gray-700 mb-1">
+                        Tarifa mensual facturación web (USD opcional)
+                      </label>
                       <input
                         type="number"
                         step="0.01"
                         min="0"
-                        value={posMonthlyFee}
-                        onChange={(e) => setPosMonthlyFee(e.target.value)}
-                        placeholder="45.00"
-                        className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs bg-white"
+                        value={webBillingMonthlyUsd}
+                        onChange={(e) => setWebBillingMonthlyUsd(e.target.value)}
+                        placeholder="Ej. 15.00"
+                        className="w-full h-8 px-2 rounded-lg border border-gray-300 text-xs bg-white text-gray-900"
                       />
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">Tarifa sugerida: $45.00</p>
-                  </div>
-                </div>
-
-                {/* Subsección: Acceso Web */}
-                <div className="pt-3 border-t border-purple-200/60 space-y-3">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
-                    <Globe size={15} className="text-purple-700" />
-                    <span>Niveles de Acceso Web</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Interruptor 1: Web Admin Básico */}
-                    <div className="p-3 rounded-xl border bg-white border-purple-200/80 flex items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-xs font-bold text-gray-900">
-                            Web admin básico (reportes y consulta)
-                          </span>
-                        </div>
-                        <p className="text-xs text-purple-800/80 leading-tight">
-                          Incluido en la membresía. Acceso a reportes y métricas.
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = !webAdminEnabled;
-                          if (!next && webBillingEnabled) {
-                            if (
-                              window.confirm(
-                                'Al desactivar el Web Admin básico, también se apagará la facturación web. ¿Deseas continuar?'
-                              )
-                            ) {
-                              setWebAdminEnabled(false);
-                              setWebBillingEnabled(false);
-                            }
-                          } else {
-                            setWebAdminEnabled(next);
-                          }
-                        }}
-                        className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          webAdminEnabled ? 'bg-purple-600' : 'bg-gray-200'
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                            webAdminEnabled ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Interruptor 2: Facturar desde la web */}
-                    <div
-                      className={`p-3 rounded-xl border bg-white flex items-center justify-between gap-3 transition-all ${
-                        !webAdminEnabled ? 'opacity-50 border-gray-200 bg-gray-50' : 'border-purple-200/80'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-xs font-bold text-gray-900">
-                            Facturar desde la web (módulo adicional)
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 leading-tight">
-                          {!webAdminEnabled
-                            ? 'Requiere Web admin básico activo.'
-                            : 'Permite a los cajeros cobrar desde navegador o celular.'}
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={!webAdminEnabled}
-                        onClick={() => {
-                          if (!webAdminEnabled) return;
-                          setWebBillingEnabled(!webBillingEnabled);
-                        }}
-                        className={`relative inline-flex h-5 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          !webAdminEnabled
-                            ? 'bg-gray-200 cursor-not-allowed'
-                            : webBillingEnabled
-                            ? 'bg-purple-600 cursor-pointer'
-                            : 'bg-gray-200 cursor-pointer'
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                            webBillingEnabled && webAdminEnabled ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Configuración de facturación web si está activa */}
-                  {webAdminEnabled && webBillingEnabled && (
-                    <div className="p-3 rounded-xl bg-white border border-purple-200 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="block text-xs font-semibold text-gray-700">
-                            Dispositivos web autorizados *
-                          </label>
-                          <label className="flex items-center gap-1 cursor-pointer text-xs select-none">
-                            <input
-                              type="checkbox"
-                              checked={isUnlimitedWebDevices}
-                              onChange={(e) => {
-                                setIsUnlimitedWebDevices(e.target.checked);
-                                if (e.target.checked) setMaxWebDevices('');
-                                else setMaxWebDevices('2');
-                              }}
-                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-3 h-3"
-                            />
-                            <span className="text-xs font-semibold text-gray-600">Ilimitado</span>
-                          </label>
-                        </div>
-                        <input
-                          type="number"
-                          min="0"
-                          disabled={isUnlimitedWebDevices}
-                          value={isUnlimitedWebDevices ? '' : maxWebDevices}
-                          onChange={(e) => setMaxWebDevices(e.target.value)}
-                          placeholder={isUnlimitedWebDevices ? 'Ilimitado' : '2'}
-                          className={`w-full h-8 px-2.5 rounded-lg border text-xs bg-white ${
-                            isUnlimitedWebDevices ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
-                          }`}
-                        />
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          Por defecto: 2 teléfonos/navegadores simultáneos
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">
-                          Tarifa mensual del módulo en USD (opcional)
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
-                            $
-                          </span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={webBillingMonthlyUsd}
-                            onChange={(e) => setWebBillingMonthlyUsd(e.target.value)}
-                            placeholder="15.00"
-                            className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs bg-white"
-                          />
-                        </div>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          Cuota adicional por emitir cobros desde la web
-                        </p>
-                      </div>
-                    </div>
                   )}
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Condiciones de Delivery si está contratado */}
-            {hasDelivery && businessType === 'NEGOCIO' && (
-              <div className="p-3.5 rounded-xl bg-amber-50/40 border border-amber-200 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950 uppercase tracking-wider">
-                  <Motorcycle size={16} className="text-amber-700" />
-                  <span>Condiciones TrackDeli (Delivery)</span>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Tarifa mensual Delivery en USD (opcional)
-                  </label>
-                  <div className="relative max-w-xs">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={deliveryMonthlyFee}
-                      onChange={(e) => setDeliveryMonthlyFee(e.target.value)}
-                      placeholder="35.00"
-                      className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+          {/* ═══════════════════════════════════════════════ */}
+          {/* PASO 5: ENCARGADO Y RESUMEN */}
+          {/* ═══════════════════════════════════════════════ */}
+          {currentStep === 5 && (
+            <div className="space-y-6">
+              {/* Datos del primer encargado */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                  Primer encargado del negocio
+                </h3>
 
-            {/* Condiciones Finanzas */}
-            {hasCarteraCobro && (
-              <div className="p-3.5 rounded-xl bg-emerald-50/40 border border-emerald-200 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-950 uppercase tracking-wider">
-                  <Wallet size={16} className="text-emerald-700" />
-                  <span>Condiciones Finanzas</span>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Tarifa mensual Finanzas en USD (opcional)
-                  </label>
-                  <div className="relative max-w-xs">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={carteraMonthlyFee}
-                      onChange={(e) => setCarteraMonthlyFee(e.target.value)}
-                      placeholder="30.00"
-                      className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Condiciones Citas */}
-            {hasCitas && (
-              <div className="p-3.5 rounded-xl bg-sky-50/40 border border-sky-200 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-sky-950 uppercase tracking-wider">
-                  <CalendarBlank size={16} className="text-sky-700" />
-                  <span>Condiciones Citas y Reservas</span>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Tarifa mensual Citas en USD (opcional)
-                  </label>
-                  <div className="relative max-w-xs">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={citasMonthlyFee}
-                      onChange={(e) => setCitasMonthlyFee(e.target.value)}
-                      placeholder="25.00"
-                      className="w-full h-8 pl-6 pr-2.5 rounded-lg border border-gray-200 text-xs bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ============================================================== */}
-        {/* PASO 4: INICIO Y COBRO (prueba gratis vs. primer pago)          */}
-        {/* ============================================================== */}
-        {currentStep === 4 && (
-          <div className="space-y-4 animate-fade-in">
-            {/* Bloque: ¿Cómo empieza este cliente? (Ticket 252b) */}
-            <div className="p-4 rounded-xl bg-purple-50/50 border border-purple-200/80 space-y-3.5">
-              <div className="space-y-1">
-                <div className="flex items-center gap-1.5 text-sm font-bold text-purple-950">
-                  <Sparkle size={16} className="text-purple-700" />
-                  <span>¿Cómo empieza este cliente? *</span>
-                </div>
-                <p className="text-xs text-gray-600 leading-snug">
-                  Esta decisión define si se registra un cobro y desde qué día se le cobra cada mes.
-                  Si le diste días gratis, elegí <strong>Prueba gratis</strong>: el primer pago lo registrás
-                  después, el día que realmente pague.
-                </p>
-              </div>
-
-              {errors.startType && (
-                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
-                  <Warning size={16} className="shrink-0 mt-0.5" />
-                  <span>{errors.startType}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Inicio del cliente">
-                {/* Opción A: Prueba gratis */}
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={startType === 'TRIAL'}
-                  onClick={() => {
-                    setStartType('TRIAL');
-                    setErrors((prev) => {
-                      const copy = { ...prev };
-                      delete copy.startType;
-                      return copy;
-                    });
-                  }}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer min-h-[44px] ${
-                    startType === 'TRIAL'
-                      ? 'border-purple-600 bg-white ring-2 ring-purple-600/20 shadow-xs'
-                      : 'border-purple-200/70 bg-white/70 hover:bg-white hover:border-purple-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                      startType === 'TRIAL' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
-                    }`}>
-                      <Gift size={16} weight="duotone" />
-                    </div>
-                    <span className="text-sm font-bold text-gray-900">Prueba gratis</span>
-                  </div>
-                  <ul className="text-xs text-gray-600 leading-snug space-y-0.5 list-disc pl-4">
-                    <li>Se registra con monto $0.00.</li>
-                    <li>No fija día de cobro todavía.</li>
-                    <li>El día que pague, registrás el pago desde «Hoy».</li>
-                  </ul>
-                </button>
-
-                {/* Opción B: Ya pagó el primer mes */}
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={startType === 'PAID'}
-                  onClick={() => {
-                    setStartType('PAID');
-                    setErrors((prev) => {
-                      const copy = { ...prev };
-                      delete copy.startType;
-                      return copy;
-                    });
-                    if (!initialPaidAmount && totalEstimatedUsd > 0) {
-                      setInitialPaidAmount(totalEstimatedUsd.toFixed(2));
-                    }
-                  }}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer min-h-[44px] ${
-                    startType === 'PAID'
-                      ? 'border-emerald-600 bg-white ring-2 ring-emerald-600/20 shadow-xs'
-                      : 'border-purple-200/70 bg-white/70 hover:bg-white hover:border-emerald-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                      startType === 'PAID' ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-700'
-                    }`}>
-                      <Money size={16} weight="duotone" />
-                    </div>
-                    <span className="text-sm font-bold text-gray-900">Ya pagó el primer mes</span>
-                  </div>
-                  <ul className="text-xs text-gray-600 leading-snug space-y-0.5 list-disc pl-4">
-                    <li>Registra el pago de hoy con su monto.</li>
-                    <li>Fija el día de cobro en el día {new Date().getDate()}.</li>
-                    <li>Elegilo solo si el dinero ya se recibió.</li>
-                  </ul>
-                </button>
-              </div>
-
-              {/* Configuración si es prueba gratis (horas o días) */}
-              {startType === 'TRIAL' && (
-                <div className="p-3.5 rounded-xl bg-white border border-purple-200 space-y-3.5 animate-fade-in shadow-xs">
-                  {/* Selector de modo: Horas vs Días */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-purple-100">
-                    <div>
-                      <span className="block text-xs font-bold text-gray-900">
-                        ¿Cómo querés medir la prueba?
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        Elegí horas para turnos de prueba en POS o días para prueba completa.
-                      </span>
-                    </div>
-
-                    <div className="inline-flex rounded-xl p-1 bg-purple-100/70 border border-purple-200/80 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTrialUnit('HOURS');
-                          setCustomTrialHours('');
-                        }}
-                        className={`h-9 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                          trialUnit === 'HOURS'
-                            ? 'bg-purple-700 text-white shadow-xs'
-                            : 'text-purple-900 hover:bg-purple-200/60'
-                        }`}
-                      >
-                        <Clock size={14} weight="bold" />
-                        <span>Por Horas (Turno / POS)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTrialUnit('DAYS');
-                          setCustomTrialDays('');
-                        }}
-                        className={`h-9 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                          trialUnit === 'DAYS'
-                            ? 'bg-purple-700 text-white shadow-xs'
-                            : 'text-purple-900 hover:bg-purple-200/60'
-                        }`}
-                      >
-                        <CalendarBlank size={14} weight="bold" />
-                        <span>Por Días (Calendario)</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Opciones por Horas */}
-                  {trialUnit === 'HOURS' && (
-                    <div className="space-y-3 animate-fade-in">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold text-gray-800">
-                          Cantidad de horas autorizadas:
-                        </label>
-                        <span className="text-xs text-purple-700 font-medium">
-                          Empieza a contar en el 1er inicio de sesión
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        {[
-                          { val: 6, label: '6 horas', badge: '1 turno' },
-                          { val: 12, label: '12 horas', badge: 'Jornada' },
-                          { val: 24, label: '24 horas', badge: '1 día' },
-                          { val: 48, label: '48 horas', badge: '2 días' },
-                          { val: 72, label: '72 horas', badge: '3 días' },
-                        ].map((item) => {
-                          const isSelected = trialHoursPreset === item.val && !customTrialHours;
-                          return (
-                            <button
-                              key={item.val}
-                              type="button"
-                              onClick={() => {
-                                setTrialHoursPreset(item.val);
-                                setCustomTrialHours('');
-                              }}
-                              className={`h-11 min-h-[44px] px-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                                isSelected
-                                  ? 'border-purple-600 bg-purple-50 text-purple-950 ring-2 ring-purple-600/30 shadow-xs'
-                                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                              }`}
-                            >
-                              <span>{item.label}</span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                                isSelected ? 'bg-purple-200 text-purple-900' : 'bg-gray-100 text-gray-500'
-                              }`}>
-                                {item.badge}
-                              </span>
-                            </button>
-                          );
-                        })}
-
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            min="1"
-                            max="720"
-                            value={customTrialHours}
-                            onChange={(e) => setCustomTrialHours(e.target.value)}
-                            placeholder="Otro (horas)"
-                            className="h-11 min-h-[44px] w-28 px-3 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 font-medium"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Live Banner explicativo */}
-                      <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-200 text-xs text-purple-950 space-y-1">
-                        <div className="flex items-center gap-2 font-bold">
-                          <Clock size={15} className="text-purple-700" weight="bold" />
-                          <span>Prueba de {effectiveTrialHours} horas para Sistema POS</span>
-                        </div>
-                        <p className="text-purple-900/90 text-xs leading-relaxed">
-                          • <strong>En POS:</strong> La cuenta regresiva de {effectiveTrialHours}h se activará cuando el cajero inicie sesión por primera vez en la computadora.
-                          <br />
-                          • <strong>Vigencia en sistema:</strong> Cubierto durante la prueba ({effectiveTrialDays} día{effectiveTrialDays > 1 ? 's' : ''}).
-                          <br />
-                          • <strong>Cobro hoy:</strong> <span className="font-bold text-emerald-700">$0.00 USD</span> (gratis). Sin fecha de cobro fija hasta su primer pago oficial.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Opciones por Días */}
-                  {trialUnit === 'DAYS' && (
-                    <div className="space-y-3 animate-fade-in">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold text-gray-800">
-                          Cantidad de días de prueba:
-                        </label>
-                        <span className="text-xs text-purple-700 font-medium">
-                          Vigencia por calendario
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        {[
-                          { val: 3, label: '3 días', badge: 'Fin de semana' },
-                          { val: 7, label: '7 días', badge: '1 semana' },
-                          { val: 15, label: '15 días', badge: 'Recomendado' },
-                          { val: 30, label: '30 días', badge: '1 mes' },
-                        ].map((item) => {
-                          const isSelected = trialDaysPreset === item.val && !customTrialDays;
-                          return (
-                            <button
-                              key={item.val}
-                              type="button"
-                              onClick={() => {
-                                setTrialDaysPreset(item.val);
-                                setCustomTrialDays('');
-                              }}
-                              className={`h-11 min-h-[44px] px-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                                isSelected
-                                  ? 'border-purple-600 bg-purple-50 text-purple-950 ring-2 ring-purple-600/30 shadow-xs'
-                                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                              }`}
-                            >
-                              <span>{item.label}</span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                                isSelected ? 'bg-purple-200 text-purple-900' : 'bg-gray-100 text-gray-500'
-                              }`}>
-                                {item.badge}
-                              </span>
-                            </button>
-                          );
-                        })}
-
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            min="1"
-                            max="90"
-                            value={customTrialDays}
-                            onChange={(e) => setCustomTrialDays(e.target.value)}
-                            placeholder="Otro (días)"
-                            className="h-11 min-h-[44px] w-28 px-3 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 font-medium"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Live Banner explicativo */}
-                      <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-200 text-xs text-purple-950 space-y-1">
-                        <div className="flex items-center gap-2 font-bold">
-                          <CalendarBlank size={15} className="text-purple-700" weight="bold" />
-                          <span>Prueba de {effectiveTrialDays} días por calendario</span>
-                        </div>
-                        <p className="text-purple-900/90 text-xs leading-relaxed">
-                          • <strong>Vigencia:</strong> Del {formatShortDate(new Date())} al {formatShortDate(new Date(Date.now() + effectiveTrialDays * 86400000))}.
-                          <br />
-                          • <strong>En POS:</strong> {effectiveTrialDays * 24} horas habilitadas para operar en la computadora.
-                          <br />
-                          • <strong>Cobro hoy:</strong> <span className="font-bold text-emerald-700">$0.00 USD</span> (gratis). Sin fecha de cobro recurrente fija.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Configuración si ya pagó */}
-              {startType === 'PAID' && (
-                <div className="p-3.5 rounded-xl bg-white border border-emerald-200 space-y-3 animate-fade-in">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label htmlFor="wiz-paid-amount" className="block text-xs font-semibold text-gray-700 mb-1">
-                        Monto recibido (USD) *
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">$</span>
-                        <input
-                          id="wiz-paid-amount"
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          min="0"
-                          value={initialPaidAmount}
-                          onChange={(e) => setInitialPaidAmount(e.target.value)}
-                          placeholder={totalEstimatedUsd > 0 ? totalEstimatedUsd.toFixed(2) : '0.00'}
-                          className={`w-full h-11 min-h-[44px] pl-7 pr-3 rounded-xl border text-xs font-medium bg-white focus:outline-none focus:border-emerald-600 ${
-                            errors.initialPaidAmount ? 'border-rose-400' : 'border-gray-200'
-                          }`}
-                        />
-                      </div>
-                      {errors.initialPaidAmount ? (
-                        <p className="text-xs text-rose-600 mt-0.5">{errors.initialPaidAmount}</p>
-                      ) : (
-                        <p className="text-xs text-gray-500 mt-0.5">Tarifa mensual: ${totalEstimatedUsd.toFixed(2)}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label htmlFor="wiz-paid-method" className="block text-xs font-semibold text-gray-700 mb-1">
-                        Método de pago *
-                      </label>
-                      <select
-                        id="wiz-paid-method"
-                        value={initialPaymentMethod}
-                        onChange={(e) => setInitialPaymentMethod(e.target.value as any)}
-                        className="w-full h-11 min-h-[44px] px-3 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:border-emerald-600"
-                      >
-                        <option value="TRANSFERENCIA">Transferencia bancaria</option>
-                        <option value="EFECTIVO">Efectivo</option>
-                        <option value="PAYPAL">PayPal</option>
-                        <option value="BINANCE">Binance</option>
-                        <option value="OTRO">Otro</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label htmlFor="wiz-paid-at" className="block text-xs font-semibold text-gray-700 mb-1">
-                        Fecha en que se recibió *
-                      </label>
-                      <input
-                        id="wiz-paid-at"
-                        type="date"
-                        max={todayIso}
-                        value={initialPaidAt}
-                        onChange={(e) => setInitialPaidAt(e.target.value)}
-                        className={`w-full h-11 min-h-[44px] px-3 rounded-xl border text-xs bg-white focus:outline-none focus:border-emerald-600 ${
-                          errors.initialPaidAt ? 'border-rose-400' : 'border-gray-200'
-                        }`}
-                      />
-                      {errors.initialPaidAt && (
-                        <p className="text-xs text-rose-600 mt-0.5">{errors.initialPaidAt}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 leading-snug">
-                    Primer período pagado: <strong>{formatShortDate(new Date())}</strong> →{' '}
-                    <strong>{formatShortDate(addOneMonth(new Date()))}</strong>. Se cobrará cada día{' '}
-                    <strong>{new Date().getDate()}</strong> del mes.
-                  </div>
-
-                  {/* Comprobante */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Comprobante de pago (opcional)
+                      Nombre completo *
                     </label>
-                    {initialProofFile ? (
-                      <div className="p-2.5 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          {initialProofPreview ? (
-                            <img src={initialProofPreview} alt="Comprobante" className="w-10 h-10 object-cover rounded-lg border border-gray-200" />
-                          ) : (
-                            <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center border border-red-100">
-                              <FilePdf size={20} weight="duotone" />
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-xs font-medium text-gray-900 truncate max-w-[200px]">{initialProofFile.name}</p>
-                            <p className="text-xs text-gray-500">{(initialProofFile.size / 1024).toFixed(1)} KB</p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (initialProofPreview) URL.revokeObjectURL(initialProofPreview);
-                            setInitialProofFile(null);
-                            setInitialProofPreview(null);
-                          }}
-                          className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-200 hover:border-purple-600 rounded-xl cursor-pointer bg-white transition-colors min-h-[44px]">
-                        <div className="flex items-center gap-2 text-xs font-medium text-gray-700">
-                          <UploadSimple size={18} className="text-gray-400" />
-                          <span>Adjuntar foto o PDF del comprobante</span>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,application/pdf"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              const f = e.target.files[0];
-                              setInitialProofFile(f);
-                              if (initialProofPreview) URL.revokeObjectURL(initialProofPreview);
-                              setInitialProofPreview(f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
-                            }
-                          }}
-                          className="hidden"
-                        />
-                      </label>
+                    <input
+                      type="text"
+                      value={encargadoName}
+                      onChange={(e) => {
+                        setEncargadoName(e.target.value);
+                        if (errors.encargadoName) {
+                          setErrors((prev) => ({ ...prev, encargadoName: '' }));
+                        }
+                      }}
+                      placeholder="Ej. Carlos Mendoza"
+                      className={`w-full h-9 px-3 rounded-lg border text-xs bg-white text-gray-900 ${
+                        errors.encargadoName ? 'border-rose-400 ring-1 ring-rose-400' : 'border-gray-300'
+                      }`}
+                    />
+                    {errors.encargadoName && (
+                      <p className="text-xs text-rose-600 mt-1">{errors.encargadoName}</p>
                     )}
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* ============================================================== */}
-        {/* PASO 5: ENCARGADO Y CONFIRMACIÓN */}
-        {/* ============================================================== */}
-        {currentStep === 5 && (
-          <div className="space-y-4 animate-fade-in">
-            {/* Formulario del encargado */}
-            <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900 uppercase tracking-wider">
-                <ShieldCheck size={16} className="text-purple-700" />
-                <span>Primer Encargado del Negocio</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Nombre completo *
-                  </label>
-                  <input
-                    type="text"
-                    value={encargadoName}
-                    onChange={(e) => setEncargadoName(e.target.value)}
-                    placeholder="Ej: Carlos López"
-                    className={`w-full h-9 px-2.5 rounded-lg border text-xs bg-white ${
-                      errors.encargadoName ? 'border-rose-400' : 'border-gray-200'
-                    }`}
-                  />
-                  {errors.encargadoName && (
-                    <p className="text-xs text-rose-600 mt-0.5">{errors.encargadoName}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Correo electrónico *
-                  </label>
-                  <input
-                    type="email"
-                    value={encargadoEmail}
-                    onChange={(e) => setEncargadoEmail(e.target.value)}
-                    placeholder="carlos@demo.com"
-                    className={`w-full h-9 px-2.5 rounded-lg border text-xs bg-white ${
-                      errors.encargadoEmail ? 'border-rose-400' : 'border-gray-200'
-                    }`}
-                  />
-                  {errors.encargadoEmail && (
-                    <p className="text-xs text-rose-600 mt-0.5">{errors.encargadoEmail}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Contraseña temporal *
-                  </label>
-                  <input
-                    type="password"
-                    value={encargadoPassword}
-                    onChange={(e) => setEncargadoPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className={`w-full h-9 px-2.5 rounded-lg border text-xs bg-white ${
-                      errors.encargadoPassword ? 'border-rose-400' : 'border-gray-200'
-                    }`}
-                  />
-                  {errors.encargadoPassword && (
-                    <p className="text-xs text-rose-600 mt-0.5">{errors.encargadoPassword}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Tarjeta de Resumen antes de guardar */}
-            <div className="p-4 rounded-xl bg-purple-50/50 border border-purple-200/80 space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-purple-200/60">
-                <span className="text-xs font-bold text-purple-950 uppercase tracking-wider">
-                  Resumen de Contratación
-                </span>
-                <span className="text-xs font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-md">
-                  Listo para crear
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                <div>
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                    Negocio
-                  </span>
-                  <p className="font-bold text-gray-900 truncate">{name || 'Sin nombre'}</p>
-                  <p className="text-xs text-gray-500">{selectedIndustry?.name}</p>
-                </div>
-
-                <div>
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                    Productos Activos
-                  </span>
-                  <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                    {hasPOS && (
-                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-900 border border-purple-200">
-                        POS
-                      </span>
-                    )}
-                    {hasDelivery && (
-                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-200">
-                        Delivery
-                      </span>
-                    )}
-                    {hasCarteraCobro && (
-                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-900 border border-emerald-200">
-                        Finanzas
-                      </span>
-                    )}
-                    {hasCitas && (
-                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-sky-100 text-sky-900 border border-sky-200">
-                        Citas
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {hasPOS && (
                   <div>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                      Perfil & Equipos
-                    </span>
-                    <p className="font-semibold text-gray-900">
-                      Perfil {profileLabel}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {isUnlimitedDevices ? 'Equipos ilimitados' : `${maxDevices || 1} equipo(s)`} •{' '}
-                      {startType === 'TRIAL'
-                        ? trialUnit === 'HOURS'
-                          ? `Prueba ${effectiveTrialHours}h`
-                          : `Prueba ${effectiveTrialDays} días`
-                        : startType === 'PAID'
-                        ? 'Sin prueba (pagado)'
-                        : 'Inicio sin definir'}
-                    </p>
-                  </div>
-                )}
-
-                {hasPOS && (
-                  <div className="sm:col-span-2">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                      Acceso Web POS
-                    </span>
-                    <p className="font-semibold text-gray-900">
-                      {webAdminEnabled ? 'Web Admin básico: Activo' : 'Web Admin: Desactivado'}
-                      {' • '}
-                      {webBillingEnabled && webAdminEnabled
-                        ? `Facturación Web: Activa (${
-                            isUnlimitedWebDevices ? 'Ilimitada' : `${maxWebDevices || 2} disp.`
-                          })`
-                        : 'Facturación Web: Desactivada'}
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                    Control de Lotes
-                  </span>
-                  <p className="font-semibold text-gray-900">
-                    {tracksBatches ? (
-                      <span className="text-emerald-700 font-bold">Activo</span>
-                    ) : (
-                      <span className="text-gray-500">Desactivado</span>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Correo electrónico *
+                    </label>
+                    <input
+                      type="email"
+                      value={encargadoEmail}
+                      onChange={(e) => {
+                        setEncargadoEmail(e.target.value);
+                        if (errors.encargadoEmail) {
+                          setErrors((prev) => ({ ...prev, encargadoEmail: '' }));
+                        }
+                      }}
+                      placeholder="carlos@demo.com"
+                      className={`w-full h-9 px-3 rounded-lg border text-xs bg-white text-gray-900 ${
+                        errors.encargadoEmail ? 'border-rose-400 ring-1 ring-rose-400' : 'border-gray-300'
+                      }`}
+                    />
+                    {errors.encargadoEmail && (
+                      <p className="text-xs text-rose-600 mt-1">{errors.encargadoEmail}</p>
                     )}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {tracksBatches ? 'Lotes y vencimientos' : 'Sin seguimiento de lotes'}
-                  </p>
-                </div>
+                  </div>
 
-                <div>
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                    Precio de Etiqueta
-                  </span>
-                  <p className="font-semibold text-gray-900">
-                    {useListPrice ? (
-                      <span className="text-emerald-700 font-bold">Activo</span>
-                    ) : (
-                      <span className="text-gray-500">Desactivado</span>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Contraseña temporal *
+                    </label>
+                    <input
+                      type="password"
+                      value={encargadoPassword}
+                      onChange={(e) => {
+                        setEncargadoPassword(e.target.value);
+                        if (errors.encargadoPassword) {
+                          setErrors((prev) => ({ ...prev, encargadoPassword: '' }));
+                        }
+                      }}
+                      placeholder="Mínimo 6 caracteres"
+                      className={`w-full h-9 px-3 rounded-lg border text-xs bg-white text-gray-900 ${
+                        errors.encargadoPassword ? 'border-rose-400 ring-1 ring-rose-400' : 'border-gray-300'
+                      }`}
+                    />
+                    {errors.encargadoPassword && (
+                      <p className="text-xs text-rose-600 mt-1">{errors.encargadoPassword}</p>
                     )}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {useListPrice ? 'Etiqueta y descuentos' : 'Precio regular directo'}
-                  </p>
-                </div>
-
-                <div>
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                    Primer Encargado
-                  </span>
-                  <p className="font-bold text-gray-900 truncate">{encargadoName || '—'}</p>
-                  <p className="text-xs text-gray-500 truncate">{encargadoEmail || '—'}</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Total mensual estimado en USD */}
-              <div className="pt-3 border-t border-purple-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <span className="text-xs font-bold text-purple-900 uppercase tracking-wider block">
-                    Total Mensual Estimado
-                  </span>
-                  {feesList.length > 0 ? (
-                    <p className="text-xs text-gray-600">
-                      {feesList.map((f) => `${f.name}: $${f.amount.toFixed(2)}`).join(' + ')}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-gray-500">Sin cuotas fijas mensuales registradas</p>
-                  )}
-                  {missingFeesList.length > 0 && (
-                    <p className="text-xs text-gray-400 italic">
-                      * Estimado. No incluye: {missingFeesList.join(', ')}
-                    </p>
-                  )}
-                </div>
+              {/* Resumen en líneas simples (sin cajas anidadas ni paneles de color) */}
+              <div className="pt-4 border-t border-gray-100 space-y-3">
+                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                  Resumen de la contratación
+                </h3>
 
-                <div className="text-right">
-                  <span className="text-base sm:text-lg font-black text-purple-950 font-mono">
-                    ${totalEstimatedUsd.toFixed(2)}{' '}
-                    <span className="text-xs font-semibold text-purple-700">USD/mes</span>
-                  </span>
+                <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg p-3.5 bg-white text-xs space-y-2">
+                  {/* Línea 1: Negocio y tipo */}
+                  <div className="flex items-center justify-between pb-2">
+                    <span className="text-gray-500">Negocio y rubro</span>
+                    <span className="font-semibold text-gray-900">
+                      {name || '—'} · {selectedIndustry?.name || 'General'}
+                    </span>
+                  </div>
+
+                  {/* Línea 2: Productos */}
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-gray-500">Productos activos</span>
+                    <span className="font-semibold text-gray-900">
+                      {[
+                        hasPOS && 'POS',
+                        hasCarteraCobro && 'Finanzas',
+                        hasCitas && 'Citas',
+                        hasDelivery && 'Delivery',
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </span>
+                  </div>
+
+                  {/* Línea 3: Forma de venta y pago */}
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-gray-500">Forma de venta</span>
+                    <span className="font-semibold text-gray-900 text-right">
+                      {saleModality === 'MEMBRESIA_MENSUAL' ? (
+                        startType === 'TRIAL'
+                          ? `Membresía mensual · Prueba gratis (${effectiveTrialHours}h)`
+                          : `Membresía mensual · Primer mes pagado ($${Number(initialPaidAmount || totalMonthlyFee).toFixed(2)} USD)`
+                      ) : (
+                        `${SALE_MODALITY_LABELS[saleModality]} · ${
+                          commercialPaymentType === 'CREDITO'
+                            ? `Crédito ${commercialInstallmentsCount} cuotas (Prima $${commercialDownPayment})`
+                            : 'Contado'
+                        }`
+                      )}
+                    </span>
+                  </div>
+
+                  {/* Línea 4: Equipo entregado */}
+                  {(saleModality === 'COMBO_COMPLETO' || saleModality === 'COMBO_PARCIAL') && (
+                    <div className="flex items-center justify-between py-2">
+                      <span className="text-gray-500">Equipo entregado</span>
+                      <span className="font-semibold text-gray-900">
+                        {saleModality === 'COMBO_COMPLETO'
+                          ? `${comboPieces.filter((p) => p.selected).length} piezas de combo`
+                          : `${partialPieces.filter((p) => p.selected).length} piezas seleccionadas`}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Línea 5: Mantenimiento */}
+                  {saleModality !== 'MEMBRESIA_MENSUAL' && (
+                    <div className="flex items-center justify-between py-2">
+                      <span className="text-gray-500">Mantenimiento</span>
+                      <span className="font-semibold text-gray-900">
+                        {maintenanceFreeMonths} meses incluidos (luego C$ {maintenanceMonthlyNio}/mes)
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Línea 6: Primer encargado */}
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-gray-500">Primer encargado</span>
+                    <span className="font-semibold text-gray-900">
+                      {encargadoName.trim() || '—'} ({encargadoEmail.trim() || '—'})
+                    </span>
+                  </div>
+
+                  {/* Línea 7: Total */}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <span className="text-xs font-bold text-gray-900">
+                      {saleModality === 'MEMBRESIA_MENSUAL' ? 'Total mensual estimado' : 'Total acordado de la venta'}
+                    </span>
+                    <span className="text-sm font-black text-purple-900 font-mono">
+                      {saleModality === 'MEMBRESIA_MENSUAL'
+                        ? `$${totalMonthlyFee.toFixed(2)} USD / mes`
+                        : `${commercialCurrency === 'USD' ? '$' : 'C$'} ${Number(commercialTotalPrice).toFixed(2)}`}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-
-            {/* Resumen del inicio de membresía (Ticket 252b) */}
-            <div className={`p-4 rounded-xl border space-y-2.5 ${
-              startType === 'TRIAL' ? 'bg-purple-50/60 border-purple-200' : 'bg-emerald-50/60 border-emerald-200'
-            }`}>
-              <div className="flex items-center gap-2">
-                {startType === 'TRIAL' ? (
-                  <Gift size={20} weight="duotone" className="text-purple-700" />
-                ) : (
-                  <Money size={20} weight="duotone" className="text-emerald-700" />
-                )}
-                <p className="text-sm font-bold text-gray-900">
-                  {startType === 'TRIAL' ? 'Inicio con prueba gratis' : 'Inicio con primer mes pagado'}
-                </p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-700">
-                <p>
-                  <span className="font-semibold text-gray-900">Período:</span>{' '}
-                  {startType === 'TRIAL'
-                    ? trialUnit === 'HOURS'
-                      ? `Prueba de ${effectiveTrialHours} horas para POS (${effectiveTrialDays} día de vigencia inicial)`
-                      : `Prueba gratis de ${effectiveTrialDays} días (hasta ${formatShortDate(
-                          new Date(Date.now() + effectiveTrialDays * 86400000)
-                        )})`
-                    : `${formatShortDate(new Date())} → ${formatShortDate(addOneMonth(new Date()))}`}
-                </p>
-                <p>
-                  <span className="font-semibold text-gray-900">Monto a registrar:</span>{' '}
-                  {startType === 'TRIAL'
-                    ? '$0.00 (sin cobro inicial)'
-                    : `$${Number(initialPaidAmount || totalEstimatedUsd).toFixed(2)} USD · ${
-                        PAYMENT_METHOD_LABELS[initialPaymentMethod] || initialPaymentMethod
-                      } · recibido el ${formatShortDate(initialPaidAt)}`}
-                </p>
-                <p>
-                  <span className="font-semibold text-gray-900">Día de cobro:</span>{' '}
-                  {startType === 'TRIAL'
-                    ? 'No fijado (se definirá con el primer pago real)'
-                    : `Fijado en el día ${new Date().getDate()}`}
-                </p>
-                <p>
-                  <span className="font-semibold text-gray-900">Comprobante:</span>{' '}
-                  {startType === 'TRIAL'
-                    ? 'No aplica'
-                    : initialProofFile
-                    ? initialProofFile.name
-                    : 'Sin comprobante adjunto'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setErrors({});
-                  setCurrentStep(4);
-                }}
-                className="inline-flex items-center gap-1 h-11 min-h-[44px] px-3 -ml-3 rounded-xl text-xs font-semibold text-purple-700 hover:bg-purple-100/60 cursor-pointer"
-              >
-                <ArrowLeft size={14} />
-                Cambiar inicio y cobro
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </Modal>
   );

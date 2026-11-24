@@ -216,6 +216,9 @@ export interface CreateBusinessInput {
     email: string;
     password: string;
   };
+  maxMobileDevices?: number | null;
+  saleModality?: string;
+  commercial?: any;
   startType?: 'TRIAL' | 'PAID';
   trialDays?: number;
   firstPayment?: {

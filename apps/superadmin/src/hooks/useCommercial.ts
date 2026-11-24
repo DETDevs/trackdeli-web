@@ -15,7 +15,7 @@ export type CommercialSaleModality =
 
 export type CommercialPaymentType = 'CONTADO' | 'CREDITO';
 export type CommercialAgreementStatus = 'VIGENTE' | 'LIQUIDADO' | 'CANCELADO';
-export type CommercialPaymentKind = 'ADELANTO' | 'CUOTA' | 'PAGO';
+export type CommercialPaymentKind = 'ADELANTO' | 'PRIMA' | 'CUOTA' | 'PAGO' | 'MANTENIMIENTO';
 export type CommercialInstallmentStatus = 'PENDIENTE' | 'PARCIAL' | 'PAGADA' | 'VENCIDA';
 
 export type CommercialEquipmentType =
@@ -51,9 +51,11 @@ export const SALE_MODALITY_LABELS: Record<CommercialSaleModality, string> = {
 };
 
 export const PAYMENT_KIND_LABELS: Record<CommercialPaymentKind, string> = {
-  ADELANTO: 'Adelanto',
+  ADELANTO: 'Prima / Adelanto',
+  PRIMA: 'Prima / Adelanto',
   CUOTA: 'Cuota',
   PAGO: 'Pago completo',
+  MANTENIMIENTO: 'Mantenimiento mensual',
 };
 
 export const EQUIPMENT_TYPE_LABELS: Record<CommercialEquipmentType, string> = {
@@ -149,6 +151,83 @@ export interface CommercialEquipment {
   createdAt: string;
 }
 
+export interface CommercialPricingConfig {
+  soloSistemaPriceUsd: number;
+  comboCompletoPriceUsd: number;
+  maintenanceMonthlyNio: number;
+  maintenanceFreeMonths: number;
+  defaultCreditDownPaymentPct: number;
+  maxCreditInstallments: number;
+  defaultGraceDays: number;
+}
+
+export interface AccountStatementPayment {
+  id: string;
+  source: 'COMMERCIAL' | 'MEMBERSHIP';
+  kind: string;
+  amount: number;
+  currency: string;
+  paymentMethod: string;
+  referenceNumber?: string | null;
+  paymentProofUrl?: string | null;
+  paidAt: string;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  notes?: string | null;
+  voidedAt?: string | null;
+  createdAt: string;
+}
+
+export interface AccountStatementMaintenance {
+  applies: boolean;
+  status: 'INCLUIDO' | 'EN_COBRO' | 'NO_APLICA';
+  includedUntil: string | null;
+  nextChargeDate: string | null;
+  monthlyAmount: number | null;
+  currency: 'NIO';
+  currentChargeDue: number | null;
+  graceEndsAt: string | null;
+  daysUntilDue: number | null;
+}
+
+export interface AccountStatementBillingStatus {
+  isBlocked: boolean;
+  isCommercialBlocked: boolean;
+  blockReason: string | null;
+  blockMessage: string | null;
+  isInGrace: boolean;
+  graceEndsAt: string | null;
+  coveredUntil: string | null;
+  coverageSource: string | null;
+  daysUntilDue: number | null;
+  billingAnchorDay: number | null;
+}
+
+export interface AccountStatementData {
+  businessId: string;
+  businessName: string;
+  agreementId?: string;
+  saleModality: 'MEMBRESIA' | 'SOLO_SISTEMA' | 'COMBO_COMPLETO' | 'COMBO_PARCIAL';
+  rawSaleModality: string;
+  paymentType: 'CONTADO' | 'CREDITO' | 'MENSUAL';
+  status: string;
+  currency: string;
+  saleDate: string;
+  notes: string | null;
+  totalPrice: number | null;
+  totalPaid: number;
+  balance: number;
+  downPayment: number;
+  financedBalance: number;
+  equipmentTotal: number;
+  installments: CommercialInstallment[];
+  upcomingInstallments: CommercialInstallment[];
+  maintenance: AccountStatementMaintenance;
+  equipment: CommercialEquipment[];
+  payments: AccountStatementPayment[];
+  billingStatus: AccountStatementBillingStatus;
+}
+
 export interface CommercialSummary {
   totalPaid: number;
   balance: number;
@@ -234,16 +313,41 @@ export function getApiErrorMessage(err: any, fallback: string): string {
 }
 
 export const commercialKey = (businessId: string) => ['superadmin-business-commercial', businessId];
+export const accountStatementKey = (businessId: string) => ['superadmin-business-account-statement', businessId];
+export const commercialPricingConfigKey = () => ['superadmin-commercial-pricing-config'];
 
 /**
- * Invalida todo lo que depende del acuerdo comercial: la sección, el detalle
- * (coverage_source, commercial_overdue) y la lista de negocios.
+ * Invalida todo lo que depende del acuerdo comercial y estado de cuenta:
+ * la sección, el detalle (coverage_source, commercial_overdue) y la lista de negocios.
  */
 function invalidateCommercial(queryClient: ReturnType<typeof useQueryClient>, businessId: string) {
   queryClient.invalidateQueries({ queryKey: commercialKey(businessId) });
+  queryClient.invalidateQueries({ queryKey: accountStatementKey(businessId) });
   queryClient.invalidateQueries({ queryKey: ['superadmin-business', businessId] });
   queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
   queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
+}
+
+export function useCommercialPricingConfig() {
+  return useQuery<CommercialPricingConfig>({
+    queryKey: commercialPricingConfigKey(),
+    queryFn: async () => {
+      const { data } = await apiClient.get('/superadmin/commercial/pricing-config');
+      return data as CommercialPricingConfig;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useAccountStatement(businessId: string) {
+  return useQuery<AccountStatementData | null>({
+    queryKey: accountStatementKey(businessId),
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/superadmin/businesses/${businessId}/account-statement`);
+      return data as AccountStatementData;
+    },
+    enabled: !!businessId,
+  });
 }
 
 export function useCommercial(businessId: string) {
@@ -275,12 +379,18 @@ export function useUpsertCommercialAgreement(businessId: string) {
 export function useRecordCommercialPayment(businessId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ agreementId, input }: { agreementId: string; input: RecordPaymentInput }) => {
+    mutationFn: async ({
+      agreementId,
+      input,
+    }: {
+      agreementId?: string;
+      input: RecordPaymentInput & { installmentId?: string; currency?: string };
+    }) => {
       const { file, ...body } = input;
-      const { data: payment } = await apiClient.post(
-        `/superadmin/commercial/${agreementId}/payments`,
-        body,
-      );
+      const url = agreementId
+        ? `/superadmin/commercial/${agreementId}/payments`
+        : `/superadmin/businesses/${businessId}/commercial/payments`;
+      const { data: payment } = await apiClient.post(url, body);
 
       let proofError: string | null = null;
       if (file && payment?.id) {
@@ -332,15 +442,21 @@ export function useSaveCommercialEquipment(businessId: string) {
       equipmentId,
       input,
     }: {
-      agreementId: string;
+      agreementId?: string;
       equipmentId?: string;
       input: EquipmentInput;
     }) => {
       if (equipmentId) {
-        const { data } = await apiClient.patch(`/superadmin/commercial/equipment/${equipmentId}`, input);
+        const { data } = await apiClient.patch(
+          `/superadmin/businesses/${businessId}/commercial/equipment/${equipmentId}`,
+          input,
+        );
         return data;
       }
-      const { data } = await apiClient.post(`/superadmin/commercial/${agreementId}/equipment`, input);
+      const url = agreementId
+        ? `/superadmin/commercial/${agreementId}/equipment`
+        : `/superadmin/businesses/${businessId}/commercial/equipment`;
+      const { data } = await apiClient.post(url, input);
       return data;
     },
     onSuccess: (_d, vars) => {

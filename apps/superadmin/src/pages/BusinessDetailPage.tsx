@@ -31,6 +31,7 @@ import {
   Tag,
   DeviceMobile,
   Prohibit,
+  WarningOctagon,
 } from '@phosphor-icons/react';
 import { TopBar } from '../components/layout/TopBar';
 import { StatCard } from '../components/ui/StatCard';
@@ -66,6 +67,7 @@ import { BusinessProductFieldsSection } from '../components/business/BusinessPro
 import { BusinessPosDevicesSection } from '../components/business/BusinessPosDevicesSection';
 import { BusinessOrganizationSection } from '../components/business/BusinessOrganizationSection';
 import { BusinessCommercialSection } from '../components/business/BusinessCommercialSection';
+import { useAccountStatement } from '../hooks/useCommercial';
 import { useBusinessProducts, type BusinessProductType } from '../hooks/useBusinessProducts';
 import { useSuperAdminUsers } from '../hooks/useSuperAdminUsers';
 import { type AdminUser } from 'api-client';
@@ -88,6 +90,7 @@ export const BusinessDetailPage = () => {
   const { data: business, isLoading, isError } = useBusinessDetail(id!);
   const { data: memberships = [], isLoading: loadingMemberships } = useBusinessMemberships(id!);
   const { data: productsData } = useBusinessProducts(id!);
+  const { data: accountStatement } = useAccountStatement(id!);
   const toggleMutation = useToggleBusiness();
   const updateMutation = useUpdateBusiness();
   const updateQuotaMutation = useUpdateUserQuota();
@@ -506,6 +509,20 @@ export const BusinessDetailPage = () => {
       />
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-5 lg:space-y-6 max-w-7xl mx-auto">
+        {accountStatement?.billingStatus?.isBlocked && (
+          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-3">
+            <WarningOctagon size={22} weight="fill" className="text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-bold">Negocio bloqueado</h3>
+              <p className="text-xs text-rose-800 mt-0.5">
+                {accountStatement.billingStatus.blockMessage ||
+                  accountStatement.billingStatus.blockReason ||
+                  'Este negocio está bloqueado por cuota o mantenimiento vencido. No puede operar hasta registrar el pago.'}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <button
             onClick={() => navigate('/businesses')}

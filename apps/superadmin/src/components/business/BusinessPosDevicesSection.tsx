@@ -237,11 +237,14 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    const menuHeight = 160;
-    const openUp = window.innerHeight - rect.bottom < menuHeight + 12;
+    const menuWidth = 208;
+    const menuHeight = 175;
+    const fitsBelow = window.innerHeight - rect.bottom >= menuHeight + 12;
+    const top = fitsBelow ? rect.bottom + 4 : Math.max(12, rect.top - menuHeight - 4);
+    const right = Math.max(12, Math.min(window.innerWidth - rect.right, window.innerWidth - menuWidth - 12));
     setDeviceMenu({
-      top: openUp ? Math.max(12, rect.top - menuHeight - 4) : rect.bottom + 4,
-      right: Math.max(12, window.innerWidth - rect.right),
+      top,
+      right,
       device,
     });
   };
@@ -1447,15 +1450,15 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         ) : (
           <>
             {/* Vista desktop: tabla */}
-            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
-              <table className="w-full text-left border-collapse min-w-[640px]">
+            <div className="hidden lg:block rounded-xl border border-gray-100 overflow-hidden bg-white">
+              <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/80 border-b border-gray-100 text-xs font-semibold text-gray-500">
-                    <th className="py-2.5 px-3">Equipo</th>
-                    <th className="py-2.5 px-3">Última conexión</th>
-                    <th className="py-2.5 px-3">Registrado</th>
-                    <th className="py-2.5 px-3">Estado</th>
-                    <th className="py-2.5 px-3 text-right">Acciones</th>
+                    <th className="py-2.5 px-3 min-w-[200px]">Equipo</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Última conexión</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Registrado</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Estado</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -1473,11 +1476,11 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                               {icon === 'web' && <Globe size={16} className="text-gray-600" />}
                               {icon === 'mobile' && <DeviceMobile size={16} className="text-gray-600" />}
                             </div>
-                            <div>
-                              <div className="text-xs font-bold text-gray-900">
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-gray-900 truncate">
                                 {device.name || 'Sin nombre'}
                               </div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-gray-500 truncate">
                                 {type} · {platform}
                               </div>
                             </div>
@@ -1505,12 +1508,12 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                               Archivado
                             </span>
                           ) : device.status === 'ACTIVE' ? (
-                            <span className="inline-flex items-center">
+                            <span className="inline-flex items-center text-emerald-700">
                               <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1.5 shrink-0" />
                               Activo
                             </span>
                           ) : (
-                            <span className="inline-flex items-center">
+                            <span className="inline-flex items-center text-gray-500">
                               <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-1.5 shrink-0" />
                               Revocado
                             </span>
@@ -1536,24 +1539,25 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
               </table>
             </div>
 
-            {/* Vista móvil (< md): fila de dos líneas */}
-            <div className="md:hidden space-y-2.5">
+            {/* Vista móvil y tablet (< lg): tarjetas limpias */}
+            <div className="lg:hidden space-y-2.5">
               {filteredDevices.map((device) => {
                 const { type, platform, icon } = getDeviceTypeAndPlatform(device);
                 const isArchived = !!device.archivedAt;
+                const devId = device.deviceId || device.id;
 
                 return (
                   <div
                     key={device.id}
                     className="p-3 bg-white rounded-xl border border-gray-100 shadow-2xs space-y-2"
                   >
-                    {/* Línea 1: Nombre y tipo arriba + Menú ⋯ a la derecha */}
+                    {/* Línea 1: Nombre y tipo arriba + Estado y Menú ⋯ a la derecha */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-gray-50 border border-gray-200/80 flex items-center justify-center shrink-0">
-                          {icon === 'desktop' && <Desktop size={14} className="text-gray-600" />}
-                          {icon === 'web' && <Globe size={14} className="text-gray-600" />}
-                          {icon === 'mobile' && <DeviceMobile size={14} className="text-gray-600" />}
+                        <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200/80 flex items-center justify-center shrink-0">
+                          {icon === 'desktop' && <Desktop size={15} className="text-gray-600" />}
+                          {icon === 'web' && <Globe size={15} className="text-gray-600" />}
+                          {icon === 'mobile' && <DeviceMobile size={15} className="text-gray-600" />}
                         </div>
                         <div className="min-w-0">
                           <div className="text-xs font-bold text-gray-900 truncate">
@@ -1565,40 +1569,44 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={(e) => handleOpenDeviceMenu(e, device)}
-                        className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
-                        title="Acciones"
-                        aria-label="Acciones"
-                      >
-                        <DotsThreeVertical size={18} weight="bold" />
-                      </button>
-                    </div>
-
-                    {/* Línea 2: Conexión y estado abajo */}
-                    <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-50">
-                      <span title={device.lastSeenAt ? formatDateTime(device.lastSeenAt) : undefined}>
-                        {device.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : 'Nunca'}
-                      </span>
-                      <div>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {isArchived ? (
-                          <span className="inline-flex items-center font-medium text-gray-600">
+                          <span className="inline-flex items-center text-xs font-medium text-gray-500">
                             <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-1.5 shrink-0" />
                             Archivado
                           </span>
                         ) : device.status === 'ACTIVE' ? (
-                          <span className="inline-flex items-center font-medium text-gray-800">
+                          <span className="inline-flex items-center text-xs font-medium text-emerald-700">
                             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1.5 shrink-0" />
                             Activo
                           </span>
                         ) : (
-                          <span className="inline-flex items-center font-medium text-gray-600">
+                          <span className="inline-flex items-center text-xs font-medium text-gray-500">
                             <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-1.5 shrink-0" />
                             Revocado
                           </span>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={(e) => handleOpenDeviceMenu(e, device)}
+                          className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                          title="Acciones"
+                          aria-label="Acciones"
+                        >
+                          <DotsThreeVertical size={18} weight="bold" />
+                        </button>
                       </div>
+                    </div>
+
+                    {/* Línea 2: Conexión y ID */}
+                    <div className="flex items-center justify-between text-xs text-gray-500 pt-1.5 border-t border-gray-50">
+                      <span title={device.lastSeenAt ? formatDateTime(device.lastSeenAt) : undefined}>
+                        Última conexión: {device.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : 'Nunca'}
+                      </span>
+                      <span className="font-mono text-[11px] text-gray-400">
+                        {shortenId(devId)}
+                      </span>
                     </div>
                   </div>
                 );
@@ -1619,7 +1627,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                   />
                   <div
                     style={{ top: deviceMenu.top, right: deviceMenu.right }}
-                    className="fixed w-52 rounded-xl bg-white border border-gray-200 shadow-lg py-1 z-50 divide-y divide-gray-100 text-left whitespace-normal animate-in fade-in zoom-in-95 duration-100"
+                    className="fixed w-52 rounded-xl bg-white border border-gray-200 shadow-xl py-1 z-50 flex flex-col text-left text-xs divide-y divide-gray-100"
                   >
                     {/* Encabezado con ID abreviado y botón Copiar */}
                     <div className="px-3 py-2 flex items-center justify-between gap-2">
@@ -1645,8 +1653,8 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                       </button>
                     </div>
 
-                    {/* Opciones del menú */}
-                    <div className="py-1">
+                    {/* Opciones del menú en lista vertical limpia */}
+                    <div className="py-1 flex flex-col">
                       <button
                         type="button"
                         onClick={() => {
@@ -1657,7 +1665,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                           });
                           setDeviceMenu(null);
                         }}
-                        className="block w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                        className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
                       >
                         Renombrar
                       </button>
@@ -1669,7 +1677,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                             setRevokeModal({ isOpen: true, device });
                             setDeviceMenu(null);
                           }}
-                          className="block w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                          className="w-full text-left px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 font-medium cursor-pointer"
                         >
                           Revocar
                         </button>
@@ -1683,7 +1691,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                               handleConfirmReactivate(device);
                               setDeviceMenu(null);
                             }}
-                            className="block w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                            className="w-full text-left px-3 py-2 text-xs text-emerald-700 hover:bg-emerald-50 font-medium cursor-pointer"
                           >
                             Reactivar
                           </button>
@@ -1693,7 +1701,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                               setArchiveModal({ isOpen: true, device });
                               setDeviceMenu(null);
                             }}
-                            className="block w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                            className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
                           >
                             Archivar
                           </button>
@@ -1707,7 +1715,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                             handleConfirmUnarchive(device);
                             setDeviceMenu(null);
                           }}
-                          className="block w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
+                          className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 font-medium cursor-pointer"
                         >
                           Desarchivar
                         </button>
