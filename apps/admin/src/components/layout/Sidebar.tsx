@@ -25,6 +25,7 @@ import {
   Truck,
   ForkKnife,
   Tag,
+  Barcode,
 } from '@phosphor-icons/react';
 
 interface SidebarProps {
@@ -114,6 +115,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Catálogo',
       icon: Package,
       show: Boolean(isPosActive && webAdminEnabled && (isPosManager || isCajero)),
+    },
+    // 4a. Imprimir etiquetas (abre /pos/labels — solo ENCARGADO y SUPERADMIN)
+    {
+      to: '/pos/labels',
+      label: 'Imprimir etiquetas',
+      icon: Barcode,
+      show: Boolean(isPosActive && webAdminEnabled && isPosManager),
     },
     // 4b. Promociones (abre /pos/promotions — solo ENCARGADO y SUPERADMIN)
     {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Package,
   MagnifyingGlass,
@@ -17,6 +17,8 @@ import {
   Info,
   UploadSimple,
   Truck,
+  Barcode,
+  Printer,
 } from '@phosphor-icons/react';
 import {
   PosProductItem,
@@ -43,6 +45,7 @@ import { SuppliersListModal } from '../../components/pos/inventory/SuppliersList
 import { StockAdjustmentModal } from '../../components/pos/inventory/StockAdjustmentModal';
 import { DeleteProductConfirmModal } from '../../components/pos/inventory/DeleteProductConfirmModal';
 import { ImportCatalogModal } from '../../components/pos/inventory/ImportCatalogModal';
+import { GenerateMissingBarcodesModal } from '../../components/pos/inventory/GenerateMissingBarcodesModal';
 import {
   CategorySelector,
   normalizeCategorySearch,
@@ -173,6 +176,7 @@ export const PosInventoryPage: React.FC = () => {
   const [productToDelete, setProductToDelete] = useState<PosProductItem | null>(null);
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isGenerateMissingBarcodesOpen, setIsGenerateMissingBarcodesOpen] = useState(false);
   const businessIdParam = userRole === 'SUPERADMIN' ? user?.businessId : undefined;
 
   // Currency & batch policy
@@ -497,6 +501,23 @@ export const PosInventoryPage: React.FC = () => {
                 <Truck size={16} weight="bold" />
                 <span>Proveedores</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setIsGenerateMissingBarcodesOpen(true)}
+                className="min-h-[44px] px-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Barcode size={16} weight="bold" />
+                <span>Generar códigos faltantes</span>
+              </button>
+
+              <Link
+                to="/pos/labels"
+                className="min-h-[44px] px-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs flex items-center gap-1.5"
+              >
+                <Printer size={16} weight="bold" />
+                <span>Imprimir etiquetas</span>
+              </Link>
 
               <button
                 type="button"
@@ -1438,6 +1459,16 @@ export const PosInventoryPage: React.FC = () => {
           }}
           businessId={businessIdParam}
           userRole={userRole}
+        />
+      )}
+
+      {isGenerateMissingBarcodesOpen && canManageCatalog && (
+        <GenerateMissingBarcodesModal
+          isOpen={isGenerateMissingBarcodesOpen}
+          onClose={() => setIsGenerateMissingBarcodesOpen(false)}
+          onGenerated={() => {
+            loadData();
+          }}
         />
       )}
     </div>

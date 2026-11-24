@@ -5,8 +5,11 @@ import {
   Check,
   Question,
   WarningCircle,
+  Barcode,
+  CircleNotch,
 } from '@phosphor-icons/react';
-import type { PosProductVariantDetail } from 'api-client';
+import { generateNextPosBarcode, type PosProductVariantDetail } from 'api-client';
+import toast from 'react-hot-toast';
 import { formatCurrency } from '../../../utils/formatters';
 import type { ProductField } from './ListFieldSelect';
 
@@ -1271,6 +1274,8 @@ export const VariantsTableSection: React.FC<VariantsTableSectionProps> = ({
     [visibleRows],
   );
 
+  const [generatingComboKey, setGeneratingComboKey] = useState<string | null>(null);
+
   const updateRow = (comboKey: string, patch: Partial<DraftVariantRow>) => {
     const base = state.rows[comboKey] || visibleRows.find((r) => r.comboKey === comboKey);
     if (!base) return;
@@ -1281,6 +1286,31 @@ export const VariantsTableSection: React.FC<VariantsTableSectionProps> = ({
         [comboKey]: { ...base, ...patch, savedOk: false, error: null },
       },
     });
+  };
+
+  const handleGenerateVariantBarcode = async (row: DraftVariantRow) => {
+    if (
+      row.barcode.trim() &&
+      !window.confirm(
+        `La variante "${row.label}" ya tiene un código de barras. ¿Querés reemplazarlo por uno nuevo?`,
+      )
+    ) {
+      return;
+    }
+    setGeneratingComboKey(row.comboKey);
+    try {
+      const res = await generateNextPosBarcode();
+      updateRow(row.comboKey, { barcode: res.barcode });
+      toast.success(`Código ${res.barcode} generado para ${row.label}.`);
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'No se pudo generar el código de barras.',
+      );
+    } finally {
+      setGeneratingComboKey(null);
+    }
   };
 
   const handleToggleRowActive = (row: DraftVariantRow) => {
@@ -1468,9 +1498,9 @@ export const VariantsTableSection: React.FC<VariantsTableSectionProps> = ({
                     </td>
                   )}
 
-                  {/* Código de barras (pistola USB) */}
+                  {/* Código de barras (pistola USB o generación automática) */}
                   <td className="py-2.5 px-3">
-                    <div className="relative">
+                    <div className="flex items-center gap-1.5">
                       <input
                         type="text"
                         disabled={isReadOnly}
@@ -1483,8 +1513,24 @@ export const VariantsTableSection: React.FC<VariantsTableSectionProps> = ({
                           }
                         }}
                         placeholder="Escanear / escribir..."
-                        className="w-36 h-8 px-2 rounded-lg border border-gray-200 text-xs font-mono text-gray-900 focus:outline-none focus:border-purple-600 bg-white"
+                        className="w-32 h-8 px-2 rounded-lg border border-gray-200 text-xs font-mono text-gray-900 focus:outline-none focus:border-purple-600 bg-white"
                       />
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          disabled={generatingComboKey === row.comboKey}
+                          onClick={() => handleGenerateVariantBarcode(row)}
+                          title="Generar código de barras"
+                          className="h-8 px-2 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-semibold transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1 disabled:opacity-50"
+                        >
+                          {generatingComboKey === row.comboKey ? (
+                            <CircleNotch size={13} className="animate-spin" />
+                          ) : (
+                            <Barcode size={14} weight="bold" />
+                          )}
+                          <span>Generar</span>
+                        </button>
+                      )}
                     </div>
                   </td>
 

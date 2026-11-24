@@ -19,6 +19,8 @@ import {
   ChefHat,
   SlidersHorizontal,
   Camera,
+  Barcode,
+  CircleNotch,
 } from '@phosphor-icons/react';
 import {
   type PosProductItem,
@@ -46,7 +48,9 @@ import {
   updatePosVariant,
   createPosInventoryAdjustment,
   createPosProductFieldOption,
+  generateNextPosBarcode,
 } from 'api-client';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '../../../store/auth.store';
 import {
   isPharmacyIndustry,
@@ -193,6 +197,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [barcode, setBarcode] = useState('');
+  const [isGeneratingBarcode, setIsGeneratingBarcode] = useState(false);
   const [sku, setSku] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [supplierId, setSupplierId] = useState('');
@@ -2007,14 +2012,54 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         <label className="block text-xs font-semibold text-gray-800 mb-1">
                           Código de barras
                         </label>
-                        <input
-                          type="text"
-                          disabled={isReadOnly}
-                          value={barcode}
-                          onChange={(e) => setBarcode(e.target.value)}
-                          placeholder="Escaneá o escribí el código..."
-                          className="w-full h-11 px-3 rounded-xl border border-gray-200 text-xs font-mono text-gray-900 focus:outline-none focus:border-purple-600 disabled:bg-gray-50"
-                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            disabled={isReadOnly}
+                            value={barcode}
+                            onChange={(e) => setBarcode(e.target.value)}
+                            placeholder="Escaneá o escribí el código..."
+                            className="flex-1 min-w-0 h-11 px-3 rounded-xl border border-gray-200 text-xs font-mono text-gray-900 focus:outline-none focus:border-purple-600 disabled:bg-gray-50"
+                          />
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              disabled={isGeneratingBarcode}
+                              onClick={async () => {
+                                if (
+                                  barcode.trim() &&
+                                  !window.confirm(
+                                    'Este producto ya tiene un código de barras. ¿Querés reemplazarlo por uno nuevo?',
+                                  )
+                                ) {
+                                  return;
+                                }
+                                setIsGeneratingBarcode(true);
+                                try {
+                                  const res = await generateNextPosBarcode();
+                                  setBarcode(res.barcode);
+                                  toast.success(`Código ${res.barcode} generado.`);
+                                } catch (err: any) {
+                                  toast.error(
+                                    err?.response?.data?.message ||
+                                      err?.message ||
+                                      'No se pudo generar el código de barras.',
+                                  );
+                                } finally {
+                                  setIsGeneratingBarcode(false);
+                                }
+                              }}
+                              className="h-11 px-3 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-semibold transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                              {isGeneratingBarcode ? (
+                                <CircleNotch size={15} className="animate-spin" />
+                              ) : (
+                                <Barcode size={16} weight="bold" />
+                              )}
+                              <span>Generar código</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-800 mb-1">

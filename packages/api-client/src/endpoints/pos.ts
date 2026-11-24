@@ -3583,6 +3583,66 @@ export const deletePosPromotion = async (
   return res.data;
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// TICKET 303a / 303c: CÓDIGOS DE BARRAS EAN-13 INTERNOS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface PosNextBarcodeResponse {
+  barcode: string;
+  sequenceNumber: number;
+}
+
+export interface PosGenerateMissingBarcodesDto {
+  dryRun?: boolean;
+  limit?: number;
+}
+
+export interface PosGenerateMissingBarcodesResponse {
+  dryRun: boolean;
+  eligible: number;
+  wouldGenerate?: number;
+  generated: number;
+  skipped: number;
+  remaining: number;
+  maxPerCall: number;
+  errors: Array<{ productId: string; name: string; code: string; message: string }>;
+}
+
+export const generateNextPosBarcode = async (
+  businessId?: string,
+): Promise<PosNextBarcodeResponse> => {
+  const res = await apiClient.post<PosNextBarcodeResponse>(
+    '/pos/products/barcodes/next',
+    {},
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const generateMissingPosBarcodes = async (
+  dto: PosGenerateMissingBarcodesDto = { dryRun: true },
+  businessId?: string,
+): Promise<PosGenerateMissingBarcodesResponse> => {
+  const res = await apiClient.post<PosGenerateMissingBarcodesResponse>(
+    '/pos/products/barcodes/generate-missing',
+    dto,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+export const findPosProductByBarcode = async (
+  barcode: string,
+  businessId?: string,
+): Promise<PosProductItem> => {
+  const res = await apiClient.get<PosProductItem>(
+    `/pos/products/barcode/${encodeURIComponent(barcode.trim())}`,
+    { params: businessId ? { businessId } : undefined },
+  );
+  return res.data;
+};
+
+
 
 
 
