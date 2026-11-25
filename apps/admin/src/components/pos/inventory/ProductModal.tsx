@@ -164,7 +164,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   );
   const canManageBatches = !isReadOnly && businessTracksBatches;
   const useListPrice = Boolean(
-    business?.useListPrice ?? (user as any)?.business?.useListPrice,
+    business?.useListPrice ??
+      (effectiveSettings as any)?.useListPrice ??
+      (user as any)?.business?.useListPrice,
   );
   const rawDefaultMarkup =
     business?.defaultMarkupPct ?? (user as any)?.business?.defaultMarkupPct;
@@ -1194,7 +1196,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     }
 
     const hasActiveListPrice =
-      (useListPrice || (isPharmacy && !isService)) &&
+      useListPrice &&
       listPrice.trim() !== '' &&
       Number(listPrice.replace(',', '.')) > (Number.isFinite(numPrice) ? numPrice : 0);
 
@@ -1206,18 +1208,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       }
     }
 
-    // Validación de campos de farmacia (paridad con backend 233a)
+    // Validación de campos de farmacia (paridad con backend 233a y 304a)
     if (isPharmacy && !isService) {
-      const validation = validateProductForIndustry('farmacia', itemType, {
-        name: name.trim(),
-        listPrice,
-        cost,
-        price,
-        stock,
-        minStock,
-        supplierId,
-        attributes,
-      });
+      const validation = validateProductForIndustry(
+        'farmacia',
+        itemType,
+        {
+          name: name.trim(),
+          listPrice,
+          cost,
+          price,
+          stock,
+          minStock,
+          supplierId,
+          attributes,
+        },
+        { useListPrice },
+      );
       if (!validation.isValid) {
         Object.assign(nextFieldErrors, validation.errors);
       }
@@ -1298,12 +1305,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       return;
     }
 
-    const numListPrice =
-      (useListPrice || (isPharmacy && !isService)) && listPrice.trim() !== ''
-        ? Number(listPrice.replace(',', '.'))
-        : product
-        ? null
-        : undefined;
+    // 304c: con el interruptor apagado no se manda listPrice (ni null), para conservar el valor guardado.
+    const numListPrice = !useListPrice
+      ? undefined
+      : listPrice.trim() !== ''
+      ? Number(listPrice.replace(',', '.'))
+      : product
+      ? null
+      : undefined;
 
     const numMarkupPct =
       markupPct.trim() !== '' ? Number(markupPct.replace(',', '.')) : product ? null : undefined;
@@ -2220,7 +2229,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
               {openSections.pricing && (
                 <div className="p-4 space-y-3.5">
-                  {(useListPrice || (isPharmacy && !isService)) && (
+                  {useListPrice && (
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-xs font-semibold text-gray-800">
@@ -2523,7 +2532,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       />
                     </label>
 
-                    {!((useListPrice || (isPharmacy && !isService)) &&
+                    {!(useListPrice &&
                       listPrice.trim() !== '' &&
                       Number(listPrice.replace(',', '.')) > (numericPrice ?? 0)) && (
                       <div className="p-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/40 space-y-2.5">

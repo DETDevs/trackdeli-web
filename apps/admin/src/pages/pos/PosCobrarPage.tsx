@@ -1517,6 +1517,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
                   key={product.id}
                   product={product}
                   quantityInCart={cartQuantities[product.id] || 0}
+                  useListPrice={Boolean((businessData as any)?.useListPrice ?? (user as any)?.business?.useListPrice)}
                   onAdd={() => {
                     if (product.isVariantParent) {
                       setVariantModalProduct(product);

@@ -1465,6 +1465,7 @@ export const PosTableOrderPage: React.FC = () => {
                   key={product.id}
                   product={product}
                   quantityInCart={orderProductQuantities[product.id] || 0}
+                  useListPrice={Boolean((business as any)?.useListPrice ?? (user as any)?.business?.useListPrice)}
                   onAdd={handleAddProduct}
                   onDecrement={handleDecrementFromProductCard}
                   disabled={!isOnline || isMutatingOrder}

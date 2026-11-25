@@ -9,6 +9,7 @@ interface ProductCardProps {
   onAdd: (product: PosProductItem) => void;
   onDecrement?: (product: PosProductItem) => void;
   disabled?: boolean;
+  useListPrice?: boolean;
   onOpenVariantSelector?: (product: PosProductItem) => void;
   onOpenPresentationSelector?: (product: PosProductItem) => void;
 }
@@ -19,6 +20,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onAdd,
   onDecrement,
   disabled,
+  useListPrice = false,
   onOpenVariantSelector,
   onOpenPresentationSelector,
 }) => {
@@ -45,7 +47,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       wholesalePrice < product.price,
   );
   const hasListDisc = Boolean(
-    product.listPrice && Number(product.listPrice) > Number(product.price),
+    useListPrice && product.listPrice && Number(product.listPrice) > Number(product.price),
   );
   const rawPromo = product.promoDiscountPct ?? product.promo_discount_pct;
   const promoPct =

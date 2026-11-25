@@ -135,6 +135,10 @@ export interface ValidationValues {
   [key: string]: any;
 }
 
+export interface ValidateProductIndustryOptions {
+  useListPrice?: boolean;
+}
+
 /**
  * Valida un producto según las reglas de su rubro.
  * Retorna errores indexados por campo.
@@ -143,6 +147,7 @@ export function validateProductForIndustry(
   industry: string,
   productType: string,
   values: ValidationValues,
+  options?: ValidateProductIndustryOptions,
 ): { isValid: boolean; errors: Record<string, string>; firstErrorKey?: string } {
   const normIndustry = (industry || '').trim().toLowerCase();
   const rules = REQUIRED_PRODUCT_FIELDS_BY_INDUSTRY[normIndustry];
@@ -156,10 +161,15 @@ export function validateProductForIndustry(
     return { isValid: true, errors: {} };
   }
 
+  const useListPrice = Boolean(options?.useListPrice);
   const errors: Record<string, string> = {};
   let firstErrorKey: string | undefined;
 
   for (const rule of rules) {
+    if (rule.key === 'listPrice' && !useListPrice) {
+      continue;
+    }
+
     let val: any = undefined;
 
     // Buscar en attributes o en la raíz

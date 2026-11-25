@@ -82,7 +82,9 @@ export const ReceiptDesignSettingsTab: React.FC<ReceiptDesignSettingsTabProps> =
   ).toUpperCase();
   const isFarmacia = Boolean((business as any)?.tracksBatches || vertical === 'FARMACIA');
   const isListPriceActive = Boolean(
-    (business as any)?.useListPrice || (user as any)?.business?.useListPrice
+    (business as any)?.useListPrice ??
+      (posSettings as any)?.useListPrice ??
+      (user as any)?.business?.useListPrice
   );
 
   useEffect(() => {
@@ -705,7 +707,7 @@ export const ReceiptDesignSettingsTab: React.FC<ReceiptDesignSettingsTabProps> =
                   {showBatches && (
                     <p className="text-[9px] text-gray-500 pl-2">Lote: L-2026A · Venc: 12/2027</p>
                   )}
-                  {showListPrice && (
+                  {isListPriceActive && showListPrice && (
                     <p className="text-[9px] text-gray-400 pl-2">Etiqueta C$ 50.00</p>
                   )}
                 </div>
