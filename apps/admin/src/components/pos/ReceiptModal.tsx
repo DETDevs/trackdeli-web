@@ -82,6 +82,7 @@ function adaptSaleForReceipt(sale: any, cashierName?: string) {
       taxable: Boolean(it.taxable),
       listPrice: it.listPrice,
       unit: it.unit,
+      presentationName: it.presentationName || it.presentation?.name || null,
       batches: it.batches || it.batchAllocations,
     })),
     payments: s.payments || [],

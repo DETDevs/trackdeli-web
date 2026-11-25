@@ -24,6 +24,7 @@ import {
 } from "api-client";
 import { useBackofficeSaleDetail } from "../../hooks/useBackoffice";
 import { formatCurrency, formatQuantity } from "../../utils/formatters";
+import { formatReceiptPresentationLine } from "../../utils/presentationHelpers";
 import { formatDateTime } from "../../utils/formatDate";
 import { CancelSaleModal } from "./sales/CancelSaleModal";
 import { ReturnSaleModal } from "./sales/ReturnSaleModal";
@@ -161,6 +162,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
         discount: Number(it.discount || 0),
         taxable: Boolean(it.taxable),
         listPrice: it.listPrice,
+        presentationName: it.presentationName || it.presentation?.name || null,
       })),
       payments: sale.payments || [],
       tip: posSaleData?.tip ?? s.tip ?? null,
@@ -556,7 +558,11 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="font-medium text-gray-900 text-xs truncate">
-                              {item.productName}
+                              {formatReceiptPresentationLine(
+                                item.quantity,
+                                item.productName,
+                                (item as any).presentationName || (item as any).presentation?.name,
+                              ) || item.productName}
                             </p>
                             {sale.taxModel === "PER_LINE" && (
                               <span

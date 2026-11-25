@@ -31,8 +31,10 @@ import {
   type PosSupplier,
   type PosRecipeComponentItem,
   type PosUnit,
+  type PosProductPresentation,
   createPosProduct,
   updatePosProduct,
+  createPosPresentation,
   getPosProducts,
   getPosProductComponents,
   setPosProductComponents,
@@ -70,7 +72,14 @@ import { EditBatchModal, type BatchToEdit } from './EditBatchModal';
 import { SupplierModal } from './SupplierModal';
 import { CreateUnitModal } from './CreateUnitModal';
 import { CreateFieldModal } from './CreateFieldModal';
-import { ProductPresentationsSection } from './ProductPresentationsSection';
+import {
+  ProductPresentationsSection,
+  type DraftPresentationItem,
+} from './ProductPresentationsSection';
+import {
+  formatStockEquivalenceLine,
+  pluralizeUnitName,
+} from '../../../utils/presentationHelpers';
 import {
   VariantsOptionsSection,
   VariantsTableSection,
@@ -204,6 +213,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [categoryId, setCategoryId] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [unit, setUnit] = useState('UND');
+  const [baseUnitName, setBaseUnitName] = useState('');
+  const [presentationsList, setPresentationsList] = useState<PosProductPresentation[]>([]);
+  const [draftPresentations, setDraftPresentations] = useState<DraftPresentationItem[]>([]);
 
   const [price, setPrice] = useState('');
   const [cost, setCost] = useState('');
@@ -556,6 +568,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       const nextCatId = product.categoryId || product.category?.id || '';
       const nextSuppId = product.supplierId || (product as any).supplier_id || '';
       const nextUnit = (product.unit || 'UND').toUpperCase();
+      const nextBaseUnitName = product.baseUnitName?.trim() || '';
+      setBaseUnitName(nextBaseUnitName);
+      setPresentationsList(Array.isArray(product.presentations) ? product.presentations : []);
+      setDraftPresentations([]);
       const nextPrice = product.price != null ? String(product.price) : '';
       const nextCost = product.cost != null ? String(product.cost) : '';
       const nextMarkup = product.markupPct != null ? String(product.markupPct) : '';
@@ -812,6 +828,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setSelectedCandidateId('');
       setCandidateQty('1');
       setComponentError(null);
+      setBaseUnitName('');
+      setPresentationsList([]);
+      setDraftPresentations([]);
       setOpenSections({
         basic: true,
         pricing: true,
@@ -1361,6 +1380,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       barcode: !isService ? barcode.trim() || undefined : undefined,
       sku: !isService ? sku.trim() || undefined : undefined,
       unit: isService ? 'UND' : unit,
+      ...(baseUnitName.trim() ? { baseUnitName: baseUnitName.trim() } : product?.baseUnitName ? { baseUnitName: null } : {}),
       price: numPrice,
       cost: typeof parsedCostValue === 'number' ? parsedCostValue : product ? null : undefined,
       markupPct: numMarkupPct,
@@ -1438,6 +1458,32 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         }
       } else {
         savedProduct = await createPosProduct(payload);
+        // 306c: crear formas de venta borrador definidas durante el alta del producto
+        if (!isService && !variantsDraft.enabled && draftPresentations.length > 0) {
+          for (const draft of draftPresentations) {
+            try {
+              await createPosPresentation(
+                savedProduct.id,
+                {
+                  name: draft.name,
+                  factor: draft.factor,
+                  price: draft.price,
+                  ...(useListPrice && draft.listPrice !== undefined ? { listPrice: draft.listPrice } : {}),
+                  wholesalePrice: draft.wholesalePrice ?? null,
+                  wholesaleMinQty: draft.wholesaleMinQty ?? null,
+                  barcode: draft.barcode || null,
+                  ...( !isReadOnly ? { cost: draft.cost ?? null } : {}),
+                },
+                business?.id,
+              );
+            } catch (presErr: any) {
+              toast.error(
+                presErr?.response?.data?.message ||
+                  `El producto se creó, pero no se pudo guardar la forma de venta "${draft.name}".`,
+              );
+            }
+          }
+        }
       }
 
       if (isService) {
@@ -1993,9 +2039,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Variantes (Ticket 301b): Opciones y valores */}
+                  {/* Variantes (Ticket 301b): Opciones y valores (306c: incompatible con formas de venta) */}
                   {!isService && (
-                    isLoadingVariants ? (
+                    (product ? presentationsList.length > 0 : draftPresentations.length > 0) ? (
+                      <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/70 text-xs text-gray-600">
+                        <span className="font-semibold text-gray-800 block">Variantes no disponibles</span>
+                        <span>
+                          No podés activar variantes en un producto que tiene formas de venta. Eliminá o quitá las formas de venta si querés usar variantes.
+                        </span>
+                      </div>
+                    ) : isLoadingVariants ? (
                       <div className="p-4 rounded-xl border border-gray-200 bg-gray-50 text-xs text-gray-500 animate-pulse">
                         Cargando variantes del producto...
                       </div>
@@ -2724,7 +2777,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         <div>
                           <div className="flex items-center justify-between mb-1">
                             <label className="block text-xs font-semibold text-gray-800">
-                              Existencia actual{' '}
+                              Existencia actual
+                              {((product ? presentationsList.length > 0 : draftPresentations.length > 0) || baseUnitName.trim()) && (
+                                <span className="text-purple-700 font-medium">
+                                  {' '}({pluralizeUnitName(baseUnitName.trim() || (unit === 'UND' ? 'Unidad' : unit), 2)})
+                                </span>
+                              )}{' '}
                               {isPharmacy && <span className="text-red-600">*</span>}
                             </label>
                             {product && !isReadOnly && onRequestStockAdjustment && !variantsDraft.enabled && (
@@ -2791,7 +2849,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
                         <div>
                           <label className="block text-xs font-semibold text-gray-800 mb-1">
-                            Existencia mínima{' '}
+                            Existencia mínima
+                            {((product ? presentationsList.length > 0 : draftPresentations.length > 0) || baseUnitName.trim()) && (
+                              <span className="text-purple-700 font-medium">
+                                {' '}({pluralizeUnitName(baseUnitName.trim() || (unit === 'UND' ? 'Unidad' : unit), 2)})
+                              </span>
+                            )}{' '}
                             {isPharmacy && <span className="text-red-600">*</span>}
                           </label>
                           <input
@@ -2838,49 +2901,81 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         </div>
                       </div>
                     )}
+
+                    {/* Equivalencia en vivo debajo del stock cuando hay formas de venta (306c #2) */}
+                    {trackStock && !variantsDraft.enabled && (() => {
+                      const activeForms = product ? presentationsList : draftPresentations;
+                      const eqLine = formatStockEquivalenceLine(
+                        Number(stock || 0),
+                        baseUnitName.trim() || (unit === 'UND' ? 'Unidad' : unit),
+                        activeForms,
+                      );
+                      if (!eqLine) return null;
+                      return (
+                        <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200/80 text-xs text-indigo-900 font-medium">
+                          {eqLine}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </section>
             )}
 
-            {/* SECCIÓN PRESENTACIONES (Ticket 294) */}
+            {/* SECCIÓN FORMAS DE VENTA (Ticket 294 / 306c) */}
             {!isService && (
-              <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => toggleSection('presentations')}
-                  className="w-full px-4 py-3 bg-gray-50/70 flex items-center justify-between text-left border-b border-gray-100 cursor-pointer"
-                >
-                  <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <Stack size={15} className="text-purple-700" />
-                    <span>Presentaciones</span>
-                    {product?.presentations && product.presentations.length > 0 && (
-                      <span className="ml-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 text-xs font-bold normal-case">
-                        {product.presentations.length}
-                      </span>
-                    )}
+              variantsDraft.enabled ? (
+                <div className="p-4 rounded-2xl border border-gray-200 bg-gray-50/70 text-xs text-gray-600 flex items-center gap-2.5">
+                  <Stack size={16} className="text-gray-400 shrink-0" />
+                  <span>
+                    <strong className="text-gray-800">Formas de venta:</strong> no podés usar formas de venta y variantes al mismo tiempo. Desactivá las variantes para configurar formas de venta.
                   </span>
-                  {openSections.presentations ? (
-                    <CaretUp size={16} className="text-gray-600" />
-                  ) : (
-                    <CaretDown size={16} className="text-gray-600" />
-                  )}
-                </button>
+                </div>
+              ) : (
+                <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('presentations')}
+                    className="w-full px-4 py-3 bg-gray-50/70 flex items-center justify-between text-left border-b border-gray-100 cursor-pointer"
+                  >
+                    <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Stack size={15} className="text-purple-700" />
+                      <span>Formas de venta</span>
+                      {(product ? presentationsList.length : draftPresentations.length) > 0 && (
+                        <span className="ml-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 text-xs font-bold normal-case">
+                          {product ? presentationsList.length : draftPresentations.length}
+                        </span>
+                      )}
+                    </span>
+                    {openSections.presentations ? (
+                      <CaretUp size={16} className="text-gray-600" />
+                    ) : (
+                      <CaretDown size={16} className="text-gray-600" />
+                    )}
+                  </button>
 
-                {openSections.presentations && (
-                  <div className="p-4">
-                    <ProductPresentationsSection
-                      productId={product?.id}
-                      unit={unit}
-                      currentStock={Number(stock || 0)}
-                      currency={currency}
-                      canManageCost={!isReadOnly}
-                      isReadOnly={isReadOnly}
-                      businessId={business?.id}
-                    />
-                  </div>
-                )}
-              </section>
+                  {openSections.presentations && (
+                    <div className="p-4">
+                      <ProductPresentationsSection
+                        productId={product?.id}
+                        unit={unit}
+                        baseUnitName={baseUnitName}
+                        onBaseUnitNameChange={setBaseUnitName}
+                        basePrice={Number(price.replace(',', '.')) || 0}
+                        currentStock={Number(stock || 0)}
+                        currency={currency}
+                        canManageCost={!isReadOnly}
+                        isReadOnly={isReadOnly}
+                        useListPrice={useListPrice}
+                        businessId={business?.id}
+                        draftPresentations={draftPresentations}
+                        onDraftPresentationsChange={setDraftPresentations}
+                        onPresentationsChanged={setPresentationsList}
+                      />
+                    </div>
+                  )}
+                </section>
+              )
             )}
 
             {/* SECCIÓN 4: LOTES Y VENCIMIENTOS (FEFO) */}

@@ -35,6 +35,7 @@ import {
 } from 'api-client';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatQuantity } from '../../utils/formatters';
+import { formatCatalogStockWithForms } from '../../utils/presentationHelpers';
 import { getExpiryRelativeInfo } from '../../utils/batchStatus';
 import { isBatchExpiredDate, round3 } from '../../utils/batchExpiry';
 import { getManaguaTodayYMD } from '../../utils/dateManagua';
@@ -823,14 +824,17 @@ export const PosInventoryPage: React.FC = () => {
                                       />
                                     </button>
                                   )}
-                                  {hasPresentations && (
-                                    <span
-                                      title={`${p.presentations?.length} presentación(es) activa(s)`}
-                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
-                                    >
-                                      Presentaciones
-                                    </span>
-                                  )}
+                                  {hasPresentations && (() => {
+                                    const activeFormsCount = (p.presentations || []).filter((pr) => pr.isActive !== false).length || p.presentations?.length || 0;
+                                    return (
+                                      <span
+                                        title={`${activeFormsCount} ${activeFormsCount === 1 ? 'forma de venta' : 'formas de venta'}`}
+                                        className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                      >
+                                        {activeFormsCount} {activeFormsCount === 1 ? 'forma' : 'formas'}
+                                      </span>
+                                    );
+                                  })()}
                                   {wp && wmq && wmq >= 2 && (
                                     <span
                                       title={`Precio mayorista ${formatCurrency(wp, currency)} a partir de ${wmq} unidades`}
@@ -900,11 +904,15 @@ export const PosInventoryPage: React.FC = () => {
                                       : 'text-gray-900'
                                   }`}
                                 >
-                                  {formatQuantity(effectiveStock, p.unit)}
+                                  {hasPresentations
+                                    ? formatCatalogStockWithForms(effectiveStock, p)
+                                    : formatQuantity(effectiveStock, p.unit)}
                                 </span>
-                                <div className="text-xs text-gray-500 font-normal">
-                                  {formatUnitLabel(p.unit)}
-                                </div>
+                                {!hasPresentations && (
+                                  <div className="text-xs text-gray-500 font-normal">
+                                    {formatUnitLabel(p.unit)}
+                                  </div>
+                                )}
                                 {p.minStock != null && p.minStock > 0 && (
                                   <div className="text-xs text-gray-400">
                                     Mín: {formatQuantity(p.minStock, p.unit)}
@@ -1137,14 +1145,17 @@ export const PosInventoryPage: React.FC = () => {
                         />
                       </button>
                     )}
-                    {hasPresentations && (
-                      <span
-                        title={`${p.presentations?.length} presentación(es)`}
-                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
-                      >
-                        Presentaciones
-                      </span>
-                    )}
+                    {hasPresentations && (() => {
+                      const activeFormsCount = (p.presentations || []).filter((pr) => pr.isActive !== false).length || p.presentations?.length || 0;
+                      return (
+                        <span
+                          title={`${activeFormsCount} ${activeFormsCount === 1 ? 'forma de venta' : 'formas de venta'}`}
+                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        >
+                          {activeFormsCount} {activeFormsCount === 1 ? 'forma' : 'formas'}
+                        </span>
+                      );
+                    })()}
                     {wp && wmq && wmq >= 2 && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
                         Mayor: {formatCurrency(wp, currency)} (≥ {wmq})

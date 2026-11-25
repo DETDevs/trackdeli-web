@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -42,6 +43,11 @@ import { usePosPolicies } from '../../hooks/usePosPolicies';
 import { usePosCartStore } from '../../store/posCart.store';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency } from '../../utils/formatters';
+import {
+  getBaseUnitDisplayName,
+  pluralizePresentationName,
+  pluralizeUnitName,
+} from '../../utils/presentationHelpers';
 import { formatManaguaTime } from '../../utils/dateManagua';
 import { type ReceiptBusinessInfo } from '../../utils/receiptPdf';
 
@@ -193,19 +199,51 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
   const [searchQuery, setSearchQuery] = useState('');
   const [variantModalProduct, setVariantModalProduct] = useState<PosProductItem | null>(null);
   const [presentationModalProduct, setPresentationModalProduct] = useState<PosProductItem | null>(null);
+  const [pendingPresentationQty, setPendingPresentationQty] = useState<number>(1);
+
+  const tryAddItemWithStockCheck = React.useCallback(
+    (product: PosProductItem, presentation?: any | null, qtyToAdd = 1) => {
+      const tracksStock = product.trackInventory !== false && product.type !== 'SERVICE';
+      if (tracksStock && typeof product.stock === 'number') {
+        const factor = presentation ? Number(presentation.factor) || 1 : 1;
+        const currentItems = usePosCartStore.getState().items;
+        const usedBase = currentItems
+          .filter((it) => it.productId === product.id)
+          .reduce((acc, it) => acc + Number(it.quantity || 0) * (Number(it.presentationFactor) || 1), 0);
+        const remainingBase = Math.max(0, Number(product.stock) - usedBase);
+        const maxCanAdd = Math.floor(remainingBase / factor);
+        if (qtyToAdd > maxCanAdd) {
+          const totalPossible = Math.floor(Number(product.stock) / factor);
+          const label = presentation
+            ? pluralizePresentationName(presentation.name, totalPossible)
+            : pluralizeUnitName(getBaseUnitDisplayName(product), totalPossible);
+          toast.error(`Solo alcanza para ${totalPossible} ${label}.`);
+          return false;
+        }
+      }
+      addItem(product, presentation, qtyToAdd);
+      return true;
+    },
+    [addItem],
+  );
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter' || !searchQuery.trim()) return;
-    const q = searchQuery.trim().toLowerCase();
+    const rawTrimmed = searchQuery.trim();
+    // 306c #6: prefijo "5*" antes del código o nombre agrega 5 unidades/formas
+    const qtyPrefixMatch = rawTrimmed.match(/^(\d+)\*(.+)$/);
+    const qtyToAdd = qtyPrefixMatch ? Math.max(1, parseInt(qtyPrefixMatch[1], 10)) : 1;
+    const q = (qtyPrefixMatch ? qtyPrefixMatch[2] : rawTrimmed).trim().toLowerCase();
+    if (!q) return;
 
-    // 1. Coincidencia exacta de código de barras en presentaciones
+    // 1. Coincidencia exacta de código de barras en formas de venta (escáner agrega directo y suma)
     for (const p of products) {
       if (Array.isArray(p.presentations)) {
         const pres = p.presentations.find(
           (pr) => pr.isActive !== false && pr.barcode && pr.barcode.trim().toLowerCase() === q,
         );
         if (pres) {
-          addItem(p, pres, 1);
+          tryAddItemWithStockCheck(p, pres, qtyToAdd);
           setSearchQuery('');
           e.preventDefault();
           return;
@@ -220,7 +258,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
           (va) => va.isActive !== false && va.barcode && va.barcode.trim().toLowerCase() === q,
         );
         if (v) {
-          addItem(v as PosProductItem, undefined, 1);
+          tryAddItemWithStockCheck(v as PosProductItem, undefined, qtyToAdd);
           setSearchQuery('');
           e.preventDefault();
           return;
@@ -237,27 +275,38 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         Array.isArray(matchedProduct.presentations) &&
         matchedProduct.presentations.filter((pr) => pr.isActive !== false).length > 0
       ) {
+        setPendingPresentationQty(qtyToAdd);
         setPresentationModalProduct(matchedProduct);
       } else {
-        addItem(matchedProduct, undefined, 1);
+        tryAddItemWithStockCheck(matchedProduct, undefined, qtyToAdd);
       }
       setSearchQuery('');
       e.preventDefault();
       return;
     }
 
-    // 4. Si hay un solo producto en los resultados filtrados
-    if (filteredProducts.length === 1) {
-      const single = filteredProducts[0];
+    // 4. Si hay un solo producto en los resultados filtrados (soportando prefijo "5*nombre")
+    const candidates = qtyPrefixMatch
+      ? products.filter((p) => {
+          if (p.name.toLowerCase().includes(q)) return true;
+          if (p.sku && p.sku.toLowerCase().includes(q)) return true;
+          if (p.barcode && p.barcode.toLowerCase().includes(q)) return true;
+          return false;
+        })
+      : filteredProducts;
+
+    if (candidates.length === 1) {
+      const single = candidates[0];
       if (single.isVariantParent) {
         setVariantModalProduct(single);
       } else if (
         Array.isArray(single.presentations) &&
         single.presentations.filter((pr) => pr.isActive !== false).length > 0
       ) {
+        setPendingPresentationQty(qtyToAdd);
         setPresentationModalProduct(single);
       } else {
-        addItem(single, undefined, 1);
+        tryAddItemWithStockCheck(single, undefined, qtyToAdd);
       }
       setSearchQuery('');
       e.preventDefault();
@@ -1586,6 +1635,7 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
       <CartDrawer
         isOpen={isCartDrawerOpen}
         onClose={() => setIsCartDrawerOpen(false)}
+        products={products}
         isOnline={isOnline}
         deliveryChannelEnabled={deliveryChannelEnabled}
         defaultDeliveryFee={defaultDeliveryFee}
@@ -1794,19 +1844,25 @@ export const PosCobrarPage: React.FC<PosCobrarPageProps> = ({ lockChannel = fals
         />
       )}
 
-      {/* Modal de selección de presentaciones (Saco, Caja, etc.) */}
+      {/* Modal de selección de formas de venta */}
       {presentationModalProduct && (
         <PresentationSelectorModal
           isOpen={Boolean(presentationModalProduct)}
-          onClose={() => setPresentationModalProduct(null)}
-          product={presentationModalProduct}
-          onSelectSuelto={(p) => {
-            addItem(p);
+          onClose={() => {
             setPresentationModalProduct(null);
+            setPendingPresentationQty(1);
+          }}
+          product={presentationModalProduct}
+          useListPrice={Boolean((businessData as any)?.useListPrice ?? (user as any)?.business?.useListPrice)}
+          onSelectSuelto={(p) => {
+            tryAddItemWithStockCheck(p, null, pendingPresentationQty);
+            setPresentationModalProduct(null);
+            setPendingPresentationQty(1);
           }}
           onSelectPresentation={(p, pres) => {
-            addItem(p, pres, 1);
+            tryAddItemWithStockCheck(p, pres, pendingPresentationQty);
             setPresentationModalProduct(null);
+            setPendingPresentationQty(1);
           }}
         />
       )}

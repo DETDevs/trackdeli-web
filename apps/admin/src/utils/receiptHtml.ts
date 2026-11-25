@@ -4,6 +4,7 @@ import type { PosQuote } from 'api-client';
 import { formatCalendarDate, getInterestDisplayLabel } from './creditPlan';
 import { generateQuoteReceiptHtml } from './quoteReceiptHtml';
 import { getSaleCustomerAddress, getSaleCustomerReference } from './customerAddress';
+import { formatReceiptPresentationLine } from './presentationHelpers';
 
 if (typeof window !== 'undefined') {
   (window as any).html2canvas = html2canvas;
@@ -254,7 +255,10 @@ export const generateReceiptHtml = (
       const isTaxable = Boolean(item.taxable);
       const rawName = item.productName || item.name || 'Producto';
       const presName = item.presentationName || item.presentation?.name;
-      const baseName = presName ? `${rawName} (${presName})` : rawName;
+      const formattedPresLine = presName
+        ? formatReceiptPresentationLine(qty, rawName, presName)
+        : null;
+      const baseName = formattedPresLine || rawName;
       const displayName = isPerLine && isTaxable ? `${baseName} (G)` : baseName;
 
       const promoDiscount = Number(item.promoDiscount || 0);

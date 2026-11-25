@@ -104,6 +104,7 @@ export interface PosProductItem {
   minStock?: number;
   maxStock?: number | null;
   unit?: string;
+  baseUnitName?: string | null;
   barcode?: string | null;
   type?: 'PRODUCT' | 'SERVICE';
   isService?: boolean;
@@ -3274,6 +3275,7 @@ export interface PosProductPresentation {
   isDefaultPurchase?: boolean;
   sortOrder?: number;
   isActive?: boolean;
+  availableUnits?: number;
   createdAt?: string;
   updatedAt?: string;
 }

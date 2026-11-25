@@ -1,7 +1,16 @@
-import React from 'react';
-import { Plus, Minus, Package, Wrench, Sparkle, Stack, SlidersHorizontal } from '@phosphor-icons/react';
-import { type PosProductItem } from 'api-client';
-import { formatCurrency } from '../../../utils/formatters';
+import React from "react";
+import {
+  Plus,
+  Minus,
+  Package,
+  Wrench,
+  Sparkle,
+  Stack,
+  SlidersHorizontal,
+} from "@phosphor-icons/react";
+import { type PosProductItem } from "api-client";
+import { formatCurrency } from "../../../utils/formatters";
+import { formatCatalogStockWithForms } from "../../../utils/presentationHelpers";
 
 interface ProductCardProps {
   product: PosProductItem;
@@ -24,30 +33,35 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onOpenVariantSelector,
   onOpenPresentationSelector,
 }) => {
-  const isService = product.type === 'SERVICE';
+  const isService = product.type === "SERVICE";
   const isRecipe = Boolean(product.isRecipe);
   const isVariantParent = Boolean(product.isVariantParent);
-  const activePresentations = (product.presentations || []).filter((p) => p.isActive !== false);
+  const activePresentations = (product.presentations || []).filter(
+    (p) => p.isActive !== false,
+  );
   const hasPresentations = activePresentations.length > 0;
-  const trackStock = product.trackInventory !== false && !isService && !isVariantParent;
-  const stock = typeof product.stock === 'number' ? product.stock : 0;
+  const trackStock =
+    product.trackInventory !== false && !isService && !isVariantParent;
+  const stock = typeof product.stock === "number" ? product.stock : 0;
   const isOutOfStock = trackStock && stock <= 0;
   const hasBatches = Boolean(
     product.hasBatches ||
-      product.tracksBatches ||
-      (typeof product.batchesCount === 'number' && product.batchesCount > 0),
+    product.tracksBatches ||
+    (typeof product.batchesCount === "number" && product.batchesCount > 0),
   );
 
   const wholesalePrice = product.wholesalePrice ?? product.wholesale_price;
   const wholesaleMinQty = product.wholesaleMinQty ?? product.wholesale_min_qty;
   const hasWholesale = Boolean(
     wholesalePrice &&
-      wholesaleMinQty &&
-      wholesaleMinQty >= 2 &&
-      wholesalePrice < product.price,
+    wholesaleMinQty &&
+    wholesaleMinQty >= 2 &&
+    wholesalePrice < product.price,
   );
   const hasListDisc = Boolean(
-    useListPrice && product.listPrice && Number(product.listPrice) > Number(product.price),
+    useListPrice &&
+    product.listPrice &&
+    Number(product.listPrice) > Number(product.price),
   );
   const rawPromo = product.promoDiscountPct ?? product.promo_discount_pct;
   const promoPct =
@@ -64,7 +78,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const vibrateLight = () => {
     try {
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         navigator.vibrate(15);
       }
     } catch {
@@ -118,17 +132,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       title={product.name}
       onClick={handleCardAdd}
       onKeyDown={(e) => {
-        if ((e.key === 'Enter' || e.key === ' ') && !isInteractiveDisabled) {
+        if ((e.key === "Enter" || e.key === " ") && !isInteractiveDisabled) {
           e.preventDefault();
           handleCardAdd();
         }
       }}
       className={`group relative text-left p-2.5 sm:p-3 rounded-2xl border transition-all select-none h-full flex flex-row min-[360px]:flex-col justify-between gap-2.5 min-[360px]:gap-2 ${
         isOutOfStock
-          ? 'bg-gray-100/80 border-gray-200 opacity-70 cursor-not-allowed'
+          ? "bg-gray-100/80 border-gray-200 opacity-70 cursor-not-allowed"
           : quantityInCart > 0
-          ? 'bg-emerald-50/40 border-emerald-500 shadow-xs cursor-pointer'
-          : 'bg-white border-gray-200/90 hover:border-gray-300 shadow-2xs hover:shadow-xs cursor-pointer active:scale-[0.99]'
+            ? "bg-emerald-50/40 border-emerald-500 shadow-xs cursor-pointer"
+            : "bg-white border-gray-200/90 hover:border-gray-300 shadow-2xs hover:shadow-xs cursor-pointer active:scale-[0.99]"
       }`}
     >
       {/* Bloque superior / izquierdo: Insignias + Nombre completo */}
@@ -149,14 +163,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <span
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${
                 isOutOfStock
-                  ? 'bg-red-50 text-red-700 border border-red-200/80'
+                  ? "bg-red-50 text-red-700 border border-red-200/80"
                   : stock <= 5
-                  ? 'bg-amber-50 text-amber-800 border border-amber-200/80'
-                  : 'bg-gray-100 text-gray-700'
+                    ? "bg-amber-50 text-amber-800 border border-amber-200/80"
+                    : "bg-gray-100 text-gray-700"
               }`}
             >
               <Package size={12} weight="bold" />
-              {isOutOfStock ? 'Agotado' : `${stock} ${product.unit || 'UND'}`}
+              {isOutOfStock
+                ? "Agotado"
+                : hasPresentations
+                  ? formatCatalogStockWithForms(stock, product)
+                  : `${stock} ${product.unit || "UND"}`}
             </span>
           ) : (
             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
@@ -186,11 +204,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
           {hasPresentations && (
             <span
-              title="Producto con presentaciones disponibles"
+              title={`${activePresentations.length} ${activePresentations.length === 1 ? "forma de venta" : "formas de venta"}`}
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-indigo-100 text-indigo-900 border border-indigo-200"
             >
               <Stack size={12} weight="bold" />
-              Presentaciones
+              {activePresentations.length}{" "}
+              {activePresentations.length === 1 ? "forma" : "formas"}
             </span>
           )}
 
@@ -364,8 +383,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               aria-label={`Agregar ${product.name}`}
               className={`min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center transition-colors shrink-0 ${
                 isInteractiveDisabled
-                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : 'bg-gray-900 hover:bg-black text-white shadow-2xs cursor-pointer'
+                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  : "bg-gray-900 hover:bg-black text-white shadow-2xs cursor-pointer"
               }`}
             >
               <Plus size={18} weight="bold" />

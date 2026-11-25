@@ -172,11 +172,15 @@ interface PosCartState {
   previewResult: PosSalePreviewResult | null;
   isPreviewLoading: boolean;
   previewError: string | null;
+  lastRemovedItem: CartItem | null;
 
   setBusinessContext: (context: Partial<BusinessCalculationContext>) => void;
   addItem: (product: PosProductItem, presentation?: PosProductPresentation | null, initialQty?: number) => void;
   removeItem: (itemId: string) => void;
   deleteItem: (itemId: string) => void;
+  restoreLastRemovedItem: () => void;
+  clearLastRemovedItem: () => void;
+  switchItemPresentation: (itemId: string, product: PosProductItem, presentation: PosProductPresentation | null) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   updateUnitPrice: (itemId: string, newUnitPrice: number | null) => void;
   setItemDiscount: (itemId: string, type: DiscountType, value: number) => void;
@@ -216,6 +220,7 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
   previewResult: null,
   isPreviewLoading: false,
   previewError: null,
+  lastRemovedItem: null,
   businessContext: {
     useListPrice: false,
     taxEnabled: true,
@@ -378,6 +383,7 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
         return {
           previewResult: null,
           previewError: null,
+          lastRemovedItem: existing,
           items: state.items.filter((i) => (i.id || i.productId) !== itemId),
         };
       }
@@ -436,11 +442,117 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
 
   deleteItem: (itemId) => {
     invalidatePreview();
-    set((state) => ({
-      previewResult: null,
-      previewError: null,
-      items: state.items.filter((i) => (i.id || i.productId) !== itemId),
-    }));
+    set((state) => {
+      const removed = state.items.find((i) => (i.id || i.productId) === itemId) || null;
+      return {
+        previewResult: null,
+        previewError: null,
+        lastRemovedItem: removed,
+        items: state.items.filter((i) => (i.id || i.productId) !== itemId),
+      };
+    });
+    triggerCartPreview();
+  },
+
+  restoreLastRemovedItem: () => {
+    const removed = get().lastRemovedItem;
+    if (!removed) return;
+    invalidatePreview();
+    set((state) => {
+      const key = removed.id || removed.productId;
+      const alreadyExists = state.items.some((i) => (i.id || i.productId) === key);
+      return {
+        previewResult: null,
+        previewError: null,
+        lastRemovedItem: null,
+        items: alreadyExists ? state.items : [...state.items, removed],
+      };
+    });
+    triggerCartPreview();
+  },
+
+  clearLastRemovedItem: () => {
+    set({ lastRemovedItem: null });
+  },
+
+  switchItemPresentation: (itemId, product, presentation) => {
+    invalidatePreview();
+    set((state) => {
+      const current = state.items.find((i) => (i.id || i.productId) === itemId);
+      if (!current) return state;
+
+      const isPres = Boolean(presentation);
+      const nextItemId = isPres ? `${product.id}::pres::${presentation!.id}` : product.id;
+      if (nextItemId === itemId) return state;
+
+      const basePrice = isPres ? Number(presentation!.price) : Number(product.price);
+      const rawWholesalePrice = isPres
+        ? presentation!.wholesalePrice
+        : (product.wholesalePrice !== undefined ? product.wholesalePrice : (product as any).wholesale_price);
+      const rawWholesaleMinQty = isPres
+        ? presentation!.wholesaleMinQty
+        : (product.wholesaleMinQty !== undefined ? product.wholesaleMinQty : (product as any).wholesale_min_qty);
+      const rawListPrice = isPres
+        ? (presentation!.listPrice != null ? Number(presentation!.listPrice) : null)
+        : (product.listPrice !== undefined && product.listPrice !== null ? Number(product.listPrice) : null);
+      const rawPromo = isPres
+        ? null
+        : (product.promoDiscountPct !== undefined ? product.promoDiscountPct : (product as any).promo_discount_pct);
+      const promoDiscountPct = rawPromo != null && Number(rawPromo) > 0 && Number(rawPromo) < 100 ? Number(rawPromo) : null;
+      const unitAllowsDecimals = isPres
+        ? false
+        : ((product as any).allowsDecimals !== undefined ? Boolean((product as any).allowsDecimals) : checkIfUnitAllowsDecimals(product.unit));
+
+      const existingTarget = state.items.find((i) => (i.id || i.productId) === nextItemId);
+      const mergedQty = existingTarget ? existingTarget.quantity + current.quantity : current.quantity;
+
+      const pricing = computeItemUnitPrice(
+        basePrice,
+        mergedQty,
+        rawWholesalePrice != null ? Number(rawWholesalePrice) : null,
+        rawWholesaleMinQty != null ? Number(rawWholesaleMinQty) : null,
+        promoDiscountPct,
+        state.businessContext.useListPrice,
+        rawListPrice,
+      );
+
+      const updatedItem: CartItem = {
+        ...current,
+        id: nextItemId,
+        productId: product.id,
+        productName: isPres ? `${product.name} · ${presentation!.name}` : product.name,
+        unitPrice: pricing.unitPrice,
+        regularPrice: basePrice,
+        wholesalePrice: rawWholesalePrice != null ? Number(rawWholesalePrice) : null,
+        wholesaleMinQty: rawWholesaleMinQty != null ? Number(rawWholesaleMinQty) : null,
+        isWholesale: pricing.isWholesale,
+        priceTier: pricing.priceTier,
+        priceOverridden: false,
+        promoDiscountPct,
+        quantity: mergedQty,
+        unit: isPres ? presentation!.name : (product.unit || 'UND'),
+        unitAllowsDecimals,
+        barcode: isPres ? (presentation!.barcode || product.barcode || undefined) : (product.barcode || undefined),
+        listPrice: rawListPrice,
+        presentationId: isPres ? presentation!.id : null,
+        presentationName: isPres ? presentation!.name : null,
+        presentationFactor: isPres ? Number(presentation!.factor) : undefined,
+        promotionName: null,
+        promoDiscount: 0,
+      };
+
+      const nextItems = existingTarget
+        ? state.items
+            .filter((i) => (i.id || i.productId) !== itemId)
+            .map((i) => ((i.id || i.productId) === nextItemId ? updatedItem : i))
+        : state.items.map((i) => ((i.id || i.productId) === itemId ? updatedItem : i));
+
+      return {
+        previewResult: null,
+        previewError: null,
+        items: nextItems,
+      };
+    });
     triggerCartPreview();
   },
 

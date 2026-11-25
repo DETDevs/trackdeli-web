@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import {
   X,
   Plus,
@@ -6,6 +7,9 @@ import {
   Trash,
   Receipt,
   ArrowRight,
+  CaretLeft,
+  CaretRight,
+  ArrowCounterClockwise,
   FileText,
   WifiSlash,
   Storefront,
@@ -15,15 +19,22 @@ import {
   Tag,
   CircleNotch,
 } from '@phosphor-icons/react';
+import type { PosProductItem, PosProductPresentation } from 'api-client';
 import { usePosCartStore, type DiscountType } from '../../../store/posCart.store';
 import { isLineBlockedFromManualDiscount } from '../../../utils/saleCalculation';
 import { formatCurrency } from '../../../utils/formatters';
+import {
+  getBaseUnitDisplayName,
+  pluralizePresentationName,
+  pluralizeUnitName,
+} from '../../../utils/presentationHelpers';
 
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onProceedToPayment: () => void | Promise<void>;
   onSaveAsQuote?: () => void;
+  products?: PosProductItem[];
   isOnline?: boolean;
   deliveryChannelEnabled?: boolean;
   defaultDeliveryFee?: number;
@@ -37,6 +48,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onClose,
   onProceedToPayment,
   onSaveAsQuote,
+  products = [],
   isOnline = true,
   deliveryChannelEnabled = false,
   defaultDeliveryFee = 0,
@@ -51,6 +63,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const setChannel = usePosCartStore((s) => s.setChannel);
   const removeItem = usePosCartStore((s) => s.removeItem);
   const deleteItem = usePosCartStore((s) => s.deleteItem);
+  const lastRemovedItem = usePosCartStore((s) => s.lastRemovedItem);
+  const restoreLastRemovedItem = usePosCartStore((s) => s.restoreLastRemovedItem);
+  const switchItemPresentation = usePosCartStore((s) => s.switchItemPresentation);
   const updateQuantity = usePosCartStore((s) => s.updateQuantity);
   const updateUnitPrice = usePosCartStore((s) => s.updateUnitPrice);
   const setItemDiscount = usePosCartStore((s) => s.setItemDiscount);
@@ -66,6 +81,97 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [editingDiscountProductId, setEditingDiscountProductId] = useState<string | null>(null);
   const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
   const [priceInputStr, setPriceInputStr] = useState<string>('');
+  const [selectedItemKey, setSelectedItemKey] = useState<string | null>(null);
+
+  const productsById = React.useMemo(() => {
+    const map = new Map<string, PosProductItem>();
+    for (const p of products) map.set(p.id, p);
+    return map;
+  }, [products]);
+
+  const checkStockForLineChange = useCallback(
+    (
+      itemKey: string,
+      productId: string,
+      nextQty: number,
+      nextFactor: number,
+      formLabel: string,
+    ): boolean => {
+      const prod = productsById.get(productId);
+      if (!prod || prod.trackInventory === false || prod.type === 'SERVICE' || typeof prod.stock !== 'number') {
+        return true;
+      }
+      const otherUsedBase = items
+        .filter((it) => it.productId === productId && (it.id || it.productId) !== itemKey)
+        .reduce((acc, it) => acc + Number(it.quantity || 0) * (Number(it.presentationFactor) || 1), 0);
+      const neededBase = otherUsedBase + nextQty * nextFactor;
+      if (neededBase > Number(prod.stock) + 1e-6) {
+        const maxForThisLine = Math.max(0, Math.floor((Number(prod.stock) - otherUsedBase) / nextFactor));
+        toast.error(`Solo alcanza para ${maxForThisLine} ${formLabel}.`);
+        return false;
+      }
+      return true;
+    },
+    [items, productsById],
+  );
+
+  const handleCycleForm = useCallback(
+    (itemKey: string, direction: -1 | 1) => {
+      const item = items.find((it) => (it.id || it.productId) === itemKey);
+      if (!item) return;
+      const prod = productsById.get(item.productId);
+      if (!prod) return;
+      const activeForms = (prod.presentations || []).filter((p) => p.isActive !== false);
+      if (activeForms.length === 0) return;
+
+      const options: Array<PosProductPresentation | null> = [null, ...activeForms];
+      const currentIdx = item.presentationId
+        ? options.findIndex((o) => o && o.id === item.presentationId)
+        : 0;
+      const nextIdx = (currentIdx + direction + options.length) % options.length;
+      const target = options[nextIdx];
+      const targetFactor = target ? Number(target.factor) || 1 : 1;
+      const targetLabel = target
+        ? pluralizePresentationName(target.name, item.quantity)
+        : pluralizeUnitName(getBaseUnitDisplayName(prod), item.quantity);
+
+      if (!checkStockForLineChange(itemKey, prod.id, item.quantity, targetFactor, targetLabel)) {
+        return;
+      }
+      switchItemPresentation(itemKey, prod, target);
+      const nextKey = target ? `${prod.id}::pres::${target.id}` : prod.id;
+      setSelectedItemKey(nextKey);
+    },
+    [items, productsById, checkStockForLineChange, switchItemPresentation],
+  );
+
+  // 306c #6: Ctrl+Z deshacer línea quitada y ← / → cambiar forma de venta de la línea seleccionada
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+      if (isTyping) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && lastRemovedItem) {
+        e.preventDefault();
+        restoreLastRemovedItem();
+        return;
+      }
+      if (selectedItemKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        const item = items.find((it) => (it.id || it.productId) === selectedItemKey);
+        if (!item) return;
+        const prod = productsById.get(item.productId);
+        const activeForms = (prod?.presentations || []).filter((p) => p.isActive !== false);
+        if (activeForms.length > 0) {
+          e.preventDefault();
+          handleCycleForm(selectedItemKey, e.key === 'ArrowLeft' ? -1 : 1);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, lastRemovedItem, restoreLastRemovedItem, selectedItemKey, items, productsById, handleCycleForm]);
 
   if (!isOpen) return null;
 
@@ -197,6 +303,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </div>
           )}
 
+          {lastRemovedItem && (
+            <div className="mb-3 p-2.5 rounded-xl bg-gray-900 text-white text-xs flex items-center justify-between gap-2">
+              <span className="truncate">
+                Quitaste <strong>{lastRemovedItem.productName}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={restoreLastRemovedItem}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-gray-900 hover:bg-gray-100 font-semibold shrink-0 cursor-pointer"
+              >
+                <ArrowCounterClockwise size={13} weight="bold" />
+                <span>Deshacer (Ctrl+Z)</span>
+              </button>
+            </div>
+          )}
+
           {items.length === 0 ? (
             <div className="py-12 text-center text-gray-400 text-sm">
               El carrito está vacío. Agregá productos del catálogo.
@@ -252,14 +374,51 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 blockedReason = 'Ya tiene descuento de precio etiqueta aplicado';
               }
 
+              const prodObj = productsById.get(item.productId);
+              const activeFormsForLine = (prodObj?.presentations || []).filter((p) => p.isActive !== false);
+              const isSelected = selectedItemKey === itemKey;
+
               return (
-                <div key={itemKey} className="pt-3 first:pt-0 space-y-2">
+                <div
+                  key={itemKey}
+                  onClick={() => setSelectedItemKey(itemKey)}
+                  className={`pt-3 first:pt-0 space-y-2 rounded-xl transition-colors ${
+                    isSelected ? 'bg-purple-50/50 -mx-2 px-2 py-2' : ''
+                  }`}
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs sm:text-sm font-semibold text-gray-900 leading-snug break-words">
                           {item.productName}
                         </span>
+                        {activeFormsForLine.length > 0 && (
+                          <span
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-purple-100/80 text-purple-900 border border-purple-200 text-xs font-semibold"
+                            title="Cambiá la forma de venta con las flechas o ← / → al seleccionar la línea"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleCycleForm(itemKey, -1)}
+                              className="p-0.5 hover:bg-purple-200 rounded cursor-pointer"
+                              aria-label="Forma de venta anterior"
+                            >
+                              <CaretLeft size={12} weight="bold" />
+                            </button>
+                            <span className="px-1">
+                              {item.presentationName || `Suelto (${getBaseUnitDisplayName(prodObj)})`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCycleForm(itemKey, 1)}
+                              className="p-0.5 hover:bg-purple-200 rounded cursor-pointer"
+                              aria-label="Siguiente forma de venta"
+                            >
+                              <CaretRight size={12} weight="bold" />
+                            </button>
+                          </span>
+                        )}
                         {item.taxable !== undefined && (
                           <span
                             className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold ${
@@ -458,7 +617,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           </span>
                           <button
                             type="button"
-                            onClick={() => updateQuantity(itemKey, item.quantity + 1)}
+                            onClick={() => {
+                              const nextQty = item.quantity + 1;
+                              const factor = Number(item.presentationFactor) || 1;
+                              const label = item.presentationName
+                                ? pluralizePresentationName(item.presentationName, nextQty)
+                                : pluralizeUnitName(getBaseUnitDisplayName(prodObj), nextQty);
+                              if (!checkStockForLineChange(itemKey, item.productId, nextQty, factor, label)) {
+                                return;
+                              }
+                              updateQuantity(itemKey, nextQty);
+                            }}
                             className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
                           >
                             <Plus size={14} weight="bold" />
