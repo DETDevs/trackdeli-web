@@ -323,8 +323,10 @@ export const commercialPricingConfigKey = () => ['superadmin-commercial-pricing-
 function invalidateCommercial(queryClient: ReturnType<typeof useQueryClient>, businessId: string) {
   queryClient.invalidateQueries({ queryKey: commercialKey(businessId) });
   queryClient.invalidateQueries({ queryKey: accountStatementKey(businessId) });
+  queryClient.invalidateQueries({ queryKey: ['superadmin-business-unified-payments', businessId] });
   queryClient.invalidateQueries({ queryKey: ['superadmin-business', businessId] });
   queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+  queryClient.invalidateQueries({ queryKey: ['superadmin-businesses-summary'] });
   queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
 }
 
@@ -462,6 +464,27 @@ export function useSaveCommercialEquipment(businessId: string) {
     onSuccess: (_d, vars) => {
       toast.success(vars.equipmentId ? 'Equipo actualizado' : 'Equipo agregado');
       invalidateCommercial(queryClient, businessId);
+    },
+  });
+}
+
+export function useUploadCommercialPaymentProof(businessId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ paymentId, file }: { paymentId: string; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { data } = await apiClient.post(`/superadmin/commercial/payments/${paymentId}/proof`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Comprobante adjuntado');
+      invalidateCommercial(queryClient, businessId);
+    },
+    onError: (err: any) => {
+      toast.error(getApiErrorMessage(err, 'No se pudo subir el comprobante'));
     },
   });
 }

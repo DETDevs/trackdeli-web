@@ -718,13 +718,14 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
   return (
     <div className="space-y-6">
       {/* Encabezado */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
+      <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-gray-900">
-            Equipos y operación del POS
+          <h3 className="text-[15px] font-semibold text-gray-900">
+            Cupos de equipos y accesos
           </h3>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Cupos, equipos autorizados y configuración de cobro
+          <p className="text-[13px] text-gray-500 mt-0.5">
+            Computadoras, navegadores y teléfonos autorizados para este negocio
           </p>
         </div>
 
@@ -733,7 +734,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             <button
               type="button"
               onClick={() => setIsEditingConfig(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-800 hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <PencilSimple size={14} />
               <span>Editar configuración POS</span>
@@ -742,7 +743,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             <button
               type="button"
               onClick={() => setIsEditingConfig(false)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <X size={14} />
               <span>Cancelar edición</span>
@@ -755,19 +756,19 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
       {isEditingConfig && (
         <form
           onSubmit={handleSaveConfig}
-          className="p-4 rounded-xl bg-purple-50/40 border border-purple-200/80 space-y-4"
+          className="pt-4 border-t border-gray-100 space-y-4"
         >
-          <div className="flex items-center justify-between border-b border-purple-200/60 pb-2">
-            <span className="text-xs font-bold text-purple-950 uppercase tracking-wider">
-              Ajustes de configuración
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-900">
+              Ajustes de configuración POS
             </span>
-            <span className="text-xs text-purple-700">Edición en progreso</span>
+            <span className="text-xs text-gray-500">Edición en progreso</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {/* Campo 1: Perfil del salón */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-gray-700 mb-2">
                 Perfil del salón *
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -801,7 +802,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             {/* Campo 2: Cupo de computadoras */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-gray-700">
                   Cupo de computadoras *
                 </label>
                 <label className="flex items-center gap-1.5 text-xs select-none cursor-pointer text-gray-700">
@@ -832,7 +833,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
 
             {/* Campo 3: Teléfonos (app móvil) */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-gray-700 mb-2">
                 Teléfonos (app móvil) *
               </label>
               <input
@@ -852,7 +853,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
 
             {/* Campo 4: Horas de prueba */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-gray-700 mb-2">
                 Horas de prueba (opcional)
               </label>
               <input
@@ -868,7 +869,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
 
             {/* Campo 5: Web admin básico */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-gray-700 mb-2">
                 Web admin básico
               </label>
               <div className="flex items-center gap-3 h-10">
@@ -899,7 +900,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
 
             {/* Campo 6: Facturación web */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-gray-700 mb-2">
                 Facturación web
               </label>
               <div className="flex items-center gap-3 h-10">
@@ -931,7 +932,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-white rounded-xl border border-purple-200/60">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <label className="block text-xs font-semibold text-gray-700">
                     Dispositivos web autorizados *
                   </label>
                   <label className="flex items-center gap-1.5 text-xs select-none cursor-pointer text-gray-700">
@@ -961,7 +962,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Tarifa mensual en USD (opcional)
                 </label>
                 <div className="relative">
@@ -1001,108 +1002,105 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
         </form>
       )}
 
-      {/* 1. Cupos (fila de 3 tarjetas iguales) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-        {/* Tarjeta 1: Computadoras */}
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-2xs flex flex-col justify-between">
+      {/* 1. Cupos (franja dividida limpia dentro de la tarjeta) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-200/70 pt-4 border-t border-gray-100">
+        {/* Computadoras */}
+        <div className="py-2 md:py-0 md:pr-5 flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Desktop size={18} className="text-gray-500 shrink-0" />
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Desktop size={16} className="text-gray-500 shrink-0" />
+              <span className="text-[13px] font-medium text-gray-500">
                 Computadoras
               </span>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+            <div className="text-xl sm:text-2xl font-semibold text-gray-900 tracking-tight">
               {activeComputersCount} de {isComputersUnlimited ? 'Ilimitado' : computersAllowed}
             </div>
 
-            {/* Barra de uso delgada */}
-            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden my-2.5">
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden my-2">
               <div
                 className={`h-full transition-all duration-300 ${
-                  isComputersFull ? 'bg-amber-500' : 'bg-gray-400'
+                  isComputersFull ? 'bg-amber-500' : 'bg-gray-700'
                 }`}
                 style={{ width: `${computersPercent}%` }}
               />
             </div>
           </div>
 
-          <div className="text-xs font-medium text-gray-500 pt-1">
+          <div className="text-xs font-medium text-gray-500">
             {isComputersUnlimited ? (
-              <span>Disponible: Ilimitado</span>
+              <span>Disponible: ilimitado</span>
             ) : isComputersFull ? (
-              <span className="text-amber-700 font-bold">Cupo lleno</span>
+              <span className="text-amber-700 font-semibold">Cupo lleno</span>
             ) : (
               <span>Disponible: {(computersAllowed ?? 0) - activeComputersCount}</span>
             )}
           </div>
         </div>
 
-        {/* Tarjeta 2: Navegadores */}
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-2xs flex flex-col justify-between">
+        {/* Navegadores */}
+        <div className="py-3 md:py-0 md:px-5 flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Globe size={18} className="text-gray-500 shrink-0" />
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Globe size={16} className="text-gray-500 shrink-0" />
+              <span className="text-[13px] font-medium text-gray-500">
                 Navegadores
               </span>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+            <div className="text-xl sm:text-2xl font-semibold text-gray-900 tracking-tight">
               {activeWebDevicesCount} de {isWebUnlimited ? 'Ilimitado' : webAllowed}
             </div>
 
-            {/* Barra de uso delgada */}
-            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden my-2.5">
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden my-2">
               <div
                 className={`h-full transition-all duration-300 ${
-                  isWebFull ? 'bg-amber-500' : 'bg-gray-400'
+                  isWebFull ? 'bg-amber-500' : 'bg-gray-700'
                 }`}
                 style={{ width: `${webPercent}%` }}
               />
             </div>
           </div>
 
-          <div className="text-xs font-medium text-gray-500 pt-1">
+          <div className="text-xs font-medium text-gray-500">
             {isWebUnlimited ? (
-              <span>Disponible: Ilimitado</span>
+              <span>Disponible: ilimitado</span>
             ) : isWebFull ? (
-              <span className="text-amber-700 font-bold">Cupo lleno</span>
+              <span className="text-amber-700 font-semibold">Cupo lleno</span>
             ) : (
               <span>Disponible: {(webAllowed ?? 0) - activeWebDevicesCount}</span>
             )}
           </div>
         </div>
 
-        {/* Tarjeta 3: Teléfonos (app) */}
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-2xs flex flex-col justify-between">
+        {/* Teléfonos */}
+        <div className="pt-3 md:pt-0 md:pl-5 flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <DeviceMobile size={18} className="text-gray-500 shrink-0" />
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div className="flex items-center gap-2 mb-1.5">
+              <DeviceMobile size={16} className="text-gray-500 shrink-0" />
+              <span className="text-[13px] font-medium text-gray-500">
                 Teléfonos (app)
               </span>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+            <div className="text-xl sm:text-2xl font-semibold text-gray-900 tracking-tight">
               {isMobileDisabled ? '0 de 0' : `${activeMobileDevicesCount} de ${mobileAllowed}`}
             </div>
 
-            {/* Barra de uso delgada */}
-            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden my-2.5">
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden my-2">
               <div
                 className={`h-full transition-all duration-300 ${
-                  isMobileFull ? 'bg-amber-500' : 'bg-gray-400'
+                  isMobileFull ? 'bg-amber-500' : 'bg-gray-700'
                 }`}
                 style={{ width: `${mobilePercent}%` }}
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 pt-1">
+          <div className="flex items-center justify-between gap-2">
             <div className="text-xs font-medium text-gray-500">
               {isMobileDisabled ? (
                 <span className="text-gray-400">Apagada</span>
               ) : isMobileFull ? (
-                <span className="text-amber-700 font-bold">Cupo lleno</span>
+                <span className="text-amber-700 font-semibold">Cupo lleno</span>
               ) : (
                 <span>Disponible: {mobileAllowed - activeMobileDevicesCount}</span>
               )}
@@ -1113,7 +1111,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                 type="button"
                 onClick={handleGeneratePairingCode}
                 disabled={createPairingCodeMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-purple-50 text-purple-800 hover:bg-purple-100 text-xs font-semibold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 text-xs font-semibold transition-colors cursor-pointer"
               >
                 <Key size={13} weight="bold" />
                 <span>Generar código</span>
@@ -1122,40 +1120,17 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           </div>
         </div>
       </div>
+      </div>
 
-      {/* 2. Operación (lista de ajustes, no tarjetas) */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-2xs divide-y divide-gray-100 overflow-hidden">
-        {/* Fila 1: Perfil del salón */}
-        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* 2. Accesos web y prueba */}
+      <div className="bg-white rounded-xl border border-gray-200/80 divide-y divide-gray-100 overflow-hidden">
+        {/* Web admin básico */}
+        <div className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
-              Perfil del salón
-            </span>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Modalidad de atención y disposición del local.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 self-end sm:self-auto">
-            <span className="text-sm font-semibold text-gray-900">
-              {currentProfile === 'RESTAURANTE' ? 'Restaurante / mesas' : 'Taller / órdenes'}
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsEditingConfig(true)}
-              className="text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors cursor-pointer underline underline-offset-2"
-            >
-              Cambiar
-            </button>
-          </div>
-        </div>
-
-        {/* Fila 2: Web admin básico */}
-        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+            <span className="text-[15px] font-semibold text-gray-900 block">
               Web admin básico
             </span>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-[13px] text-gray-500 mt-0.5">
               Acceso al panel web de administración para encargados y administradores.
             </p>
           </div>
@@ -1166,8 +1141,8 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
               aria-checked={currentWebAdmin}
               disabled={isTogglingWebAdmin}
               onClick={handleToggleWebAdminDirect}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50 ${
-                currentWebAdmin ? 'bg-purple-600' : 'bg-gray-200'
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 ${
+                currentWebAdmin ? 'bg-emerald-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -1179,21 +1154,21 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
           </div>
         </div>
 
-        {/* Fila 3: Facturación web */}
-        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Facturación web */}
+        <div className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+            <span className="text-[15px] font-semibold text-gray-900 block">
               Facturación web
             </span>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-[13px] text-gray-500 mt-0.5">
               Emisión de comprobantes y cobro directo desde navegadores autorizados.
             </p>
           </div>
           <div className="flex items-center gap-3 self-end sm:self-auto">
             {currentWebBilling && (
-              <span className="text-xs font-semibold text-gray-600">
+              <span className="text-xs font-medium text-gray-600">
                 {currentMaxWebDevices === null
-                  ? 'Disponibles: Ilimitado'
+                  ? 'Disponibles: ilimitado'
                   : `${Math.max(0, currentMaxWebDevices - activeWebDevicesCount)} de ${currentMaxWebDevices} disponibles`}
               </span>
             )}
@@ -1203,8 +1178,8 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
               aria-checked={currentWebBilling}
               disabled={isTogglingWebBilling}
               onClick={handleToggleWebBillingDirect}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50 ${
-                currentWebBilling ? 'bg-purple-600' : 'bg-gray-200'
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 ${
+                currentWebBilling ? 'bg-emerald-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -1215,45 +1190,39 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             </button>
           </div>
         </div>
-      </div>
 
-      {/* 3. Prueba */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <Clock size={20} className="text-gray-400 shrink-0" weight="duotone" />
+        {/* Prueba */}
+        <div className="p-4 sm:px-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+              <span className="text-[15px] font-semibold text-gray-900 block">
                 Prueba
               </span>
-              <span className="text-sm font-semibold text-gray-900">
-                {trialState === 'SIN_PRUEBA' && 'Sin prueba'}
+              <span className="text-[13px] text-gray-500 block mt-0.5">
+                {trialState === 'SIN_PRUEBA' && 'Sin prueba configurada'}
                 {trialState === 'SIN_INICIAR' && `Prueba sin iniciar (${trialHours} h)`}
                 {trialState === 'EN_CURSO' && `Termina el ${formatNicaraguaTrialDate(trialEndsAt)}`}
                 {trialState === 'VENCIDA' && `Vencida el ${formatNicaraguaTrialDate(trialEndsAt)}`}
               </span>
             </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setTrialHoursInput(trialHours ? String(trialHours) : '24');
+                  setIsEditingTrialHours(!isEditingTrialHours);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-800 hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                <PencilSimple size={13} />
+                <span>{trialHours ? 'Cambiar horas de prueba' : 'Fijar horas de prueba'}</span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setTrialHoursInput(trialHours ? String(trialHours) : '24');
-                setIsEditingTrialHours(!isEditingTrialHours);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-2xs cursor-pointer"
-            >
-              <PencilSimple size={13} />
-              <span>{trialHours ? 'Cambiar horas de prueba' : 'Fijar horas de prueba'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Acciones de la prueba al expandir */}
-        {isEditingTrialHours && (
-          <div className="mt-4 pt-3 border-t border-gray-100 space-y-3">
-            <div className="p-3 bg-purple-50/50 rounded-lg border border-purple-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {isEditingTrialHours && (
+            <div className="mt-4 pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-700 font-semibold">Horas:</span>
                 <input
@@ -1263,13 +1232,13 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                   placeholder="Ej. 24"
                   value={trialHoursInput}
                   onChange={(e) => setTrialHoursInput(e.target.value)}
-                  className="w-24 h-8 px-2.5 rounded-lg border border-gray-300 text-xs bg-white font-semibold focus:outline-none focus:border-purple-600"
+                  className="w-24 h-8 px-2.5 rounded-lg border border-gray-300 text-xs bg-white font-semibold focus:outline-none focus:border-gray-900"
                 />
                 <button
                   type="button"
                   disabled={isActionPending}
                   onClick={handleSaveTrialHours}
-                  className="px-3 py-1.5 rounded-lg bg-purple-700 text-white text-xs font-semibold hover:bg-purple-800 transition-colors cursor-pointer disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-900 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Guardar
                 </button>
@@ -1284,14 +1253,14 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
 
               {trialHours && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <div className="inline-flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-200 shadow-2xs">
+                  <div className="inline-flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-200">
                     <span className="text-xs text-gray-500 font-medium pl-1">Extender:</span>
                     <select
                       value={extendHours}
                       onChange={(e) => setExtendHours(Number(e.target.value))}
                       disabled={isActionPending}
                       aria-label="Horas para extender la prueba"
-                      className="h-7 px-1.5 bg-gray-50 border border-gray-200 rounded text-xs font-bold text-gray-800 focus:outline-none"
+                      className="h-7 px-1.5 bg-gray-50 border border-gray-200 rounded text-xs font-semibold text-gray-800 focus:outline-none"
                     >
                       <option value={1}>1 h</option>
                       <option value={6}>6 h</option>
@@ -1302,7 +1271,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                       type="button"
                       disabled={isActionPending}
                       onClick={handleExtendTrial}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
                     >
                       <PlusCircle size={13} weight="bold" />
                       <span>Extender</span>
@@ -1324,7 +1293,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                       type="button"
                       disabled={isActionPending}
                       onClick={handleTerminateTrial}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-50"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-white text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
                     >
                       <StopCircle size={13} weight="bold" />
                       <span>Terminar ahora</span>
@@ -1343,8 +1312,8 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* 4. Equipos */}
@@ -1604,7 +1573,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
                       <span title={device.lastSeenAt ? formatDateTime(device.lastSeenAt) : undefined}>
                         Última conexión: {device.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : 'Nunca'}
                       </span>
-                      <span className="font-mono text-[11px] text-gray-400">
+                      <span className="font-mono text-xs text-gray-400">
                         {shortenId(devId)}
                       </span>
                     </div>
@@ -1745,7 +1714,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             </div>
             <form onSubmit={handleConfirmRename} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Nombre del equipo
                 </label>
                 <input
@@ -1905,7 +1874,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             </div>
 
             <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-5 text-center space-y-2">
-              <span className="text-xs font-semibold text-purple-900 uppercase tracking-wider block">
+              <span className="text-xs font-semibold text-purple-900 block">
                 Código de vinculación
               </span>
               <div className="font-mono text-3xl sm:text-4xl font-extrabold tracking-widest text-purple-950 py-1 select-all">
@@ -1954,7 +1923,7 @@ export const BusinessPosDevicesSection: React.FC<BusinessPosDevicesSectionProps>
             </div>
 
             <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2.5">
-              <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-gray-700 block">
                 Pasos para vincular
               </span>
               <ol className="text-xs text-gray-600 space-y-2 list-none">

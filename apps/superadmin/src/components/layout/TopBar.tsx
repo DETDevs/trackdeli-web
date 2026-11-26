@@ -25,11 +25,11 @@ export const TopBar: React.FC<TopBarProps> = ({ title, subtitle, actions }) => {
             <List size={20} weight="bold" />
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm sm:text-base font-semibold text-gray-900 leading-tight truncate">
+            <h2 className="text-[15px] sm:text-base font-semibold text-gray-900 leading-tight truncate">
               {title}
             </h2>
             {subtitle && (
-              <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 truncate">
+              <p className="text-xs text-gray-500 mt-0.5 truncate">
                 {subtitle}
               </p>
             )}
@@ -41,7 +41,7 @@ export const TopBar: React.FC<TopBarProps> = ({ title, subtitle, actions }) => {
             <p className="text-xs font-medium text-gray-900 leading-tight">
               {user?.name || "Super Admin"}
             </p>
-            <p className="text-[10px] text-gray-400">Panel Global</p>
+            <p className="text-xs text-gray-400">Panel global</p>
           </div>
           <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
             <UserCircle size={22} weight="duotone" />

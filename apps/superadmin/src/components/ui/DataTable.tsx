@@ -12,6 +12,7 @@ interface DataTableProps<T> {
   data: T[];
   keyExtractor: (row: T) => string;
   onRowClick?: (row: T) => void;
+  rowClassName?: (row: T) => string;
   pageSize?: number;
   emptyMessage?: string;
   isLoading?: boolean;
@@ -22,6 +23,7 @@ export function DataTable<T>({
   data,
   keyExtractor,
   onRowClick,
+  rowClassName,
   pageSize = 10,
   emptyMessage = 'No se encontraron resultados',
   isLoading = false,
@@ -43,15 +45,15 @@ export function DataTable<T>({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-xs">
+    <div className="bg-white rounded-xl border border-gray-200/80 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/70">
+            <tr className="border-b border-gray-200/80 bg-gray-50/70">
               {columns.map((col, idx) => (
                 <th
                   key={idx}
-                  className={`py-3 px-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${
+                  className={`py-3 px-4 text-xs font-semibold text-gray-500 whitespace-nowrap ${
                     col.className || ''
                   }`}
                 >
@@ -64,7 +66,7 @@ export function DataTable<T>({
             {isLoading ? (
               <tr>
                 <td colSpan={columns.length} className="py-12 text-center text-gray-400">
-                  <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-brand-500 border-t-transparent mb-2" />
+                  <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-gray-400 border-t-transparent mb-2" />
                   <p className="text-xs">Cargando datos...</p>
                 </td>
               </tr>
@@ -75,30 +77,33 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              currentData.map((row) => (
-                <tr
-                  key={keyExtractor(row)}
-                  onClick={() => onRowClick && onRowClick(row)}
-                  className={`transition-colors ${
-                    onRowClick ? 'cursor-pointer hover:bg-gray-50/80' : 'hover:bg-gray-50/40'
-                  }`}
-                >
-                  {columns.map((col, idx) => {
-                    const content =
-                      typeof col.accessor === 'function'
-                        ? col.accessor(row)
-                        : col.accessor
-                        ? (row[col.accessor] as any)
-                        : null;
+              currentData.map((row) => {
+                const extraRowClass = rowClassName ? rowClassName(row) : '';
+                return (
+                  <tr
+                    key={keyExtractor(row)}
+                    onClick={() => onRowClick && onRowClick(row)}
+                    className={`transition-colors ${
+                      onRowClick ? 'cursor-pointer hover:bg-gray-50/90' : 'hover:bg-gray-50/50'
+                    } ${extraRowClass}`}
+                  >
+                    {columns.map((col, idx) => {
+                      const content =
+                        typeof col.accessor === 'function'
+                          ? col.accessor(row)
+                          : col.accessor
+                          ? (row[col.accessor] as any)
+                          : null;
 
-                    return (
-                      <td key={idx} className={`py-3 px-4 align-middle ${col.className || ''}`}>
-                        {content}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))
+                      return (
+                        <td key={idx} className={`py-3 px-4 align-middle ${col.className || ''}`}>
+                          {content}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -115,7 +120,7 @@ export function DataTable<T>({
             <button
               onClick={handlePrevPage}
               disabled={currentPage === 1}
-              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               <CaretLeft size={14} />
             </button>
@@ -125,7 +130,7 @@ export function DataTable<T>({
             <button
               onClick={handleNextPage}
               disabled={currentPage === totalPages}
-              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               <CaretRight size={14} />
             </button>

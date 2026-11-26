@@ -3,10 +3,83 @@ import apiClient from '../lib/apiClient';
 import toast from 'react-hot-toast';
 
 export type BusinessType = 'NEGOCIO' | 'EMPRESA_RIDERS';
+export type BusinessAccountType = 'CLIENTE' | 'DEMO' | 'INTERNO';
+
+export interface BusinessContact {
+  name: string | null;
+  role: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  email: string | null;
+  address: string | null;
+  municipality: string | null;
+  department: string | null;
+  taxId: string | null;
+  notes: string | null;
+}
+
+export interface UnifiedPaymentProductItem {
+  id: string;
+  subscriptionId: string;
+  productType: string;
+  name: string;
+  amountAttributed: number | null;
+}
+
+export interface UnifiedPaymentItem {
+  id: string;
+  source: 'MEMBERSHIP' | 'COMMERCIAL';
+  paidAt: string;
+  paidAtIso: string;
+  type: 'MEMBRESIA' | 'MANTENIMIENTO' | 'PRIMA' | 'CUOTA' | 'PAGO_UNICO';
+  concept: string;
+  period: { start: string; end: string } | null;
+  products: UnifiedPaymentProductItem[];
+  paymentMethod: string;
+  referenceNumber: string | null;
+  amount: number;
+  currency: string;
+  paymentProofUrl: string | null;
+  status: 'VIGENTE' | 'FINALIZADA' | 'ANULADO' | string;
+  notes: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  createdAt: string;
+  actions: {
+    membershipId: string | null;
+    commercialPaymentId: string | null;
+    agreementId: string | null;
+    canEdit: boolean;
+    canVoid: boolean;
+    canAttachProof: boolean;
+  };
+}
+
+export interface UnifiedPaymentsResponse {
+  businessId: string;
+  businessName: string;
+  accountType: BusinessAccountType;
+  totalCount: number;
+  totalsByCurrency: Record<string, number>;
+  payments: UnifiedPaymentItem[];
+}
 
 export interface BusinessItem {
   id: string;
   name: string;
+  accountType?: BusinessAccountType;
+  contact?: BusinessContact;
+  suggestedContact?: Partial<BusinessContact>;
+  contactName?: string | null;
+  contactRole?: string | null;
+  contactPhone?: string | null;
+  contactWhatsapp?: string | null;
+  contactEmail?: string | null;
+  contactAddress?: string | null;
+  contactMunicipality?: string | null;
+  contactDepartment?: string | null;
+  contactTaxId?: string | null;
+  contactNotes?: string | null;
   type: string | null;
   businessType?: BusinessType;
   commissionRate?: number;
@@ -252,6 +325,9 @@ export interface CreateBusinessResult {
 
 export interface BusinessCounters {
   all: number;
+  clientes?: number;
+  demos?: number;
+  internos?: number;
   activo: number;
   por_vencer: number;
   en_gracia: number;
@@ -267,6 +343,7 @@ export interface BusinessesResponse {
 
 export interface BusinessesQueryParams {
   status?: string;
+  accountType?: string;
   search?: string;
   type?: string;
   sortBy?: string;
@@ -327,6 +404,18 @@ export function useBusinessDetail(id: string) {
   });
 }
 
+export function useBusinessUnifiedPayments(id: string) {
+  return useQuery<UnifiedPaymentsResponse>({
+    queryKey: ['superadmin-business-unified-payments', id],
+    queryFn: async () => {
+      const { data } = await apiClient.get<UnifiedPaymentsResponse>(`/superadmin/businesses/${id}/payments`);
+      return data;
+    },
+    enabled: !!id,
+    refetchInterval: 30000,
+  });
+}
+
 export function useToggleBusiness() {
   const queryClient = useQueryClient();
 
@@ -340,6 +429,7 @@ export function useToggleBusiness() {
         data.isActive ? 'Negocio activado' : 'Negocio desactivado'
       );
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses-summary'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-business', data.id] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
@@ -360,6 +450,9 @@ export function useCreateBusiness() {
     },
     onSuccess: () => {
       toast.success('Negocio y encargado creados exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
     },
     onError: (err: any) => {
@@ -372,6 +465,19 @@ export function useCreateBusiness() {
 
 export interface UpdateBusinessInput {
   name?: string;
+  accountType?: BusinessAccountType;
+  accountTypeReason?: string;
+  contact?: Partial<BusinessContact>;
+  contactName?: string | null;
+  contactRole?: string | null;
+  contactPhone?: string | null;
+  contactWhatsapp?: string | null;
+  contactEmail?: string | null;
+  contactAddress?: string | null;
+  contactMunicipality?: string | null;
+  contactDepartment?: string | null;
+  contactTaxId?: string | null;
+  contactNotes?: string | null;
   type?: string;
   phone?: string;
   posPhone?: string;
@@ -417,6 +523,8 @@ export function useUpdateBusiness() {
     onSuccess: (data) => {
       toast.success('Datos del negocio actualizados');
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-business', data.id] });
     },
     onError: (err: any) => {
@@ -468,6 +576,7 @@ export function useDeleteBusiness() {
     onSuccess: () => {
       toast.success('Negocio eliminado');
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses-summary'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
     },

@@ -238,41 +238,36 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
   const orgRubroName = currentOrg?.industry?.name || business.industry?.name || null;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-5">
+    <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-5">
       {/* Encabezado de la sección */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-start gap-3.5 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700 shrink-0 mt-0.5">
-            <Buildings size={22} weight="duotone" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h3 className="text-[15px] font-semibold text-gray-900 leading-tight">
+              Empresa y sucursales
+            </h3>
+            {isLoadingResolvedOrg ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                <CircleNotch size={12} className="animate-spin" />
+                <span>Cargando...</span>
+              </span>
+            ) : currentOrg ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200 flex-wrap">
+                <span>{currentOrg.name}</span>
+                {orgRubroName && <span className="text-gray-600 font-normal">· {orgRubroName}</span>}
+                <span className="text-gray-600 font-normal">
+                  ({branchCount} {branchCount === 1 ? 'sucursal' : 'sucursales'})
+                </span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                Independiente
+              </span>
+            )}
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h3 className="text-sm font-bold text-gray-900 leading-tight">
-                Empresa y red de sucursales
-              </h3>
-              {isLoadingResolvedOrg ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
-                  <CircleNotch size={12} className="animate-spin" />
-                  <span>Cargando...</span>
-                </span>
-              ) : currentOrg ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 flex-wrap">
-                  <span>{currentOrg.name}</span>
-                  {orgRubroName && <span className="text-blue-600 font-normal">· {orgRubroName}</span>}
-                  <span className="text-blue-600 font-normal">
-                    ({branchCount} {branchCount === 1 ? 'sucursal' : 'sucursales'})
-                  </span>
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
-                  Independiente
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-500 mt-1 max-w-xl">
-              Agrupa negocios bajo una misma empresa para permitir que un encargado administre varias sucursales con una sola cuenta.
-            </p>
-          </div>
+          <p className="text-[13px] text-gray-500 mt-1 max-w-xl">
+            Agrupá negocios bajo una misma empresa para que un encargado administre varias sucursales con una sola cuenta.
+          </p>
         </div>
 
         <div className="w-full sm:w-auto flex items-center gap-2 shrink-0 flex-wrap">
@@ -281,7 +276,7 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
               <button
                 type="button"
                 onClick={handleOpenAssignModal}
-                className="flex-1 sm:flex-none px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors cursor-pointer"
+                className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-800 transition-colors cursor-pointer"
               >
                 Cambiar empresa
               </button>
@@ -289,7 +284,7 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
                 type="button"
                 onClick={handleUnlink}
                 disabled={setBusinessOrgMutation.isPending}
-                className="flex-1 sm:flex-none px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-xs font-semibold text-red-700 transition-colors cursor-pointer disabled:opacity-50"
+                className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg border border-red-200 bg-white hover:bg-red-50 text-xs font-semibold text-red-600 transition-colors cursor-pointer disabled:opacity-50"
               >
                 Quitar de la empresa
               </button>
@@ -298,7 +293,7 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
             <button
               type="button"
               onClick={handleOpenAssignModal}
-              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer"
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-900 transition-colors cursor-pointer"
             >
               <Plus size={14} weight="bold" />
               <span>Asignar a empresa</span>
@@ -309,10 +304,10 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
 
       {/* Contenido cuando tiene empresa asignada */}
       {currentOrg && (
-        <div className="space-y-4 pt-2 border-t border-gray-100">
+        <div className="space-y-4 pt-3 border-t border-gray-100">
           {/* Sucursales vinculadas a esta empresa */}
-          <div className="bg-gray-50/60 rounded-xl p-4 border border-gray-100 space-y-2">
-            <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
               <Storefront size={15} />
               <span>Sucursales de la empresa ({branchCount})</span>
             </h4>
@@ -418,7 +413,7 @@ export const BusinessOrganizationSection: React.FC<BusinessOrganizationSectionPr
 
                 <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200">
                   <table className="w-full text-left text-xs text-gray-700 min-w-[500px]">
-                    <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                    <thead className="bg-gray-50 text-xs font-semibold text-gray-500 border-b border-gray-200">
                       <tr>
                         <th className="px-3.5 py-2.5">Encargado</th>
                         <th className="px-3.5 py-2.5">Correo</th>

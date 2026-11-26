@@ -1,14 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Motorcycle,
-  Receipt,
-  ForkKnife,
-  ShoppingBag,
-  Sliders,
-  Wallet,
-  CreditCard,
-  CalendarBlank,
-  Wrench,
+  DotsThreeVertical,
+  Plus,
   ClockCounterClockwise,
 } from '@phosphor-icons/react';
 import {
@@ -16,17 +9,18 @@ import {
   BusinessProductType,
 } from '../../hooks/useBusinessProducts';
 import { useBusinessMemberships } from '../../hooks/useMemberships';
-import { BusinessType } from '../../hooks/useBusinesses';
-import { ProductCard } from './ProductCard';
+import { BusinessAccountType, BusinessType } from '../../hooks/useBusinesses';
 import { ActivateProductModal } from '../modals/ActivateProductModal';
 import { DeactivateProductModal } from '../modals/DeactivateProductModal';
 import { ProductAuditLogModal } from '../modals/ProductAuditLogModal';
 import { CancelRenewalModal } from '../modals/CancelRenewalModal';
 import { DeactivateNowModal } from '../modals/DeactivateNowModal';
+import { formatDateShort } from '../../utils/format';
 
 interface BusinessProductsSectionProps {
   businessId: string;
   businessName: string;
+  accountType?: BusinessAccountType;
   businessType?: BusinessType;
   businessCommissionRate?: number;
   businessAltCommissionRate?: number;
@@ -41,6 +35,7 @@ interface BusinessProductsSectionProps {
 export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = ({
   businessId,
   businessName,
+  accountType = 'CLIENTE',
   businessType = 'NEGOCIO',
   businessCommissionRate,
   businessAltCommissionRate,
@@ -53,6 +48,19 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
 }) => {
   const { data: productsData, isLoading } = useBusinessProducts(businessId);
   const { data: memberships = [] } = useBusinessMemberships(businessId);
+
+  const [openMenuType, setOpenMenuType] = useState<BusinessProductType | null>(null);
+
+  useEffect(() => {
+    if (!openMenuType) return;
+    const close = () => setOpenMenuType(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [openMenuType]);
 
   const [activeModal, setActiveModal] = useState<{
     isOpen: boolean;
@@ -93,541 +101,288 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
   };
 
   const deliverySub = productsData?.products?.DELIVERY;
-  const isDeliveryActive = deliverySub?.status === 'ACTIVE';
-
   const posSub = productsData?.products?.POS;
-  const isPosActive = posSub?.status === 'ACTIVE';
-
   const carteraSub = productsData?.products?.CARTERA_COBRO;
-  const isCarteraActive = carteraSub?.status === 'ACTIVE';
-
   const citasSub = productsData?.products?.CITAS;
-  const isCitasActive = citasSub?.status === 'ACTIVE';
 
-  const activeCount = [isDeliveryActive, isPosActive, isCarteraActive, isCitasActive].filter(Boolean).length;
+  const isNonBilling = accountType === 'DEMO' || accountType === 'INTERNO';
+
+  const allProductDefs: Array<{
+    type: BusinessProductType;
+    label: string;
+    shortAddLabel: string;
+    isActive: boolean;
+    activatedAt?: string | null;
+    autoRenew: boolean;
+    isMembershipProduct: boolean;
+    detail: string;
+    feeLabel: string;
+  }> = [
+    {
+      type: 'POS',
+      label: 'Sistema POS',
+      shortAddLabel: 'Sistema POS',
+      isActive: posSub?.status === 'ACTIVE',
+      activatedAt: posSub?.activatedAt,
+      autoRenew: posSub?.autoRenew ?? true,
+      isMembershipProduct: true,
+      detail: [
+        posSub?.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante',
+        salonProfile === 'TALLER' || posSub?.salonProfile === 'TALLER' ? 'Taller' : null,
+        maxDevices === null || (maxDevices === undefined && posSub?.maxDevices === null)
+          ? 'Computadoras ilimitadas'
+          : `${activeDevices ?? 0}/${maxDevices ?? posSub?.maxDevices ?? 1} computadoras`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      feeLabel: isNonBilling
+        ? 'Sin cobro'
+        : posSub?.posMonthlyFee
+        ? `$${Number(posSub.posMonthlyFee).toFixed(2)} / mes`
+        : 'Sin cuota fija',
+    },
+    {
+      type: 'DELIVERY',
+      label: 'TrackDeli (Delivery)',
+      shortAddLabel: 'Delivery',
+      isActive: deliverySub?.status === 'ACTIVE',
+      activatedAt: deliverySub?.activatedAt,
+      autoRenew: deliverySub?.autoRenew ?? true,
+      isMembershipProduct: businessType !== 'EMPRESA_RIDERS',
+      detail:
+        businessType === 'EMPRESA_RIDERS'
+          ? `Comisión ${Math.round(((deliverySub?.commissionRate ?? businessCommissionRate ?? 0.15) as number) * 100)}%`
+          : 'Despacho y reparto en moto',
+      feeLabel: isNonBilling
+        ? 'Sin cobro'
+        : businessType === 'EMPRESA_RIDERS'
+        ? 'Por comisión'
+        : deliverySub?.deliveryMonthlyFee
+        ? `$${Number(deliverySub.deliveryMonthlyFee).toFixed(2)} / mes`
+        : 'Sin cuota fija',
+    },
+    {
+      type: 'CARTERA_COBRO',
+      label: 'Finanzas',
+      shortAddLabel: 'Finanzas',
+      isActive: carteraSub?.status === 'ACTIVE',
+      activatedAt: carteraSub?.activatedAt,
+      autoRenew: carteraSub?.autoRenew ?? true,
+      isMembershipProduct: true,
+      detail: 'Cuentas por pagar, gastos y cartera de cobro',
+      feeLabel: isNonBilling
+        ? 'Sin cobro'
+        : carteraSub?.carteraMonthlyFee
+        ? `$${Number(carteraSub.carteraMonthlyFee).toFixed(2)} / mes`
+        : 'Sin cuota fija',
+    },
+    {
+      type: 'CITAS',
+      label: 'Citas',
+      shortAddLabel: 'Citas',
+      isActive: citasSub?.status === 'ACTIVE',
+      activatedAt: citasSub?.activatedAt,
+      autoRenew: citasSub?.autoRenew ?? true,
+      isMembershipProduct: true,
+      detail: 'Reservas en línea y agenda',
+      feeLabel: isNonBilling
+        ? 'Sin cobro'
+        : citasSub?.citasMonthlyFee
+        ? `$${Number(citasSub.citasMonthlyFee).toFixed(2)} / mes`
+        : 'Sin cuota fija',
+    },
+  ];
+
+  const contracted = allProductDefs.filter((p) => p.isActive);
+  const uncontracted = allProductDefs.filter((p) => !p.isActive);
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 lg:p-7 shadow-xs space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
+    <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-4">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <Sliders size={20} className="text-brand-600 shrink-0" weight="duotone" />
-            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-              Productos Contratados
-            </h3>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-              {activeCount} de 4 activos
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Gestión independiente de suscripciones TrackDeli (Delivery), Sistema POS, Cartera de Cobro y Citas.
+          <h3 className="text-[15px] font-semibold text-gray-900">Productos contratados</h3>
+          <p className="text-[13px] text-gray-500 mt-0.5">
+            Módulos activos en este negocio y sus tarifas vigentes
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          {isLoading && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-400">
-              <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-brand-500 border-t-transparent" />
-              <span>Sincronizando...</span>
-            </div>
-          )}
-        </div>
+        {isLoading && <span className="text-xs text-gray-400">Sincronizando...</span>}
       </div>
 
-      {/* 1. Productos Activos: Tarjetas Completas */}
-      {activeCount > 0 && (
-        <div className={`grid grid-cols-1 ${activeCount > 1 ? 'xl:grid-cols-2' : ''} gap-4 sm:gap-6`}>
-          {isDeliveryActive && (
-            <ProductCard
-              productType="DELIVERY"
-              title="TrackDeli (Delivery)"
-              subtitle="Despacho, rutas y reparto en moto"
-              activateButtonLabel="Activar Delivery"
-              icon={<Motorcycle size={22} weight="duotone" />}
-              iconActiveThemeClass="bg-amber-500/10 text-amber-800 border border-amber-200/60"
-              isActive={true}
-              autoRenew={deliverySub?.autoRenew ?? true}
-              renewalCanceledAt={deliverySub?.renewalCanceledAt}
-              coverageEndDate={getProductCoverageEndDate('DELIVERY')}
-              activatedAt={deliverySub?.activatedAt}
-              deactivatedAt={deliverySub?.deactivatedAt}
-              isMembershipProduct={businessType !== 'EMPRESA_RIDERS'}
-              inactiveDescription="Este negocio no tiene contratado el servicio de Delivery. No se permiten órdenes de reparto."
-              onAuditClick={() => setAuditLogModal({ isOpen: true, productType: 'DELIVERY' })}
-              onConfigureClick={() =>
-                setActiveModal({
-                  isOpen: true,
-                  productType: 'DELIVERY',
-                  isCurrentlyActive: true,
-                })
-              }
-              onDeactivateClick={() =>
-                setDeactivateModal({ isOpen: true, productType: 'DELIVERY' })
-              }
-              onCancelRenewalClick={() =>
-                setCancelRenewalModal({
-                  isOpen: true,
-                  productType: 'DELIVERY',
-                  coverageEndDate: getProductCoverageEndDate('DELIVERY'),
-                })
-              }
-              onDeactivateNowClick={() =>
-                setDeactivateNowModal({ isOpen: true, productType: 'DELIVERY' })
-              }
-              onActivateClick={() =>
-                setActiveModal({
-                  isOpen: true,
-                  productType: 'DELIVERY',
-                  isCurrentlyActive: false,
-                })
-              }
-              onRegisterPaymentClick={() => onRegisterPaymentClick?.('DELIVERY')}
+      {contracted.length === 0 ? (
+        <p className="text-xs text-gray-500 py-2">
+          Este negocio no tiene productos activos en este momento.
+        </p>
+      ) : (
+        <div className="divide-y divide-gray-100 border-t border-gray-100">
+          {contracted.map((item) => (
+            <div
+              key={item.type}
+              className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
             >
-              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1">
-                  <span className="text-xs text-gray-500 font-medium">Modelo</span>
-                  <span className="font-semibold text-gray-900 text-xs text-right">
-                    {businessType === 'EMPRESA_RIDERS'
-                      ? 'Empresa de Riders'
-                      : 'Comercio Común (Membresía)'}
-                  </span>
-                </div>
-
-                {businessType === 'EMPRESA_RIDERS' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-gray-200/60 text-xs">
-                    <div>
-                      <span className="text-gray-400">Comisión Base: </span>
-                      <span className="font-semibold text-gray-900">
-                        {(
-                          (deliverySub?.commissionRate ?? businessCommissionRate ?? 0.15) * 100
-                        ).toFixed(0)}
-                        %
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Distancia Larga: </span>
-                      <span className="font-semibold text-gray-900">
-                        {(
-                          (deliverySub?.altCommissionRate ??
-                            businessAltCommissionRate ??
-                            0.12) * 100
-                        ).toFixed(0)}
-                        %
-                      </span>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-gray-400">Timeout despacho: </span>
-                      <span className="font-semibold text-gray-900">
-                        {deliverySub?.dispatchTimeoutMin ?? businessDispatchTimeoutMin ?? 3} min
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {businessType !== 'EMPRESA_RIDERS' && (
-                  <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
-                    <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
-                    <span className="font-semibold text-gray-900 font-mono text-right">
-                      {deliverySub?.deliveryMonthlyFee
-                        ? `$${Number(deliverySub.deliveryMonthlyFee).toFixed(2)} / mes`
-                        : 'Sin cuota fija'}
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="text-sm font-semibold text-gray-900">{item.label}</span>
+                  {item.activatedAt && (
+                    <span className="text-xs text-gray-500">
+                      · Desde {formatDateShort(item.activatedAt)}
                     </span>
-                  </div>
-                )}
+                  )}
+                  {!item.autoRenew && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                      Renovación cancelada
+                    </span>
+                  )}
+                </div>
+                <p className="text-[13px] text-gray-500">{item.detail}</p>
               </div>
-            </ProductCard>
-          )}
 
-          {isPosActive && (
-            <ProductCard
-              productType="POS"
-              title="Sistema POS"
-              subtitle="Punto de venta, mesas y caja"
-              icon={<Receipt size={22} weight="duotone" />}
-              iconActiveThemeClass="bg-purple-500/10 text-purple-800 border border-purple-200/60"
-              isActive={true}
-              autoRenew={posSub?.autoRenew ?? true}
-              renewalCanceledAt={posSub?.renewalCanceledAt}
-              coverageEndDate={getProductCoverageEndDate('POS')}
-              activatedAt={posSub?.activatedAt}
-              deactivatedAt={posSub?.deactivatedAt}
-              isMembershipProduct={true}
-              inactiveDescription="Este negocio no tiene contratado el Sistema POS. El acceso a terminales de venta en el local está bloqueado."
-              onAuditClick={() => setAuditLogModal({ isOpen: true, productType: 'POS' })}
-              onConfigureClick={() =>
-                setActiveModal({
-                  isOpen: true,
-                  productType: 'POS',
-                  isCurrentlyActive: true,
-                })
-              }
-              onDeactivateClick={() =>
-                setDeactivateModal({ isOpen: true, productType: 'POS' })
-              }
-              onCancelRenewalClick={() =>
-                setCancelRenewalModal({
-                  isOpen: true,
-                  productType: 'POS',
-                  coverageEndDate: getProductCoverageEndDate('POS'),
-                })
-              }
-              onDeactivateNowClick={() =>
-                setDeactivateNowModal({ isOpen: true, productType: 'POS' })
-              }
-              onRegisterPaymentClick={() => onRegisterPaymentClick?.('POS')}
-            >
-              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1">
-                  <span className="text-xs text-gray-500 font-medium">Vertical</span>
-                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs text-right">
-                    {posSub?.posVertical === 'RETAIL' ? (
-                      <>
-                        <ShoppingBag size={14} className="text-purple-600 shrink-0" />
-                        <span>Retail / Comercio</span>
-                      </>
-                    ) : (
-                      <>
-                        <ForkKnife size={14} className="text-purple-600 shrink-0" />
-                        <span>Restaurante / Mesas</span>
-                      </>
-                    )}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                <span className="text-xs sm:text-sm font-semibold text-gray-900 font-mono">
+                  {item.feeLabel}
+                </span>
 
-                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
-                  <span className="text-xs text-gray-500 font-medium">Perfil del Salón</span>
-                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs text-right">
-                    {salonProfile === 'TALLER' || posSub?.salonProfile === 'TALLER' ? (
-                      <>
-                        <Wrench size={14} className="text-amber-600 shrink-0" />
-                        <span>Taller Automotriz</span>
-                      </>
-                    ) : (
-                      <>
-                        <ForkKnife size={14} className="text-purple-600 shrink-0" />
-                        <span>Restaurante</span>
-                      </>
-                    )}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
-                  <span className="text-xs text-gray-500 font-medium">Computadoras</span>
-                  <span className="font-semibold text-gray-900 text-right">
-                    {activeDevices !== undefined ? `${activeDevices} activa${activeDevices === 1 ? '' : 's'} / ` : ''}
-                    {maxDevices === null || (maxDevices === undefined && posSub?.maxDevices === null)
-                      ? 'Sin límite'
-                      : `${maxDevices ?? posSub?.maxDevices ?? 1} permitida${(maxDevices ?? posSub?.maxDevices ?? 1) === 1 ? '' : 's'}`}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
-                  <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
-                  <span className="font-semibold text-gray-900 font-mono text-right">
-                    {posSub?.posMonthlyFee
-                      ? `$${Number(posSub.posMonthlyFee).toFixed(2)} / mes`
-                      : 'Sin cuota fija'}
-                  </span>
-                </div>
-              </div>
-            </ProductCard>
-          )}
-
-          {isCarteraActive && (
-            <ProductCard
-              productType="CARTERA_COBRO"
-              title="Finanzas"
-              subtitle="Cuentas por pagar, gastos, estado de resultados y cartera"
-              icon={<Wallet size={22} weight="duotone" />}
-              iconActiveThemeClass="bg-emerald-500/10 text-emerald-800 border border-emerald-200/60"
-              isActive={true}
-              autoRenew={carteraSub?.autoRenew ?? true}
-              renewalCanceledAt={carteraSub?.renewalCanceledAt}
-              coverageEndDate={getProductCoverageEndDate('CARTERA_COBRO')}
-              activatedAt={carteraSub?.activatedAt}
-              deactivatedAt={carteraSub?.deactivatedAt}
-              isMembershipProduct={true}
-              inactiveDescription="Este negocio no tiene contratado el módulo de Finanzas. El registro de compras a crédito, cuentas por pagar y gastos está deshabilitado."
-              onAuditClick={() => setAuditLogModal({ isOpen: true, productType: 'CARTERA_COBRO' })}
-              onConfigureClick={() =>
-                setActiveModal({
-                  isOpen: true,
-                  productType: 'CARTERA_COBRO',
-                  isCurrentlyActive: true,
-                })
-              }
-              onDeactivateClick={() =>
-                setDeactivateModal({ isOpen: true, productType: 'CARTERA_COBRO' })
-              }
-              onCancelRenewalClick={() =>
-                setCancelRenewalModal({
-                  isOpen: true,
-                  productType: 'CARTERA_COBRO',
-                  coverageEndDate: getProductCoverageEndDate('CARTERA_COBRO'),
-                })
-              }
-              onDeactivateNowClick={() =>
-                setDeactivateNowModal({ isOpen: true, productType: 'CARTERA_COBRO' })
-              }
-              onRegisterPaymentClick={() => onRegisterPaymentClick?.('CARTERA_COBRO')}
-            >
-              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1">
-                  <span className="text-xs text-gray-500 font-medium">Módulo</span>
-                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs text-right">
-                    <CreditCard size={14} className="text-emerald-600 shrink-0" />
-                    <span>Finanzas (Cobranza, Pagos y Gastos)</span>
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
-                  <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
-                  <span className="font-semibold text-gray-900 font-mono text-right">
-                    {carteraSub?.carteraMonthlyFee
-                      ? `$${Number(carteraSub.carteraMonthlyFee).toFixed(2)} / mes`
-                      : 'Sin cuota fija'}
-                  </span>
-                </div>
-              </div>
-            </ProductCard>
-          )}
-
-          {isCitasActive && (
-            <ProductCard
-              productType="CITAS"
-              title="Citas"
-              subtitle="Reservas online, agenda y gestión de citas"
-              icon={<CalendarBlank size={22} weight="duotone" />}
-              iconActiveThemeClass="bg-sky-500/10 text-sky-800 border border-sky-200/60"
-              isActive={true}
-              autoRenew={citasSub?.autoRenew ?? true}
-              renewalCanceledAt={citasSub?.renewalCanceledAt}
-              coverageEndDate={getProductCoverageEndDate('CITAS')}
-              activatedAt={citasSub?.activatedAt}
-              deactivatedAt={citasSub?.deactivatedAt}
-              isMembershipProduct={true}
-              inactiveDescription="Este negocio no tiene contratado el servicio de Citas. La página pública de reservas y la agenda están deshabilitadas."
-              onAuditClick={() => setAuditLogModal({ isOpen: true, productType: 'CITAS' })}
-              onConfigureClick={() =>
-                setActiveModal({
-                  isOpen: true,
-                  productType: 'CITAS',
-                  isCurrentlyActive: true,
-                })
-              }
-              onDeactivateClick={() =>
-                setDeactivateModal({ isOpen: true, productType: 'CITAS' })
-              }
-              onCancelRenewalClick={() =>
-                setCancelRenewalModal({
-                  isOpen: true,
-                  productType: 'CITAS',
-                  coverageEndDate: getProductCoverageEndDate('CITAS'),
-                })
-              }
-              onDeactivateNowClick={() =>
-                setDeactivateNowModal({ isOpen: true, productType: 'CITAS' })
-              }
-              onRegisterPaymentClick={() => onRegisterPaymentClick?.('CITAS')}
-            >
-              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1">
-                  <span className="text-xs text-gray-500 font-medium">Módulo</span>
-                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 text-xs text-right">
-                    <CalendarBlank size={14} className="text-sky-600 shrink-0" />
-                    <span>Reservas y Agenda</span>
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 pt-2 border-t border-gray-200/60 text-xs">
-                  <span className="text-gray-400 font-medium">Tarifa Mensual:</span>
-                  <span className="font-semibold text-gray-900 font-mono text-right">
-                    {citasSub?.citasMonthlyFee
-                      ? `$${Number(citasSub.citasMonthlyFee).toFixed(2)} / mes`
-                      : 'Sin cuota fija'}
-                  </span>
-                </div>
-              </div>
-            </ProductCard>
-          )}
-        </div>
-      )}
-
-      {/* 2. Productos No Contratados: Filas Compactas */}
-      {activeCount < 4 && (
-        <div className="space-y-2.5 pt-1">
-          <div className="flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
-            <span>Productos no contratados ({4 - activeCount})</span>
-          </div>
-
-          <div className="space-y-2">
-            {!isDeliveryActive && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:px-4 sm:py-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/70 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">
-                    <Motorcycle size={18} weight="duotone" />
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap text-xs">
-                    <span className="font-semibold text-gray-900">TrackDeli (Delivery)</span>
-                    <span className="text-gray-300 hidden sm:inline">·</span>
-                    <span className="text-gray-500 font-medium">No contratado</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto shrink-0">
+                <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setAuditLogModal({ isOpen: true, productType: 'DELIVERY' })}
-                    title="Historial de auditoría"
-                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
+                    onClick={() =>
+                      setOpenMenuType((prev) => (prev === item.type ? null : item.type))
+                    }
+                    className="w-8 h-8 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 flex items-center justify-center cursor-pointer"
+                    title={`Acciones de ${item.label}`}
+                    aria-label={`Acciones de ${item.label}`}
                   >
-                    <ClockCounterClockwise size={13} />
-                    <span>Auditoría</span>
+                    <DotsThreeVertical size={16} weight="bold" />
                   </button>
 
-                  {businessType === 'EMPRESA_RIDERS' ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setActiveModal({
-                          isOpen: true,
-                          productType: 'DELIVERY',
-                          isCurrentlyActive: false,
-                        })
-                      }
-                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
-                    >
-                      <span>Activar Delivery</span>
-                    </button>
-                  ) : (
-                    <button
-                      id="btn-register-payment-delivery"
-                      data-testid="btn-register-payment-delivery"
-                      type="button"
-                      onClick={() => onRegisterPaymentClick?.('DELIVERY')}
-                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
-                    >
-                      <CreditCard size={12} weight="bold" />
-                      <span>Registrar pago</span>
-                    </button>
+                  {openMenuType === item.type && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setOpenMenuType(null)}
+                      />
+                      <div className="absolute right-0 mt-1 w-52 rounded-xl bg-white shadow-lg border border-gray-200/80 py-1.5 z-50 text-left">
+                        {!isNonBilling && item.isMembershipProduct && onRegisterPaymentClick && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenMenuType(null);
+                              onRegisterPaymentClick(item.type);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+                          >
+                            Registrar pago
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenMenuType(null);
+                            setActiveModal({
+                              isOpen: true,
+                              productType: item.type,
+                              isCurrentlyActive: true,
+                            });
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+                        >
+                          Configurar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenMenuType(null);
+                            setAuditLogModal({ isOpen: true, productType: item.type });
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+                        >
+                          Auditoría
+                        </button>
+                        {item.isMembershipProduct && item.autoRenew && !isNonBilling && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenMenuType(null);
+                              setCancelRenewalModal({
+                                isOpen: true,
+                                productType: item.type,
+                                coverageEndDate: getProductCoverageEndDate(item.type),
+                              });
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-50 cursor-pointer"
+                          >
+                            Cancelar renovación
+                          </button>
+                        )}
+                        <div className="my-1 border-t border-gray-100" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenMenuType(null);
+                            if (item.isMembershipProduct) {
+                              setDeactivateNowModal({ isOpen: true, productType: item.type });
+                            } else {
+                              setDeactivateModal({ isOpen: true, productType: item.type });
+                            }
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 cursor-pointer"
+                        >
+                          Desactivar ahora
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
-            )}
+            </div>
+          ))}
+        </div>
+      )}
 
-            {!isPosActive && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:px-4 sm:py-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/70 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">
-                    <Receipt size={18} weight="duotone" />
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap text-xs">
-                    <span className="font-semibold text-gray-900">Sistema POS</span>
-                    <span className="text-gray-300 hidden sm:inline">·</span>
-                    <span className="text-gray-500 font-medium">No contratado</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setAuditLogModal({ isOpen: true, productType: 'POS' })}
-                    title="Historial de auditoría"
-                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <ClockCounterClockwise size={13} />
-                    <span>Auditoría</span>
-                  </button>
-
-                  <button
-                    id="btn-register-payment-pos"
-                    data-testid="btn-register-payment-pos"
-                    type="button"
-                    onClick={() => onRegisterPaymentClick?.('POS')}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
-                  >
-                    <CreditCard size={12} weight="bold" />
-                    <span>Registrar pago</span>
-                  </button>
-                </div>
+      {/* No contratados como botones "+ Producto" con su Registrar pago y Auditoría */}
+      {uncontracted.length > 0 && (
+        <div className="pt-3 border-t border-gray-100 space-y-2.5">
+          <p className="text-[13px] font-medium text-gray-500">No contratados</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {uncontracted.map((item) => (
+              <div
+                key={item.type}
+                className="inline-flex items-center rounded-lg border border-gray-200 bg-white overflow-hidden"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isNonBilling || (item.type === 'DELIVERY' && businessType === 'EMPRESA_RIDERS')) {
+                      setActiveModal({
+                        isOpen: true,
+                        productType: item.type,
+                        isCurrentlyActive: false,
+                      });
+                    } else {
+                      onRegisterPaymentClick?.(item.type);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 transition-colors cursor-pointer"
+                  title={
+                    isNonBilling
+                      ? `Activar ${item.shortAddLabel}`
+                      : `Contratar o registrar pago de ${item.shortAddLabel}`
+                  }
+                >
+                  <Plus size={13} weight="bold" />
+                  <span>{item.shortAddLabel}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuditLogModal({ isOpen: true, productType: item.type })}
+                  className="px-2 py-1.5 border-l border-gray-200 text-xs text-gray-500 hover:text-gray-900 hover:bg-gray-50 inline-flex items-center gap-1 cursor-pointer"
+                  title={`Auditoría de ${item.label}`}
+                >
+                  <ClockCounterClockwise size={13} />
+                  <span>Auditoría</span>
+                </button>
               </div>
-            )}
-
-            {!isCarteraActive && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:px-4 sm:py-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/70 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">
-                    <Wallet size={18} weight="duotone" />
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap text-xs">
-                    <span className="font-semibold text-gray-900">Cartera de Cobro</span>
-                    <span className="text-gray-300 hidden sm:inline">·</span>
-                    <span className="text-gray-500 font-medium">No contratado</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setAuditLogModal({ isOpen: true, productType: 'CARTERA_COBRO' })}
-                    title="Historial de auditoría"
-                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <ClockCounterClockwise size={13} />
-                    <span>Auditoría</span>
-                  </button>
-
-                  <button
-                    id="btn-register-payment-cartera_cobro"
-                    data-testid="btn-register-payment-cartera_cobro"
-                    type="button"
-                    onClick={() => onRegisterPaymentClick?.('CARTERA_COBRO')}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
-                  >
-                    <CreditCard size={12} weight="bold" />
-                    <span>Registrar pago</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!isCitasActive && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:px-4 sm:py-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/70 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">
-                    <CalendarBlank size={18} weight="duotone" />
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap text-xs">
-                    <span className="font-semibold text-gray-900">Citas</span>
-                    <span className="text-gray-300 hidden sm:inline">·</span>
-                    <span className="text-gray-500 font-medium">No contratado</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setAuditLogModal({ isOpen: true, productType: 'CITAS' })}
-                    title="Historial de auditoría"
-                    className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <ClockCounterClockwise size={13} />
-                    <span>Auditoría</span>
-                  </button>
-
-                  <button
-                    id="btn-register-payment-citas"
-                    data-testid="btn-register-payment-citas"
-                    type="button"
-                    onClick={() => onRegisterPaymentClick?.('CITAS')}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
-                  >
-                    <CreditCard size={12} weight="bold" />
-                    <span>Registrar pago</span>
-                  </button>
-                </div>
-              </div>
-            )}
+            ))}
           </div>
         </div>
       )}
@@ -706,4 +461,3 @@ export const BusinessProductsSection: React.FC<BusinessProductsSectionProps> = (
     </div>
   );
 };
-

@@ -1,40 +1,32 @@
-import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { createBusinessMarker } from 'map';
 import {
   ArrowLeft,
   Storefront,
-  Users,
   Motorcycle,
-  Package,
-  Calendar,
   Phone,
   EnvelopeSimple,
-  CreditCard,
   Plus,
-  Paperclip,
   Gear,
   Coins,
-  Receipt,
-  Wallet,
-  CalendarBlank,
   Key,
   Lock,
   LockOpen,
   PencilSimple,
   Trash,
   Warning,
-  Desktop,
   Info,
-  Tag,
-  DeviceMobile,
   Prohibit,
   WarningOctagon,
+  WhatsappLogo,
+  DotsThreeVertical,
+  List,
+  ArrowRight,
 } from '@phosphor-icons/react';
-import { TopBar } from '../components/layout/TopBar';
-import { StatCard } from '../components/ui/StatCard';
+import { useSuperadminSidebar } from '../components/layout/Layout';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import {
@@ -42,18 +34,23 @@ import {
   useToggleBusiness,
   useUpdateBusiness,
   useUpdateUserQuota,
+  useBusinessDevices,
+  useUpdatePosSubscription,
+  useBusinessUnifiedPayments,
+  type BusinessAccountType,
   type BusinessType,
 } from '../hooks/useBusinesses';
 import {
   useBusinessMemberships,
   useVoidMembership,
   MembershipItem,
-  countPaidMemberships,
-  isTrialMembership,
-  isAutoInitialMembership,
 } from '../hooks/useMemberships';
-
-import { formatDateTime, formatDateShort } from '../utils/format';
+import {
+  formatDateTime,
+  formatDateShort,
+  formatRelativeTime,
+  formatCurrency,
+} from '../utils/format';
 import {
   resolveBusinessBillingInfo,
   getMembershipPeriodDates,
@@ -66,9 +63,12 @@ import { BusinessProductsSection } from '../components/business/BusinessProducts
 import { BusinessProductFieldsSection } from '../components/business/BusinessProductFieldsSection';
 import { BusinessPosDevicesSection } from '../components/business/BusinessPosDevicesSection';
 import { BusinessOrganizationSection } from '../components/business/BusinessOrganizationSection';
-import { BusinessCommercialSection } from '../components/business/BusinessCommercialSection';
+import { BusinessBillingTab } from '../components/business/BusinessBillingTab';
 import { useAccountStatement } from '../hooks/useCommercial';
-import { useBusinessProducts, type BusinessProductType } from '../hooks/useBusinessProducts';
+import {
+  useBusinessProducts,
+  type BusinessProductType,
+} from '../hooks/useBusinessProducts';
 import { useSuperAdminUsers } from '../hooks/useSuperAdminUsers';
 import { type AdminUser } from 'api-client';
 import { CreateSuperAdminUserModal } from '../components/modals/users/CreateSuperAdminUserModal';
@@ -81,22 +81,94 @@ import toast from 'react-hot-toast';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-const AUTO_INITIAL_HINT =
-  'Lo creó el asistente al dar de alta el negocio como pago. Si el cliente empezó con prueba gratis, anulalo.';
+type DetailTabKey =
+  | 'resumen'
+  | 'cobros'
+  | 'equipos'
+  | 'usuarios'
+  | 'configuracion';
+
+const VALID_TABS: DetailTabKey[] = [
+  'resumen',
+  'cobros',
+  'equipos',
+  'usuarios',
+  'configuracion',
+];
+
+function cleanWhatsappDigits(raw?: string | null): string | null {
+  if (!raw) return null;
+  const digits = String(raw).replace(/\D/g, '');
+  if (digits.length < 8) return null;
+  return digits.length === 8 ? `505${digits}` : digits;
+}
+
+function cleanPhoneHref(raw?: string | null): string | null {
+  if (!raw) return null;
+  const cleaned = String(raw).replace(/[^\d+]/g, '');
+  return cleaned.length >= 7 ? cleaned : null;
+}
+
+function shortenBusinessId(id: string): string {
+  if (!id || id.length <= 12) return id;
+  return `${id.slice(0, 6)}…${id.slice(-4)}`;
+}
+
+const SwitchButton: React.FC<{
+  checked: boolean;
+  disabled?: boolean;
+  onChange: () => void;
+  label: string;
+}> = ({ checked, disabled, onChange, label }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    aria-label={label}
+    disabled={disabled}
+    onClick={onChange}
+    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+      checked ? 'bg-emerald-600' : 'bg-gray-300'
+    }`}
+  >
+    <span
+      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-2xs transition-transform ${
+        checked ? 'translate-x-6' : 'translate-x-1'
+      }`}
+    />
+  </button>
+);
 
 export const BusinessDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { setSidebarOpen } = useSuperadminSidebar();
+
+  const rawTab = (searchParams.get('tab') || 'resumen').toLowerCase() as DetailTabKey;
+  const activeTab: DetailTabKey = VALID_TABS.includes(rawTab) ? rawTab : 'resumen';
+
+  const setActiveTab = (next: DetailTabKey) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('tab', next);
+    params.delete('editContact');
+    setSearchParams(params, { replace: true });
+  };
+
   const { data: business, isLoading, isError } = useBusinessDetail(id!);
-  const { data: memberships = [], isLoading: loadingMemberships } = useBusinessMemberships(id!);
+  const { data: memberships = [] } = useBusinessMemberships(id!);
   const { data: productsData } = useBusinessProducts(id!);
   const { data: accountStatement } = useAccountStatement(id!);
+  const { data: unifiedPaymentsData } = useBusinessUnifiedPayments(id!);
+  const { data: allPosDevices = [] } = useBusinessDevices(id!, false);
+
   const toggleMutation = useToggleBusiness();
   const updateMutation = useUpdateBusiness();
   const updateQuotaMutation = useUpdateUserQuota();
+  const updatePosSubMutation = useUpdatePosSubscription();
 
   const [extraSlotsInput, setExtraSlotsInput] = useState<string>('');
-  
+
   useEffect(() => {
     if (business?.userUsage) {
       setExtraSlotsInput(String(business.userUsage.extra));
@@ -106,16 +178,8 @@ export const BusinessDetailPage = () => {
   const isDeliveryActive = productsData
     ? productsData.products.DELIVERY.status === 'ACTIVE'
     : (business?.hasTrackDeli ?? false);
-  const isPosActive = productsData
-    ? productsData.products.POS.status === 'ACTIVE'
-    : (business?.hasPOS ?? false);
-  const isCarteraActive = productsData
-    ? productsData.products.CARTERA_COBRO?.status === 'ACTIVE'
-    : ((business as any)?.hasCarteraCobro ?? false);
-  const isCitasActive = productsData
-    ? productsData.products.CITAS?.status === 'ACTIVE'
-    : ((business as any)?.hasCitas ?? false);
 
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [registerModalInitialProductType, setRegisterModalInitialProductType] =
     useState<BusinessProductType | undefined>(undefined);
@@ -124,10 +188,24 @@ export const BusinessDetailPage = () => {
   const [isEditDataModalOpen, setIsEditDataModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
-  const [membershipToVoid, setMembershipToVoid] = useState<MembershipItem | null>(null);
-  const [membershipToEdit, setMembershipToEdit] = useState<MembershipItem | null>(null);
+  const [membershipToVoid, setMembershipToVoid] = useState<MembershipItem | null>(
+    null
+  );
+  const [membershipToEdit, setMembershipToEdit] = useState<MembershipItem | null>(
+    null
+  );
   const [voidReason, setVoidReason] = useState('');
   const voidMembershipMutation = useVoidMembership(id || '');
+
+  // Si llega desde la lista con ?editContact=1, abrir modal de edición
+  useEffect(() => {
+    if (searchParams.get('editContact') === '1' && business) {
+      setIsEditDataModalOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('editContact');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, business, setSearchParams]);
 
   const handleOpenVoidModal = (membership: MembershipItem) => {
     setMembershipToVoid(membership);
@@ -152,14 +230,20 @@ export const BusinessDetailPage = () => {
     setIsRegisterModalOpen(true);
   };
 
-  const { data: businessUsers = [], isLoading: loadingBusinessUsers } = useSuperAdminUsers({
-    businessId: id,
-  });
+  const { data: businessUsers = [], isLoading: loadingBusinessUsers } =
+    useSuperAdminUsers({
+      businessId: id,
+    });
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [createdUser, setCreatedUser] = useState<AdminUser | null>(null);
-  const [createdUserPassword, setCreatedUserPassword] = useState<string | null>(null);
-  const [passwordTargetUser, setPasswordTargetUser] = useState<AdminUser | null>(null);
-  const [deactivateTargetUser, setDeactivateTargetUser] = useState<AdminUser | null>(null);
+  const [createdUserPassword, setCreatedUserPassword] = useState<string | null>(
+    null
+  );
+  const [passwordTargetUser, setPasswordTargetUser] = useState<AdminUser | null>(
+    null
+  );
+  const [deactivateTargetUser, setDeactivateTargetUser] =
+    useState<AdminUser | null>(null);
 
   const activeEncargados = businessUsers.filter(
     (u) => u.role === 'ENCARGADO' && u.isActive
@@ -170,15 +254,38 @@ export const BusinessDetailPage = () => {
     activeEncargados.length === 1 &&
     activeEncargados[0].id === deactivateTargetUser.id;
 
-  const [modelBusinessType, setModelBusinessType] = useState<BusinessType>('NEGOCIO');
+  const [modelBusinessType, setModelBusinessType] =
+    useState<BusinessType>('NEGOCIO');
   const [modelCommissionRate, setModelCommissionRate] = useState('15');
   const [modelAltCommissionRate, setModelAltCommissionRate] = useState('12');
-  const [modelAltCommissionDistanceKm, setModelAltCommissionDistanceKm] = useState('40');
+  const [modelAltCommissionDistanceKm, setModelAltCommissionDistanceKm] =
+    useState('40');
   const [modelDispatchTimeoutMin, setModelDispatchTimeoutMin] = useState('3');
 
-  const [isActivateBatchesModalOpen, setIsActivateBatchesModalOpen] = useState(false);
-  const [isDeactivateBatchesModalOpen, setIsDeactivateBatchesModalOpen] = useState(false);
-  const [deactivateBatchesError, setDeactivateBatchesError] = useState<string | null>(null);
+  const openEditModelModal = () => {
+    if (!business) return;
+    setModelBusinessType(business.businessType || 'NEGOCIO');
+    setModelCommissionRate(
+      String(Math.round((business.commissionRate || 0.15) * 100))
+    );
+    setModelAltCommissionRate(
+      String(Math.round((business.altCommissionRate || 0.12) * 100))
+    );
+    setModelAltCommissionDistanceKm(
+      String(business.altCommissionDistanceKm || 40)
+    );
+    setModelDispatchTimeoutMin(String(business.dispatchTimeoutMin || 3));
+    setIsEditModelModalOpen(true);
+  };
+
+  // Lotes y funciones
+  const [isActivateBatchesModalOpen, setIsActivateBatchesModalOpen] =
+    useState(false);
+  const [isDeactivateBatchesModalOpen, setIsDeactivateBatchesModalOpen] =
+    useState(false);
+  const [deactivateBatchesError, setDeactivateBatchesError] = useState<
+    string | null
+  >(null);
 
   const handleConfirmActivateBatches = () => {
     if (!business) return;
@@ -204,7 +311,9 @@ export const BusinessDetailPage = () => {
         onError: (err: any) => {
           const msg = err.response?.data?.message;
           const errorText = Array.isArray(msg) ? msg.join(', ') : msg;
-          setDeactivateBatchesError(errorText || 'El negocio tiene lotes con existencias activas.');
+          setDeactivateBatchesError(
+            errorText || 'El negocio tiene lotes con existencias activas.'
+          );
           setIsDeactivateBatchesModalOpen(true);
         },
       }
@@ -232,11 +341,11 @@ export const BusinessDetailPage = () => {
       { id: business.id, data: { useListPrice: nextVal } },
       {
         onSuccess: () => {
-          toast.success(nextVal ? 'Precio de etiqueta activado' : 'Precio de etiqueta desactivado');
-        },
-        onError: (err: any) => {
-          const msg = err.response?.data?.message;
-          toast.error(msg || 'Error al actualizar precio de etiqueta');
+          toast.success(
+            nextVal
+              ? 'Precio de etiqueta activado'
+              : 'Precio de etiqueta desactivado'
+          );
         },
       }
     );
@@ -265,60 +374,10 @@ export const BusinessDetailPage = () => {
       {
         onSuccess: () => {
           toast.success(
-            nextVal ? 'Venta en dos pasos activada' : 'Venta en dos pasos desactivada'
+            nextVal
+              ? 'Venta en dos pasos activada'
+              : 'Venta en dos pasos desactivada'
           );
-        },
-        onError: (err: any) => {
-          const msg = err.response?.data?.message;
-          toast.error(msg || 'Error al actualizar venta en dos pasos');
-        },
-      }
-    );
-  };
-
-  const handleToggleDeliveryChannel = () => {
-    if (!business) return;
-    const nextVal = !business.deliveryChannelEnabled;
-    updateMutation.mutate(
-      {
-        id: business.id,
-        data: {
-          deliveryChannelEnabled: nextVal,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast.success(
-            nextVal ? 'Venta a domicilio activada' : 'Venta a domicilio desactivada'
-          );
-        },
-        onError: (err: any) => {
-          const msg = err.response?.data?.message;
-          toast.error(msg || 'Error al actualizar canal de venta a domicilio');
-        },
-      }
-    );
-  };
-
-  const handleTogglePedidosYaChannel = () => {
-    if (!business) return;
-    const nextVal = !business.pedidosYaChannelEnabled;
-    updateMutation.mutate(
-      {
-        id: business.id,
-        data: {
-          pedidosYaChannelEnabled: nextVal,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast.success(
-            nextVal ? 'Canal PedidosYa activado' : 'Canal PedidosYa desactivado'
-          );
-        },
-        onError: (err: any) => {
-          const msg = err.response?.data?.message;
-          toast.error(msg || 'Error al actualizar canal de PedidosYa');
         },
       }
     );
@@ -330,28 +389,112 @@ export const BusinessDetailPage = () => {
     updateMutation.mutate(
       {
         id: business.id,
-        data: {
-          twoStepTicketTtlHours: hours,
-        },
+        data: { twoStepTicketTtlHours: hours },
       },
       {
         onSuccess: () => {
           toast.success('Vencimiento del ticket actualizado');
           setIsEditingTtl(false);
         },
-        onError: (err: any) => {
-          const msg = err.response?.data?.message;
-          toast.error(msg || 'Error al actualizar vencimiento del ticket');
+      }
+    );
+  };
+
+  const handleToggleDeliveryChannel = () => {
+    if (!business) return;
+    const nextVal = !business.deliveryChannelEnabled;
+    updateMutation.mutate(
+      {
+        id: business.id,
+        data: { deliveryChannelEnabled: nextVal },
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            nextVal
+              ? 'Venta a domicilio activada'
+              : 'Venta a domicilio desactivada'
+          );
         },
       }
     );
   };
 
+  const handleTogglePedidosYaChannel = () => {
+    if (!business) return;
+    const nextVal = !business.pedidosYaChannelEnabled;
+    updateMutation.mutate(
+      {
+        id: business.id,
+        data: { pedidosYaChannelEnabled: nextVal },
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            nextVal ? 'Canal PedidosYa activado' : 'Canal PedidosYa desactivado'
+          );
+        },
+      }
+    );
+  };
+
+  // Perfil del salón en Configuración -> Funciones
+  const [isEditingSalonProfile, setIsEditingSalonProfile] = useState(false);
+  const currentSalonProfile: 'RESTAURANTE' | 'TALLER' =
+    (business?.salonProfile as 'RESTAURANTE' | 'TALLER') || 'RESTAURANTE';
+  const [salonProfileDraft, setSalonProfileDraft] =
+    useState<'RESTAURANTE' | 'TALLER'>(currentSalonProfile);
+
+  useEffect(() => {
+    setSalonProfileDraft(
+      (business?.salonProfile as 'RESTAURANTE' | 'TALLER') || 'RESTAURANTE'
+    );
+  }, [business?.salonProfile]);
+
+  const handleSaveSalonProfile = async () => {
+    if (!business) return;
+    try {
+      await updatePosSubMutation.mutateAsync({
+        businessId: business.id,
+        data: { salonProfile: salonProfileDraft },
+      });
+      setIsEditingSalonProfile(false);
+    } catch {
+      // Manejado por mutación
+    }
+  };
+
+  const handleChangeAccountType = (nextType: BusinessAccountType) => {
+    if (!business || (business.accountType || 'CLIENTE') === nextType) return;
+    updateMutation.mutate(
+      { id: business.id, data: { accountType: nextType } },
+      {
+        onSuccess: () => {
+          const label =
+            nextType === 'DEMO'
+              ? 'Demo'
+              : nextType === 'INTERNO'
+              ? 'Interno'
+              : 'Cliente';
+          toast.success(`Tipo de cuenta actualizado a ${label}`);
+        },
+      }
+    );
+  };
+
+  // Mapbox en pestaña Resumen
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
   useEffect(() => {
-    if (!mapContainer.current || !business?.latitude || !business?.longitude) return;
+    if (
+      activeTab !== 'resumen' ||
+      !mapContainer.current ||
+      !business?.latitude ||
+      !business?.longitude
+    ) {
+      return;
+    }
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -370,15 +513,54 @@ export const BusinessDetailPage = () => {
       map.current?.remove();
       map.current = null;
     };
-  }, [business?.latitude, business?.longitude]);
+  }, [activeTab, business?.latitude, business?.longitude, business?.name]);
+
+  // Cálculos de dispositivos activos para resumen y franja superior
+  const deviceCounts = useMemo(() => {
+    let desktop = 0;
+    let web = 0;
+    let mobile = 0;
+    for (const d of allPosDevices) {
+      if (d.status !== 'ACTIVE' || d.archivedAt) continue;
+      const cat = (d.category || '').toUpperCase();
+      const plat = (d.platform || '').toUpperCase();
+      if (cat === 'MOBILE' || plat.includes('ANDROID') || plat.includes('IOS')) {
+        mobile += 1;
+      } else if (
+        cat === 'WEB' ||
+        plat.includes('WEB') ||
+        plat.includes('CHROME') ||
+        plat.includes('SAFARI') ||
+        plat.includes('FIREFOX')
+      ) {
+        web += 1;
+      } else {
+        desktop += 1;
+      }
+    }
+    return {
+      desktop: business?.activeDevices ?? desktop,
+      web,
+      mobile: business?.activeMobileDevices ?? mobile,
+    };
+  }, [allPosDevices, business?.activeDevices, business?.activeMobileDevices]);
 
   if (isLoading) {
     return (
-      <div>
-        <TopBar title="Detalle de Negocio" />
-        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto flex items-center justify-center py-24 text-gray-400 text-sm">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-brand-500 border-t-transparent mr-3" />
-          <span>Cargando información del negocio...</span>
+      <div className="min-h-screen bg-gray-50/50">
+        <header className="bg-white border-b border-gray-200/80 px-4 sm:px-6 lg:px-8 py-4">
+          <button
+            type="button"
+            onClick={() => navigate('/businesses')}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 cursor-pointer"
+          >
+            <ArrowLeft size={14} />
+            <span>Negocios</span>
+          </button>
+        </header>
+        <div className="p-6 max-w-6xl mx-auto flex items-center justify-center py-24 text-gray-500 text-sm">
+          <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-700 border-t-transparent mr-3" />
+          <span>Cargando información del negocio…</span>
         </div>
       </div>
     );
@@ -386,17 +568,19 @@ export const BusinessDetailPage = () => {
 
   if (isError || !business) {
     return (
-      <div>
-        <TopBar title="Detalle de Negocio" />
-        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-4">
+      <div className="min-h-screen bg-gray-50/50">
+        <header className="bg-white border-b border-gray-200/80 px-4 sm:px-6 lg:px-8 py-4">
           <button
+            type="button"
             onClick={() => navigate('/businesses')}
-            className="inline-flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-900"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 cursor-pointer"
           >
             <ArrowLeft size={14} />
-            <span>Volver a Negocios</span>
+            <span>Negocios</span>
           </button>
-          <div className="p-6 bg-red-50 border border-red-100 rounded-xl text-sm text-red-700">
+        </header>
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
+          <div className="p-5 bg-white border border-red-200 rounded-xl text-sm text-red-700">
             No se pudo encontrar la información del negocio solicitado.
           </div>
         </div>
@@ -404,10 +588,158 @@ export const BusinessDetailPage = () => {
     );
   }
 
+  const accountType: BusinessAccountType = business.accountType || 'CLIENTE';
+  const isDemo = accountType === 'DEMO';
+  const isInterno = accountType === 'INTERNO';
+  const isNonBilling = isDemo || isInterno;
+
+  const accountTypeLabel =
+    accountType === 'DEMO'
+      ? 'Demo'
+      : accountType === 'INTERNO'
+      ? 'Interno'
+      : 'Cliente';
+
   const latestMembership: MembershipItem | undefined =
     memberships[0] || (business as any).latestMembership;
 
-  const billingInfo = resolveBusinessBillingInfo(business, latestMembership, productsData);
+  const billingInfo = resolveBusinessBillingInfo(
+    business,
+    latestMembership,
+    productsData
+  );
+
+  const rubroLabel =
+    business.industry?.name ||
+    (business.businessType === 'EMPRESA_RIDERS'
+      ? 'Empresa de riders'
+      : business.type || 'Comercio');
+
+  // Contacto consolidado
+  const contactData = {
+    name: business.contact?.name ?? business.contactName ?? null,
+    role: business.contact?.role ?? business.contactRole ?? null,
+    phone:
+      business.contact?.phone ??
+      business.contactPhone ??
+      business.posPhone ??
+      business.phone ??
+      null,
+    whatsapp:
+      business.contact?.whatsapp ??
+      business.contactWhatsapp ??
+      business.whatsappNumber ??
+      null,
+    email: business.contact?.email ?? business.contactEmail ?? null,
+    address:
+      business.contact?.address ??
+      business.contactAddress ??
+      business.posAddress ??
+      business.address ??
+      null,
+    municipality:
+      business.contact?.municipality ?? business.contactMunicipality ?? null,
+    department:
+      business.contact?.department ?? business.contactDepartment ?? null,
+    taxId:
+      business.contact?.taxId ?? business.contactTaxId ?? business.taxId ?? null,
+    notes: business.contact?.notes ?? business.contactNotes ?? null,
+  };
+
+  const waDigits = cleanWhatsappDigits(
+    contactData.whatsapp || contactData.phone
+  );
+  const telHref = cleanPhoneHref(contactData.phone || contactData.whatsapp);
+  const hasAnyContactData = Object.values(contactData).some((v) => Boolean(v));
+
+  // Datos de franja superior (4 datos)
+  const posSub = business.productSubscriptions?.find(
+    (s) => s.productType === 'POS'
+  );
+  const maxComputers =
+    business.maxDevices !== undefined ? business.maxDevices : posSub?.maxDevices ?? 1;
+  const isComputersUnlimited = maxComputers === null || maxComputers === undefined;
+  const isComputersQuotaFull =
+    !isComputersUnlimited && deviceCounts.desktop >= (maxComputers ?? 0);
+
+  const maxWebAllowed =
+    business.maxWebDevices !== undefined
+      ? business.maxWebDevices
+      : posSub?.maxWebDevices !== undefined
+      ? posSub.maxWebDevices
+      : 2;
+  const maxMobileAllowed =
+    business.maxMobileDevices !== undefined
+      ? Number(business.maxMobileDevices)
+      : posSub?.maxMobileDevices !== undefined
+      ? Number(posSub.maxMobileDevices)
+      : 0;
+
+  const usedUsers =
+    business.userUsage?.used ?? businessUsers.filter((u) => u.isActive).length;
+  const limitUsers =
+    business.userUsage?.limit ?? (businessUsers.length || 5);
+  const lastActivitySignal =
+    business.last_sale_at ||
+    business.last_seen_at ||
+    business.lastActivity ||
+    business.lastLoginAt ||
+    null;
+
+  // Resumen de cuenta en pestaña Resumen
+  const validUnifiedPayments = (unifiedPaymentsData?.payments || []).filter(
+    (p) => p.status !== 'ANULADO' && !p.voidedAt
+  );
+  const lastValidPayment = validUnifiedPayments[0] || null;
+
+  const saleModalityLabel =
+    business.businessType === 'EMPRESA_RIDERS'
+      ? 'Comisión por envío'
+      : !accountStatement || accountStatement.saleModality === 'MEMBRESIA'
+      ? 'Membresía mensual'
+      : accountStatement.saleModality === 'SOLO_SISTEMA'
+      ? 'Pago único (solo sistema)'
+      : accountStatement.saleModality === 'COMBO_COMPLETO'
+      ? 'Combo completo'
+      : accountStatement.saleModality === 'COMBO_PARCIAL'
+      ? 'Combo parcial'
+      : accountStatement.saleModality;
+
+  const maintenanceSummaryLabel =
+    accountStatement?.maintenance?.status === 'INCLUIDO' &&
+    accountStatement.maintenance.includedUntil
+      ? `Incluido hasta ${formatDateShort(
+          accountStatement.maintenance.includedUntil
+        )}`
+      : accountStatement?.maintenance?.status === 'EN_COBRO'
+      ? `${formatCurrency(
+          accountStatement.maintenance.monthlyAmount || 550,
+          'NIO'
+        )} / mes`
+      : 'No aplica';
+
+  const equipmentDeliveredCount = (accountStatement?.equipment || []).length;
+
+  // Etiquetas de funciones activas para pestaña Resumen
+  const activeFeatureTags: string[] = [];
+  if (business.tracksBatches) activeFeatureTags.push('Lotes y vencimientos');
+  if (business.useListPrice) activeFeatureTags.push('Precio de etiqueta');
+  if (business.twoStepSaleEnabled) {
+    activeFeatureTags.push(
+      `Venta en dos pasos (${business.twoStepTicketTtlHours || 4} h)`
+    );
+  }
+  if (business.deliveryChannelEnabled) activeFeatureTags.push('Venta a domicilio');
+  if (business.pedidosYaChannelEnabled) activeFeatureTags.push('PedidosYa');
+  if (business.hasPOS || productsData?.products?.POS?.status === 'ACTIVE') {
+    activeFeatureTags.push(
+      `Perfil del salón: ${
+        currentSalonProfile === 'TALLER'
+          ? 'Taller / órdenes'
+          : 'Restaurante / mesas'
+      }`
+    );
+  }
 
   const handleDeactivateConfirm = (bizId: string) => {
     toggleMutation.mutate(bizId, {
@@ -417,25 +749,6 @@ export const BusinessDetailPage = () => {
     });
   };
 
-  const getPaymentMethodLabel = (method: string) => {
-    switch (method) {
-      case 'TRANSFERENCIA':
-        return 'Transferencia bancaria';
-      case 'EFECTIVO':
-        return 'Efectivo';
-      case 'PAYPAL':
-        return 'PayPal';
-      case 'BINANCE':
-        return 'Binance';
-      case 'ALTA_INICIAL':
-        return 'Alta inicial';
-      case 'AUTOMATICO':
-        return 'Automático';
-      default:
-        return method ? method.charAt(0).toUpperCase() + method.slice(1).toLowerCase() : 'Otro';
-    }
-  };
-
   const handleSaveModel = (e: React.FormEvent) => {
     e.preventDefault();
     updateMutation.mutate(
@@ -443,10 +756,22 @@ export const BusinessDetailPage = () => {
         id: business.id,
         data: {
           businessType: modelBusinessType,
-          commissionRate: modelBusinessType === 'EMPRESA_RIDERS' ? Number(modelCommissionRate) / 100 : undefined,
-          altCommissionRate: modelBusinessType === 'EMPRESA_RIDERS' ? Number(modelAltCommissionRate) / 100 : undefined,
-          altCommissionDistanceKm: modelBusinessType === 'EMPRESA_RIDERS' ? Number(modelAltCommissionDistanceKm) : undefined,
-          dispatchTimeoutMin: modelBusinessType === 'EMPRESA_RIDERS' ? Number(modelDispatchTimeoutMin) : undefined,
+          commissionRate:
+            modelBusinessType === 'EMPRESA_RIDERS'
+              ? Number(modelCommissionRate) / 100
+              : undefined,
+          altCommissionRate:
+            modelBusinessType === 'EMPRESA_RIDERS'
+              ? Number(modelAltCommissionRate) / 100
+              : undefined,
+          altCommissionDistanceKm:
+            modelBusinessType === 'EMPRESA_RIDERS'
+              ? Number(modelAltCommissionDistanceKm)
+              : undefined,
+          dispatchTimeoutMin:
+            modelBusinessType === 'EMPRESA_RIDERS'
+              ? Number(modelDispatchTimeoutMin)
+              : undefined,
         },
       },
       {
@@ -457,1482 +782,1507 @@ export const BusinessDetailPage = () => {
     );
   };
 
+  const detailTabs: Array<{ id: DetailTabKey; label: string }> = [
+    { id: 'resumen', label: 'Resumen' },
+    { id: 'cobros', label: 'Cobros' },
+    { id: 'equipos', label: 'Equipos y accesos' },
+    { id: 'usuarios', label: `Usuarios (${businessUsers.length})` },
+    { id: 'configuracion', label: 'Configuración' },
+  ];
+
+  const btnSecondary =
+    'inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-lg text-xs font-semibold text-gray-800 bg-white border border-gray-300 hover:bg-gray-50 transition-colors cursor-pointer whitespace-nowrap';
+
   return (
-    <div>
-      <TopBar
-        title={business.name}
-        subtitle={`ID: ${business.id}`}
-        actions={
-          <div className="flex items-center flex-wrap gap-2 w-full md:w-auto">
+    <div className="min-h-screen bg-gray-50/50">
+      {/* Encabezado del negocio */}
+      <header className="bg-white border-b border-gray-200/80 px-4 sm:px-6 lg:px-8 pt-4 pb-0">
+        <div className="max-w-7xl mx-auto space-y-3">
+          {/* Fila superior: menú móvil + ← Negocios */}
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsEditDataModalOpen(true)}
-              className="h-9 px-3 sm:px-3.5 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-1.5 -ml-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+              aria-label="Abrir menú"
             >
-              <PencilSimple size={15} />
-              <span>Editar datos</span>
+              <List size={18} weight="bold" />
             </button>
-
             <button
-              onClick={() => {
-                setModelBusinessType(business.businessType || 'NEGOCIO');
-                setModelCommissionRate(String(Math.round((business.commissionRate || 0.15) * 100)));
-                setModelAltCommissionRate(String(Math.round((business.altCommissionRate || 0.12) * 100)));
-                setModelAltCommissionDistanceKm(String(business.altCommissionDistanceKm || 40));
-                setModelDispatchTimeoutMin(String(business.dispatchTimeoutMin || 3));
-                setIsEditModelModalOpen(true);
-              }}
-              className="h-9 px-3 sm:px-3.5 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              type="button"
+              onClick={() => navigate('/businesses')}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
             >
-              <Gear size={15} />
-              <span>Configurar Modelo</span>
+              <ArrowLeft size={14} />
+              <span>Negocios</span>
             </button>
-
-            {business.isActive ? (
-              <button
-                onClick={() => setIsDeactivateModalOpen(true)}
-                disabled={toggleMutation.isPending}
-                className="h-9 px-3.5 sm:px-4 rounded-xl text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200/60 transition-colors shadow-xs cursor-pointer whitespace-nowrap"
-              >
-                Desactivar negocio
-              </button>
-            ) : (
-              <button
-                onClick={() => toggleMutation.mutate(business.id)}
-                disabled={toggleMutation.isPending}
-                className="h-9 px-3.5 sm:px-4 rounded-xl text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200/60 transition-colors shadow-xs cursor-pointer whitespace-nowrap"
-              >
-                Activar negocio
-              </button>
-            )}
           </div>
-        }
-      />
 
-      <div className="p-4 sm:p-6 lg:p-8 space-y-5 lg:space-y-6 max-w-7xl mx-auto">
-        {accountStatement?.billingStatus?.isBlocked && (
-          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-3">
-            <WarningOctagon size={22} weight="fill" className="text-rose-600 shrink-0 mt-0.5" />
+          {/* Nombre, etiquetas, subtítulo y acciones */}
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 pb-4">
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg sm:text-xl font-semibold text-gray-900 leading-tight">
+                  {business.name}
+                </h1>
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${
+                    isNonBilling
+                      ? 'bg-gray-100 text-gray-700 border-gray-300/80'
+                      : 'bg-white text-gray-700 border-gray-200'
+                  }`}
+                >
+                  {accountTypeLabel}
+                </span>
+
+                {!business.isActive ? (
+                  <Badge variant="danger" dot size="sm">
+                    Inactivo
+                  </Badge>
+                ) : isNonBilling ? (
+                  <Badge variant="neutral" size="sm">
+                    Sin vencimiento
+                  </Badge>
+                ) : (
+                  <Badge variant={billingInfo.variant} dot size="sm">
+                    {billingInfo.label}
+                  </Badge>
+                )}
+              </div>
+
+              <p className="text-[13px] text-gray-500 flex items-center flex-wrap gap-x-1.5 gap-y-0.5">
+                <span className="capitalize">{rubroLabel}</span>
+                <span>·</span>
+                <span>Registrado el {formatDateShort(business.createdAt)}</span>
+                <span>·</span>
+                <span className="font-mono text-xs" title={business.id}>
+                  ID {shortenBusinessId(business.id)}
+                </span>
+              </p>
+            </div>
+
+            {/* Acciones derechas: WhatsApp, Editar, Registrar pago (principal), ⋯ */}
+            <div className="flex items-center flex-wrap gap-2 shrink-0">
+              {waDigits ? (
+                <a
+                  href={`https://wa.me/${waDigits}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={btnSecondary}
+                >
+                  <WhatsappLogo
+                    size={15}
+                    weight="fill"
+                    className="text-emerald-600"
+                  />
+                  <span>WhatsApp</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast('Agregá un teléfono de contacto para abrir WhatsApp');
+                    setIsEditDataModalOpen(true);
+                  }}
+                  className={btnSecondary}
+                >
+                  <WhatsappLogo size={15} className="text-gray-500" />
+                  <span>WhatsApp</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsEditDataModalOpen(true)}
+                className={btnSecondary}
+              >
+                <PencilSimple size={14} />
+                <span>Editar</span>
+              </button>
+
+              {!isNonBilling && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenRegisterPayment(undefined)}
+                  className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <Plus size={14} weight="bold" />
+                  <span>Registrar pago</span>
+                </button>
+              )}
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setHeaderMenuOpen((prev) => !prev)}
+                  className="w-9 h-9 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 flex items-center justify-center cursor-pointer"
+                  aria-label="Más acciones del negocio"
+                  title="Más acciones"
+                >
+                  <DotsThreeVertical size={18} weight="bold" />
+                </button>
+
+                {headerMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setHeaderMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-1.5 w-52 rounded-xl bg-white shadow-lg border border-gray-200/80 py-1.5 z-50 text-left">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHeaderMenuOpen(false);
+                          openEditModelModal();
+                        }}
+                        className="w-full text-left px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer"
+                      >
+                        <Gear size={14} />
+                        <span>Configurar modelo</span>
+                      </button>
+                      <div className="my-1 border-t border-gray-100" />
+                      {business.isActive ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setIsDeactivateModalOpen(true);
+                          }}
+                          className="w-full text-left px-3.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50 cursor-pointer"
+                        >
+                          Desactivar negocio
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            toggleMutation.mutate(business.id);
+                          }}
+                          className="w-full text-left px-3.5 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 cursor-pointer"
+                        >
+                          Activar negocio
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Barra de 5 pestañas sincronizada con ?tab= */}
+          <nav
+            aria-label="Secciones del negocio"
+            className="flex items-center gap-6 overflow-x-auto -mb-px"
+          >
+            {detailTabs.map((t) => {
+              const active = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setActiveTab(t.id)}
+                  className={`py-3 text-[13px] font-semibold border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
+                    active
+                      ? 'border-gray-900 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </header>
+
+      {/* Contenido principal */}
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+        {/* Aviso si el negocio está bloqueado */}
+        {!isNonBilling && accountStatement?.billingStatus?.isBlocked && (
+          <div className="p-4 rounded-xl bg-white border border-red-200 text-red-900 flex items-start gap-3">
+            <WarningOctagon
+              size={20}
+              weight="fill"
+              className="text-red-600 shrink-0 mt-0.5"
+            />
             <div>
-              <h3 className="text-sm font-bold">Negocio bloqueado</h3>
-              <p className="text-xs text-rose-800 mt-0.5">
+              <p className="text-sm font-semibold">Negocio bloqueado</p>
+              <p className="text-[13px] text-red-700 mt-0.5">
                 {accountStatement.billingStatus.blockMessage ||
                   accountStatement.billingStatus.blockReason ||
-                  'Este negocio está bloqueado por cuota o mantenimiento vencido. No puede operar hasta registrar el pago.'}
+                  'Este negocio está bloqueado por cuota o membresía vencida. Registrá el pago para reactivar el servicio.'}
               </p>
             </div>
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <button
-            onClick={() => navigate('/businesses')}
-            className="inline-flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors w-fit cursor-pointer"
-          >
-            <ArrowLeft size={14} />
-            <span>Volver a Negocios</span>
-          </button>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {isDeliveryActive && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-900 border border-amber-200/80">
-                <Motorcycle size={13} weight="duotone" className="text-amber-700" />
-                <span>{business.businessType === 'EMPRESA_RIDERS' ? 'Delivery (Riders)' : 'TrackDeli Delivery'}</span>
-              </span>
-            )}
-            {isPosActive && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-900 border border-purple-200/80">
-                <Receipt size={13} weight="duotone" className="text-purple-700" />
-                <span>POS {productsData?.products?.POS?.posVertical === 'RETAIL' ? 'Retail' : 'Restaurante'}</span>
-              </span>
-            )}
-            {isCarteraActive && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80">
-                <Wallet size={13} weight="duotone" className="text-emerald-700" />
-                <span>Finanzas</span>
-              </span>
-            )}
-            {isCitasActive && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 text-sky-900 border border-sky-200/80">
-                <CalendarBlank size={13} weight="duotone" className="text-sky-700" />
-                <span>Citas</span>
-              </span>
-            )}
-            {!isDeliveryActive && !isPosActive && !isCarteraActive && !isCitasActive && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                <span>Sin productos contratados</span>
-              </span>
-            )}
-            <Badge variant={business.isActive ? 'success' : 'neutral'} dot>
-              {business.isActive ? 'Negocio Activo' : 'Negocio Inactivo'}
-            </Badge>
-            <span className="text-xs text-gray-400">
-              Registrado el {formatDateShort(business.createdAt)}
-            </span>
-          </div>
-        </div>
-
-        {isDeliveryActive ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <StatCard
-              title="Pedidos Hoy"
-              value={business.ordersToday}
-              subtitle="Creados hoy por este negocio"
-              icon={<Package size={18} />}
-            />
-            <StatCard
-              title="Pedidos Este Mes"
-              value={business.monthlyMetrics.ordersCreated}
-              subtitle={`${business.monthlyMetrics.ordersDelivered} entregados (${business.monthlyMetrics.deliveryRate}%)`}
-              icon={<Calendar size={18} />}
-            />
-            <StatCard
-              title="Total Histórico"
-              value={business._count?.orders ?? 0}
-              subtitle={`${business.monthlyMetrics.ordersCancelled} cancelados este mes`}
-              icon={<Storefront size={18} />}
-            />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-            <StatCard
-              title="Membresía"
-              value={
-                <span className="inline-flex items-center gap-2">
-                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${billingInfo.statusBadge.dotClass}`} />
-                  <span>{billingInfo.statusBadge.text}</span>
-                </span>
-              }
-              subtitle={
-                billingInfo.hasMembership && billingInfo.dueDateFormatted !== '—'
-                  ? `Vence el ${billingInfo.dueDateFormatted}${billingInfo.daysRemainingText ? ` · ${billingInfo.daysRemainingText}` : ''}`
-                  : 'Sin membresía activa'
-              }
-              icon={<CreditCard size={18} />}
-            />
-            <StatCard
-              title="Próximo Cobro"
-              value={billingInfo.priceFormatted}
-              subtitle={
-                billingInfo.dueDateFormatted !== '—'
-                  ? `Cobro el ${billingInfo.dueDateFormatted}`
-                  : 'Sin fecha programada'
-              }
-              icon={<Coins size={18} />}
-            />
-            <StatCard
-              title="Computadoras"
-              value={`${business.activeDevices ?? 0} activa${(business.activeDevices ?? 0) === 1 ? '' : 's'} / ${business.maxDevices ?? 1} permitida${(business.maxDevices ?? 1) === 1 ? '' : 's'}`}
-              subtitle="Dispositivos POS autorizados"
-              icon={<Desktop size={18} />}
-            />
-            <StatCard
-              title="Usuarios"
-              value={`${business.userUsage?.used ?? businessUsers.filter((u) => u.isActive).length} de ${business.userUsage?.limit ?? (businessUsers.length || 5)} activos`}
-              subtitle={`Cupo base: ${business.userUsage?.base ?? 5}${business.userUsage?.extra ? ` (+${business.userUsage.extra} extra)` : ''}`}
-              icon={<Users size={18} />}
-            />
-          </div>
-        )}
-
-        <BusinessProductsSection
-          businessId={business.id}
-          businessName={business.name}
-          businessType={business.businessType}
-          businessCommissionRate={business.commissionRate}
-          businessAltCommissionRate={business.altCommissionRate}
-          businessAltCommissionDistanceKm={business.altCommissionDistanceKm}
-          businessDispatchTimeoutMin={business.dispatchTimeoutMin}
-          salonProfile={business.salonProfile}
-          maxDevices={business.maxDevices}
-          activeDevices={business.activeDevices}
-          onRegisterPaymentClick={handleOpenRegisterPayment}
-        />
-
-        {(business.hasPOS || productsData?.products?.POS?.status === 'ACTIVE') && (
-          <BusinessPosDevicesSection business={business} />
-        )}
-
-        <BusinessOrganizationSection business={business} />
-
-        <BusinessProductFieldsSection
-          businessId={business.id}
-          industryName={business.industry?.name}
-          posVertical={productsData?.products?.POS?.posVertical || undefined}
-        />
-
-        {/* Sección: Control de lotes y vencimientos */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5 min-w-0 flex-1">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 shrink-0 mt-0.5">
-                <Package size={22} weight="duotone" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm font-bold text-gray-900 leading-tight">
-                    Control de lotes y vencimientos
-                  </h3>
-                  {business.tracksBatches ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Activo
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                      Inactivo
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
-                  Agrega Lote y Fecha de Vencimiento a compras, ventas, alertas y a la plantilla Excel.
+        {/* Franja de 4 datos en una sola tarjeta dividida */}
+        <div className="bg-white rounded-xl border border-gray-200/80 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-200/70">
+          {/* 1. Membresía */}
+          <div className="p-4 sm:p-5 space-y-1">
+            <p className="text-[13px] font-medium text-gray-500">Membresía</p>
+            {isNonBilling ? (
+              <>
+                <p className="text-base font-semibold text-gray-700">
+                  Sin vencimiento
                 </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-              {business.tracksBatches ? (
-                <button
-                  type="button"
-                  onClick={handleDeactivateBatchesClick}
-                  disabled={updateMutation.isPending}
-                  className="w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
-                >
-                  Desactivar control de lotes
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsActivateBatchesModalOpen(true)}
-                  disabled={updateMutation.isPending}
-                  className="w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
-                >
-                  Activar control de lotes
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Sección: Usar precio de etiqueta */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5 min-w-0 flex-1">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700 shrink-0 mt-0.5">
-                <Tag size={22} weight="duotone" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm font-bold text-gray-900 leading-tight">
-                    Usar precio de etiqueta
-                  </h3>
-                  {business.useListPrice ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Activo
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                      Inactivo
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
-                  Muestra precio de etiqueta y descuento en productos y comprobantes (farmacias)
+                <p className="text-[13px] text-gray-500">
+                  No se cobra ni se bloquea
                 </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-              <button
-                type="button"
-                onClick={handleToggleUseListPrice}
-                disabled={updateMutation.isPending}
-                className={`w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
-                  business.useListPrice
-                    ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
-                    : 'text-white bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                {business.useListPrice ? 'Desactivar precio de etiqueta' : 'Activar precio de etiqueta'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Sección: Venta en dos pasos (vendedor → caja) */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5 min-w-0 flex-1">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-700 shrink-0 mt-0.5">
-                <Receipt size={22} weight="duotone" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm font-bold text-gray-900 leading-tight">
-                    Venta en dos pasos (vendedor → caja)
-                  </h3>
-                  {business.twoStepSaleEnabled ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Activo
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                      Inactivo
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
-                  El vendedor arma la orden y la envía a caja; el cajero la cobra.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-              <button
-                type="button"
-                onClick={handleToggleTwoStepSale}
-                disabled={updateMutation.isPending}
-                className={`w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
-                  business.twoStepSaleEnabled
-                    ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
-                    : 'text-white bg-amber-600 hover:bg-amber-700'
-                }`}
-              >
-                {business.twoStepSaleEnabled
-                  ? 'Desactivar venta en dos pasos'
-                  : 'Activar venta en dos pasos'}
-              </button>
-            </div>
-          </div>
-
-          {business.twoStepSaleEnabled && (
-            <div className="pt-4 border-t border-gray-100 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/40 p-3.5 rounded-xl border border-amber-200/60">
-                <div className="space-y-0.5 min-w-0">
-                  <div className="text-xs font-bold text-gray-900">
-                    Vencimiento del ticket
-                  </div>
-                  <div className="text-[11px] text-gray-500">
-                    Los tickets no cobrados se cancelan o vencen después de este tiempo.
-                  </div>
-                </div>
-
-                <div className="flex items-center flex-wrap gap-2">
-                  {isEditingTtl ? (
-                    <div className="flex items-center flex-wrap gap-1.5">
-                      <input
-                        type="number"
-                        min={1}
-                        max={72}
-                        value={ttlInput}
-                        onChange={(e) => setTtlInput(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                        className="w-20 px-2.5 py-1 text-xs rounded-lg border border-gray-300 focus:outline-none focus:border-amber-500"
-                      />
-                      <span className="text-xs text-gray-600 font-medium">horas</span>
-                      <button
-                        type="button"
-                        onClick={handleSaveTtl}
-                        disabled={updateMutation.isPending}
-                        className="px-2.5 py-1 text-xs font-semibold bg-gray-900 text-white rounded-lg hover:bg-black cursor-pointer"
-                      >
-                        Guardar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTtlInput(business.twoStepTicketTtlHours || 4);
-                          setIsEditingTtl(false);
-                        }}
-                        className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 cursor-pointer"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-gray-900 bg-white px-2.5 py-1 rounded-lg border border-gray-200 shadow-2xs">
-                        {business.twoStepTicketTtlHours || 4} horas
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingTtl(true)}
-                        className="text-xs text-amber-700 hover:text-amber-800 font-semibold underline underline-offset-2 cursor-pointer"
-                      >
-                        Cambiar
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Aviso de límite del plan y versión mínima */}
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-100/70 border border-amber-300/70 text-amber-950 text-xs">
-                <Info size={18} className="text-amber-700 shrink-0 mt-0.5" weight="fill" />
-                <div>
-                  <p className="font-bold">Aviso del modo venta en dos pasos:</p>
-                  <p className="text-[11px] text-amber-900 mt-0.5">
-                    Las computadoras de vendedores cuentan en el límite del plan.
-                    {business?.twoStepMinVersion
-                      ? ` Requiere el POS de escritorio versión ${business.twoStepMinVersion} o superior.`
-                      : ''}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Sección: Venta a domicilio */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5 min-w-0 flex-1">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 shrink-0 mt-0.5">
-                <Motorcycle size={22} weight="duotone" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm font-bold text-gray-900 leading-tight">
-                    Venta a domicilio
-                  </h3>
-                  {business.deliveryChannelEnabled ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Activo
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                      Inactivo
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
-                  Habilita pedidos a domicilio, cobro de tarifa de envío y asignación de repartidores.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-              <button
-                type="button"
-                onClick={handleToggleDeliveryChannel}
-                disabled={updateMutation.isPending}
-                className={`w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
-                  business.deliveryChannelEnabled
-                    ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
-                    : 'text-white bg-indigo-600 hover:bg-indigo-700'
-                }`}
-              >
-                {business.deliveryChannelEnabled
-                  ? 'Desactivar venta a domicilio'
-                  : 'Activar venta a domicilio'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Sección: PedidosYa */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5 min-w-0 flex-1">
-              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-700 shrink-0 mt-0.5">
-                <DeviceMobile size={22} weight="duotone" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm font-bold text-gray-900 leading-tight">
-                    PedidosYa
-                  </h3>
-                  {business.pedidosYaChannelEnabled ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Activo
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                      Inactivo
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
-                  Habilita la integración de canal de venta para órdenes recibidas desde la app de PedidosYa.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-              <button
-                type="button"
-                onClick={handleTogglePedidosYaChannel}
-                disabled={updateMutation.isPending}
-                className={`w-full sm:w-auto inline-flex items-center justify-center whitespace-nowrap h-9 px-4 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 ${
-                  business.pedidosYaChannelEnabled
-                    ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80'
-                    : 'text-white bg-rose-600 hover:bg-rose-700'
-                }`}
-              >
-                {business.pedidosYaChannelEnabled
-                  ? 'Desactivar canal PedidosYa'
-                  : 'Activar canal PedidosYa'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {business.businessType === 'EMPRESA_RIDERS' ? (
-          <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
-              <div>
+              </>
+            ) : (
+              <>
                 <div className="flex items-center gap-2">
-                  <Coins size={20} className="text-amber-700 shrink-0" weight="duotone" />
-                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                    Comisiones y Liquidaciones
-                  </h3>
-                </div>
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
-                    <Coins size={14} className="text-amber-700" />
-                    <span>Modelo por Comisión (Liquidación mensual)</span>
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full ${billingInfo.statusBadge.dotClass}`}
+                  />
+                  <span className="text-base font-semibold text-gray-900">
+                    {billingInfo.statusBadge.text}
                   </span>
                 </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  setModelBusinessType(business.businessType || 'EMPRESA_RIDERS');
-                  setModelCommissionRate(String(Math.round((business.commissionRate || 0.15) * 100)));
-                  setModelAltCommissionRate(String(Math.round((business.altCommissionRate || 0.12) * 100)));
-                  setModelAltCommissionDistanceKm(String(business.altCommissionDistanceKm || 40));
-                  setModelDispatchTimeoutMin(String(business.dispatchTimeoutMin || 3));
-                  setIsEditModelModalOpen(true);
-                }}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition-colors shadow-xs cursor-pointer shrink-0"
-              >
-                <Gear size={14} />
-                <span>Modificar Tasas de Comisión</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-amber-50/40 p-4 rounded-xl border border-amber-100/80">
-              <div>
-                <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider">
-                  Comisión Base
-                </span>
-                <p className="text-lg font-bold text-gray-900 mt-0.5">
-                  {(Number(business.commissionRate || 0.15) * 100).toFixed(0)}%
+                <p className="text-[13px] text-gray-500">
+                  {billingInfo.hasMembership &&
+                  billingInfo.dueDateFormatted !== '—'
+                    ? `Vence ${billingInfo.dueDateFormatted}${
+                        billingInfo.daysRemainingText
+                          ? ` · ${billingInfo.daysRemainingText}`
+                          : ''
+                      } · ${
+                        billingInfo.status === 'EN_GRACIA'
+                          ? billingInfo.graceText
+                          : '3 días de gracia'
+                      }`
+                    : 'Sin membresía registrada'}
                 </p>
-                <p className="text-[11px] text-gray-500">Por envío completado</p>
-              </div>
-
-              <div>
-                <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider">
-                  Distancia Larga
-                </span>
-                <p className="text-lg font-bold text-gray-900 mt-0.5">
-                  {(Number(business.altCommissionRate || 0.12) * 100).toFixed(0)}%
-                </p>
-                <p className="text-[11px] text-gray-500">Para &gt;{business.altCommissionDistanceKm || 40} km</p>
-              </div>
-
-              <div>
-                <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider">
-                  Timeout Despacho
-                </span>
-                <p className="text-lg font-bold text-gray-900 mt-0.5">
-                  {business.dispatchTimeoutMin || 3} min
-                </p>
-                <p className="text-[11px] text-gray-500">Por intento a rider</p>
-              </div>
-
-              <div>
-                <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider">
-                  Cobro a Empresa
-                </span>
-                <p className="text-sm font-bold text-gray-900 mt-1">
-                  Sin membresía fija
-                </p>
-                <p className="text-[11px] text-gray-500">Liquidación mensual</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
-                <span className="text-xs text-gray-500 font-medium">Entregas Este Mes</span>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {business.monthlyMetrics.ordersDelivered}
-                </p>
-              </div>
-              <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
-                <span className="text-xs text-gray-500 font-medium">Total Cobrado en Envíos</span>
-                <p className="text-2xl font-bold text-gray-900 mt-1 font-mono">
-                  C$ {business.recentOrders.reduce((acc, o) => acc + (o.status === 'ENTREGADO' ? Number(o.deliveryFee || 0) : 0), 0).toFixed(2)}
-                </p>
-              </div>
-              <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/30">
-                <span className="text-xs text-amber-800 font-semibold">Comisión Debida a TrackDeli</span>
-                <p className="text-2xl font-bold text-amber-900 mt-1 font-mono">
-                  C$ {business.recentOrders.reduce((acc, o) => {
-                    if (o.status !== 'ENTREGADO') return acc;
-                    const rate = (business.commissionRate || 0.15);
-                    return acc + (Number(o.deliveryFee || 0) * rate);
-                  }, 0).toFixed(2)}
-                </p>
-              </div>
-            </div>
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <CreditCard size={18} className="text-gray-600 shrink-0" />
-                    <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                      Membresía
-                    </h3>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <Badge variant={billingInfo.variant} dot size="md">
-                      {billingInfo.label}
-                    </Badge>
-                    {billingInfo.status === 'EN_GRACIA' && (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800 border border-orange-200">
-                        {billingInfo.graceText}
-                      </span>
-                    )}
-                    {billingInfo.daysRemainingText && billingInfo.status !== 'SIN_MEMBRESIA' && (
-                      <span className="text-xs text-gray-500 font-medium">
-                        ({billingInfo.daysRemainingText})
-                      </span>
-                    )}
-                  </div>
-                </div>
 
+          {/* 2. Próximo cobro */}
+          <div className="p-4 sm:p-5 space-y-1">
+            <p className="text-[13px] font-medium text-gray-500">
+              Próximo cobro
+            </p>
+            {isNonBilling ? (
+              <>
+                <p className="text-base font-semibold text-gray-700">
+                  Sin cobro
+                </p>
+                <p className="text-[13px] text-gray-500">
+                  Cuenta {accountTypeLabel.toLowerCase()}
+                </p>
+              </>
+            ) : accountStatement?.maintenance?.status === 'INCLUIDO' &&
+              accountStatement.maintenance.includedUntil ? (
+              <>
+                <p className="text-base font-semibold text-emerald-700">
+                  Incluido
+                </p>
+                <p className="text-[13px] text-gray-500">
+                  Mantenimiento hasta{' '}
+                  {formatDateShort(accountStatement.maintenance.includedUntil)}
+                </p>
+              </>
+            ) : accountStatement?.maintenance?.status === 'EN_COBRO' ? (
+              <>
+                <p className="text-base font-semibold text-gray-900 font-mono">
+                  {formatCurrency(
+                    accountStatement.maintenance.monthlyAmount || 550,
+                    'NIO'
+                  )}
+                </p>
+                <p className="text-[13px] text-gray-500">
+                  Mantenimiento mensual
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-base font-semibold text-gray-900 font-mono">
+                  {billingInfo.priceFormatted}
+                </p>
+                <p className="text-[13px] text-gray-500">
+                  {billingInfo.hasMembership &&
+                  billingInfo.dueDateFormatted !== '—'
+                    ? `Programado el ${billingInfo.dueDateFormatted}`
+                    : 'Sin fecha programada'}
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* 3. Computadoras */}
+          <div className="p-4 sm:p-5 space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-medium text-gray-500">
+                Computadoras
+              </p>
+              {isComputersQuotaFull && (
+                <Badge variant="orange" size="sm">
+                  Cupo lleno
+                </Badge>
+              )}
+            </div>
+            <p className="text-base font-semibold text-gray-900 font-mono">
+              {deviceCounts.desktop} /{' '}
+              {isComputersUnlimited ? 'Sin límite' : maxComputers}
+            </p>
+            <p className="text-[13px] text-gray-500">
+              Equipos de escritorio activos
+            </p>
+          </div>
+
+          {/* 4. Usuarios */}
+          <div className="p-4 sm:p-5 space-y-1">
+            <p className="text-[13px] font-medium text-gray-500">Usuarios</p>
+            <p className="text-base font-semibold text-gray-900 font-mono">
+              {usedUsers} / {limitUsers} activos
+            </p>
+            <p className="text-[13px] text-gray-500 truncate">
+              {lastActivitySignal
+                ? `Última actividad: ${formatRelativeTime(lastActivitySignal)}`
+                : 'Sin actividad reciente'}
+            </p>
+          </div>
+        </div>
+
+        {/* ════════════════════════════════════════════════════════════════
+            PESTAÑA 1: RESUMEN
+           ════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'resumen' && (
+          <div className="space-y-6">
+            {/* Tarjeta Cliente */}
+            <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-[15px] font-semibold text-gray-900">
+                    Cliente
+                  </h3>
+                  <p className="text-[13px] text-gray-500 mt-0.5">
+                    Persona de contacto, ubicación fiscal y notas comerciales
+                  </p>
+                </div>
                 <button
-                  id="btn-register-membership-payment"
-                  onClick={() => handleOpenRegisterPayment(undefined)}
-                  className={`w-full sm:w-auto flex items-center justify-center gap-1.5 h-9 px-4 rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer shrink-0 ${
-                    billingInfo.isGraceOrExpired
-                      ? 'bg-orange-600 hover:bg-orange-700 text-white ring-2 ring-orange-400 ring-offset-2 shadow-md'
-                      : 'bg-gray-900 hover:bg-gray-800 text-white'
-                  }`}
+                  type="button"
+                  onClick={() => setIsEditDataModalOpen(true)}
+                  className={btnSecondary}
                 >
-                  <Plus size={14} weight="bold" />
-                  <span>Registrar nuevo pago</span>
+                  <PencilSimple size={14} />
+                  <span>Editar datos</span>
                 </button>
               </div>
 
-              {/* Bloque principal de membresía: Vence / Período / Próximo cobro */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-gray-50/70 border border-gray-100">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                      Vence
-                    </span>
-                    {billingInfo.daysRemainingText && (
-                      <span
-                        className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
-                          billingInfo.status === 'EN_GRACIA'
-                            ? 'bg-orange-100 text-orange-800'
-                            : billingInfo.status === 'VENCIDO'
-                            ? 'bg-red-100 text-red-800'
-                            : billingInfo.status === 'POR_VENCER'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {billingInfo.daysRemainingText}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-base font-bold text-gray-900">
-                    {billingInfo.hasMembership ? billingInfo.dueDateFormatted : '—'}
+              {!hasAnyContactData ? (
+                <div className="pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <p className="text-[13px] text-gray-500">
+                    Todavía no cargaste los datos de contacto de este negocio.
                   </p>
-                  {billingInfo.status === 'EN_GRACIA' ? (
-                    <p className="text-xs font-semibold text-orange-700">
-                      {billingInfo.graceText}
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-gray-500">
-                      Gracia de 3 días post-vencimiento
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-1 border-t border-gray-200/80 pt-3 md:border-t-0 md:pt-0 md:border-l md:pl-4">
-                  <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    Período
-                  </span>
-                  <p className="text-sm sm:text-base font-bold text-gray-900">
-                    {billingInfo.hasMembership ? billingInfo.periodStr : '—'}
-                  </p>
-                  <p className="text-[11px] text-gray-500">
-                    Día de cobro: {billingInfo.anchorDay} de cada mes
-                  </p>
-                </div>
-
-                <div className="space-y-1 border-t border-gray-200/80 pt-3 md:border-t-0 md:pt-0 md:border-l md:pl-4">
-                  <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    Próximo cobro
-                  </span>
-                  <p className="text-base font-bold text-gray-900">
-                    {billingInfo.hasMembership ? `${billingInfo.dueDateFormatted} · ${billingInfo.priceFormatted}` : '—'}
-                  </p>
-                  <p className="text-[11px] text-gray-500">
-                    Tarifa mensual según productos contratados
-                  </p>
-                </div>
-              </div>
-
-              {/* Texto de ayuda breve */}
-              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
-                <Info size={15} className="text-gray-400 shrink-0" />
-                <span>La renovación solo se confirma al registrar el comprobante de pago.</span>
-              </div>
-
-              {latestMembership ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 bg-gray-50/70 p-4 rounded-xl border border-gray-100">
-                  <div>
-                    <span className="text-[11px] font-medium text-gray-400 uppercase">
-                      Monto
-                    </span>
-                    <p className="text-sm font-semibold text-gray-900 mt-0.5">
-                      ${Number(latestMembership.amount).toFixed(2)} {latestMembership.currency}
-                    </p>
-                  </div>
-
-                  <div>
-                    <span className="text-[11px] font-medium text-gray-400 uppercase">
-                      Producto(s)
-                    </span>
-                    <div className="mt-1 flex items-center gap-1 flex-wrap">
-                      {latestMembership.products && latestMembership.products.length > 0 ? (
-                        latestMembership.products.map((p) => (
-                          <span
-                            key={p.id || p.businessProductSubscriptionId}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-900 text-white"
-                          >
-                            {p.productType === 'DELIVERY'
-                              ? 'Delivery'
-                              : p.productType === 'POS'
-                              ? 'POS'
-                              : p.productType === 'CARTERA_COBRO'
-                              ? 'Finanzas'
-                              : p.productType === 'CITAS'
-                              ? 'Citas'
-                              : p.name}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-gray-400">Sin especificar</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-[11px] font-medium text-gray-400 uppercase">
-                      Método de pago
-                    </span>
-                    <p className="text-xs font-medium text-gray-800 mt-0.5">
-                      {getPaymentMethodLabel(latestMembership.paymentMethod)}
-                    </p>
-                  </div>
-
-                  <div>
-                    <span className="text-[11px] font-medium text-gray-400 uppercase">
-                      Fecha de pago
-                    </span>
-                    <p className="text-xs text-gray-700 mt-0.5">
-                      {formatDateShort(latestMembership.paidAt || latestMembership.createdAt)}
-                    </p>
-                  </div>
-
-                  <div className="col-span-2 sm:col-span-1">
-                    <span className="text-[11px] font-medium text-gray-400 uppercase">
-                      Comprobante
-                    </span>
-                    <div className="mt-0.5">
-                      {latestMembership.paymentProofUrl ? (
-                        <button
-                          onClick={() => setSelectedProofUrl(latestMembership.paymentProofUrl)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800 bg-brand-50 hover:bg-brand-100/80 px-2.5 py-1 rounded-lg border border-brand-200/50 transition-colors cursor-pointer"
-                        >
-                          <span>Ver foto</span>
-                          <Paperclip size={13} />
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-400">Sin comprobante digital</span>
-                      )}
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditDataModalOpen(true)}
+                    className="text-xs font-semibold text-gray-800 underline underline-offset-2 cursor-pointer text-left"
+                  >
+                    Agregar contacto
+                  </button>
                 </div>
               ) : (
-                <div className="py-4 text-center text-xs text-gray-400">
-                  Este negocio aún no tiene pagos de membresía registrados. Toca en &quot;Registrar nuevo pago&quot; para activarla.
-                </div>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 pt-4 border-t border-gray-100 text-xs">
+                  <div className="space-y-0.5">
+                    <dt className="text-[13px] text-gray-500">Contacto</dt>
+                    <dd className="text-sm font-semibold text-gray-900">
+                      {contactData.name || '—'}
+                    </dd>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <dt className="text-[13px] text-gray-500">Cargo</dt>
+                    <dd className="text-sm text-gray-900">
+                      {contactData.role || '—'}
+                    </dd>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <dt className="text-[13px] text-gray-500">Teléfono</dt>
+                    <dd className="text-sm text-gray-900 flex items-center flex-wrap gap-2">
+                      <span className="font-mono">
+                        {contactData.phone || contactData.whatsapp || '—'}
+                      </span>
+                      {telHref && (
+                        <a
+                          href={`tel:${telHref}`}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 hover:text-gray-900 underline underline-offset-2"
+                        >
+                          <Phone size={12} />
+                          <span>Llamar</span>
+                        </a>
+                      )}
+                      {waDigits && (
+                        <a
+                          href={`https://wa.me/${waDigits}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 underline underline-offset-2"
+                        >
+                          <WhatsappLogo size={13} weight="fill" />
+                          <span>WhatsApp</span>
+                        </a>
+                      )}
+                    </dd>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <dt className="text-[13px] text-gray-500">Correo</dt>
+                    <dd className="text-sm text-gray-900 break-all">
+                      {contactData.email ? (
+                        <a
+                          href={`mailto:${contactData.email}`}
+                          className="hover:underline"
+                        >
+                          {contactData.email}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </dd>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <dt className="text-[13px] text-gray-500">RUC o cédula</dt>
+                    <dd className="text-sm text-gray-900 font-mono">
+                      {contactData.taxId || '—'}
+                    </dd>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <dt className="text-[13px] text-gray-500">
+                      Municipio y departamento
+                    </dt>
+                    <dd className="text-sm text-gray-900">
+                      {[contactData.municipality, contactData.department]
+                        .filter(Boolean)
+                        .join(', ') || '—'}
+                    </dd>
+                  </div>
+
+                  <div className="space-y-0.5 sm:col-span-2">
+                    <dt className="text-[13px] text-gray-500">Dirección</dt>
+                    <dd className="text-sm text-gray-900">
+                      {contactData.address || '—'}
+                    </dd>
+                  </div>
+
+                  <div className="space-y-0.5 sm:col-span-3">
+                    <dt className="text-[13px] text-gray-500">Notas</dt>
+                    <dd className="text-sm text-gray-700 whitespace-pre-line">
+                      {contactData.notes || '—'}
+                    </dd>
+                  </div>
+                </dl>
               )}
             </div>
 
-            {/* Acuerdo comercial (Fase 1 - Ticket 244b) */}
-            <BusinessCommercialSection
+            {/* Productos contratados y No contratados */}
+            <BusinessProductsSection
               businessId={business.id}
               businessName={business.name}
+              accountType={accountType}
+              businessType={business.businessType}
+              businessCommissionRate={business.commissionRate}
+              businessAltCommissionRate={business.altCommissionRate}
+              businessAltCommissionDistanceKm={business.altCommissionDistanceKm}
+              businessDispatchTimeoutMin={business.dispatchTimeoutMin}
+              salonProfile={business.salonProfile}
+              maxDevices={business.maxDevices}
+              activeDevices={business.activeDevices}
+              onRegisterPaymentClick={
+                isNonBilling ? undefined : handleOpenRegisterPayment
+              }
             />
 
-            <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Historial de Membresías
-                </h3>
-                <span className="text-xs text-gray-500">
-                  {(() => {
-                    const paidCount = countPaidMemberships(memberships);
-                    return `${paidCount} ${paidCount === 1 ? 'pago registrado' : 'pagos registrados'}`;
-                  })()}
-                </span>
-              </div>
+            {/* Resumen de cuenta, Funciones y Equipos */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Resumen de cuenta */}
+              <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-[15px] font-semibold text-gray-900">
+                      Resumen de cuenta
+                    </h3>
+                    <p className="text-[13px] text-gray-500 mt-0.5">
+                      Estado financiero, pagos y equipo instalado
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('cobros')}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 hover:text-gray-900 underline underline-offset-2 cursor-pointer shrink-0"
+                  >
+                    <span>Ver cobros</span>
+                    <ArrowRight size={13} />
+                  </button>
+                </div>
 
-              {/* Celular y tablet: tarjetas */}
-              <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {memberships.map((m) => {
-                  const mPeriod = getMembershipPeriodDates(m, billingInfo.anchorDay);
-                  const isCancelled = m.status === 'CANCELLED';
-                  const isTrial = isTrialMembership(m);
-                  const isAuto = isAutoInitialMembership(m);
-                  const isCurrent =
-                    !isCancelled &&
-                    m.status === 'ACTIVE' &&
-                    billingInfo.hasMembership &&
-                    billingInfo.dueDateFormatted === mPeriod.dueFormatted;
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 pt-3 border-t border-gray-100 text-xs">
+                  <div>
+                    <dt className="text-[13px] text-gray-500">Forma de venta</dt>
+                    <dd className="text-sm font-semibold text-gray-900 mt-0.5">
+                      {isNonBilling ? `Sin cobro (${accountTypeLabel.toLowerCase()})` : saleModalityLabel}
+                    </dd>
+                  </div>
 
-                  return (
-                    <div
-                      key={m.id}
-                      className={`p-3.5 rounded-xl border space-y-2.5 ${
-                        isCancelled ? 'border-gray-200 bg-gray-50/60' : 'border-gray-200 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p
-                            className={`text-sm font-semibold ${
-                              isCancelled ? 'line-through text-gray-400' : 'text-gray-900'
-                            }`}
-                          >
-                            {mPeriod.periodStr}
-                          </p>
-                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                            <Badge variant={isTrial ? 'purple' : 'info'} size="sm">
-                              {isTrial ? 'Prueba gratis' : 'Pago'}
-                            </Badge>
-                            {isAuto && !isCancelled && (
-                              <span title={AUTO_INITIAL_HINT}>
-                                <Badge variant="warning" size="sm">Alta automática</Badge>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <Badge
-                          variant={
-                            isCancelled ? 'neutral' : isCurrent ? 'success' : m.status === 'ACTIVE' ? 'neutral' : 'danger'
-                          }
-                          size="sm"
-                        >
-                          {isCancelled ? 'Anulada' : isCurrent ? 'Vigente' : m.status === 'ACTIVE' ? 'Finalizada' : 'Cancelada'}
-                        </Badge>
-                      </div>
+                  <div>
+                    <dt className="text-[13px] text-gray-500">Pagado</dt>
+                    <dd className="text-sm font-semibold text-emerald-700 font-mono mt-0.5">
+                      {accountStatement
+                        ? formatCurrency(
+                            accountStatement.totalPaid,
+                            accountStatement.currency
+                          )
+                        : '$0.00'}
+                    </dd>
+                  </div>
 
-                      <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-                        <dt className="text-gray-500">Monto</dt>
-                        <dd className="text-right">
-                          {isTrial ? (
-                            <span className="text-gray-500">—</span>
-                          ) : (
-                            <span className={isCancelled ? 'line-through text-gray-400' : 'font-semibold text-gray-900'}>
-                              ${Number(m.amount).toFixed(2)} {m.currency}
-                            </span>
-                          )}
-                        </dd>
-                        {!isTrial && (
-                          <>
-                            <dt className="text-gray-500">Método</dt>
-                            <dd className="text-right text-gray-700">{getPaymentMethodLabel(m.paymentMethod)}</dd>
-                            <dt className="text-gray-500">Recibido</dt>
-                            <dd className="text-right text-gray-700">{formatDateShort(m.paidAt || m.createdAt)}</dd>
-                          </>
-                        )}
-                        <dt className="text-gray-500">Productos</dt>
-                        <dd className="text-right text-gray-700">
-                          {m.products && m.products.length > 0
-                            ? m.products.map((p) => (p.productType === 'CARTERA_COBRO' ? 'Finanzas' : p.name)).join(', ')
-                            : 'Sin especificar'}
-                        </dd>
-                      </dl>
+                  <div>
+                    <dt className="text-[13px] text-gray-500">Saldo</dt>
+                    <dd className="text-sm font-semibold text-gray-900 font-mono mt-0.5">
+                      {accountStatement
+                        ? formatCurrency(
+                            accountStatement.balance,
+                            accountStatement.currency
+                          )
+                        : '$0.00'}
+                    </dd>
+                  </div>
 
-                      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-                        {m.paymentProofUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedProofUrl(m.paymentProofUrl)}
-                            className="h-10 min-h-[40px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-brand-700 bg-brand-50 border border-brand-200/50 cursor-pointer"
-                          >
-                            <Paperclip size={14} />
-                            Ver comprobante
-                          </button>
-                        )}
-                        {!isCancelled && (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => setMembershipToEdit(m)}
-                              className="h-10 min-h-[40px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200/80 cursor-pointer"
-                            >
-                              <PencilSimple size={14} weight="bold" />
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenVoidModal(m)}
-                              className="h-10 min-h-[40px] px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 cursor-pointer"
-                            >
-                              <Prohibit size={14} weight="bold" />
-                              Anular
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {!loadingMemberships && memberships.length === 0 && (
-                  <p className="sm:col-span-2 py-6 text-center text-xs text-gray-500">No hay historial de membresías registrado</p>
-                )}
-              </div>
+                  <div>
+                    <dt className="text-[13px] text-gray-500">Último pago</dt>
+                    <dd className="text-sm text-gray-900 mt-0.5">
+                      {lastValidPayment
+                        ? `${formatDateShort(
+                            lastValidPayment.paidAt
+                          )} · ${formatCurrency(
+                            lastValidPayment.amount,
+                            lastValidPayment.currency
+                          )}`
+                        : 'Sin pagos'}
+                    </dd>
+                  </div>
 
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs min-w-[820px]">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-medium bg-gray-50/50">
-                      <th className="py-2.5 px-3 whitespace-nowrap">Período</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Vence</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Producto(s)</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Monto</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Método</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Pago recibido</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Comprobante</th>
-                      <th className="py-2.5 px-3 text-right whitespace-nowrap">Estado</th>
-                      <th className="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 text-gray-700">
-                    {memberships.map((m) => {
-                      const mPeriod = getMembershipPeriodDates(m, billingInfo.anchorDay);
-                      const isCancelled = m.status === 'CANCELLED';
-                      const isCurrent =
-                        !isCancelled &&
-                        m.status === 'ACTIVE' &&
-                        billingInfo.hasMembership &&
-                        billingInfo.dueDateFormatted === mPeriod.dueFormatted;
+                  <div>
+                    <dt className="text-[13px] text-gray-500">Mantenimiento</dt>
+                    <dd className="text-sm text-gray-900 mt-0.5">
+                      {maintenanceSummaryLabel}
+                    </dd>
+                  </div>
 
-                      return (
-                        <tr
-                          key={m.id}
-                          className={`transition-colors ${
-                            isCancelled
-                              ? 'bg-gray-50/40 text-gray-400 opacity-75'
-                              : 'hover:bg-gray-50/50 text-gray-700'
+                  <div>
+                    <dt className="text-[13px] text-gray-500">
+                      Equipo entregado
+                    </dt>
+                    <dd className="text-sm text-gray-900 mt-0.5">
+                      {equipmentDeliveredCount === 0
+                        ? 'Ninguna pieza'
+                        : `${equipmentDeliveredCount} ${
+                            equipmentDeliveredCount === 1 ? 'pieza' : 'piezas'
                           }`}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              {/* Columna derecha: Funciones activas + Resumen de equipos */}
+              <div className="space-y-6">
+                {/* Funciones activas */}
+                <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-[15px] font-semibold text-gray-900">
+                        Funciones
+                      </h3>
+                      <p className="text-[13px] text-gray-500 mt-0.5">
+                        Módulos y reglas operativas habilitadas
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('configuracion')}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 hover:text-gray-900 underline underline-offset-2 cursor-pointer shrink-0"
+                    >
+                      <span>Configurar</span>
+                      <ArrowRight size={13} />
+                    </button>
+                  </div>
+
+                  <div className="pt-3 border-t border-gray-100 flex flex-wrap gap-2">
+                    {activeFeatureTags.length > 0 ? (
+                      activeFeatureTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200/80"
                         >
-                          <td className="py-3 px-3 font-medium whitespace-nowrap">
-                            <span className={isCancelled ? 'line-through text-gray-400' : 'text-gray-900'}>
-                              {mPeriod.periodStr}
-                            </span>
-                            <div className="mt-1 flex items-center gap-1.5">
-                              <Badge variant={isTrialMembership(m) ? 'purple' : 'info'} size="sm">
-                                {isTrialMembership(m) ? 'Prueba gratis' : 'Pago'}
-                              </Badge>
-                              {isAutoInitialMembership(m) && !isCancelled && (
-                                <span title={AUTO_INITIAL_HINT}>
-                                  <Badge variant="warning" size="sm">Alta automática</Badge>
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 font-medium whitespace-nowrap">
-                            <span className={isCancelled ? 'text-gray-400' : 'text-gray-700'}>
-                              {mPeriod.dueFormatted}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3">
-                            {m.products && m.products.length > 0 ? (
-                              <div className={`flex items-center gap-1.5 flex-wrap ${isCancelled ? 'opacity-60 grayscale' : ''}`}>
-                                {m.products.map((p) => {
-                                  if (p.productType === 'DELIVERY') {
-                                    return (
-                                      <span
-                                        key={p.id || p.businessProductSubscriptionId}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-900 border border-amber-200/80"
-                                      >
-                                        <Motorcycle size={11} weight="duotone" className="text-amber-700" />
-                                        <span>Delivery</span>
-                                      </span>
-                                    );
-                                  }
-                                  if (p.productType === 'POS') {
-                                    return (
-                                      <span
-                                        key={p.id || p.businessProductSubscriptionId}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-900 border border-purple-200/80"
-                                      >
-                                        <Receipt size={11} weight="duotone" className="text-purple-700" />
-                                        <span>POS</span>
-                                      </span>
-                                    );
-                                  }
-                                  if (p.productType === 'CARTERA_COBRO') {
-                                    return (
-                                      <span
-                                        key={p.id || p.businessProductSubscriptionId}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80"
-                                      >
-                                        <Wallet size={11} weight="duotone" className="text-emerald-700" />
-                                        <span>Finanzas</span>
-                                      </span>
-                                    );
-                                  }
-                                  if (p.productType === 'CITAS') {
-                                    return (
-                                      <span
-                                        key={p.id || p.businessProductSubscriptionId}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-900 border border-sky-200/80"
-                                      >
-                                        <CalendarBlank size={11} weight="duotone" className="text-sky-700" />
-                                        <span>Citas</span>
-                                      </span>
-                                    );
-                                  }
-                                  return (
-                                    <span
-                                      key={p.id || p.businessProductSubscriptionId}
-                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
-                                    >
-                                      {p.name}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">
-                                Sin especificar
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 whitespace-nowrap">
-                            {isTrialMembership(m) ? (
-                              <span className="text-gray-500">—</span>
-                            ) : isCancelled ? (
-                              <span className="line-through text-gray-400 font-medium">
-                                ${Number(m.amount).toFixed(2)} {m.currency}
-                              </span>
-                            ) : (
-                              <span className="font-semibold text-gray-900">
-                                ${Number(m.amount).toFixed(2)} {m.currency}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 text-gray-600">
-                            {getPaymentMethodLabel(m.paymentMethod)}
-                          </td>
-                          <td className="py-3 px-3 text-gray-600 whitespace-nowrap">
-                            {formatDateShort(m.paidAt || m.createdAt)}
-                          </td>
-                          <td className="py-3 px-3">
-                            {m.paymentProofUrl ? (
-                              <button
-                                onClick={() => setSelectedProofUrl(m.paymentProofUrl)}
-                                className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800 bg-brand-50 px-2 py-0.5 rounded border border-brand-200/50 transition-colors cursor-pointer"
-                              >
-                                <span>Ver foto</span>
-                                <Paperclip size={12} />
-                              </button>
-                            ) : (
-                              <span className="text-gray-300">—</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 text-right">
-                            <Badge
-                              variant={
-                                isCancelled
-                                  ? 'neutral'
-                                  : isCurrent
-                                  ? 'success'
-                                  : m.status === 'ACTIVE'
-                                  ? 'neutral'
-                                  : 'danger'
-                              }
-                              size="sm"
-                            >
-                              {isCancelled
-                                ? 'Anulada'
-                                : isCurrent
-                                ? 'Vigente'
-                                : m.status === 'ACTIVE'
-                                ? 'Finalizada'
-                                : 'Cancelada'}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-3 text-right whitespace-nowrap">
-                            {isCancelled ? (
-                              <span className="text-gray-300 text-xs px-2">—</span>
-                            ) : (
-                              <div className="inline-flex items-center justify-end gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setMembershipToEdit(m)}
-                                  className="h-11 min-h-[44px] px-3 inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-gray-700 hover:text-black hover:bg-gray-100 border border-gray-200 transition-colors cursor-pointer"
-                                  title="Editar fechas o datos de este pago"
-                                >
-                                  <PencilSimple size={15} weight="bold" />
-                                  <span>Editar</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenVoidModal(m)}
-                                  className="h-11 min-h-[44px] min-w-[44px] px-3 inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
-                                  title="Anular este pago de membresía"
-                                >
-                                  <Prohibit size={15} weight="bold" />
-                                  <span>Anular</span>
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {!loadingMemberships && memberships.length === 0 && (
-                      <tr>
-                        <td colSpan={9} className="py-6 text-center text-gray-400">
-                          No hay historial de membresías registrado
-                        </td>
-                      </tr>
+                          {tag}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[13px] text-gray-500">
+                        Ninguna función adicional activa
+                      </span>
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+
+                {/* Resumen de equipos */}
+                <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-[15px] font-semibold text-gray-900">
+                        Resumen de equipos
+                      </h3>
+                      <p className="text-[13px] text-gray-500 mt-0.5">
+                        Uso actual de cupos por tipo de acceso
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('equipos')}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 hover:text-gray-900 underline underline-offset-2 cursor-pointer shrink-0"
+                    >
+                      <span>Ver equipos</span>
+                      <ArrowRight size={13} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 pt-3 border-t border-gray-100 text-xs">
+                    <div>
+                      <p className="text-[13px] text-gray-500">Computadoras</p>
+                      <p className="text-sm font-semibold text-gray-900 font-mono mt-0.5">
+                        {deviceCounts.desktop} /{' '}
+                        {isComputersUnlimited ? '∞' : maxComputers}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[13px] text-gray-500">Navegadores</p>
+                      <p className="text-sm font-semibold text-gray-900 font-mono mt-0.5">
+                        {deviceCounts.web} /{' '}
+                        {maxWebAllowed === null ? '∞' : maxWebAllowed}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[13px] text-gray-500">Teléfonos</p>
+                      <p className="text-sm font-semibold text-gray-900 font-mono mt-0.5">
+                        {deviceCounts.mobile} / {maxMobileAllowed}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </>
-        )}
 
-        <div className={isDeliveryActive ? "grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6" : "space-y-6"}>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs">
-            <div className="flex flex-col gap-4 mb-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <Users size={18} className="text-gray-500 shrink-0" />
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Usuarios y cupo
-                  </h3>
+            {/* Actividad de entregas si tiene Delivery contratado */}
+            {isDeliveryActive && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-xl border border-gray-200/80 grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-200/70">
+                  <div className="p-4 sm:p-5 space-y-1">
+                    <p className="text-[13px] font-medium text-gray-500">
+                      Pedidos hoy
+                    </p>
+                    <p className="text-lg font-semibold text-gray-900 font-mono">
+                      {business.ordersToday}
+                    </p>
+                    <p className="text-[13px] text-gray-500">
+                      Creados hoy por este negocio
+                    </p>
+                  </div>
+                  <div className="p-4 sm:p-5 space-y-1">
+                    <p className="text-[13px] font-medium text-gray-500">
+                      Pedidos este mes
+                    </p>
+                    <p className="text-lg font-semibold text-gray-900 font-mono">
+                      {business.monthlyMetrics.ordersCreated}
+                    </p>
+                    <p className="text-[13px] text-gray-500">
+                      {business.monthlyMetrics.ordersDelivered} entregados (
+                      {business.monthlyMetrics.deliveryRate}%)
+                    </p>
+                  </div>
+                  <div className="p-4 sm:p-5 space-y-1">
+                    <p className="text-[13px] font-medium text-gray-500">
+                      Total histórico
+                    </p>
+                    <p className="text-lg font-semibold text-gray-900 font-mono">
+                      {business._count?.orders ?? 0}
+                    </p>
+                    <p className="text-[13px] text-gray-500">
+                      {business.monthlyMetrics.ordersCancelled} cancelados este
+                      mes
+                    </p>
+                  </div>
                 </div>
-                <button
-                  id="btn-add-biz-user"
-                  onClick={() => setIsAddUserModalOpen(true)}
-                  disabled={business?.userUsage && business.userUsage.used >= business.userUsage.limit}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs shrink-0"
-                  title={business?.userUsage && business.userUsage.used >= business.userUsage.limit ? "Límite de usuarios alcanzado" : ""}
-                >
-                  <Plus size={14} weight="bold" />
-                  <span>Agregar Usuario</span>
-                </button>
-              </div>
 
-              {business?.userUsage && (
-                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold ${business.userUsage.used >= business.userUsage.limit ? 'text-red-600' : 'text-gray-800'}`}>
-                          {business.userUsage.used} de {business.userUsage.limit} usuarios activos
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        El cupo base es de {business.userUsage.base} usuarios. Cada usuario extra se cobra aparte.
-                      </p>
-                      {business.userUsage.used >= business.userUsage.limit && (
-                        <p className="text-[11px] text-red-600 mt-1 font-medium">
-                          Este negocio supera su cupo. No se pueden crear más usuarios hasta ampliarlo.
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-3">
+                    <h3 className="text-[15px] font-semibold text-gray-900">
+                      Repartidores vinculados ({business.riders.length})
+                    </h3>
+                    <div className="divide-y divide-gray-100 border-t border-gray-100">
+                      {business.riders.map((r) => (
+                        <div
+                          key={r.id}
+                          className="py-3 flex items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 truncate">
+                              {r.name}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {r.vehicleType || 'Repartidor'}
+                              {r.vehiclePlate ? ` · ${r.vehiclePlate}` : ''}
+                            </p>
+                          </div>
+                          {r.phone && (
+                            <span className="text-xs text-gray-600 font-mono shrink-0">
+                              {r.phone}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      {business.riders.length === 0 && (
+                        <p className="py-6 text-center text-[13px] text-gray-500">
+                          Aún ningún repartidor tomó pedidos de este negocio.
                         </p>
                       )}
                     </div>
-                    
-                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
-                      <label className="text-xs text-gray-600 font-medium">Extras:</label>
-                      <input 
-                        type="number" 
-                        min="0"
-                        className="w-16 h-8 px-2 border border-gray-300 rounded text-xs focus:border-gray-900 focus:outline-none bg-white"
-                        value={extraSlotsInput}
-                        onChange={(e) => setExtraSlotsInput(e.target.value)}
-                      />
-                      <button
-                        onClick={() => {
-                          const extra = parseInt(extraSlotsInput, 10);
-                          if (!isNaN(extra) && extra >= 0) {
-                            if (window.confirm(`¿Actualizar los cupos extra a ${extra}?`)) {
-                              updateQuotaMutation.mutate({ id: business.id, extraUserSlots: extra });
-                            }
-                          }
-                        }}
-                        disabled={updateQuotaMutation.isPending || parseInt(extraSlotsInput, 10) === business.userUsage.extra}
-                        className="text-[11px] px-3 py-1.5 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 text-gray-800 rounded font-medium transition-colors cursor-pointer"
-                      >
-                        Aplicar
-                      </button>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-[15px] font-semibold text-gray-900">
+                        Últimos pedidos
+                      </h3>
+                      <span className="text-[13px] text-gray-500">
+                        10 más recientes
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto border-t border-gray-100">
+                      <table className="w-full text-left border-collapse text-xs min-w-[460px]">
+                        <thead>
+                          <tr className="border-b border-gray-100 text-gray-500 font-semibold">
+                            <th className="py-2.5 px-2">Cliente</th>
+                            <th className="py-2.5 px-2">Monto</th>
+                            <th className="py-2.5 px-2">Fecha</th>
+                            <th className="py-2.5 px-2 text-right">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-gray-700">
+                          {business.recentOrders.map((o) => {
+                            const isDelivered = o.status === 'ENTREGADO';
+                            const isCancelled = o.status === 'CANCELADO';
+                            const isPending = o.status === 'PENDIENTE';
+                            return (
+                              <tr key={o.id}>
+                                <td className="py-2.5 px-2">
+                                  <p className="font-medium text-gray-900">
+                                    {o.customerName}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {o.customerPhone}
+                                  </p>
+                                </td>
+                                <td className="py-2.5 px-2 font-mono font-semibold text-gray-900 whitespace-nowrap">
+                                  C$ {Number(o.deliveryFee).toFixed(2)}
+                                </td>
+                                <td className="py-2.5 px-2 text-gray-500 whitespace-nowrap">
+                                  {formatDateTime(o.createdAt)}
+                                </td>
+                                <td className="py-2.5 px-2 text-right">
+                                  <Badge
+                                    variant={
+                                      isDelivered
+                                        ? 'success'
+                                        : isCancelled
+                                        ? 'danger'
+                                        : isPending
+                                        ? 'warning'
+                                        : 'neutral'
+                                    }
+                                    size="sm"
+                                  >
+                                    {o.status.charAt(0) +
+                                      o.status.slice(1).toLowerCase()}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {business.recentOrders.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={4}
+                                className="py-6 text-center text-[13px] text-gray-500"
+                              >
+                                No hay pedidos registrados.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
+
+            {/* Ubicación en mapa si tiene coordenadas */}
+            {business.latitude && business.longitude && (
+              <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-3">
+                <h3 className="text-[15px] font-semibold text-gray-900">
+                  Ubicación del negocio
+                </h3>
+                <div className="h-64 rounded-xl overflow-hidden border border-gray-200/80">
+                  <div ref={mapContainer} className="w-full h-full" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            PESTAÑA 2: COBROS
+           ════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'cobros' && (
+          <BusinessBillingTab
+            business={business}
+            billingInfo={billingInfo}
+            memberships={memberships}
+            accountStatement={accountStatement}
+            onOpenRegisterPayment={() => handleOpenRegisterPayment(undefined)}
+            onEditMembership={(m) => setMembershipToEdit(m)}
+            onVoidMembership={handleOpenVoidModal}
+            onOpenEditModel={openEditModelModal}
+            onSelectProofUrl={(url) => setSelectedProofUrl(url)}
+          />
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            PESTAÑA 3: EQUIPOS Y ACCESOS
+           ════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'equipos' && (
+          <BusinessPosDevicesSection business={business} />
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            PESTAÑA 4: USUARIOS (N)
+           ════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'usuarios' && (
+          <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-[15px] font-semibold text-gray-900">
+                  Usuarios y cupo
+                </h3>
+                <p className="text-[13px] text-gray-500 mt-0.5">
+                  Cuentas con acceso al sistema, cupo incluido y plazas extra
+                </p>
+              </div>
+              <button
+                id="btn-add-biz-user"
+                type="button"
+                onClick={() => setIsAddUserModalOpen(true)}
+                disabled={
+                  Boolean(
+                    business.userUsage &&
+                      business.userUsage.used >= business.userUsage.limit
+                  )
+                }
+                className={`${btnSecondary} disabled:opacity-50 disabled:cursor-not-allowed`}
+                title={
+                  business.userUsage &&
+                  business.userUsage.used >= business.userUsage.limit
+                    ? 'Límite de usuarios alcanzado'
+                    : ''
+                }
+              >
+                <Plus size={14} weight="bold" />
+                <span>Agregar usuario</span>
+              </button>
             </div>
 
-            <div className="divide-y divide-gray-100">
-              {businessUsers.map((u) => (
-                <div key={u.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2.5 sm:gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center flex-wrap gap-2">
-                      <p className="font-medium text-gray-900 truncate">{u.name}</p>
-                      <span
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${
-                          u.role === 'ENCARGADO'
-                            ? 'bg-green-50 text-green-700 border border-green-200/60'
-                            : u.role === 'CAJERO'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
-                            : u.role === 'VENDEDOR'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        {u.role === 'ENCARGADO'
-                          ? 'Encargado'
-                          : u.role === 'CAJERO'
-                          ? 'Cajero'
-                          : u.role === 'VENDEDOR'
-                          ? 'Vendedor'
-                          : u.role}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-x-3 gap-y-1 text-gray-400 mt-0.5 flex-wrap">
-                      <span className="flex items-center gap-1 font-mono text-[11px] break-all sm:break-normal">
-                        <EnvelopeSimple size={12} className="shrink-0" />
-                        {u.email}
-                      </span>
-                      {u.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone size={12} className="shrink-0" />
-                          {u.phone}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
-                    <Badge variant={u.isActive ? 'success' : 'neutral'} size="sm">
-                      {u.isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
-
-                    <div className="flex items-center gap-1 sm:ml-1 sm:border-l sm:border-gray-100 sm:pl-2">
-                      <button
-                        onClick={() => setPasswordTargetUser(u)}
-                        title="Cambiar contraseña"
-                        className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <Key size={15} />
-                      </button>
-
-                      <button
-                        onClick={() => setDeactivateTargetUser(u)}
-                        title={u.isActive ? 'Desactivar usuario' : 'Activar usuario'}
-                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                          u.isActive
-                            ? 'text-gray-400 hover:text-amber-700 hover:bg-amber-50'
-                            : 'text-gray-400 hover:text-green-700 hover:bg-green-50'
-                        }`}
-                      >
-                        {u.isActive ? <Lock size={15} /> : <LockOpen size={15} />}
-                      </button>
-                    </div>
-                  </div>
+            {business.userUsage && (
+              <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="min-w-0">
+                  <p
+                    className={`text-sm font-semibold ${
+                      business.userUsage.used >= business.userUsage.limit
+                        ? 'text-red-600'
+                        : 'text-gray-900'
+                    }`}
+                  >
+                    {business.userUsage.used} de {business.userUsage.limit}{' '}
+                    usuarios activos
+                  </p>
+                  <p className="text-[13px] text-gray-500 mt-0.5">
+                    El cupo base es de {business.userUsage.base} usuarios. Cada
+                    usuario extra se cobra aparte.
+                  </p>
+                  {business.userUsage.used >= business.userUsage.limit && (
+                    <p className="text-xs text-red-600 mt-1 font-medium">
+                      Este negocio alcanzó su cupo. Ampliá los cupos extra para
+                      agregar otro usuario.
+                    </p>
+                  )}
                 </div>
-              ))}
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="text-xs text-gray-600 font-medium">
+                    Extras:
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-16 h-9 px-2.5 border border-gray-300 rounded-lg text-xs focus:border-gray-900 focus:outline-none bg-white"
+                    value={extraSlotsInput}
+                    onChange={(e) => setExtraSlotsInput(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const extra = parseInt(extraSlotsInput, 10);
+                      if (!isNaN(extra) && extra >= 0) {
+                        if (
+                          window.confirm(
+                            `¿Confirmás actualizar los cupos extra a ${extra}?`
+                          )
+                        ) {
+                          updateQuotaMutation.mutate({
+                            id: business.id,
+                            extraUserSlots: extra,
+                          });
+                        }
+                      }
+                    }}
+                    disabled={
+                      updateQuotaMutation.isPending ||
+                      parseInt(extraSlotsInput, 10) === business.userUsage.extra
+                    }
+                    className={`${btnSecondary} disabled:opacity-50`}
+                  >
+                    Aplicar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="divide-y divide-gray-100 border-t border-gray-100">
+              {businessUsers.map((u) => {
+                const roleLabel =
+                  u.role === 'ENCARGADO'
+                    ? 'Encargado'
+                    : u.role === 'CAJERO'
+                    ? 'Cajero'
+                    : u.role === 'VENDEDOR'
+                    ? 'Vendedor'
+                    : u.role;
+
+                return (
+                  <div
+                    key={u.id}
+                    className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center flex-wrap gap-2">
+                        <p className="font-semibold text-sm text-gray-900 truncate">
+                          {u.name}
+                        </p>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200/80">
+                          {roleLabel}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-x-4 gap-y-1 text-gray-500 mt-1 flex-wrap text-xs">
+                        <span className="flex items-center gap-1 font-mono break-all sm:break-normal">
+                          <EnvelopeSimple size={13} className="shrink-0" />
+                          {u.email}
+                        </span>
+                        {u.phone && (
+                          <span className="flex items-center gap-1 font-mono">
+                            <Phone size={13} className="shrink-0" />
+                            {u.phone}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                      <Badge
+                        variant={u.isActive ? 'success' : 'neutral'}
+                        size="sm"
+                      >
+                        {u.isActive ? 'Activo' : 'Inactivo'}
+                      </Badge>
+
+                      <div className="flex items-center gap-1.5 sm:ml-2 sm:border-l sm:border-gray-100 sm:pl-3">
+                        <button
+                          type="button"
+                          onClick={() => setPasswordTargetUser(u)}
+                          title="Cambiar contraseña"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                        >
+                          <Key size={14} />
+                          <span>Contraseña</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDeactivateTargetUser(u)}
+                          title={
+                            u.isActive ? 'Bloquear usuario' : 'Activar usuario'
+                          }
+                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
+                            u.isActive
+                              ? 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                              : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                          }`}
+                        >
+                          {u.isActive ? (
+                            <>
+                              <Lock size={14} />
+                              <span>Bloquear</span>
+                            </>
+                          ) : (
+                            <>
+                              <LockOpen size={14} />
+                              <span>Activar</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
 
               {!loadingBusinessUsers && businessUsers.length === 0 && (
                 <div className="py-8 text-center space-y-2">
-                  <p className="text-xs text-gray-400">
+                  <p className="text-[13px] text-gray-500">
                     No hay usuarios registrados para este negocio.
                   </p>
                   <button
+                    type="button"
                     onClick={() => setIsAddUserModalOpen(true)}
-                    className="text-xs text-brand-600 hover:text-brand-700 font-medium cursor-pointer"
+                    className="text-xs text-gray-800 font-semibold underline underline-offset-2 cursor-pointer"
                   >
-                    + Agregar el primer usuario
+                    Agregar el primer usuario
                   </button>
                 </div>
               )}
             </div>
           </div>
+        )}
 
-          {isDeliveryActive && (
-            <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs">
-              <div className="flex items-center gap-2 mb-4">
-                <Motorcycle size={18} className="text-gray-500 shrink-0" />
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Repartidores Vinculados ({business.riders.length})
+        {/* ════════════════════════════════════════════════════════════════
+            PESTAÑA 5: CONFIGURACIÓN
+           ════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'configuracion' && (
+          <div className="space-y-6">
+            {/* 1. Tipo de cuenta */}
+            <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-4">
+              <div>
+                <h3 className="text-[15px] font-semibold text-gray-900">
+                  Tipo de cuenta
                 </h3>
+                <p className="text-[13px] text-gray-500 mt-0.5">
+                  Las demos y cuentas internas no cuentan en los ingresos, no se
+                  cobran y no se bloquean.
+                </p>
               </div>
 
-              <div className="divide-y divide-gray-100">
-                {business.riders.map((r) => (
-                  <div key={r.id} className="py-3 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center font-medium text-gray-700 shrink-0">
-                        {r.name.charAt(0)}
+              <div className="inline-flex flex-wrap items-center gap-2 pt-1">
+                {(
+                  [
+                    { id: 'CLIENTE', label: 'Cliente' },
+                    { id: 'DEMO', label: 'Demo' },
+                    { id: 'INTERNO', label: 'Interno' },
+                  ] as Array<{ id: BusinessAccountType; label: string }>
+                ).map((opt) => {
+                  const selected = accountType === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      disabled={updateMutation.isPending}
+                      onClick={() => handleChangeAccountType(opt.id)}
+                      className={`h-9 px-4 rounded-lg text-xs font-semibold border transition-colors cursor-pointer disabled:opacity-50 ${
+                        selected
+                          ? opt.id === 'CLIENTE'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : 'bg-gray-100 text-gray-900 border-gray-400'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. Funciones como filas con interruptor */}
+            <div className="bg-white rounded-xl border border-gray-200/80 p-5 space-y-2">
+              <div className="pb-2">
+                <h3 className="text-[15px] font-semibold text-gray-900">
+                  Funciones
+                </h3>
+                <p className="text-[13px] text-gray-500 mt-0.5">
+                  Activá o desactivá módulos operativos y definí el perfil del
+                  salón
+                </p>
+              </div>
+
+              <div className="divide-y divide-gray-100 border-t border-gray-100">
+                {/* Lotes y vencimientos */}
+                <div className="py-4 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      Lotes y vencimientos
+                    </p>
+                    <p className="text-[13px] text-gray-500 mt-0.5">
+                      Agrega número de lote y fecha de vencimiento a compras,
+                      ventas, alertas y plantillas Excel.
+                    </p>
+                  </div>
+                  <SwitchButton
+                    checked={Boolean(business.tracksBatches)}
+                    disabled={updateMutation.isPending}
+                    label="Lotes y vencimientos"
+                    onChange={() => {
+                      if (business.tracksBatches) {
+                        handleDeactivateBatchesClick();
+                      } else {
+                        setIsActivateBatchesModalOpen(true);
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Precio de etiqueta */}
+                <div className="py-4 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      Precio de etiqueta
+                    </p>
+                    <p className="text-[13px] text-gray-500 mt-0.5">
+                      Muestra precio de etiqueta y descuento en productos y
+                      comprobantes.
+                    </p>
+                  </div>
+                  <SwitchButton
+                    checked={Boolean(business.useListPrice)}
+                    disabled={updateMutation.isPending}
+                    label="Precio de etiqueta"
+                    onChange={handleToggleUseListPrice}
+                  />
+                </div>
+
+                {/* Venta en dos pasos */}
+                <div className="py-4 space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">
+                        Venta en dos pasos
+                      </p>
+                      <p className="text-[13px] text-gray-500 mt-0.5">
+                        El vendedor arma la orden y la envía a caja; el cajero
+                        la cobra.
+                      </p>
+                    </div>
+                    <SwitchButton
+                      checked={Boolean(business.twoStepSaleEnabled)}
+                      disabled={updateMutation.isPending}
+                      label="Venta en dos pasos"
+                      onChange={handleToggleTwoStepSale}
+                    />
+                  </div>
+
+                  {business.twoStepSaleEnabled && (
+                    <div className="pl-0 sm:pl-4 border-l-2 border-gray-200 space-y-2.5 pt-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-900">
+                            Vencimiento del ticket
+                          </p>
+                          <p className="text-[13px] text-gray-500">
+                            Los tickets no cobrados vencen después de este
+                            tiempo.
+                          </p>
+                        </div>
+
+                        {isEditingTtl ? (
+                          <div className="flex items-center flex-wrap gap-2">
+                            <input
+                              type="number"
+                              min={1}
+                              max={72}
+                              value={ttlInput}
+                              onChange={(e) =>
+                                setTtlInput(
+                                  Math.max(
+                                    1,
+                                    parseInt(e.target.value, 10) || 1
+                                  )
+                                )
+                              }
+                              className="w-20 h-8 px-2.5 text-xs rounded-lg border border-gray-300 bg-white focus:outline-none focus:border-gray-900"
+                            />
+                            <span className="text-xs text-gray-600">horas</span>
+                            <button
+                              type="button"
+                              onClick={handleSaveTtl}
+                              disabled={updateMutation.isPending}
+                              className="h-8 px-3 text-xs font-semibold border border-gray-300 bg-white text-gray-800 rounded-lg hover:bg-gray-50 cursor-pointer"
+                            >
+                              Guardar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTtlInput(
+                                  business.twoStepTicketTtlHours || 4
+                                );
+                                setIsEditingTtl(false);
+                              }}
+                              className="h-8 px-2 text-xs text-gray-500 hover:text-gray-700 cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-900 font-mono">
+                              {business.twoStepTicketTtlHours || 4} horas
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingTtl(true)}
+                              className="text-xs font-semibold text-gray-700 hover:text-gray-900 underline underline-offset-2 cursor-pointer"
+                            >
+                              Cambiar
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{r.name}</p>
-                        <p className="text-[11px] text-gray-400 truncate">
-                          {r.vehicleType || 'Repartidor'}{' '}
-                          {r.vehiclePlate ? `· ${r.vehiclePlate}` : ''}
+
+                      <div className="flex items-start gap-2 text-xs text-gray-600">
+                        <Info
+                          size={15}
+                          className="text-orange-600 shrink-0 mt-0.5"
+                          weight="fill"
+                        />
+                        <p className="text-[13px] text-gray-600">
+                          Las computadoras de vendedores cuentan en el límite
+                          del plan.
+                          {business.twoStepMinVersion
+                            ? ` Requiere el POS de escritorio versión ${business.twoStepMinVersion} o superior.`
+                            : ''}
                         </p>
                       </div>
                     </div>
-                    {r.phone && (
-                      <span className="text-xs text-gray-500 font-mono shrink-0">
-                        {r.phone}
-                      </span>
+                  )}
+                </div>
+
+                {/* Venta a domicilio */}
+                <div className="py-4 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      Venta a domicilio
+                    </p>
+                    <p className="text-[13px] text-gray-500 mt-0.5">
+                      Habilita pedidos a domicilio, tarifa de envío y asignación
+                      de repartidores.
+                    </p>
+                  </div>
+                  <SwitchButton
+                    checked={Boolean(business.deliveryChannelEnabled)}
+                    disabled={updateMutation.isPending}
+                    label="Venta a domicilio"
+                    onChange={handleToggleDeliveryChannel}
+                  />
+                </div>
+
+                {/* PedidosYa */}
+                <div className="py-4 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      PedidosYa
+                    </p>
+                    <p className="text-[13px] text-gray-500 mt-0.5">
+                      Habilita el canal de venta para órdenes recibidas desde
+                      PedidosYa.
+                    </p>
+                  </div>
+                  <SwitchButton
+                    checked={Boolean(business.pedidosYaChannelEnabled)}
+                    disabled={updateMutation.isPending}
+                    label="PedidosYa"
+                    onChange={handleTogglePedidosYaChannel}
+                  />
+                </div>
+
+                {/* Perfil del salón */}
+                <div className="py-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">
+                        Perfil del salón
+                      </p>
+                      <p className="text-[13px] text-gray-500 mt-0.5">
+                        Define si el punto de venta trabaja con mesas de
+                        restaurante o con órdenes de taller.
+                      </p>
+                    </div>
+
+                    {!isEditingSalonProfile ? (
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs font-semibold text-gray-800">
+                          {currentSalonProfile === 'TALLER'
+                            ? 'Taller / órdenes'
+                            : 'Restaurante / mesas'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingSalonProfile(true)}
+                          className={btnSecondary}
+                        >
+                          Cambiar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center flex-wrap gap-2 shrink-0">
+                        <select
+                          value={salonProfileDraft}
+                          onChange={(e) =>
+                            setSalonProfileDraft(
+                              e.target.value as 'RESTAURANTE' | 'TALLER'
+                            )
+                          }
+                          className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900"
+                        >
+                          <option value="RESTAURANTE">
+                            Restaurante / mesas
+                          </option>
+                          <option value="TALLER">Taller / órdenes</option>
+                        </select>
+                        <button
+                          type="button"
+                          disabled={updatePosSubMutation.isPending}
+                          onClick={handleSaveSalonProfile}
+                          className={btnSecondary}
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSalonProfileDraft(currentSalonProfile);
+                            setIsEditingSalonProfile(false);
+                          }}
+                          className="text-xs text-gray-500 hover:text-gray-800 px-2 cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     )}
                   </div>
-                ))}
-                {business.riders.length === 0 && (
-                  <p className="py-6 text-center text-xs text-gray-400">
-                    Aún ningún repartidor ha tomado pedidos de este negocio
-                  </p>
-                )}
+                </div>
               </div>
             </div>
-          )}
-        </div>
 
-        {isDeliveryActive && (
-          <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-              <h3 className="text-sm font-semibold text-gray-900">Últimos Pedidos</h3>
-              <span className="text-xs text-gray-400">
-                Mostrando los 10 más recientes
-              </span>
-            </div>
+            {/* 3. Campos del catálogo */}
+            <BusinessProductFieldsSection
+              businessId={business.id}
+              industryName={business.industry?.name}
+              posVertical={productsData?.products?.POS?.posVertical || undefined}
+            />
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs min-w-[620px]">
-                <thead>
-                  <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-medium">
-                    <th className="py-2.5 px-3">ID</th>
-                    <th className="py-2.5 px-3">Cliente</th>
-                    <th className="py-2.5 px-3">Repartidor</th>
-                    <th className="py-2.5 px-3">Monto</th>
-                    <th className="py-2.5 px-3">Fecha</th>
-                    <th className="py-2.5 px-3 text-right">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-gray-700">
-                  {business.recentOrders.map((o) => {
-                    const isDelivered = o.status === 'ENTREGADO';
-                    const isCancelled = o.status === 'CANCELADO';
-                    const isPending = o.status === 'PENDIENTE';
+            {/* 4. Empresa y sucursales */}
+            <BusinessOrganizationSection business={business} />
 
-                    return (
-                      <tr key={o.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="py-3 px-3 font-mono text-gray-500">
-                          #{o.id.slice(0, 8)}
-                        </td>
-                        <td className="py-3 px-3">
-                          <p className="font-medium text-gray-900">{o.customerName}</p>
-                          <p className="text-[11px] text-gray-400">{o.customerPhone}</p>
-                        </td>
-                        <td className="py-3 px-3">
-                          {o.deliveryUser?.name || <span className="text-gray-400">Sin asignar</span>}
-                        </td>
-                        <td className="py-3 px-3 font-medium text-gray-900 whitespace-nowrap">
-                          C$ {Number(o.deliveryFee).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-3 text-gray-500 whitespace-nowrap">
-                          {formatDateTime(o.createdAt)}
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <Badge
-                            variant={
-                              isDelivered
-                                ? 'success'
-                                : isCancelled
-                                ? 'danger'
-                                : isPending
-                                ? 'warning'
-                                : 'info'
-                            }
-                            size="sm"
-                          >
-                            {o.status}
-                          </Badge>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {business.recentOrders.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-gray-400">
-                        No hay pedidos registrados para este negocio
-                      </td>
-                    </tr>
+            {/* 5. Zona de peligro */}
+            <div className="bg-white rounded-xl border border-red-200 p-5 space-y-4">
+              <div>
+                <h3 className="text-[15px] font-semibold text-red-700">
+                  Zona de peligro
+                </h3>
+                <p className="text-[13px] text-gray-500 mt-0.5">
+                  Acciones delicadas sobre el acceso y los datos permanentes del
+                  negocio
+                </p>
+              </div>
+
+              <div className="divide-y divide-gray-100 border-t border-gray-100">
+                <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {business.isActive
+                        ? 'Desactivar negocio'
+                        : 'Activar negocio'}
+                    </p>
+                    <p className="text-[13px] text-gray-500 mt-0.5">
+                      {business.isActive
+                        ? 'Pausa temporalmente el acceso de los usuarios de este negocio sin borrar sus datos.'
+                        : 'Restaura el acceso operativo para los usuarios de este negocio.'}
+                    </p>
+                  </div>
+
+                  {business.isActive ? (
+                    <button
+                      type="button"
+                      disabled={toggleMutation.isPending}
+                      onClick={() => setIsDeactivateModalOpen(true)}
+                      className="h-9 px-4 rounded-lg border border-red-200 bg-white hover:bg-red-50 text-xs font-semibold text-red-600 transition-colors cursor-pointer shrink-0"
+                    >
+                      Desactivar negocio
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={toggleMutation.isPending}
+                      onClick={() => toggleMutation.mutate(business.id)}
+                      className="h-9 px-4 rounded-lg border border-emerald-200 bg-white hover:bg-emerald-50 text-xs font-semibold text-emerald-700 transition-colors cursor-pointer shrink-0"
+                    >
+                      Activar negocio
+                    </button>
                   )}
-                </tbody>
-              </table>
+                </div>
+
+                <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      Eliminar definitivamente
+                    </p>
+                    <p className="text-[13px] text-gray-500 mt-0.5">
+                      Borra de forma permanente usuarios, productos, ventas y
+                      configuraciones asociadas.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-colors cursor-pointer shrink-0"
+                  >
+                    <Trash size={14} />
+                    <span>Eliminar definitivamente</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
-
-        {business.latitude && business.longitude && (
-          <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-xs space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900">Ubicación del Negocio</h3>
-            <div className="h-64 rounded-xl overflow-hidden border border-gray-100">
-              <div ref={mapContainer} className="w-full h-full" />
-            </div>
-          </div>
-        )}
-
-        {/* Zona de peligro */}
-        <div className="bg-red-50/40 rounded-xl border border-red-200/80 p-4 sm:p-6 shadow-xs space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-red-900 font-semibold text-sm">
-              <Warning size={18} weight="fill" className="text-red-600" />
-              <span>Zona de peligro</span>
-            </div>
-            <p className="text-xs text-red-700/80">
-              Eliminar este negocio borrará de forma permanente todos sus usuarios, ventas, productos y configuraciones asociadas.
-            </p>
-          </div>
-          <button
-            onClick={() => setIsDeleteModalOpen(true)}
-            className="w-full sm:w-auto h-9 px-4 rounded-xl text-xs font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-          >
-            <Trash size={15} />
-            <span>Eliminar negocio definitivamente</span>
-          </button>
-        </div>
       </div>
 
+      {/* ════════════════════════════════════════════════════════════════
+          MODALES
+         ════════════════════════════════════════════════════════════════ */}
       <RegisterMembershipModal
         isOpen={isRegisterModalOpen}
         onClose={() => {
@@ -1946,7 +2296,7 @@ export const BusinessDetailPage = () => {
       />
 
       <EditMembershipModal
-        isOpen={!!membershipToEdit}
+        isOpen={Boolean(membershipToEdit)}
         onClose={() => setMembershipToEdit(null)}
         membership={membershipToEdit}
         businessId={business.id}
@@ -1963,18 +2313,18 @@ export const BusinessDetailPage = () => {
       />
 
       <ImageViewerModal
-        isOpen={!!selectedProofUrl}
+        isOpen={Boolean(selectedProofUrl)}
         onClose={() => setSelectedProofUrl(null)}
         imageUrl={selectedProofUrl}
-        title={`Comprobante de Pago — ${business.name}`}
+        title={`Comprobante de pago — ${business.name}`}
       />
 
-      {/* Modal para anular pago de membresía (Ticket 252b) */}
+      {/* Modal para anular pago de membresía */}
       <Modal
-        isOpen={!!membershipToVoid}
+        isOpen={Boolean(membershipToVoid)}
         onClose={() => setMembershipToVoid(null)}
         title="Anular pago de membresía"
-        subtitle={business?.name ? `Negocio: ${business.name}` : undefined}
+        subtitle={business.name ? `Negocio: ${business.name}` : undefined}
         maxWidth="max-w-md"
       >
         {membershipToVoid && (
@@ -1983,13 +2333,19 @@ export const BusinessDetailPage = () => {
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">Período:</span>
                 <span className="font-medium text-gray-900">
-                  {getMembershipPeriodDates(membershipToVoid, billingInfo.anchorDay).periodStr}
+                  {
+                    getMembershipPeriodDates(
+                      membershipToVoid,
+                      billingInfo.anchorDay
+                    ).periodStr
+                  }
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">Monto:</span>
                 <span className="font-semibold text-gray-900">
-                  ${Number(membershipToVoid.amount).toFixed(2)} {membershipToVoid.currency}
+                  ${Number(membershipToVoid.amount).toFixed(2)}{' '}
+                  {membershipToVoid.currency}
                 </span>
               </div>
               {membershipToVoid.paidAt && (
@@ -2003,9 +2359,14 @@ export const BusinessDetailPage = () => {
             </div>
 
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs flex items-start gap-2.5">
-              <Warning size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+              <Warning
+                size={18}
+                weight="fill"
+                className="text-amber-600 shrink-0 mt-0.5"
+              />
               <p className="leading-relaxed">
-                Esta membresía dejará de contar para la vigencia. No se borra: queda en el historial como anulada.
+                Esta membresía dejará de contar para la vigencia. No se borra:
+                queda en el historial como anulada.
               </p>
             </div>
 
@@ -2017,10 +2378,10 @@ export const BusinessDetailPage = () => {
                 rows={3}
                 value={voidReason}
                 onChange={(e) => setVoidReason(e.target.value)}
-                placeholder="Ej: Pago duplicado por reintento al subir comprobante..."
+                placeholder="Ej.: Pago duplicado al registrar transferencia…"
                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-gray-900 transition-colors resize-none"
               />
-              <span className="text-[12px] text-gray-400 mt-1 block">
+              <span className="text-xs text-gray-400 mt-1 block">
                 Mínimo 5 caracteres ({voidReason.trim().length}/5)
               </span>
             </div>
@@ -2030,55 +2391,74 @@ export const BusinessDetailPage = () => {
                 type="button"
                 onClick={() => setMembershipToVoid(null)}
                 disabled={voidMembershipMutation.isPending}
-                className="h-11 min-h-[44px] px-4 rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                className="h-10 px-4 rounded-xl border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleConfirmVoid}
-                disabled={voidReason.trim().length < 5 || voidMembershipMutation.isPending}
-                className="h-11 min-h-[44px] flex items-center justify-center gap-1.5 px-4 rounded-xl bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors cursor-pointer"
+                disabled={
+                  voidReason.trim().length < 5 ||
+                  voidMembershipMutation.isPending
+                }
+                className="h-10 flex items-center justify-center gap-1.5 px-4 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors cursor-pointer"
               >
-                {voidMembershipMutation.isPending ? 'Anulando...' : 'Confirmar anulación'}
+                <Prohibit size={14} weight="bold" />
+                <span>
+                  {voidMembershipMutation.isPending
+                    ? 'Anulando…'
+                    : 'Confirmar anulación'}
+                </span>
               </button>
             </div>
           </div>
         )}
       </Modal>
 
+      {/* Modal Configurar modelo de negocio */}
       <Modal
         isOpen={isEditModelModalOpen}
         onClose={() => setIsEditModelModalOpen(false)}
-        title="Configurar Modelo de Negocio"
-        subtitle={`Define si ${business.name} opera como comercio común o empresa de riders`}
+        title="Configurar modelo de negocio"
+        subtitle={`Definí si ${business.name} opera como comercio común o empresa de riders`}
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleSaveModel} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
-              Modelo de Negocio *
+            <label className="block text-xs font-semibold text-gray-700 mb-2">
+              Modelo de negocio *
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div
                 onClick={() => setModelBusinessType('NEGOCIO')}
                 className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left ${
                   modelBusinessType === 'NEGOCIO'
-                    ? 'border-gray-900 bg-gray-50/70 shadow-xs'
+                    ? 'border-gray-900 bg-gray-50/70'
                     : 'border-gray-200 hover:border-gray-300 bg-white'
                 }`}
               >
                 <div className="flex items-center gap-2.5 mb-1.5">
-                  <div className={`p-2 rounded-lg ${modelBusinessType === 'NEGOCIO' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                  <div
+                    className={`p-2 rounded-lg ${
+                      modelBusinessType === 'NEGOCIO'
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
                     <Storefront size={18} />
                   </div>
                   <div>
-                    <p className="font-semibold text-xs text-gray-900">Negocio Común</p>
-                    <p className="text-[10px] text-gray-500">Membresía fija mensual</p>
+                    <p className="font-semibold text-xs text-gray-900">
+                      Negocio común
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Membresía o pago único
+                    </p>
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-500 leading-tight">
-                  Restaurantes, farmacias o tiendas tradicionales que pagan suscripción mensual.
+                <p className="text-xs text-gray-500 leading-tight">
+                  Restaurantes, farmacias o comercios tradicionales.
                 </p>
               </div>
 
@@ -2086,37 +2466,47 @@ export const BusinessDetailPage = () => {
                 onClick={() => setModelBusinessType('EMPRESA_RIDERS')}
                 className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left ${
                   modelBusinessType === 'EMPRESA_RIDERS'
-                    ? 'border-gray-900 bg-gray-50/70 shadow-xs'
+                    ? 'border-gray-900 bg-gray-50/70'
                     : 'border-gray-200 hover:border-gray-300 bg-white'
                 }`}
               >
                 <div className="flex items-center gap-2.5 mb-1.5">
-                  <div className={`p-2 rounded-lg ${modelBusinessType === 'EMPRESA_RIDERS' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                  <div
+                    className={`p-2 rounded-lg ${
+                      modelBusinessType === 'EMPRESA_RIDERS'
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
                     <Motorcycle size={18} />
                   </div>
                   <div>
-                    <p className="font-semibold text-xs text-gray-900">Empresa de Riders</p>
-                    <p className="text-[10px] text-gray-500">Liquidación por Comisión</p>
+                    <p className="font-semibold text-xs text-gray-900">
+                      Empresa de riders
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Liquidación por comisión
+                    </p>
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-500 leading-tight">
-                  Agencia de delivery que opera pedidos de clientes y liquida comisiones por carrera.
+                <p className="text-xs text-gray-500 leading-tight">
+                  Agencia de delivery que liquida comisiones por envío.
                 </p>
               </div>
             </div>
           </div>
 
           {modelBusinessType === 'EMPRESA_RIDERS' && (
-            <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 space-y-3">
-              <p className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+            <div className="border border-gray-200 rounded-xl p-3.5 space-y-3">
+              <p className="text-xs font-semibold text-gray-900 flex items-center gap-1.5">
                 <Coins size={15} className="text-amber-700" />
-                <span>Configuración de Comisiones y Despacho</span>
+                <span>Configuración de comisiones y despacho</span>
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
-                    Comisión Base (%)
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Comisión base (%)
                   </label>
                   <input
                     type="number"
@@ -2128,12 +2518,11 @@ export const BusinessDetailPage = () => {
                     placeholder="15"
                     className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
                   />
-                  <p className="text-[10px] text-gray-400 mt-0.5">Por defecto: 15%</p>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
-                    Comisión Distancia Larga (%)
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Comisión distancia larga (%)
                   </label>
                   <input
                     type="number"
@@ -2145,27 +2534,28 @@ export const BusinessDetailPage = () => {
                     placeholder="12"
                     className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
                   />
-                  <p className="text-[10px] text-gray-400 mt-0.5">Para {modelAltCommissionDistanceKm || '40'} km o más</p>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
-                    Umbral Distancia (km)
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Umbral distancia (km)
                   </label>
                   <input
                     type="number"
                     step="1"
                     min="1"
                     value={modelAltCommissionDistanceKm}
-                    onChange={(e) => setModelAltCommissionDistanceKm(e.target.value)}
+                    onChange={(e) =>
+                      setModelAltCommissionDistanceKm(e.target.value)
+                    }
                     placeholder="40"
                     className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-900 bg-white focus:outline-none focus:border-gray-900"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-gray-700 mb-1">
-                    Timeout Despacho (min)
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Tiempo de despacho (min)
                   </label>
                   <input
                     type="number"
@@ -2192,9 +2582,9 @@ export const BusinessDetailPage = () => {
             <button
               type="submit"
               disabled={updateMutation.isPending}
-              className="px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors cursor-pointer"
             >
-              {updateMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+              {updateMutation.isPending ? 'Guardando…' : 'Guardar cambios'}
             </button>
           </div>
         </form>
@@ -2249,26 +2639,24 @@ export const BusinessDetailPage = () => {
         onSuccess={() => navigate('/businesses')}
       />
 
-      {/* Modal Confirmar Activación de Lotes */}
+      {/* Modal confirmar activación de lotes */}
       {isActivateBatchesModalOpen && (
         <Modal
           isOpen={true}
           onClose={() => setIsActivateBatchesModalOpen(false)}
-          title="Activar Control de Lotes y Vencimientos"
+          title="Activar control de lotes y vencimientos"
           maxWidth="max-w-md"
         >
           <div className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-purple-50/60 border border-purple-200/80 text-xs text-purple-900 leading-relaxed">
-              Agrega Lote y Fecha de Vencimiento a compras, ventas, alertas y a la plantilla Excel para este negocio.
-            </div>
-            <p className="text-xs text-gray-600">
-              Los productos nuevos y las importaciones podrán registrar números de lote y fechas de vencimiento con rotación FEFO.
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Agrega número de lote y fecha de vencimiento a compras, ventas,
+              alertas y a la plantilla Excel de este negocio, con rotación FEFO.
             </p>
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
               <button
                 type="button"
                 onClick={() => setIsActivateBatchesModalOpen(false)}
-                className="px-3.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                className="px-3.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
@@ -2276,16 +2664,16 @@ export const BusinessDetailPage = () => {
                 type="button"
                 onClick={handleConfirmActivateBatches}
                 disabled={updateMutation.isPending}
-                className="px-4 py-2 rounded-lg bg-purple-700 text-white text-xs font-bold hover:bg-purple-800 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50"
               >
-                {updateMutation.isPending ? 'Activando...' : 'Confirmar y Activar'}
+                {updateMutation.isPending ? 'Activando…' : 'Confirmar y activar'}
               </button>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* Modal Confirmación de Desactivación con lotes con saldo */}
+      {/* Modal confirmación de desactivación con lotes activos */}
       {isDeactivateBatchesModalOpen && (
         <Modal
           isOpen={true}
@@ -2293,23 +2681,27 @@ export const BusinessDetailPage = () => {
             setIsDeactivateBatchesModalOpen(false);
             setDeactivateBatchesError(null);
           }}
-          title="Confirmar Desactivación de Lotes"
+          title="Confirmar desactivación de lotes"
           maxWidth="max-w-md"
         >
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
               <Warning size={20} className="text-amber-700 shrink-0 mt-0.5" />
               <div className="text-xs space-y-1">
-                <p className="font-bold">
-                  {deactivateBatchesError || 'El negocio tiene lotes con existencias activas.'}
+                <p className="font-semibold">
+                  {deactivateBatchesError ||
+                    'El negocio tiene lotes con existencias activas.'}
                 </p>
                 <p className="text-amber-800">
-                  Al desactivar el control de lotes, los productos dejarán de descontar existencias por lote y los vencimientos no se validarán en ventas ni compras.
+                  Al desactivar el control de lotes, los productos dejarán de
+                  descontar existencias por lote y los vencimientos no se
+                  validarán en ventas ni compras.
                 </p>
               </div>
             </div>
             <p className="text-xs text-gray-600">
-              ¿Estás seguro de que deseas desactivar el control de lotes y vencimientos para <strong>{business.name}</strong>?
+              ¿Confirmás desactivar el control de lotes y vencimientos para{' '}
+              <strong>{business.name}</strong>?
             </p>
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
               <button
@@ -2318,7 +2710,7 @@ export const BusinessDetailPage = () => {
                   setIsDeactivateBatchesModalOpen(false);
                   setDeactivateBatchesError(null);
                 }}
-                className="px-3.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                className="px-3.5 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
@@ -2326,9 +2718,11 @@ export const BusinessDetailPage = () => {
                 type="button"
                 onClick={handleConfirmDeactivateBatchesWithConfirm}
                 disabled={updateMutation.isPending}
-                className="px-4 py-2 rounded-lg bg-rose-700 text-white text-xs font-bold hover:bg-rose-800 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-50"
               >
-                {updateMutation.isPending ? 'Desactivando...' : 'Confirmar y Desactivar'}
+                {updateMutation.isPending
+                  ? 'Desactivando…'
+                  : 'Confirmar y desactivar'}
               </button>
             </div>
           </div>

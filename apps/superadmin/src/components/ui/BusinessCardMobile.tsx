@@ -10,6 +10,7 @@ import {
   Desktop,
   Users,
   Clock,
+  WhatsappLogo,
 } from '@phosphor-icons/react';
 import { formatDueText, getMembershipPillInfo, formatDateClean } from '../../utils/membershipDates';
 import { formatRelativeTime, formatDateShort, formatCurrency } from '../../utils/format';
@@ -21,6 +22,13 @@ interface BusinessCardMobileProps {
   onRegisterPayment?: (business: BusinessItem) => void;
 }
 
+function cleanWhatsappDigits(raw?: string | null): string | null {
+  if (!raw) return null;
+  const digits = String(raw).replace(/\D/g, '');
+  if (digits.length < 8) return null;
+  return digits.length === 8 ? `505${digits}` : digits;
+}
+
 export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
   business,
   onToggle,
@@ -30,6 +38,9 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  const acct = business.accountType || 'CLIENTE';
+  const isDemoOrInterno = acct === 'DEMO' || acct === 'INTERNO';
+
   const pill = getMembershipPillInfo(
     business.membership_status,
     business.is_trial,
@@ -37,34 +48,47 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
   );
   const dueText = formatDueText(business.due_date, business.days_until_due);
 
-  // Última señal de actividad
   const lastActivityDate = business.last_sale_at || business.last_seen_at;
   const lastActivityText = lastActivityDate
     ? formatRelativeTime(lastActivityDate)
     : 'Sin actividad';
 
-  // Productos contratados (solo activos)
-  const rawProducts = business.products && business.products.length > 0
-    ? business.products
-    : (business.productSubscriptions || []).map((s) => ({
-        id: s.id || s.productType,
-        type: s.productType,
-        status: s.status,
-        name: s.productType,
-        fee: 0,
-      }));
+  const rawProducts =
+    business.products && business.products.length > 0
+      ? business.products
+      : (business.productSubscriptions || []).map((s) => ({
+          id: s.id || s.productType,
+          type: s.productType,
+          status: s.status,
+          name: s.productType,
+          fee: 0,
+        }));
 
   const productsList = rawProducts.filter((p) => p.status === 'ACTIVE');
+
+  const cName = business.contactName || business.contact?.name || null;
+  const cPhone =
+    business.contactPhone ||
+    business.contact?.phone ||
+    business.contactWhatsapp ||
+    business.contact?.whatsapp ||
+    null;
+  const waDigits = cleanWhatsappDigits(
+    business.contactWhatsapp || business.contact?.whatsapp || cPhone,
+  );
+  const hasContact = Boolean(cName || cPhone);
 
   return (
     <div
       onClick={() => navigate(`/businesses/${business.id}`)}
-      className="bg-white border border-gray-200/80 rounded-2xl p-4 hover:border-gray-300 transition-all shadow-2xs cursor-pointer active:bg-gray-50/80 space-y-3 relative"
+      className={`border border-gray-200/80 rounded-2xl p-4 hover:border-gray-300 transition-all cursor-pointer space-y-3 relative ${
+        isDemoOrInterno ? 'bg-gray-50' : 'bg-white'
+      }`}
     >
-      {/* Cabecera: Nombre, tipo y menú 3 puntos */}
+      {/* Cabecera: Nombre, rubro, contacto y menú 3 puntos */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-gray-100 border border-gray-200/60 flex items-center justify-center font-bold text-gray-700 text-xs shrink-0 overflow-hidden">
+        <div className="flex items-start gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-gray-100 border border-gray-200/80 flex items-center justify-center font-bold text-gray-700 text-xs shrink-0 overflow-hidden">
             {business.logoUrl ? (
               <img
                 src={business.logoUrl}
@@ -75,21 +99,54 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
               business.name.charAt(0).toUpperCase()
             )}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 space-y-0.5">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h4 className="font-bold text-xs sm:text-sm text-gray-900 truncate">{business.name}</h4>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200/60">
-                {business.businessType === 'EMPRESA_RIDERS'
-                  ? 'Riders'
-                  : business.posVertical
-                  ? business.posVertical.toLowerCase()
-                  : business.type || 'Comercio'}
-              </span>
+              <h4 className="font-semibold text-sm text-gray-900 truncate">{business.name}</h4>
+              {isDemoOrInterno && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-200/80 text-gray-700 border border-gray-300/70">
+                  {acct === 'INTERNO' ? 'Interno' : 'Demo'}
+                </span>
+              )}
             </div>
+            <p className="text-xs text-gray-500 capitalize">
+              {business.industry?.name ||
+                (business.businessType === 'EMPRESA_RIDERS'
+                  ? 'Riders'
+                  : business.type || 'Comercio')}
+            </p>
+            {hasContact ? (
+              <div
+                className="flex items-center gap-1.5 flex-wrap text-xs text-gray-600 pt-0.5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="truncate">{[cName, cPhone].filter(Boolean).join(' · ')}</span>
+                {waDigits && (
+                  <a
+                    href={`https://wa.me/${waDigits}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-emerald-700 font-medium hover:underline"
+                  >
+                    <WhatsappLogo size={13} weight="fill" />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-400 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                <span>Sin contacto · </span>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/businesses/${business.id}?tab=resumen&editContact=1`)}
+                  className="text-gray-700 font-medium underline cursor-pointer"
+                >
+                  Agregar
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Menú de tres puntos */}
         <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
@@ -103,14 +160,14 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 mt-1 w-44 rounded-xl bg-white shadow-lg border border-gray-100 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute right-0 mt-1 w-48 rounded-xl bg-white shadow-lg border border-gray-200/80 py-1.5 z-50">
                 <button
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
                     onToggle(business);
                   }}
-                  className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer"
                 >
                   {business.isActive ? 'Desactivar negocio' : 'Activar negocio'}
                 </button>
@@ -123,7 +180,7 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
                         setMenuOpen(false);
                         onDelete(business);
                       }}
-                      className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
                     >
                       <Trash size={14} />
                       <span>Eliminar definitivamente</span>
@@ -136,137 +193,84 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
         </div>
       </div>
 
-      {/* Membresía y Monto */}
-      <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-100 space-y-1">
-        <div className="flex items-center justify-between flex-wrap gap-1.5">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Badge variant={pill.variant} dot size="sm">
-              {pill.label}
-            </Badge>
-            {business.commercial_overdue && (
-              <Badge variant="danger" dot size="sm">
-                Cuota vencida
-              </Badge>
-            )}
+      {/* Membresía y monto */}
+      <div className="pt-2 border-t border-gray-200/70 space-y-1">
+        {isDemoOrInterno ? (
+          <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
+            <span>Sin vencimiento · No se cobra ni se bloquea</span>
+            <span className="font-semibold text-gray-600 shrink-0">Sin cobro</span>
           </div>
-          <span className="font-bold text-xs sm:text-sm text-gray-900">
-            {business.coverage_source === 'MAINTENANCE_FREE' ? (
-              <span className="font-semibold text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                Incluido
+        ) : (
+          <>
+            <div className="flex items-center justify-between flex-wrap gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Badge variant={pill.variant} dot size="sm">
+                  {pill.label}
+                </Badge>
+                {business.commercial_overdue && (
+                  <Badge variant="danger" dot size="sm">
+                    Cuota vencida
+                  </Badge>
+                )}
+              </div>
+              <span className="font-semibold text-xs sm:text-sm text-gray-900">
+                {business.coverage_source === 'MAINTENANCE_FREE' ? (
+                  <span className="font-semibold text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Incluido
+                  </span>
+                ) : business.monthly_amount_nio != null && business.monthly_amount_nio > 0 ? (
+                  <>
+                    {formatCurrency(business.monthly_amount_nio, 'NIO')}
+                    <span className="text-xs font-normal text-gray-500"> / mes</span>
+                  </>
+                ) : (
+                  <>
+                    ${Number(business.monthly_amount ?? 0).toFixed(2)}
+                    <span className="text-xs font-normal text-gray-500"> / mes</span>
+                  </>
+                )}
               </span>
-            ) : business.monthly_amount_nio != null && business.monthly_amount_nio > 0 ? (
-              <>
-                {formatCurrency(business.monthly_amount_nio, 'NIO')}
-                <span className="text-xs font-normal text-gray-500"> / mes</span>
-              </>
-            ) : (
-              <>
-                ${Number(business.monthly_amount ?? 0).toFixed(2)}
-                <span className="text-xs font-normal text-gray-500"> / mes</span>
-              </>
-            )}
-          </span>
-        </div>
-        <p className="text-xs text-gray-500 font-medium">
-          {business.coverage_source === 'MAINTENANCE_FREE' && business.maintenance_free_ends_at
-            ? `Mantenimiento incluido hasta ${formatDateShort(business.maintenance_free_ends_at)}`
-            : dueText}
-        </p>
+            </div>
+            <p className="text-xs text-gray-500">
+              {business.coverage_source === 'MAINTENANCE_FREE' && business.maintenance_free_ends_at
+                ? `Mantenimiento incluido hasta ${formatDateShort(business.maintenance_free_ends_at)}`
+                : dueText}
+            </p>
+          </>
+        )}
       </div>
 
       {/* Productos contratados */}
       <div className="flex items-center gap-1.5 flex-wrap">
         {productsList.length === 0 && !business.is_trial ? (
-          <span className="text-[11px] text-gray-400 italic">Sin productos</span>
+          <span className="text-xs text-gray-400">Sin productos</span>
         ) : (
           productsList.map((p) => {
-            const isPos = p.type === 'POS';
-            const isDel = p.type === 'DELIVERY';
-            const isCar = p.type === 'CARTERA_COBRO';
-            const isCit = p.type === 'CITAS';
-
             const displayName =
               p.type === 'CARTERA_COBRO'
                 ? 'Finanzas'
                 : p.type === 'DELIVERY'
                 ? 'Delivery'
                 : p.name || p.type;
-
             return (
               <span
                 key={p.id}
-                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
-                  isPos
-                    ? 'bg-purple-50 text-purple-700 border-purple-200/60'
-                    : isDel
-                    ? 'bg-amber-50 text-amber-700 border-amber-200/60'
-                    : isCar
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
-                    : isCit
-                    ? 'bg-sky-50 text-sky-700 border-sky-200/60'
-                    : 'bg-gray-50 text-gray-600 border-gray-200'
-                }`}
+                className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200/80"
               >
                 {displayName}
               </span>
             );
           })
         )}
-
         {business.is_trial && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-900 border border-purple-200">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
             Prueba
-          </span>
-        )}
-
-        {business.tracksBatches && (
-          <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 whitespace-nowrap shrink-0"
-            title="Control de lotes y vencimientos activo"
-          >
-            Lotes
-          </span>
-        )}
-
-        {business.useListPrice && (
-          <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60 whitespace-nowrap shrink-0"
-            title="Precio de etiqueta activo"
-          >
-            Etiqueta
-          </span>
-        )}
-
-        {business.twoStepSaleEnabled && (
-          <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60 whitespace-nowrap shrink-0"
-            title="Venta en dos pasos activa"
-          >
-            Dos pasos
-          </span>
-        )}
-
-        {business.deliveryChannelEnabled && (
-          <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 whitespace-nowrap shrink-0"
-            title="Venta a domicilio activa"
-          >
-            Domicilio
-          </span>
-        )}
-
-        {business.pedidosYaChannelEnabled && (
-          <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/60 whitespace-nowrap shrink-0"
-            title="Canal PedidosYa activo"
-          >
-            PedidosYa
           </span>
         )}
       </div>
 
-      {/* Uso & Última actividad */}
-      <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-[11px] text-gray-500">
+      {/* Uso & última actividad */}
+      <div className="flex items-center justify-between pt-2 border-t border-gray-200/70 text-xs text-gray-500">
         <div className="flex items-center gap-2.5">
           <span className="flex items-center gap-1 font-medium" title="Equipos activos / permitidos">
             <Desktop size={13} className="text-gray-400" />
@@ -293,21 +297,21 @@ export const BusinessCardMobile: React.FC<BusinessCardMobileProps> = ({
 
       {/* Botones de acción */}
       <div className="flex flex-wrap items-center justify-end gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
-        {onRegisterPayment && (
+        {!isDemoOrInterno && onRegisterPayment && (
           <button
             type="button"
             onClick={() => onRegisterPayment(business)}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 text-xs font-semibold transition-colors cursor-pointer"
           >
             <CreditCard size={13} />
-            <span>Registrar pago</span>
+            <span>Cobrar</span>
           </button>
         )}
 
         <button
           type="button"
           onClick={() => navigate(`/businesses/${business.id}`)}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium transition-colors"
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium transition-colors cursor-pointer"
         >
           <span>Ver</span>
           <ArrowRight size={13} />

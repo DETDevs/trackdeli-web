@@ -20,9 +20,9 @@ export const StatCard: React.FC<StatCardProps> = ({
   icon,
 }) => {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-xs transition-all hover:shadow-sm">
+    <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 transition-all">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-gray-500 uppercase tracking-wider min-w-0">
+        <span className="text-[13px] font-medium text-gray-500 min-w-0">
           {title}
         </span>
         {icon && (
@@ -32,14 +32,14 @@ export const StatCard: React.FC<StatCardProps> = ({
         )}
       </div>
 
-      <div className="mt-3 flex items-baseline gap-2 flex-wrap">
+      <div className="mt-2.5 flex items-baseline gap-2 flex-wrap">
         <span className="text-xl sm:text-2xl font-semibold text-gray-900 tracking-tight break-words">
           {value}
         </span>
         {trend && (
           <span
             className={`text-xs font-medium ${
-              trend.positive ? 'text-brand-600' : 'text-danger'
+              trend.positive ? 'text-emerald-700' : 'text-red-600'
             }`}
           >
             {trend.value}
@@ -48,7 +48,7 @@ export const StatCard: React.FC<StatCardProps> = ({
       </div>
 
       {subtitle && (
-        <p className="mt-1 text-xs text-gray-400 font-normal">
+        <p className="mt-1 text-[13px] text-gray-500 font-normal">
           {subtitle}
         </p>
       )}

@@ -286,6 +286,8 @@ export function useCreateMembership() {
         queryKey: ['superadmin-business-products', bizId],
       });
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-unified-payments'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-expiring-memberships'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
@@ -324,6 +326,8 @@ export function useVoidMembership(businessId: string) {
         queryKey: ['superadmin-business-products', businessId],
       });
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-unified-payments'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-expiring-memberships'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
@@ -367,6 +371,8 @@ export function useUpdateMembership(businessId: string) {
         queryKey: ['superadmin-business-products', businessId],
       });
       queryClient.invalidateQueries({ queryKey: ['superadmin-businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-businesses-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-unified-payments'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-expiring-memberships'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-metrics'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin', 'summary'] });
@@ -403,6 +409,7 @@ export function useUploadPaymentProof() {
       queryClient.invalidateQueries({
         queryKey: ['superadmin-business-memberships'],
       });
+      queryClient.invalidateQueries({ queryKey: ['superadmin-business-unified-payments'] });
       queryClient.invalidateQueries({ queryKey: ['superadmin-business'] });
     },
     onError: (err: any) => {

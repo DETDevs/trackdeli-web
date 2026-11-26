@@ -37,8 +37,45 @@ export interface DeliverySummary {
   delivery_rate_30d: number;
 }
 
+export interface NextCollectionSummary {
+  businessId: string;
+  businessName: string;
+  dueDate: string;
+  daysUntilDue: number | null;
+  amount: number;
+  currency: 'USD' | 'NIO';
+}
+
+export interface ClientsSummaryCounts {
+  clientes: number;
+  activos: number;
+  porVencer: number;
+  enGracia: number;
+  vencidos: number;
+  enPrueba: number;
+  inactivos: number;
+  demos: number;
+  internos: number;
+}
+
+export interface BusinessesSummaryResponse {
+  monthlyRevenueUsd: number;
+  maintenanceMonthlyNio: number;
+  payingClientsCount: number;
+  nextCollection: NextCollectionSummary | null;
+  counts: ClientsSummaryCounts;
+  mrr: number;
+  mrr_nio: number;
+}
+
 export interface SuperAdminSummaryResponse {
   mrr: number;
+  mrr_nio?: number;
+  monthlyRevenueUsd?: number;
+  maintenanceMonthlyNio?: number;
+  payingClientsCount?: number;
+  nextCollection?: NextCollectionSummary | null;
+  counts?: ClientsSummaryCounts;
   due_next_7_days: {
     count: number;
     amount: number;
@@ -71,6 +108,17 @@ export function useSuperAdminSummary() {
     queryKey: ['superadmin', 'summary'],
     queryFn: async () => {
       const { data } = await apiClient.get<SuperAdminSummaryResponse>('/superadmin/summary');
+      return data;
+    },
+    refetchInterval: 30000,
+  });
+}
+
+export function useBusinessesSummary() {
+  return useQuery<BusinessesSummaryResponse>({
+    queryKey: ['superadmin-businesses-summary'],
+    queryFn: async () => {
+      const { data } = await apiClient.get<BusinessesSummaryResponse>('/superadmin/businesses/summary');
       return data;
     },
     refetchInterval: 30000,
